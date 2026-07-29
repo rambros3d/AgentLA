@@ -1,0 +1,28 @@
+#!/bin/bash
+# AgentLA ESP32 Test Signal Generator (MicroPython)
+# Upload to ESP32 using ampy, mpremote, or Thonny
+
+echo "=== AgentLA ESP32 Test Generator (MicroPython) ==="
+echo ""
+echo "Pin mapping:"
+echo "  ESP32 GPIO19 → RP2350 GPIO6 (SDA/MOSI/TX/PWM)"
+echo "  ESP32 GPIO18 → RP2350 GPIO7 (SCL/SCLK)"
+echo "  ESP32 GPIO17 → RP2350 GPIO8 (MISO)"
+echo "  ESP32 GPIO16 → RP2350 GPIO9 (CS)"
+echo "  ESP32 GPIO2  → RP2350 RUN (reset)"
+echo ""
+echo "Upload with mpremote:"
+echo "  mpremote cp main.py :main.py"
+echo ""
+echo "Upload with ampy:"
+echo "  ampy --port /dev/ttyUSB0 put main.py"
+echo ""
+echo "Or use Thonny IDE to upload main.py"
+echo ""
+echo "Then open serial console at 115200 baud and send:"
+echo "  i = I2C test"
+echo "  s = SPI test"
+echo "  u = UART test"
+echo "  p = PWM test"
+echo "  a = All tests"
+echo "  r = Reset RP2350"

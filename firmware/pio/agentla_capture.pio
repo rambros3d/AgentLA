@@ -1,0 +1,173 @@
+;--------------------------------------------------------------------------------------------
+; AgentLA PIO Capture Programs
+; Adapted from gusmanb/logicanalyzer (GPL-3.0)
+;--------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------
+; BLAST_CAPTURE - Maximum speed 1:1 clock capture
+;--------------------------------------------------------------------------------------------
+.program BLAST_CAPTURE
+
+LOOP:
+    jmp pin LOOP                ;wait for trigger
+
+.wrap_target
+    in pins 32                  ;capture
+.wrap
+
+;--------------------------------------------------------------------------------------------
+; POSITIVE_CAPTURE - Standard capture, triggers on rising edge
+;--------------------------------------------------------------------------------------------
+.program POSITIVE_CAPTURE
+
+    pull
+    out y 32                    ;read loop count
+    pull
+    mov x, osr                  ;read capture length
+
+.wrap_target
+    in pins 32                  ;read sample
+    jmp pin POST_CAPTURE        ;exit wrap if pin is set
+.wrap
+
+POST_CAPTURE:
+    in pins 32                  ;read sample
+    jmp x-- POST_CAPTURE        ;loop if more samples needed
+    jmp y-- LOOP                ;jump to loop control
+    irq 0                       ;notify capture finished
+LOCK:
+    jmp LOCK                    ;block program
+
+LOOP:
+    mov x, osr                  ;read loop count
+INNER_LOOP:
+    jmp pin POST_CAPTURE        ;wait for trigger
+    jmp INNER_LOOP
+
+;--------------------------------------------------------------------------------------------
+; NEGATIVE_CAPTURE - Standard capture, triggers on falling edge
+;--------------------------------------------------------------------------------------------
+.program NEGATIVE_CAPTURE
+
+    pull
+    out y 32                    ;read loop count
+    pull
+    mov x, osr                  ;read capture length
+
+PRE_CAPTURE:
+    in pins 32                  ;read sample
+    jmp pin PRE_CAPTURE         ;loop if pin is set
+
+POST_CAPTURE:
+.wrap_target
+    in pins 32                  ;read sample
+    jmp x-- POST_CAPTURE        ;loop if more samples needed
+    jmp y-- LOOP                ;jump to loop control
+    irq 0                       ;notify capture finished
+LOCK:
+    jmp LOCK                    ;block program
+
+LOOP:
+    mov x, osr                  ;read loop count
+INNER_LOOP:
+    jmp pin INNER_LOOP          ;wait for trigger
+.wrap
+
+;--------------------------------------------------------------------------------------------
+; COMPLEX_CAPTURE - Multi-pin pattern trigger capture
+;--------------------------------------------------------------------------------------------
+.program COMPLEX_CAPTURE
+
+    pull
+    out x 32                    ;read capture length
+    wait irq 7                  ;wait for trigger program ready
+
+.wrap_target
+    in pins 29                  ;read sample
+    jmp pin POST_CAPTURE        ;exit wrap if pin is set
+.wrap
+
+POST_CAPTURE:
+    in pins 29                  ;read sample
+    jmp x-- POST_CAPTURE        ;loop if more samples needed
+    irq 0                       ;notify capture finished
+LOCK:
+    jmp LOCK                    ;block program
+
+;--------------------------------------------------------------------------------------------
+; FAST_CAPTURE - Fast pattern trigger capture
+;--------------------------------------------------------------------------------------------
+.program FAST_CAPTURE
+
+    pull
+    out x 32                    ;read capture length
+
+.wrap_target
+    in pins 29                  ;read sample
+    jmp pin POST_CAPTURE        ;exit wrap if pin is set
+.wrap
+
+POST_CAPTURE:
+    in pins 29                  ;read sample
+    jmp x-- POST_CAPTURE        ;loop if more samples needed
+    irq 0                       ;notify capture finished
+LOCK:
+    jmp LOCK                    ;block program
+
+;--------------------------------------------------------------------------------------------
+; NO_TRIGGER_CAPTURE - Immediate capture, no trigger wait
+;--------------------------------------------------------------------------------------------
+.program NO_TRIGGER_CAPTURE
+
+    pull
+    out x 32                    ;read capture length
+
+POST_CAPTURE:
+    in pins 32                  ;read sample
+    jmp x-- POST_CAPTURE        ;loop if more samples needed
+    irq 0                       ;notify capture finished
+LOCK:
+    jmp LOCK                    ;block program
+
+;--------------------------------------------------------------------------------------------
+; PIO1_UART_TX - UART TX using PIO1 for self-test signal generation
+; Drives a UART TX signal on a pin while PIO0 captures independently
+; Program timing is controlled by clock divider for bit period
+;--------------------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------------------
+; SELFTEST_TX - UART TX on PIO0 for self-test
+; Uses SET and OUT both targeting the same pin
+; Must be loaded alongside NO_TRIGGER_CAPTURE on the same PIO0
+;-------------------------------------------------------------------------------------------
+.program SELFTEST_TX
+.wrap_target
+    set pindirs, 1          ; TX pin as output
+    set pins, 1             ; idle high
+    pull block              ; get byte from FIFO
+    set x, 7                ; 8 data bits
+    set pins, 0             ; start bit
+BITLOOP:
+    nop [21]                ; hold for one bit period
+    out pins, 1             ; shift out next bit
+    jmp x--, BITLOOP        ; loop 8 times
+    nop [21]                ; hold last data bit
+    set pins, 1             ; stop bit
+    nop [21]                ; hold stop bit
+    set pindirs, 0          ; release pin (input)
+    nop [5]                 ; brief pause before next byte
+.wrap
+
+.program PIO1_UART_TX
+.wrap_target
+    pull block                  ;block until data from TX FIFO
+    set pindirs, 1              ;set TX pin as output
+    set x, 7                   ;8 data bits (0-7)
+    set pins, 0                ;start bit (low)
+BITLOOP:
+    nop [21]                   ;hold start bit / data bit for bit period
+    out pins, 1                ;shift out next data bit
+    jmp x-- BITLOOP            ;loop for 8 bits
+    nop [21]                   ;hold last data bit
+    set pins, 1                ;stop bit (high)
+    nop [21]                   ;hold stop bit
+.wrap
