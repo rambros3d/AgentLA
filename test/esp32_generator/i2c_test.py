@@ -83,6 +83,5 @@ while time.ticks_diff(time.ticks_ms(), start) < 5000:
     i2c_stop()
     time.sleep_ms(5)
 
-i2c.deinit()
-sda.init(Pin.IN); scl.init(Pin.IN)
+sda.init(Pin.OUT); scl.init(Pin.OUT)
 print("I2C Done")

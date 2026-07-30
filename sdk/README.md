@@ -206,7 +206,9 @@ with agentla.connect() as device:
             print(f"{event.type}: 0x{event.value:02X}")
 ```
 
-### Raw Capture for Sigrok
+### Export to Sigrok/PulseView
+
+After capturing raw data, export it as a `.sr` session file that can be opened in PulseView for visualization and host-side Sigrok decoding.
 
 ```python
 import agentla
@@ -214,15 +216,36 @@ import agentla
 with agentla.connect() as device:
     device.configure(channels=[0, 1, 2, 3], sample_rate=10_000_000)
     capture = device.capture_raw(samples=4096)
-    
-    # Save for PulseView
+
+    # Export to Sigrok session format
     capture.export_sigrok('capture.sr')
 ```
 
-## Requirements
+Then open `capture.sr` in PulseView to view waveforms and apply any of Sigrok's 200+ protocol decoders.
 
-- Python 3.8+
-- pyserial 3.5+
+### Host-Side Sigrok Decoding (Optional)
+
+For protocols not covered by AgentLA's built-in decoders, use `SigrokDecoder` to run Sigrok decoders on captured raw data.
+
+**Installation:**
+
+```bash
+# Core SDK
+pip install agentla
+
+# With Sigrok decoder support (requires libsigrokdecode C library)
+sudo apt install libsigrokdecode-dev
+pip install agentla[sigrok]
+```
+
+```python
+import agentla
+
+decoder = agentla.SigrokDecoder("I2C")
+events = decoder.decode(raw_capture.data, raw_capture.sample_rate, sda=0, scl=1)
+```
+
+**Note:** `SigrokDecoder` requires `sigrokdecode` Python package and `libsigrokdecode` C library. If `sigrokdecode` is not installed, `SigrokDecoder` raises `SigrokDecoderError` with installation instructions.
 
 ## License
 

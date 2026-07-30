@@ -40,6 +40,9 @@ dev = [
     "flake8>=5.0",
     "mypy>=0.990",
 ]
+sigrok = [
+    "sigrokdecode>=0.4",
+]
 
 [project.urls]
 Homepage = "https://github.com/AgentLA/AgentLA"
