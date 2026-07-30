@@ -9,6 +9,7 @@ from .connection import Connection
 from .device import Device, DeviceInfo, Status
 from .capture import RawCapture, CapturedEvent
 from .protocols import I2CEvent, SPIEvent, UARTEvent, PWMResult, ADCResult
+from .adapter import I2CDevice, UARTDevice
 from .sigrok import export_sigrok, SigrokDecoder, SigrokDecoderError
 from .exceptions import DeviceNotFoundError, DeviceError, TimeoutError
 
@@ -50,6 +51,8 @@ __all__ = [
     "UARTEvent",
     "PWMResult",
     "ADCResult",
+    "I2CDevice",
+    "UARTDevice",
     "SigrokDecoder",
     "SigrokDecoderError",
     "export_sigrok",

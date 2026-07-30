@@ -247,6 +247,43 @@ events = decoder.decode(raw_capture.data, raw_capture.sample_rate, sda=0, scl=1)
 
 **Note:** `SigrokDecoder` requires `sigrokdecode` Python package and `libsigrokdecode` C library. If `sigrokdecode` is not installed, `SigrokDecoder` raises `SigrokDecoderError` with installation instructions.
 
+### Adapter Mode (I2C + UART)
+
+AgentLA can act as a USB-to-bus bridge for active I2C and UART transactions.
+Connect to the **adapter CDC** port (identified by role `"ADAPTER"` in IDENTIFY).
+
+```python
+import agentla
+
+with agentla.connect() as device:
+    info = device.identify()
+    print(f"Role: {info.role}")
+
+    if info.is_adapter:
+        i2c, uart = device.adapter()
+
+        # I2C read from sensor register
+        data = i2c.read(addr=0x48, reg=0x00, length=4)
+        print(f"I2C read: 0x{data.hex()}")
+
+        # I2C write to sensor register
+        i2c.write(addr=0x48, reg=0x01, data=b"\x01\x02")
+
+        # UART write
+        uart.write(b"Hello", baud=115200)
+
+        # UART read
+        reply = uart.read(max_len=32, baud=115200, timeout_ms=500)
+        print(f"UART read: 0x{reply.hex()}")
+
+        # Recover stuck I2C bus
+        i2c.clear_bus()
+```
+
+Adapter pin connections:
+- **I2C**: GPIO0 (SCL) + GPIO1 (SDA) — requires external 4.7kΩ pull-ups
+- **UART**: GPIO4 (TX) + GPIO5 (RX)
+
 ## License
 
 GPL-3.0 - See [LICENSE](../LICENSE) for details.

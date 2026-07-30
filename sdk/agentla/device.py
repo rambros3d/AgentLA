@@ -6,6 +6,7 @@ from typing import List, Optional
 from .connection import Connection
 from .capture import RawCapture
 from .protocols import I2CEvent, SPIEvent, UARTEvent, PWMResult, ADCResult
+from .adapter import I2CDevice, UARTDevice
 from .exceptions import DeviceError
 
 
@@ -22,10 +23,16 @@ class DeviceInfo:
     model: str
     version: str
     mcu: str
-    channels: int
-    max_sample_rate: int
-    blast_freq: int
-    buffer_size: int
+    role: str = "ANALYZER"
+    channels: int = 24
+    max_sample_rate: int = 100_000_000
+    blast_freq: int = 200_000_000
+    buffer_size: int = 393216
+
+    @property
+    def is_adapter(self) -> bool:
+        """True if this device exposes I2C/UART adapter mode."""
+        return self.role == "ADAPTER"
 
 
 class Device:
@@ -43,27 +50,19 @@ class Device:
         self._sample_rate = None
     
     def identify(self) -> DeviceInfo:
-        """
-        Identify device and return capabilities.
-        
-        Returns:
-            DeviceInfo with device capabilities
-        """
+        """Identify device and return capabilities."""
         response = self._conn.send_command("IDENTIFY")
-        
-        # Parse identification response
         parts = response.split()
         model = parts[0] if len(parts) > 0 else "AGENTLA"
         version = parts[1] if len(parts) > 1 else "v1.0"
         mcu = parts[2] if len(parts) > 2 else "RP2350"
-        
-        # Read additional info
+        role = "ANALYZER"
+        if len(parts) > 3 and parts[3] == "ADAPTER":
+            role = "ADAPTER"
         channels = 24
         max_rate = 100_000_000
         blast_freq = 200_000_000
         buffer_size = 393216
-        
-        # Parse additional lines
         for _ in range(4):
             line = self._conn.read_response()
             if line.startswith("FREQ:"):
@@ -74,15 +73,10 @@ class Device:
                 buffer_size = int(line.split(":")[1])
             elif line.startswith("CHANNELS:"):
                 channels = int(line.split(":")[1])
-        
         return DeviceInfo(
-            model=model,
-            version=version,
-            mcu=mcu,
-            channels=channels,
-            max_sample_rate=max_rate,
-            blast_freq=blast_freq,
-            buffer_size=buffer_size
+            model=model, version=version, mcu=mcu, role=role,
+            channels=channels, max_sample_rate=max_rate,
+            blast_freq=blast_freq, buffer_size=buffer_size,
         )
     
     def configure(
@@ -433,6 +427,14 @@ class Device:
         
         return Status.IDLE
     
+    def adapter(self):
+        """Return an I2CDevice and UARTDevice for the adapter CDC port.
+
+        Returns:
+            Tuple of (I2CDevice, UARTDevice) connected to the adapter CDC
+        """
+        return I2CDevice(self._conn), UARTDevice(self._conn)
+
     def close(self):
         """Close device connection."""
         self._conn.close()

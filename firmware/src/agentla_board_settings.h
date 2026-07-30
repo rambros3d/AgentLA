@@ -7,6 +7,13 @@
 #define INPUT_PIN_BASE 2
 #define COMPLEX_TRIGGER_OUT_PIN 0
 #define COMPLEX_TRIGGER_IN_PIN 1
+
+/* Adapter mode pins */
+#define ADAPTER_I2C_SCL_PIN 0
+#define ADAPTER_I2C_SDA_PIN 1
+#define ADAPTER_UART_TX_PIN 4
+#define ADAPTER_UART_RX_PIN 5
+
 #define GPIO_LED
 #define LED_IO 25  /* Pico 2 LED is on GPIO25, shared with USB D- */
                     /* USB still works because Pico 2 has a series resistor */

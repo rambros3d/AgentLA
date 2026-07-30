@@ -1,5 +1,6 @@
 #include "agentla_board_settings.h"
 #include "agentla_structs.h"
+#include "agentla_adapter.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -30,7 +31,7 @@ static void send_event(const char* event) {
 }
 
 static void cmd_identify(void) {
-    send_response("AGENTLA " FIRMWARE_VERSION " RP2350 24CH 100MHZ");
+    send_response("AGENTLA " FIRMWARE_VERSION " RP2350 ANALYZER 24CH 100MHZ");
     char msg[64];
     sprintf(msg, "FREQ:%d", MAX_FREQ);
     send_response(msg);
@@ -40,6 +41,175 @@ static void cmd_identify(void) {
     send_response(msg);
     sprintf(msg, "CHANNELS:%d", MAX_CHANNELS);
     send_response(msg);
+}
+
+static void cmd_i2c_read(char* args) {
+    uint8_t addr = 0;
+    uint8_t reg = 0;
+    uint8_t len = 0;
+    uint32_t timeout_ms = 100;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtol(token + 5, NULL, 0);
+        else if (strncmp(token, "reg=", 4) == 0) reg = (uint8_t)strtol(token + 4, NULL, 0);
+        else if (strncmp(token, "len=", 4) == 0) len = (uint8_t)atoi(token + 4);
+        else if (strncmp(token, "timeout=", 8) == 0) timeout_ms = (uint32_t)atoi(token + 8);
+        token = strtok(NULL, " ");
+    }
+
+    if (len == 0 || len > 64) {
+        send_response("ERR invalid len, max 64");
+        return;
+    }
+
+    uint8_t data[64];
+    memset(data, 0, sizeof(data));
+
+    bool success = adapter_i2c_read(addr, reg, len, data, timeout_ms);
+    if (!success) {
+        char msg[64];
+        sprintf(msg, "ERR I2C NACK at addr=0x%02X", addr);
+        send_response(msg);
+        return;
+    }
+
+    char hex_data[384];
+    hex_data[0] = '\0';
+    for (uint8_t i = 0; i < len; i++) {
+        if (i > 0) strcat(hex_data, ",");
+        char b[4];
+        sprintf(b, "%02X", data[i]);
+        strcat(hex_data, b);
+    }
+
+    char response[416];
+    sprintf(response, "I2C DATA %s", hex_data);
+    send_response(response);
+}
+
+static void cmd_i2c_write(char* args) {
+    uint8_t addr = 0;
+    uint8_t reg = 0;
+    uint8_t data[64];
+    uint8_t data_len = 0;
+    uint32_t timeout_ms = 100;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtol(token + 5, NULL, 0);
+        else if (strncmp(token, "reg=", 4) == 0) reg = (uint8_t)strtol(token + 4, NULL, 0);
+        else if (strncmp(token, "data=", 5) == 0) {
+            char* data_str = token + 5;
+            char* saveptr;
+            char* val = strtok_r(data_str, ",", &saveptr);
+            while (val && data_len < 64) {
+                data[data_len++] = (uint8_t)strtol(val, NULL, 0);
+                val = strtok_r(NULL, ",", &saveptr);
+            }
+        }
+        else if (strncmp(token, "timeout=", 8) == 0) timeout_ms = (uint32_t)atoi(token + 8);
+        token = strtok(NULL, " ");
+    }
+
+    if (data_len == 0) {
+        send_response("ERR no data provided");
+        return;
+    }
+
+    bool success = adapter_i2c_write(addr, reg, data, data_len, timeout_ms);
+    if (!success) {
+        char msg[64];
+        sprintf(msg, "ERR I2C NACK at addr=0x%02X", addr);
+        send_response(msg);
+        return;
+    }
+
+    char response[64];
+    sprintf(response, "OK I2C WRITE %d bytes", data_len);
+    send_response(response);
+}
+
+static void cmd_uart_write(char* args) {
+    uint32_t baud = 115200;
+    uint8_t data[256];
+    uint8_t data_len = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "baud=", 5) == 0) baud = (uint32_t)atoi(token + 5);
+        else if (strncmp(token, "data=", 5) == 0) {
+            char* data_str = token + 5;
+            char* saveptr;
+            char* val = strtok_r(data_str, ",", &saveptr);
+            while (val && data_len < 256) {
+                data[data_len++] = (uint8_t)strtol(val, NULL, 0);
+                val = strtok_r(NULL, ",", &saveptr);
+            }
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (baud < 1200 || baud > 921600) {
+        send_response("ERR invalid baud rate, min=1200 max=921600");
+        return;
+    }
+
+    bool success = adapter_uart_write(data, data_len, baud);
+    if (!success) {
+        send_response("ERR UART write failed");
+        return;
+    }
+
+    char response[64];
+    sprintf(response, "OK UART WROTE %d bytes", data_len);
+    send_response(response);
+}
+
+static void cmd_uart_read(char* args) {
+    uint32_t baud = 115200;
+    uint32_t max_len = 64;
+    uint32_t timeout_ms = 1000;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "baud=", 5) == 0) baud = (uint32_t)atoi(token + 5);
+        else if (strncmp(token, "len=", 4) == 0) max_len = (uint8_t)atoi(token + 4);
+        else if (strncmp(token, "timeout=", 8) == 0) timeout_ms = (uint32_t)atoi(token + 8);
+        token = strtok(NULL, " ");
+    }
+
+    if (baud < 1200 || baud > 921600) {
+        send_response("ERR invalid baud rate, min=1200 max=921600");
+        return;
+    }
+
+    if (max_len > 256) max_len = 256;
+
+    uint8_t data[256];
+    memset(data, 0, sizeof(data));
+
+    int count = adapter_uart_read(data, max_len, baud, timeout_ms);
+
+    char hex_data[768];
+    hex_data[0] = '\0';
+    for (int i = 0; i < count; i++) {
+        if (i > 0) strcat(hex_data, ",");
+        char b[4];
+        sprintf(b, "%02X", data[i]);
+        strcat(hex_data, b);
+    }
+
+    char response[1024];
+    sprintf(response, "UART DATA %s", hex_data);
+    send_response(response);
+}
+
+static void cmd_i2c_clear(char* args) {
+    (void)args;
+    adapter_i2c_clear_bus();
+    sleep_ms(10);
+    send_response("OK I2C BUS CLEARED");
 }
 
 static void cmd_configure(char* args) {
@@ -501,6 +671,11 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "MEASURE") == 0) cmd_measure(args ? args : "");
     else if(strcmp(cmd, "ADC") == 0) cmd_adc(args ? args : "");
     else if(strcmp(cmd, "STATUS") == 0) cmd_status();
+    else if(strcmp(cmd, "I2C_READ") == 0) cmd_i2c_read(args ? args : "");
+    else if(strcmp(cmd, "I2C_WRITE") == 0) cmd_i2c_write(args ? args : "");
+    else if(strcmp(cmd, "UART_WRITE") == 0) cmd_uart_write(args ? args : "");
+    else if(strcmp(cmd, "UART_READ") == 0) cmd_uart_read(args ? args : "");
+    else if(strcmp(cmd, "I2C_CLEAR") == 0) cmd_i2c_clear(args ? args : "");
     else if(strcmp(cmd, "SELFTEST") == 0) cmd_selftest(args ? args : "");
     else if(strcmp(cmd, "PIO1TEST") == 0) cmd_selftest_pio1(args ? args : "");
     else if(strcmp(cmd, "PIO0SMTEST") == 0) {
@@ -567,6 +742,7 @@ int main() {
     #endif
     stdio_init_all();
     sleep_ms(1000);
+    adapter_init();
     memset(&capture_config, 0, sizeof(capture_config));
     capture_config.frequency = 1000000;
     capture_config.channel_count = 8;

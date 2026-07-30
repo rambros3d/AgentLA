@@ -48,6 +48,8 @@ target_link_libraries(AgentLA
     pico_multicore
     pico_base_headers
     cmsis_core
+    hardware_i2c
+    hardware_uart
 )
 
 pico_add_extra_outputs(AgentLA)
@@ -59,7 +61,7 @@ target_include_directories(AgentLA PRIVATE
 
 target_compile_definitions(AgentLA PUBLIC
     USBD_MANUFACTURER="AgentLA"
-    USBD_PRODUCT="AgentLA"
-    USBD_VID=0x2E8A
-    USBD_PID=0x000A
+    USBD_PRODUCT="AGENTLA"
+    USBD_VID=0x1209
+    USBD_PID=0x414C
 )
