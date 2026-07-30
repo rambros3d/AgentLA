@@ -7,6 +7,7 @@ static uart_inst_t *uart_adapter;
 static uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
 static volatile uint8_t uart_rx_head;
 static volatile uint8_t uart_rx_tail;
+static uint32_t current_baud = 0;
 
 void adapter_init(void) {
     adapter_state = ADAPTER_IDLE;
@@ -107,7 +108,10 @@ bool adapter_uart_write(const uint8_t *data, uint8_t len, uint32_t baud) {
     if (baud == 0) return false;
     if (baud < 1200 || baud > 921600) return false;
 
-    uart_set_baudrate(uart_adapter, baud);
+    if (baud != current_baud) {
+        uart_set_baudrate(uart_adapter, baud);
+        current_baud = baud;
+    }
 
     for (uint8_t i = 0; i < len; i++) {
         uart_putc(uart_adapter, data[i]);
@@ -120,7 +124,10 @@ int adapter_uart_read(uint8_t *data, uint8_t max_len, uint32_t baud, uint32_t ti
     if (baud == 0) return -1;
     if (baud < 1200 || baud > 921600) return -1;
 
-    uart_set_baudrate(uart_adapter, baud);
+    if (baud != current_baud) {
+        uart_set_baudrate(uart_adapter, baud);
+        current_baud = baud;
+    }
 
     int count = 0;
     int32_t start_time = make_timeout_time_ms(timeout_ms);

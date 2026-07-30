@@ -11,6 +11,8 @@
 #include "hardware/vreg.h"
 #include "hardware/timer.h"
 #include "pico/multicore.h"
+#include "pico/bootrom.h"
+#include "hardware/watchdog.h"
 #include "agentla_capture.pio.h"
 #include "agentla_capture.h"
 #include "agentla_decode.h"
@@ -210,6 +212,20 @@ static void cmd_i2c_clear(char* args) {
     adapter_i2c_clear_bus();
     sleep_ms(10);
     send_response("OK I2C BUS CLEARED");
+}
+
+static void cmd_reboot(char* args) {
+    (void)args;
+    send_response("OK REBOOTING");
+    sleep_ms(100);
+    watchdog_reboot(0, 0, 0);
+}
+
+static void cmd_bootsel(char* args) {
+    (void)args;
+    send_response("OK ENTERING BOOTSEL");
+    sleep_ms(100);
+    reset_usb_boot(0, 0);
 }
 
 static void cmd_configure(char* args) {
@@ -676,6 +692,8 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "UART_WRITE") == 0) cmd_uart_write(args ? args : "");
     else if(strcmp(cmd, "UART_READ") == 0) cmd_uart_read(args ? args : "");
     else if(strcmp(cmd, "I2C_CLEAR") == 0) cmd_i2c_clear(args ? args : "");
+    else if(strcmp(cmd, "REBOOT") == 0) cmd_reboot(args ? args : "");
+    else if(strcmp(cmd, "BOOTSEL") == 0) cmd_bootsel(args ? args : "");
     else if(strcmp(cmd, "SELFTEST") == 0) cmd_selftest(args ? args : "");
     else if(strcmp(cmd, "PIO1TEST") == 0) cmd_selftest_pio1(args ? args : "");
     else if(strcmp(cmd, "PIO0SMTEST") == 0) {
@@ -738,7 +756,7 @@ int main() {
     sleep_ms(1);
     set_sys_clock_khz(400000, true);
     #else
-    set_sys_clock_khz(200000, true);
+    set_sys_clock_khz(125000, true);
     #endif
     stdio_init_all();
     sleep_ms(1000);

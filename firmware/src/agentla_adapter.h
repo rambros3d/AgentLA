@@ -5,7 +5,7 @@
 #include "hardware/i2c.h"
 #include "hardware/uart.h"
 
-#define I2C_ADAPTER_FREQ_HZ 100000
+#define I2C_ADAPTER_FREQ_HZ 10000
 #define I2C_BUS_STUCK_TIMEOUT_MS 100
 #define I2C_CLOCK_STRETCH_LIMIT_MS 100
 #define UART_ADAPTER_DEFAULT_BAUD 115200
