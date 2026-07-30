@@ -31,7 +31,7 @@ static void send_event(const char* event) {
 }
 
 static void cmd_identify(void) {
-    send_response("AGENTLA " FIRMWARE_VERSION " RP2350 ANALYZER 24CH 100MHZ");
+    send_response("AGENTLA " FIRMWARE_VERSION " RP2350 ANALYZER+ADAPTER 24CH 100MHZ I2C+UART");
     char msg[64];
     sprintf(msg, "FREQ:%d", MAX_FREQ);
     send_response(msg);

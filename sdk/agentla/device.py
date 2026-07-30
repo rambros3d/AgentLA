@@ -57,8 +57,10 @@ class Device:
         version = parts[1] if len(parts) > 1 else "v1.0"
         mcu = parts[2] if len(parts) > 2 else "RP2350"
         role = "ANALYZER"
-        if len(parts) > 3 and parts[3] == "ADAPTER":
-            role = "ADAPTER"
+        for p in parts[1:]:
+            if "ADAPTER" in p.upper():
+                role = "ADAPTER"
+                break
         channels = 24
         max_rate = 100_000_000
         blast_freq = 200_000_000
