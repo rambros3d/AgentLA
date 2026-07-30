@@ -1,0 +1,2 @@
+# AgentLA board - VID 0x1209 PID 0x414C
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="414C", MODE="0666", SYMLINK+="agentla"
