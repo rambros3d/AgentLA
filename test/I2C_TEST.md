@@ -8,10 +8,9 @@ Test the RP2350 AgentLA I2C adapter mode using an ESP32 as an I2C slave.
 ```
 RP2350 (AgentLA Adapter)     ESP32 (I2C Slave)
 
-GPIO0  [SCL]  ───────────── GPIO22 [SCL]
-GPIO1  [SDA]  ───────────── GPIO21 [SDA]
-  3V3         ──┤4.7kΩ├── VCC (3.3V)    (pull-up on SDA)
-  3V3         ──┤4.7kΩ├── VCC (3.3V)    (pull-up on SCL)
+GPIO0  [SCL]  ───────────── GPIO17 [SCL]
+GPIO1  [SDA]  ───────────── GPIO16 [SDA]
+  3V3         ───────────── 3V3              (internal pull-ups used)
 GND           ───────────── GND
 ```
 
@@ -88,6 +87,8 @@ Any I2C slave device with address 0x48 can be used instead of the ESP32:
 
 ## Notes
 
-- **External pull-ups required**: 4.7kΩ on SDA and SCL to 3.3V (not on current board)
-- **I2C speed**: Default 100kHz; internal pull-ups (~40kΩ) only work at very low speeds
+- **Internal pull-ups used**: ESP32 GPIO16/17 have internal pull-ups (~45kΩ) enabled.
+  This works for basic testing but is not recommended for reliable I2C above 100kHz.
+  External 4.7kΩ pull-ups on SDA/SCL to 3.3V are required for production use.
+- **I2C speed**: Default 100kHz; internal pull-ups work at low speeds only
 - **Clock stretching**: RP2350 I2C hardware handles clock stretching internally with a 100ms timeout

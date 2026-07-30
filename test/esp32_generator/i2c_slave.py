@@ -15,7 +15,7 @@ Register map:
 
 from machine import I2C, Pin
 
-i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=100000)
+i2c = I2C(0, scl=Pin(17, Pin.PULL_UP), sda=Pin(16, Pin.PULL_UP), freq=100000)
 
 SLAVE_ADDR = 0x48
 registers = bytearray(0x10)
