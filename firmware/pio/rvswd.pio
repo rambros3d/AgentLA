@@ -1,0 +1,82 @@
+; ==========================================================================
+; RVSWD PIO Program (RP2350)
+;
+; WCH 2-wire RISC-V debug protocol (QingKe V4 / CH32V20x, V30x).
+; Ported from RVSWD_pico (https://github.com/Nicolai-Electronics/RVSWD_pico)
+; and informed by PicoRVD (https://github.com/aappleby/picorvd).
+; License: MIT
+;
+; Wire protocol (per RVSWD_pico RVSWD_full.pio):
+;   START  : SWDIO=H,CLK=H  ->  SWDIO=L,CLK=H
+;   HEADER : 9 bits MSB-first: [7-bit register addr][1-bit op][1-bit parity]
+;            op: 1=write, 0=read. Parity = even parity over (addr + op).
+;   TRN    : 5 bits 0b10101 (host drives)
+;   WRITE  : 32-bit data MSB-first + 1 even-parity bit
+;   READ   : 32-bit data (target drives) + 1 parity bit
+;   TRAILER: 5 bits 0b10111 (host drives)
+;   STOP   : SWDIO=L,CLK=H -> SWDIO=H,CLK=H -> release SWDIO
+;   RESET  : SWDIO=H for 300 CLK cycles, then STOP
+;
+; Pin mapping:
+;   SWCLK = GPIO 4 (sideset pin)
+;   SWDIO = GPIO 5 (OUT/SET/IN pin)
+;
+; Command dispatcher word (from CPU):
+;   | 31:24 count-1 | 23 dir(1=write,0=read) | 22:18 cmd addr |
+; ==========================================================================
+
+.program rvswd_io
+.side_set 1 opt
+
+.define public BIT_DELAY 2
+
+; --- Command Dispatcher (Entry Point) ---
+; Waits here for a command from the CPU
+.wrap_target
+public get_next_cmd:
+    pull                side 1 ; Pull command, CLK idle high
+    out x, 8            ; Get bit count (X = count-1)
+    out pindirs, 1      ; Get direction (1=write, 0=read)
+    out pc, 5           ; Jump to command address
+
+; --- Write Bits (Push Pull) ---
+; X-reg = bit count-1
+; 'Dir' bit must be 1 (write)
+public write_bits:
+    pull
+write_bitloop:
+    out pins, 1  side 0 [BIT_DELAY] ; CLK=0. Send data
+    nop             side 1 [BIT_DELAY] ; CLK=1. Hold.
+    jmp x-- write_bitloop
+    jmp get_next_cmd
+
+; --- Read Bits ---
+; X-reg = bit count-1
+; 'Dir' bit must be 0 (read)
+public read_bits:
+    nop  side 0 [BIT_DELAY]
+    in pins, 1      side 1 [BIT_DELAY]
+    jmp x-- read_bits
+    push
+    jmp get_next_cmd
+
+; --- Special Sequences ---
+public start:
+    set pins, 1  side 1 [BIT_DELAY] ; SWDIO=H, CLK=H
+    set pins, 0  side 1 [BIT_DELAY] ; SWDIO=L, CLK=H
+    jmp get_next_cmd
+
+public stop:
+    set pins, 0  side 1 [BIT_DELAY] ; SWDIO=L, CLK=H
+    set pins, 1  side 1 [BIT_DELAY] ; SWDIO=H, CLK=H
+    set pindirs, 0                  ; Release SWDIO
+    jmp get_next_cmd
+
+public reset:
+    set pins, 1  side 1 [BIT_DELAY] ; SWDIO=H
+reset_loop:
+    nop             side 0 [BIT_DELAY]
+    nop             side 1 [BIT_DELAY]
+    jmp x-- reset_loop
+    jmp stop            ; Jump to stop sequence
+.wrap

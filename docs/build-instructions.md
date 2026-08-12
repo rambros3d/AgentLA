@@ -50,15 +50,18 @@ AgentLA/
 ├── pico_sdk_import.cmake       # Pico SDK import script
 ├── firmware/
 │   ├── src/
-│   │   ├── main.c              # Main firmware entry point
-│   │   ├── agentla_capture.c   # PIO capture engine
-│   │   ├── agentla_capture.h   # Capture header
-│   │   ├── agentla_decode.c    # Protocol decoders
-│   │   ├── agentla_decode.h    # Decoder header
-│   │   ├── agentla_structs.h   # Data structures
-│   │   └── agentla_board_settings.h # Board configuration
-│   └── pio/
-│       └── agentla_capture.pio # PIO programs
+│   │   ├── main.c              # Main firmware entry point│       │   ├── main.c              # Main firmware entry point
+│       │   ├── analyzer/           # Signal capture & decode
+│       │   ├── adapter/            # I2C/UART adapter
+│       │   ├── programmer/         # SWD/CH32 programming
+│       │   ├── board_settings.h    # Board configuration
+│       │   └── structs.h           # Data structures
+│       └── pio/
+│           ├── capture.pio         # PIO capture programs
+│           ├── swd.pio             # SWD protocol
+│           ├── swio.pio            # WCH SWIO protocol
+│           ├── wch_sdi.pio         # WCH 1-wire SDI
+│           └── loopback.pio        # Loopback test
 ├── sdk/                        # Python SDK (future)
 ├── docs/                       # Documentation
 ├── test/                       # Test scripts

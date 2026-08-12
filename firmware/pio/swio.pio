@@ -1,0 +1,73 @@
+; swio.pio — WCH SWIO single-wire debug interface
+;
+; Ported from PicoRVD (https://github.com/aappleby/picorvd)
+; Original: Copyright (c) 2023 Andrew Appleby
+; License: MIT
+;
+; SWIO Protocol (WCH QingKe V2 Debug Interface):
+;   - Single bidirectional data wire
+;   - Normal mode timing (T = 125ns at 125MHz / 12):
+;     Bit 1: low 125-500ns, high 125-2000ns
+;     Bit 0: low 750-8000ns, high 125-2000ns
+;   - Debug interface runs off HSI/3 = 8MHz
+;
+; PIO SM Configuration:
+;   - Sideset on SWIO pin (controls output enable + output value)
+;   - Out/In/Set all on SWIO pin
+;   - MSB-first shifting (shift_right=false)
+;   - Auto-push on RX (threshold=32)
+;   - Clock divider: 125MHz / 12 ≈ 10.4MHz (96ns per tick)
+
+.program swio
+.side_set 1
+
+.wrap_target
+
+start:
+  ; Pull address+direction from TX FIFO
+  ; Bit format: [24:1] = inverted address (24 bits), [0] = R/W (0=write, 1=read)
+  pull                side 0 [2]   ; Pull command, let bus float high for 300ns
+  out y, 24           side 1 [1]   ; Send start bit (drive low), extract address
+  nop                 side 0 [2]   ; End start bit, bus pulls up 300ns
+
+  ; Transmit 7-bit address using pulse-width encoding
+  ; Bit 1 = short pulse (200ns low), Bit 0 = long pulse (800ns low)
+addr_loop:
+  out x, 1            side 1 [0]   ; Short pulse start (200ns)
+  jmp !x, addr_zero   side 1 [0]   ; If bit=0, extend pulse
+  nop                 side 1 [5]   ; Long pulse: total 800ns low
+addr_zero:
+  jmp !osre, addr_loop side 0 [2]  ; End bit, pull up 300ns; loop until addr done
+
+  ; Branch to read or write based on direction bit (now in X from last out)
+  jmp !x, op_write    side 0 [0]
+  jmp op_read         side 0 [0]
+
+  ; --- READ OPERATION ---
+op_read:
+  set x, 31           side 0 [0]   ; 32 bits to read
+
+read_loop:
+  nop                 side 1 [1]   ; Start pulse: target drives low for ~800ns if data=0
+  nop                 side 0 [2]   ; Release, wait 200ns for pin to rise if target isn't driving
+  in pins, 1          side 0 [2]   ; Sample pin at 500ns — target still driving if data=0
+  jmp x--, read_loop  side 0 [2]   ; Pin should go high by 800ns if target released
+
+  nop                 side 0 [6]   ; Settling time
+  jmp start           side 0 [10]  ; Stop bit: high for ~1500ns, then back to start
+
+  ; --- WRITE OPERATION ---
+op_write:
+  pull                side 0 [1]   ; Pull 32-bit data word from TX FIFO
+
+write_loop:
+  out x, 1            side 1 [0]   ; Short pulse start (200ns) for bit=1
+  jmp !x, data_zero   side 1 [0]   ; If bit=0, extend pulse
+  nop                 side 1 [5]   ; Long pulse: total 800ns low for bit=0
+data_zero:
+  jmp !osre, write_loop side 0 [2] ; End bit, pull up 300ns; loop until data done
+
+  nop                 side 0 [6]   ; Settling time
+  jmp start           side 0 [10]  ; Stop bit: high for ~1500ns, then back to start
+
+.wrap

@@ -1,0 +1,11 @@
+[project]
+name = "agentla-test"
+version = "0.1.0"
+description = "Test utilities for AgentLA"
+requires-python = ">=3.10"
+dependencies = [
+    "platformio>=7.0",
+    "pyserial>=3.5",
+]
+
+

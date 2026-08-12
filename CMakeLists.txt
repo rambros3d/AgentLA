@@ -17,32 +17,72 @@ include(pico_sdk_import.cmake)
 
 project(AgentLA C CXX ASM)
 
+# Build metadata
+string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S")
+add_compile_definitions(BUILD_TIMESTAMP="${BUILD_TIMESTAMP}")
+# Get git hash at configure time
+execute_process(
+    COMMAND git log -1 --format=%h
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE GIT_RESULT
+)
+if(NOT GIT_RESULT EQUAL 0)
+    set(GIT_HASH "unknown")
+endif()
+add_compile_definitions(GIT_HASH="${GIT_HASH}")
+
 pico_sdk_init()
 
-FILE(GLOB CSources firmware/src/*.c)
+FILE(GLOB_RECURSE CSources firmware/src/*.c)
 ADD_EXECUTABLE(AgentLA ${CSources})
 
 pico_generate_pio_header(${PROJECT_NAME}
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/agentla_capture.pio
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/capture.pio
+)
+
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/swd.pio
+)
+
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/wch_sdi.pio
+)
+
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/loopback.pio
+)
+
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/swio.pio
+)
+
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/rvswd.pio
 )
 
 pico_set_program_name(AgentLA "AgentLA")
 pico_set_program_version(AgentLA "1.0")
 add_compile_definitions(FIRMWARE_VERSION="v1.0")
 
-pico_enable_stdio_uart(AgentLA 1)
-pico_enable_stdio_usb(AgentLA 1)
+pico_enable_stdio_uart(AgentLA 0)
+# pico_enable_stdio_usb(AgentLA 1)  # Disabled - using TinyUSB directly for CMSIS-DAP + CDC
 
 if(NOT DEBUG_BUILD)
-    pico_set_binary_type(AgentLA copy_to_ram)
+    # pico_set_binary_type(AgentLA copy_to_ram)  # Disabled: firmware too large for RAM (561KB > 512KB SRAM)
 endif()
 
 target_link_libraries(AgentLA
     pico_stdlib
+    tinyusb_device
+    tinyusb_board
     hardware_dma
     hardware_pio
     hardware_clocks
     hardware_flash
+    hardware_exception
     hardware_adc
     hardware_vreg
     pico_multicore
