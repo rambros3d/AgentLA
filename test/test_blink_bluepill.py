@@ -87,11 +87,15 @@ def find_serial_port():
     return None
 
 
-def send_cmd(ser, cmd, timeout=2.0):
+def send_cmd(ser, cmd, timeout=3.0):
     """Send a command string and collect response lines."""
-    ser.reset_input_buffer()
-    ser.write((cmd + '\r\n').encode())
-    time.sleep(0.3)
+    time.sleep(0.05)
+    try:
+        ser.read_all()  # drain stale data
+    except Exception:
+        pass
+    ser.write((cmd.strip() + '\r\n').encode())
+    time.sleep(0.1)
     deadline = time.time() + timeout
     lines = []
     while time.time() < deadline:
@@ -101,6 +105,8 @@ def send_cmd(ser, cmd, timeout=2.0):
                 ln = ln.strip()
                 if ln and not ln.startswith('> '):
                     lines.append(ln)
+                    if ln.startswith('OK') or ln.startswith('ERR'):
+                        return lines
         time.sleep(0.05)
     return lines
 
@@ -144,6 +150,7 @@ def main():
 
     # 4. SWD test
     print('\n[3/6] SWD connection test...')
+    send_cmd(ser, 'PROG DRIVER PIO', timeout=3.0)
     lines = send_cmd(ser, 'SWD TEST', timeout=3.0)
     for l in lines:
         print(f'  {l}')
@@ -200,9 +207,7 @@ def main():
 
     # 8. Reset target via AIRCR system reset
     print('\n  Resetting target...')
-    send_cmd(ser, 'SWD WRITE AP 0x00 0x23000012', timeout=1.0)  # CSW = 32-bit
-    send_cmd(ser, 'SWD WRITE AP 0x04 0xE000ED0C', timeout=1.0)  # TAR = AIRCR
-    send_cmd(ser, 'SWD WRITE AP 0x0C 0x05FA0004', timeout=1.0)  # DRW = SYSRESETREQ
+    send_cmd(ser, 'DEBUG WRITE 0xE000ED0C 0x05FA0004', timeout=1.0)  # AIRCR = SYSRESETREQ
     time.sleep(0.5)
 
     ser.close()

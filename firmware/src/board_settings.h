@@ -39,7 +39,7 @@
 #define PROG_UART_RX_PIN    9   /* UART1 RX (F1) — target TX */
 
 /* SWD PIO and DMA Assignments */
-#define SWD_PIO_INSTANCE    pio1
+#define SWD_PIO_INSTANCE    pio0
 #define SWD_PIO_SM          0
 #define SWD_DMA_CHANNEL     0
 

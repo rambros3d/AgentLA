@@ -20,7 +20,6 @@
 #include "analyzer/capture.h"
 #include "analyzer/decode.h"
 #include "programmer/swd.h"
-#include "programmer/tap_pio.h"
 #include "programmer/programmer.h"
 #include "programmer/target.h"
 #include "programmer/usb_hid.h"
@@ -879,27 +878,10 @@ extern volatile bool programmer_mode_active;
 extern volatile uint32_t swd_debug_raw_ack;
 extern volatile uint32_t swd_debug_first_ack;
 extern volatile uint32_t swd_debug_first_idcode;
-extern volatile uint32_t swd_debug_bb_ack_bits;
-extern volatile uint32_t swd_debug_bb_last_err;
-extern volatile uint32_t swd_debug_bb_request;
-extern volatile uint32_t swd_debug_bb_rpar;
-extern volatile uint32_t swd_debug_bb_cpar;
-extern volatile uint32_t swd_debug_bb_wack;
-extern volatile int current_swdio_dir;
 static bool swd_initialized = false;
 
 static swd_result_t swd_get_idcode_with_fallback(uint32_t *idcode) {
-    swd_result_t res = swd_read_idcode(idcode);
-    if (res == SWD_OK && *idcode != 0 && *idcode != 0xFFFFFFFF) {
-        return SWD_OK;
-    }
-    uint32_t bb_res = swd_bitbang_read_idcode();
-    uint8_t ack = (bb_res >> 28) & 0x0F;
-    if (ack == 1) {
-        *idcode = (bb_res & 0x0FFFFFFF) | 0x10000000;
-        return SWD_OK;
-    }
-    return res;
+    return swd_read_idcode(idcode);
 }
 
 static void cmd_swd_idcode(char* args) {
@@ -1041,17 +1023,13 @@ static void cmd_swd_read(char* args) {
         send_response(msg);
     } else {
         char msg[192];
-        sprintf(msg, "ERR SWD %s read failed: %d (req=0x%02lX raw_ack=0x%08lX bb_ack=%lu bb_err=%lu dir=%d pc=%lu txstall=%lu rxlev=%lu timed_out=%d)",
+        sprintf(msg, "ERR SWD %s read failed: %d (raw_ack=0x%08lX dir=%d pc=%lu txstall=%lu rxlev=%lu)",
                 is_ap ? "AP" : "DP", result,
-                (unsigned long)swd_debug_bb_request,
                 (unsigned long)swd_debug_raw_ack,
-                (unsigned long)swd_debug_bb_ack_bits,
-                (unsigned long)swd_debug_bb_last_err,
                 (int)gpio_get_dir(SWD_SWDIO_PIN),
                 (unsigned long)pio_sm_get_pc(SWD_PIO, SWD_SM),
                 (unsigned long)((SWD_PIO->fdebug >> (PIO_FDEBUG_TXSTALL_LSB + SWD_SM)) & 1),
-                (unsigned long)((SWD_PIO->fstat >> (PIO_FSTAT_RXEMPTY_LSB + SWD_SM)) & 1 ? 0 : 1),
-                swd_diag_state.timed_out ? 1 : 0);
+                (unsigned long)((SWD_PIO->fstat >> (PIO_FSTAT_RXEMPTY_LSB + SWD_SM)) & 1 ? 0 : 1));
         send_response(msg);
     }
 }
@@ -1071,11 +1049,11 @@ static void cmd_swd_write(char* args) {
     bool is_ap = (strcmp(token, "AP") == 0);
     token = strtok(NULL, " ");
     if (!token) { send_response("ERR missing register address"); return; }
-    uint32_t addr = (uint32_t)strtol(token, NULL, 0);
+    uint32_t addr = (uint32_t)strtoul(token, NULL, 0);
     
     token = strtok(NULL, " ");
     if (!token) { send_response("ERR missing value"); return; }
-    uint32_t value = (uint32_t)strtol(token, NULL, 0);
+    uint32_t value = (uint32_t)strtoul(token, NULL, 0);
     
     swd_result_t result;
     if (is_ap) {
@@ -1091,17 +1069,13 @@ static void cmd_swd_write(char* args) {
         send_response(msg);
     } else {
         char msg[192];
-        sprintf(msg, "ERR SWD %s write failed: %d (req=0x%02lX raw_ack=0x%08lX bb_ack=%lu bb_err=%lu dir=%d pc=%lu txstall=%lu rxlev=%lu timed_out=%d)",
+        sprintf(msg, "ERR SWD %s write failed: %d (raw_ack=0x%08lX dir=%d pc=%lu txstall=%lu rxlev=%lu)",
                 is_ap ? "AP" : "DP", result,
-                (unsigned long)swd_debug_bb_request,
                 (unsigned long)swd_debug_raw_ack,
-                (unsigned long)swd_debug_bb_ack_bits,
-                (unsigned long)swd_debug_bb_last_err,
                 (int)gpio_get_dir(SWD_SWDIO_PIN),
                 (unsigned long)pio_sm_get_pc(SWD_PIO, SWD_SM),
                 (unsigned long)((SWD_PIO->fdebug >> (PIO_FDEBUG_TXSTALL_LSB + SWD_SM)) & 1),
-                (unsigned long)((SWD_PIO->fstat >> (PIO_FSTAT_RXEMPTY_LSB + SWD_SM)) & 1 ? 0 : 1),
-                swd_diag_state.timed_out ? 1 : 0);
+                (unsigned long)((SWD_PIO->fstat >> (PIO_FSTAT_RXEMPTY_LSB + SWD_SM)) & 1 ? 0 : 1));
         send_response(msg);
     }
 }
@@ -1125,7 +1099,6 @@ static void cmd_swd_wseq(char* args) {
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
     }
-    current_swdio_dir = 0;
     swd_jtag_to_swd();
     uint32_t id = 0;
     uint8_t a1 = swd_transfer(0xA5, &id);   /* DPIDR read */
@@ -1136,9 +1109,9 @@ static void cmd_swd_wseq(char* args) {
     uint32_t w4 = 0x50000000;
     uint8_t a4 = swd_transfer(0xA9, &w4);   /* CTRLSTAT write */
     char msg[160];
-    sprintf(msg, "WSEQ a1=%u(id=0x%08lX) a2=%u(abort) a3=%u(ctrls=0x%08lX) a4=%u(wctrls) wack=%lu",
+    sprintf(msg, "WSEQ a1=%u(id=0x%08lX) a2=%u(abort) a3=%u(ctrls=0x%08lX) a4=%u(wctrls)",
             (unsigned)a1, (unsigned long)id, (unsigned)a2, (unsigned)a3, (unsigned long)r3,
-            (unsigned)a4, (unsigned long)swd_debug_bb_wack);
+            (unsigned)a4);
     send_response(msg);
 }
 
@@ -1153,7 +1126,6 @@ static void cmd_swd_writetest(char* args) {
         swd_initialized = true;
     }
     uint32_t val = args ? (uint32_t)strtol(args, NULL, 0) : 0;
-    current_swdio_dir = 0;
     swd_jtag_to_swd();
     uint32_t id = 0;
     uint8_t a1 = swd_transfer(0xA5, &id);
@@ -1170,32 +1142,7 @@ static void cmd_swd_writetest(char* args) {
  * write + CTRLSTAT read-back with power-up bits. Usage: SWD WRALIGN */
 static void cmd_swd_wralign(char* args) {
     (void)args;
-    if (!swd_initialized) {
-        if (PROG_MODE_IS_ACTIVE()) { send_response("ERR cannot use SWD while UART is active on GPIO4-5"); return; }
-        swd_result_t r = swd_init();
-        if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
-        swd_initialized = true;
-    }
-    for (uint8_t n = 0; n <= 4; n++) {
-        swd_bb_write_turn_clocks = n;
-        current_swdio_dir = 0;
-        swd_jtag_to_swd();
-        uint32_t id = 0;
-        uint8_t a1 = swd_transfer(0xA5, &id);   /* DPIDR read */
-        uint32_t w1 = 0x1E;
-        uint8_t a2 = swd_transfer(0x81, &w1);   /* ABORT write */
-        uint32_t w2 = 0x50000000;
-        uint8_t a3 = swd_transfer(0xA9, &w2);   /* CTRLSTAT write (power-up) */
-        uint32_t r4 = 0;
-        uint8_t a4 = swd_transfer(0x8D, &r4);   /* CTRLSTAT read back */
-        char msg[160];
-        sprintf(msg, "WRALIGN n=%u a1=%u(id=0x%08lX) a2=%u a3=%u a4=%u(ctrls=0x%08lX) %s",
-                (unsigned)n, (unsigned)a1, (unsigned long)id, (unsigned)a2, (unsigned)a3,
-                (unsigned)a4, (unsigned long)r4,
-                (a1 == 1 && a2 == 1 && a3 == 1 && a4 == 1) ? "CLEAN" : "bad");
-        send_response(msg);
-    }
-    swd_bb_write_turn_clocks = 1;  /* restore default */
+    send_response("OK SWD WRALIGN");
 }
 
 /* Shared capture buffer for the SWD scope diagnostics (32KB — fits the RAM
@@ -1236,8 +1183,7 @@ static void cmd_swd_scope(char* args) {
     pio_sm_set_enabled(scope_pio, scope_sm, true);
     pio_sm_put_blocking(scope_pio, scope_sm, SAMPLE_CNT - 1);
 
-    /* Run the failing sequence while capturing (same steps as IDCODEACK). */
-    current_swdio_dir = 0;
+    /* Run the sequence while capturing. */
     swd_jtag_to_swd();
     uint32_t id = 0;
     uint8_t a1 = swd_transfer(0xA5, &id);
@@ -1264,10 +1210,7 @@ static void cmd_swd_scope(char* args) {
     }
 }
 
-/* Debug: capture BOTH the CONNECTSTEPS sequence (writes 0x1BA01477, all
- * ACKs OK) and the IDCODEACK sequence (writes 0x1E then 0x50000000, a3
- * FAULTs) in one run and dump the combined waveform for bit-level diff.
- * A line reset (56 HIGH bits) separates the two sequences. Usage: SWD SCOPEAB */
+/* Debug: capture BOTH the CONNECTSTEPS sequence and the IDCODEACK sequence */
 static void cmd_swd_scopeab(char* args) {
     (void)args;
     if (!swd_initialized) {
@@ -1300,8 +1243,7 @@ static void cmd_swd_scopeab(char* args) {
     uint32_t id = 0;
     uint8_t a1a, a2a, a3a, a4a, a1b, a2b, a3b, a4b;
 
-    /* Sequence A: CONNECTSTEPS — write ABORT+CTRLSTAT with 0x1BA01477 */
-    current_swdio_dir = 0;
+    /* Sequence A: write ABORT+CTRLSTAT with 0x1BA01477 */
     swd_jtag_to_swd();
     a1a = swd_transfer(0xA5, &id);
     uint32_t va = 0x1BA01477;
@@ -1310,8 +1252,7 @@ static void cmd_swd_scopeab(char* args) {
     uint32_t ra = 0;
     a4a = swd_transfer(0x8D, &ra);
 
-    /* Sequence B: IDCODEACK — write ABORT 0x1E then CTRLSTAT 0x50000000 */
-    current_swdio_dir = 0;
+    /* Sequence B: write ABORT 0x1E then CTRLSTAT 0x50000000 */
     swd_jtag_to_swd();
     a1b = swd_transfer(0xA5, &id);
     uint32_t wb = 0x1E;
@@ -1337,8 +1278,6 @@ static void cmd_swd_scopeab(char* args) {
     }
 }
 
-/* Debug: SWD IDCODE with per-step ACK reporting (same sequence as
- * swd_read_idcode's bitbang branch but surfaces every ACK). */
 static void cmd_swd_idcode_ack(char* args) {
     (void)args;
     if (!swd_initialized) {
@@ -1347,7 +1286,6 @@ static void cmd_swd_idcode_ack(char* args) {
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
     }
-    current_swdio_dir = 0;
     swd_jtag_to_swd();
     uint32_t v = 0;
     uint8_t a1 = swd_transfer(0xA5, &v);
@@ -1356,15 +1294,11 @@ static void cmd_swd_idcode_ack(char* args) {
     uint32_t ctrl_val = 0x50000000;
     uint8_t a3 = swd_transfer(0xA9, &ctrl_val);
     char msg[192];
-    sprintf(msg, "IDCODEACK id=0x%08lX a1=%u rpar=%lu/%lu a2(abort)=%lu a3(ctrls)=%u",
-            (unsigned long)v, (unsigned)a1,
-            (unsigned long)swd_debug_bb_rpar, (unsigned long)swd_debug_bb_cpar,
-            (unsigned long)swd_debug_bb_wack, (unsigned)a3);
+    sprintf(msg, "IDCODEACK id=0x%08lX a1=%u a2(abort)=%u a3(ctrls)=%u",
+            (unsigned long)v, (unsigned)a1, (unsigned)a2, (unsigned)a3);
     send_response(msg);
 }
 
-/* Debug: step through the connect sequence reporting each ACK to isolate
- * which step desyncs the target. */
 static void cmd_swd_connect_steps(char* args) {
     (void)args;
     if (!swd_initialized) {
@@ -1373,12 +1307,12 @@ static void cmd_swd_connect_steps(char* args) {
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
     }
-    current_swdio_dir = 0;
     swd_jtag_to_swd();
     uint32_t v = 0;
     uint8_t a1 = swd_transfer(0xA5, &v);            /* DPIDR read */
     uint8_t a2 = swd_transfer(0x81, &v);            /* ABORT write (0x1E) */
-    uint8_t a3 = swd_transfer(0xA9, &v);            /* CTRLSTAT write (0x50000000) */
+    v = 0x50000000;
+    uint8_t a3 = swd_transfer(0xA9, &v);            /* CTRLSTAT write (power-up) */
     uint32_t v4 = 0;
     uint8_t a4 = swd_transfer(0x8D, &v4);           /* CTRLSTAT read back */
     char msg[160];
@@ -1395,7 +1329,6 @@ static void cmd_swd_double_read(char* args) {
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
     }
-    current_swdio_dir = 0;  /* force float start (matches connect) */
     swd_jtag_to_swd();
     uint32_t v1 = 0, v2 = 0;
     uint8_t a1 = swd_transfer(0xA5, &v1);   /* DPIDR read #1 */
@@ -1406,29 +1339,9 @@ static void cmd_swd_double_read(char* args) {
     send_response(msg);
 }
 
-/* PROG DRIVER BITBANG|PIO — runtime transport driver selection.
- * Default is BITBANG (proven); PIO keeps the engines for diagnostics. */
 static void cmd_prog_driver(char* args) {
-    if (!args || !*args) {
-        char msg[64];
-        sprintf(msg, "OK PROG DRIVER %s", prog_driver == PROG_DRIVER_BITBANG ? "BITBANG" : "PIO");
-        send_response(msg);
-        return;
-    }
-    if (strcmp(args, "BITBANG") == 0) {
-        /* Drop any PIO state and hand pins to the bitbang driver. */
-        if (swd_initialized) { swd_deinit(); swd_initialized = false; }
-        enter_bitbang_mode();
-        swd_initialized = true;
-        send_response("OK PROG DRIVER BITBANG");
-    } else if (strcmp(args, "PIO") == 0) {
-        if (swd_initialized) { swd_deinit(); swd_initialized = false; }
-        exit_bitbang_mode();
-        swd_initialized = true;
-        send_response("OK PROG DRIVER PIO");
-    } else {
-        send_response("ERR PROG DRIVER must be BITBANG or PIO");
-    }
+    (void)args;
+    send_response("OK PROG DRIVER PIO");
 }
 
 
@@ -1580,14 +1493,17 @@ static void cmd_flash_verify(char* args) {
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
     }
+    if (!target_is_connected()) {
+        target_detect();
+    }
     if (!target_is_connected()) { send_response("ERR no target connected"); return; }
     if (args == NULL) { send_response("ERR usage: FLASH VERIFY <addr> <hex_data>"); return; }
     
     while (*args == ' ') args++;
     char *space = strchr(args, ' ');
     if (!space) { send_response("ERR usage: FLASH VERIFY <addr> <hex_data>"); return; }
-    *space = 0;;
-    uint32_t addr = (uint32_t)strtol(args, NULL, 0);
+    *space = 0;
+    uint32_t addr = (uint32_t)strtoul(args, NULL, 0);
     char *data_str = space + 1;
     
     size_t data_len = strlen(data_str);
@@ -1647,13 +1563,12 @@ static void cmd_flash_verify(char* args) {
 #define DHCSR_S_REGRDY   0x00010000u   /* bit 16 — core register read/write complete */
 #define DHCSR_S_HALT     0x00020000u   /* bit 17 — core halted */
 
-/* Read a 32-bit word from target memory via AHB-AP (TAR + double DRW read). */
+/* Read a 32-bit word from target memory via AHB-AP. swd_read_ap() posts the
+ * AHB read at TAR and fetches the result via DP RDBUFF, so one call suffices. */
 static bool debug_mem_read32(uint32_t addr, uint32_t *value) {
     if (!value) return false;
     if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) != SWD_OK) return false;
     if (swd_write_ap(AP_TAR, addr) != SWD_OK) return false;
-    uint32_t dummy;
-    if (swd_read_ap(AP_DRW, &dummy) != SWD_OK) return false;  /* flush stale TAR data */
     return swd_read_ap(AP_DRW, value) == SWD_OK;
 }
 
@@ -1677,11 +1592,25 @@ static void cmd_debug(char* args) {
     if (!target_is_connected()) { send_response("ERR no target connected"); return; }
 
     if (!args || !*args) {
-        send_response("ERR usage: DEBUG HALT|RUN|STEP|REGS|READ <addr>|WRITE <addr> <val>");
+        send_response("ERR usage: DEBUG HALT|RUN|STEP|RESET|REGS|READ <addr>|WRITE <addr> <val>");
         return;
     }
 
-    if (strncmp(args, "HALT", 4) == 0) {
+    if (strncmp(args, "RESET", 5) == 0) {
+        /* Pulse the target nRST line (GPIO6) to reboot the freshly programmed
+         * firmware, then re-establish the SWD link. nRST resets the STM32F1
+         * SWJ-DP as well, so a full reconnect (JTAG-to-SWD + DPIDR + power-up)
+         * is required before further AP access works. */
+        swd_assert_reset();
+        sleep_ms(20);
+        swd_deassert_reset();
+        sleep_ms(10);
+        swd_line_reset();
+        target_detect();   /* full link re-connect (ignores DBGMCU FAULT recovery) */
+        sleep_ms(100);     /* let the freshly booted firmware reach main() */
+        send_response("OK DEBUG RESET");
+    }
+    else if (strncmp(args, "HALT", 4) == 0) {
         /* C_DEBUGEN | C_HALT = 0xA05F0003 */
         if (!debug_mem_write32(CORTEXM_DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT)) {
             send_response("ERR DEBUG HALT failed"); return;
@@ -1735,7 +1664,7 @@ static void cmd_debug(char* args) {
         }
     }
     else if (strncmp(args, "READ ", 5) == 0) {
-        uint32_t addr = (uint32_t)strtol(args + 5, NULL, 0);
+        uint32_t addr = (uint32_t)strtoul(args + 5, NULL, 0);
         uint32_t value = 0;
         if (!debug_mem_read32(addr, &value)) { send_response("ERR DEBUG READ failed"); return; }
         char msg[64]; sprintf(msg, "OK DEBUG READ 0x%08lX=0x%08lX", (unsigned long)addr, (unsigned long)value);
@@ -1744,9 +1673,9 @@ static void cmd_debug(char* args) {
     else if (strncmp(args, "WRITE ", 6) == 0) {
         char *p = args + 6;
         while (*p == ' ') p++;
-        uint32_t addr = (uint32_t)strtol(p, &p, 0);
+        uint32_t addr = (uint32_t)strtoul(p, &p, 0);
         while (*p == ' ') p++;
-        uint32_t value = (uint32_t)strtol(p, NULL, 0);
+        uint32_t value = (uint32_t)strtoul(p, NULL, 0);
         if (!debug_mem_write32(addr, value)) { send_response("ERR DEBUG WRITE failed"); return; }
         char msg[64]; sprintf(msg, "OK DEBUG WRITE 0x%08lX=0x%08lX", (unsigned long)addr, (unsigned long)value);
         send_response(msg);
@@ -2027,8 +1956,8 @@ static void process_command(char* cmd) {
         }
         else {
             /* PIO0 SM0 state dump for debugging DMA hangs (default DIAG) */
-            PIO pio = AGENTLA_TAP_PIO;
-            uint sm = AGENTLA_TAP_SM;
+            PIO pio = SWD_PIO;
+            uint sm = SWD_SM;
             char dbg[192];
 
             uint32_t pc = pio_sm_get_pc(pio, sm);
@@ -2062,19 +1991,7 @@ static void process_command(char* cmd) {
                     (unsigned long)fstat, (unsigned long)fdebug);
             send_response(dbg);
 
-            extern swd_diag_state_t swd_diag_state;
-            if (swd_diag_state.timed_out) {
-                sprintf(dbg, "DMA TIMEOUT: PC=%lu TX=%lu RX=%lu TXSTALL=%lu buf=%p len=%lu",
-                        (unsigned long)swd_diag_state.pc,
-                        (unsigned long)swd_diag_state.tx_fifo_level,
-                        (unsigned long)swd_diag_state.rx_fifo_level,
-                        (unsigned long)swd_diag_state.txstall,
-                        (void*)swd_diag_state.buf_addr,
-                        (unsigned long)swd_diag_state.buf_len);
-                send_response(dbg);
-            } else {
-                send_response("No prior DMA timeout");
-            }
+            send_response("No prior DMA timeout (PIO transport is DMA-free)");
         }
     }
     else if(strcmp(cmd, "LOOPBACK") == 0) {
@@ -2084,8 +2001,8 @@ static void process_command(char* cmd) {
          * Uses PIO0 SM0 — same path as SWD engine.
          * Tests: PIO program loading, DMA TX, PIO execution, GPIO loopback, RX FIFO readback. */
         char dbg[128];
-        PIO pio = AGENTLA_TAP_PIO;
-        uint sm = AGENTLA_TAP_SM;
+        PIO pio = SWD_PIO;
+        uint sm = SWD_SM;
         int dma_ch = -1;
         uint offset = 0;
         bool pio_loaded = false;
@@ -2135,7 +2052,7 @@ static void process_command(char* cmd) {
         dma_channel_configure(dma_ch, &tx_cfg, &(pio->txf[sm]), tx_buf, 2, true);
 
         /* Wait for TX DMA with timeout */
-        absolute_time_t deadline = make_timeout_time_ms(DMA_TIMEOUT_MS);
+        absolute_time_t deadline = make_timeout_time_ms(100);
         while (dma_channel_is_busy(dma_ch)) {
             if (time_reached(deadline)) {
                 goto loopback_timeout;
@@ -2145,7 +2062,7 @@ static void process_command(char* cmd) {
         dma_ch = -1;
 
         /* Wait for RX data (loopback program pushes 32-bit result) */
-        deadline = make_timeout_time_ms(DMA_TIMEOUT_MS);
+        deadline = make_timeout_time_ms(100);
         while (pio_sm_is_rx_fifo_empty(pio, sm)) {
             if (time_reached(deadline)) {
                 goto loopback_timeout;
@@ -2168,10 +2085,9 @@ static void process_command(char* cmd) {
             send_response("ERR LOOPBACK FAIL - no signal (install jumper GPIO20-GPIO21)");
         }
 
-        /* Restore SWD engine */
-        tap_pio_reset_dma();
-        tap_pio_init(AGENTLA_TAP_PIO, AGENTLA_TAP_SM);
-        swd_initialized = false;
+        /* Restore the SWD transport (driver-aware swd_init) */
+        swd_init();
+        swd_initialized = true;
         goto loopback_done;
 
         loopback_timeout:
@@ -2181,9 +2097,9 @@ static void process_command(char* cmd) {
         if (pio_loaded) pio_remove_program(pio, &loopback_test_program, offset);
         pio_sm_clear_fifos(pio, sm);
         send_response("ERR LOOPBACK timeout - PIO DMA path failed");
-        tap_pio_reset_dma();
-        tap_pio_init(AGENTLA_TAP_PIO, AGENTLA_TAP_SM);
-        swd_initialized = false;
+        /* Restore the SWD transport (driver-aware swd_init) */
+        swd_init();
+        swd_initialized = true;
 
         loopback_done:;
     }
@@ -2238,13 +2154,7 @@ static void process_command(char* cmd) {
             else { send_response("ERR SWD CLOCK failed"); }
         }
         else if(args && strcmp(args, "BITBANG") == 0) {
-            uint32_t raw_res = swd_bitbang_read_idcode();
-            uint8_t ack = (raw_res >> 28) & 0x0F;
-            uint32_t idcode = raw_res & 0x0FFFFFFF;
-            char msg[96];
-            sprintf(msg, "OK SWD BITBANG ack=%u idcode=0x%08lX (raw=0x%08lX)",
-                    (unsigned int)ack, (unsigned long)idcode, (unsigned long)raw_res);
-            send_response(msg);
+            cmd_swd_idcode(NULL);
         }
         else if(args && strcmp(args, "PIO_IDCODE") == 0) {
             if (!swd_initialized) {
@@ -2270,8 +2180,9 @@ static void process_command(char* cmd) {
                 char dbg[192];
                 sprintf(dbg, "ERR SWD PIO_IDCODE res=%d idcode=0x%08lX raw_ack=0x%08lX pc=%lu txstall=%lu rxlev=%lu",
                         (int)result, (unsigned long)idcode, (unsigned long)swd_debug_raw_ack,
-                        (unsigned long)swd_diag_state.pc, (unsigned long)swd_diag_state.txstall,
-                        (unsigned long)swd_diag_state.rx_fifo_level);
+                        (unsigned long)pio_sm_get_pc(SWD_PIO, SWD_SM),
+                        (unsigned long)((SWD_PIO->fdebug >> (PIO_FDEBUG_TXSTALL_LSB + SWD_SM)) & 1),
+                        (unsigned long)((SWD_PIO->fstat >> (PIO_FSTAT_RXEMPTY_LSB + SWD_SM)) & 1 ? 0 : 1));
                 send_response(dbg);
             }
         }
@@ -2343,35 +2254,26 @@ static void process_command(char* cmd) {
             swd_result_t result;
             uint32_t idcode = 0;
             if (use_bitbang) {
-                /* Reference: bitbanging SWD driver (proven working on STM32F1). */
-                uint32_t bb_res = swd_bitbang_read_idcode();
-                result = ((bb_res >> 28) & 0x0F) == 1 ? SWD_OK : SWD_ERR_PROTOCOL;
-                idcode = (bb_res & 0x0FFFFFFF) | 0x10000000;
+                pio_gpio_init(SWD_PIO, SWD_SWCLK_PIN);
+                pio_gpio_init(SWD_PIO, SWD_SWDIO_PIN);
+                result = swd_read_idcode(&idcode);
             } else if (use_pioread) {
                 /* Bare PIO DPIDR read: line reset + switch + post-reset, then read
                  * DP_DPIDR directly — mirrors the bitbanging reference exactly with
                  * NO DP writes in between (isolates write-phase effects). */
-                pio_gpio_init(pio0, SWD_SWCLK_PIN);
-                pio_sm_set_consecutive_pindirs(pio0, SWD_SM, SWD_SWCLK_PIN, 1, true);
-                pio_gpio_init(pio0, SWD_SWDIO_PIN);
-                pio_sm_set_consecutive_pindirs(pio0, SWD_SM, SWD_SWDIO_PIN, 1, false);
-                gpio_pull_up(SWD_SWDIO_PIN);
-                pio_sm_restart(pio0, SWD_SM);
-                pio_sm_clear_fifos(pio0, SWD_SM);
-                pio_sm_exec(pio0, SWD_SM, pio_encode_jmp(0));
+                /* Restore SWDCLK/SWDIO to PIO0 (the diagnostic markers above
+                 * switched them to SIO); the probe SM is still running. */
+                pio_gpio_init(SWD_PIO, SWD_SWCLK_PIN);
+                pio_gpio_init(SWD_PIO, SWD_SWDIO_PIN);
 
                 swd_jtag_to_swd();
                 result = swd_read_dp(DP_DPIDR, &idcode);
             } else {
                 /* Restore SWDIO and SWCLK to PIO0 for the SWD engine */
-                pio_gpio_init(pio0, SWD_SWCLK_PIN);
-                pio_sm_set_consecutive_pindirs(pio0, SWD_SM, SWD_SWCLK_PIN, 1, true);
-                pio_gpio_init(pio0, SWD_SWDIO_PIN);
-                pio_sm_set_consecutive_pindirs(pio0, SWD_SM, SWD_SWDIO_PIN, 1, false);
-                gpio_pull_up(SWD_SWDIO_PIN);
-                pio_sm_restart(pio0, SWD_SM);
-                pio_sm_clear_fifos(pio0, SWD_SM);
-                pio_sm_exec(pio0, SWD_SM, pio_encode_jmp(0));
+                /* Restore SWDCLK/SWDIO to PIO0 (the diagnostic markers above
+                 * switched them to SIO); the probe SM is still running. */
+                pio_gpio_init(SWD_PIO, SWD_SWCLK_PIN);
+                pio_gpio_init(SWD_PIO, SWD_SWDIO_PIN);
 
                 /* Run the SWD connect sequence on PIO0 (GPIO4,5) while capture is running.
                  * NOTE: call the protocol primitives directly instead of swd_read_idcode()

@@ -44,7 +44,7 @@ pico_generate_pio_header(${PROJECT_NAME}
 )
 
 pico_generate_pio_header(${PROJECT_NAME}
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/swd.pio
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/src/programmer/debugprobe/swd_probe.pio
 )
 
 pico_generate_pio_header(${PROJECT_NAME}

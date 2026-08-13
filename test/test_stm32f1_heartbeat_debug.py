@@ -94,12 +94,18 @@ def find_serial_port():
 
 
 def send_cmd(ser, cmd, timeout=2.0):
-    """Send a command and collect all response lines."""
+    """Send a command and collect response lines.
+
+    Returns once the response stream goes idle after a terminal OK/ERR line,
+    so a slow command doesn't stall the caller for the full timeout while
+    still catching multi-line responses (e.g. DEBUG REGS prints its OK line
+    first and the register lines after)."""
     ser.reset_input_buffer()
     ser.write((cmd + '\r\n').encode())
-    time.sleep(0.3)
+    time.sleep(0.05)
     deadline = time.time() + timeout
     lines = []
+    terminal = False
     while time.time() < deadline:
         if ser.in_waiting:
             raw = ser.read(ser.in_waiting).decode(errors='replace')
@@ -107,7 +113,15 @@ def send_cmd(ser, cmd, timeout=2.0):
                 ln = ln.strip()
                 if ln and not ln.startswith('> '):
                     lines.append(ln)
-        time.sleep(0.05)
+                    if ln.startswith('OK') or ln.startswith('ERR'):
+                        terminal = True
+        elif terminal:
+            # Terminal line seen and no more data in flight: give trailing
+            # multi-line responses a short grace window before returning.
+            time.sleep(0.1)
+            if not ser.in_waiting:
+                return lines
+        time.sleep(0.02)
     return lines
 
 
@@ -204,7 +218,8 @@ def stage_debug(ser):
         print(f"  {l}")
         if 'OK DEBUG READ' in l:
             try:
-                got = int(l.split('0x', 2)[1].split('=')[0], 16)
+                # Line format: OK DEBUG READ 0x<addr>=0x<value> — take the value
+                got = int(l.split('=')[1], 16)
             except Exception:
                 got = None
     if got != marker:
@@ -324,8 +339,15 @@ def main():
             sys.exit(1)
         print(f"  ✓ {port}")
 
-    ser = serial.Serial(port, 115200, timeout=2)
-    time.sleep(1.0)
+    ser = serial.Serial(port, 115200, timeout=0.5)
+    # Drain any leftover bulk text in OS/USB serial buffer
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+            deadline = time.time() + 0.5
+        time.sleep(0.05)
+    ser.reset_input_buffer()
 
     stage_connect(ser, port)
     stage_flash(ser)

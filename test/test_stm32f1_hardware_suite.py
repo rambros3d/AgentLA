@@ -46,6 +46,8 @@ def main():
     # Tier 1: Transport & Protocol Layer Verification
     # -------------------------------------------------------------------------
     print("\n--- Tier 1: Transport & Protocol Layer Verification ---")
+    resp_drv = send_cmd(ser, "PROG DRIVER PIO")
+    print(f"  > PROG DRIVER PIO -> {resp_drv}")
     resp = send_cmd(ser, "SWD CLOCK 1000")
     print(f"  > SWD CLOCK 1000 -> {resp}")
     
@@ -69,20 +71,18 @@ def main():
     # -------------------------------------------------------------------------
     print("\n--- Tier 2: Cortex-M3 CPU Control & Debug Verification ---")
     # Read DHCSR
-    resp_dhcsr = send_cmd(ser, "SWD READ AP 0xE000EDF0")
+    resp_dhcsr = send_cmd(ser, "DEBUG READ 0xE000EDF0")
     print(f"  > Read DHCSR (0xE000EDF0): {resp_dhcsr}")
     
-    # Halt CPU
-    send_cmd(ser, "SWD WRITE AP 0xE000EDF0 0xA05F0003")
-    resp_halt = send_cmd(ser, "SWD READ AP 0xE000EDF0")
+    # Halt CPU via DEBUG HALT command
+    resp_halt = send_cmd(ser, "DEBUG HALT")
     print(f"  > Halt DHCSR: {resp_halt}")
     
-    # Resume CPU
-    send_cmd(ser, "SWD WRITE AP 0xE000EDF0 0xA05F0000")
-    resp_unhalt = send_cmd(ser, "SWD READ AP 0xE000EDF0")
+    # Resume CPU via DEBUG RUN command
+    resp_unhalt = send_cmd(ser, "DEBUG RUN")
     print(f"  > Resume DHCSR: {resp_unhalt}")
 
-    tier2_ok = any("0x" in r for r in resp_halt)
+    tier2_ok = any("OK DEBUG HALT" in r for r in resp_halt)
     if tier2_ok:
         print("  ✓ Tier 2 Passed: Cortex-M3 DHCSR Core Control Validated")
         passed_tiers += 1
@@ -93,22 +93,24 @@ def main():
     # Tier 3: AHB System Bus & Chip Identification
     # -------------------------------------------------------------------------
     print("\n--- Tier 3: AHB System Bus & Chip Identification ---")
-    # SRAM Write/Read Test
+    # SRAM Write/Read Test (halt CPU first so SRAM isn't mutated by running code)
+    send_cmd(ser, "DEBUG HALT")
     test_val = "0xDEADBEEF"
-    send_cmd(ser, f"SWD WRITE AP 0x20000000 {test_val}")
-    resp_ram = send_cmd(ser, "SWD READ AP 0x20000000")
+    send_cmd(ser, f"DEBUG WRITE 0x20000000 {test_val}")
+    resp_ram = send_cmd(ser, "DEBUG READ 0x20000000")
+    send_cmd(ser, "DEBUG RUN")
     print(f"  > SRAM Write/Read @ 0x20000000: {resp_ram}")
     
     # DBGMCU IDCODE
-    resp_dbg = send_cmd(ser, "SWD READ AP 0xE0042000")
+    resp_dbg = send_cmd(ser, "DEBUG READ 0xE0042000")
     print(f"  > DBGMCU IDCODE @ 0xE0042000: {resp_dbg}")
     
     # Flash Size Register
-    resp_sz = send_cmd(ser, "SWD READ AP 0x1FFFF7E0")
+    resp_sz = send_cmd(ser, "DEBUG READ 0x1FFFF7E0")
     print(f"  > Flash Size @ 0x1FFFF7E0: {resp_sz}")
 
     # Unique Device ID (UID)
-    resp_uid = send_cmd(ser, "SWD READ AP 0x1FFFF7E8")
+    resp_uid = send_cmd(ser, "DEBUG READ 0x1FFFF7E8")
     print(f"  > 96-bit Chip UID @ 0x1FFFF7E8: {resp_uid}")
 
     tier3_ok = any("DEADBEEF" in r.upper() for r in resp_ram)

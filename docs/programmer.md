@@ -9,6 +9,18 @@ AgentLA supports two modes for programming and debugging target MCUs:
 
 **All modes are always available and auto-activate when needed.** No manual mode switching required.
 
+### SWD Transport Drivers (PIO vs Bitbang)
+
+AgentLA provides two SWD transport backends:
+- **Bitbang Driver (`PROG DRIVER BITBANG`, default reference)**: SIO bit-twiddling with deterministic timing (~100 kbit/s).
+- **PIO Driver (`PROG DRIVER PIO`)**: Vendored Raspberry Pi `debugprobe` PIO engine (`firmware/src/programmer/debugprobe/`):
+  - `swd_probe.pio`: Single PIO SM program (`probe`, MIT license) handling SWCLK side-setting and SWDIO tri-state timing.
+  - `probe_pio_transport.c`/`.h`: Bit primitives and bounded 10 ms FIFO transport (MIT license).
+  - `swd_transfer_pio.c`/`.h`: Ported `SWD_Transfer` transaction engine (Apache-2.0 license) with continuous-clock turnaround, WAIT/FAULT back-off, and protocol re-sync.
+  - All vendored components are pinned to Raspberry Pi `debugprobe` commit `3fff5b2`.
+- Switch drivers at runtime via `PROG DRIVER BITBANG` or `PROG DRIVER PIO`.
+- Power-up request value across both drivers is set to `0x30000000` (`CDBGPWRUPREQ | CSYSPWRUPREQ`).
+
 ## Flashing AgentLA Firmware (Updating the Device Itself)
 
 ### Preferred Method: picotool in BOOTSEL Mode

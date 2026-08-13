@@ -4,21 +4,12 @@
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
 
-/* Transport driver selection — bitbang is the proven default; the PIO engines
- * remain selectable for the SWD CAPTURE / PIO_IDCODE diagnostics. */
+/* Transport driver selection — PIO (debugprobe hardware engine). */
 typedef enum {
-    PROG_DRIVER_BITBANG = 0,
-    PROG_DRIVER_PIO
+    PROG_DRIVER_PIO = 0
 } prog_driver_t;
 
-extern prog_driver_t prog_driver;
 
-/* Take GPIO4/5/6 out of the PIO engines and into raw SIO bitbang ownership.
- * Safe to call repeatedly (idempotent). */
-void enter_bitbang_mode(void);
-
-/* Return pins to the PIO engine(s): re-run swd/swio/rvswd init as needed. */
-void exit_bitbang_mode(void);
 
 void prog_init(void);
 bool prog_enter_mode(void);

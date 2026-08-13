@@ -116,9 +116,9 @@ swd_result_t target_detect(void) {
     if (ap_result == SWD_OK)
         ap_result = swd_write_ap(AP_TAR, STM32_DBGMCU_IDCODE);
     if (ap_result == SWD_OK) {
-        uint32_t dummy = 0;
-        swd_read_ap(AP_DRW, &dummy);  /* Initiate AP read */
-        ap_result = swd_read_ap(AP_DRW, &dbg_id);  /* Get result */
+        /* swd_read_ap() posts the AHB read at TAR and fetches the result via
+         * DP RDBUFF — a single call returns the DBGMCU_IDCODE value. */
+        ap_result = swd_read_ap(AP_DRW, &dbg_id);
     }
 
     /* If DBGMCU read succeeded, use it for chip identification */
@@ -289,17 +289,10 @@ static bool stm32f1_unlock_flash(void) {
     return true;
 }
 
-/*
- * ADIv5 AP read requires a dummy read after TAR write.
- * The first DRW read returns data from the OLD TAR address.
- * The second DRW read returns data from the NEW TAR address.
- */
+/* ADIv5 AP reads are posted; swd_read_ap() already fetches the result via
+ * DP RDBUFF, so a single call returns the current register value. */
 static swd_result_t ap_read(uint8_t reg, uint32_t *value) {
-    swd_result_t r;
-    uint32_t dummy;
-    r = swd_read_ap(reg, &dummy);  /* Dummy: flush stale data */
-    if (r != SWD_OK) return r;
-    return swd_read_ap(reg, value);  /* Actual read */
+    return swd_read_ap(reg, value);
 }
 
 static bool stm32f1_wait_flash_bsy(void) {
@@ -420,10 +413,15 @@ static bool stm32f1_flash_write(uint32_t addr, const uint8_t *data, uint32_t len
         swd_write_ap(AP_TAR, STM32F1_FLASH_CR);
         swd_write_ap(AP_DRW, 0x00000001);  /* PG=1 */
 
-        /* 3. Program halfword using 16-bit CSW access */
+        /* 3. Program halfword using 16-bit CSW access.
+         * NOTE: The AHB-AP does NOT right-align sub-word data — the halfword
+         * must be pre-positioned in the DRW byte lane selected by addr bit[1]
+         * (data in bits [31:16] for addr%4==2, [15:0] for addr%4==0). Without
+         * the shift, halfwords at addr%4==2 program as 0x0000 (flash verify
+         * mismatch). Mirrors BMP adiv5_pack_data(): value << (8 * (dest & 2)). */
         swd_write_ap(AP_CSW, ADIV5_AP_CSW_16BIT);
         swd_write_ap(AP_TAR, addr + i);
-        swd_write_ap(AP_DRW, halfword);
+        swd_write_ap(AP_DRW, (uint32_t)halfword << (8U * ((addr + i) & 2U)));
 
         /* 4. Wait for BSY clear and check PGERR/WRPRTERR */
         if (!stm32f1_wait_flash_bsy()) {
@@ -442,14 +440,17 @@ static bool stm32f1_flash_write(uint32_t addr, const uint8_t *data, uint32_t len
 }
 
 static bool stm32f1_flash_read(uint32_t addr, uint8_t *data, uint32_t len) {
-    swd_result_t r = swd_write_ap(AP_CSW, 0x23000012);
+    swd_result_t r = swd_write_ap(AP_CSW, 0x23000012);  /* Auto-inc single (0x10) | 32-bit (0x02) */
     if (r != SWD_OK) return false;
 
+    r = swd_write_ap(AP_TAR, addr);
+    if (r != SWD_OK) return false;
+
+    /* Each swd_read_ap(AP_DRW) posts an AHB read at the current TAR and
+     * returns the result via DP RDBUFF; TAR auto-increments between words. */
     for (uint32_t i = 0; i < len; i += 4) {
-        uint32_t val;
-        r = swd_write_ap(AP_TAR, addr + i);
-        if (r != SWD_OK) return false;
-        r = ap_read(AP_DRW, &val);  /* Dummy + actual read */
+        uint32_t val = 0;
+        r = swd_read_ap(AP_DRW, &val);
         if (r != SWD_OK) return false;
         uint32_t remaining = (len - i) < 4 ? (len - i) : 4;
         memcpy(data + i, &val, remaining);

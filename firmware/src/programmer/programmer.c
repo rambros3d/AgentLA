@@ -10,42 +10,7 @@ volatile bool programmer_mode_active = false;
 volatile bool raw_passthrough = false;
 static uart_inst_t *prog_uart = uart1;
 
-/* Default transport driver: bitbang (proven). PIO selectable at runtime. */
-prog_driver_t prog_driver = PROG_DRIVER_BITBANG;
 
-/*
- * Disable the SWD PIO engine and hand GPIO4 (SWCLK) / GPIO5 (SWDIO) / GPIO6
- * (nRESET) to raw SIO so the bitbang drivers can bit-twiddle them.
- * The SWIO/RVSWD engines share the same pins on PIO1 and are only ever
- * started after a successful CH32 probe, which runs exclusively in one mode,
- * so stopping the SWD engine is sufficient here.
- */
-void enter_bitbang_mode(void) {
-    /* Stop the SWD PIO state machine and release its pins to SIO. */
-    swd_deinit();
-
-    gpio_init(PROG_SWDCLK_PIN);
-    gpio_set_dir(PROG_SWDCLK_PIN, GPIO_OUT);
-    gpio_set_drive_strength(PROG_SWDCLK_PIN, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_put(PROG_SWDCLK_PIN, 0);
-
-    gpio_init(PROG_SWDIO_PIN);
-    gpio_set_dir(PROG_SWDIO_PIN, GPIO_IN);
-    gpio_pull_up(PROG_SWDIO_PIN);
-    gpio_set_drive_strength(PROG_SWDIO_PIN, GPIO_DRIVE_STRENGTH_12MA);
-
-    gpio_init(PROG_NRESET_PIN);
-    gpio_set_dir(PROG_NRESET_PIN, GPIO_IN);
-
-    prog_driver = PROG_DRIVER_BITBANG;
-}
-
-void exit_bitbang_mode(void) {
-    /* Re-init the SWD engine (PIO mode). swd_init() is idempotent and
-     * re-claims the pins for the PIO SM. */
-    swd_init();
-    prog_driver = PROG_DRIVER_PIO;
-}
 
 static void prog_uart_drain_rx(void) {
     while (uart_is_readable(prog_uart)) {

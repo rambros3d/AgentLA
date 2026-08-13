@@ -1,11 +1,9 @@
 /*
  * AgentLA SWD Engine
- * Based on Raspberry Pi Debugprobe (MIT License)
- * Copyright (c) 2021-2023 Raspberry Pi (Trading) Ltd.
  *
- * PIO-based SWD implementation for RP2350 PIO0
- * NOTE: On RP2350, PIO1 only covers GPIO16-47. SWD pins GPIO4/5
- * are in PIO0's range (GPIO0-31), so PIO0 must be used for SWD.
+ * Vendored Raspberry Pi debugprobe PIO transport
+ * (debugprobe/swd_probe.pio + probe_pio_transport + ported SWD_Transfer)
+ * on RP2350 PIO0 SM0, pins GPIO4 (SWCLK) / GPIO5 (SWDIO).
  */
 
 #ifndef AGENTLA_SWD_H
@@ -13,7 +11,6 @@
 
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
-#include "swd.pio.h"
 
 /* SWD Pin Definitions (from board_settings.h) */
 #define SWD_SWCLK_PIN  4   /* PIO1 SWCLK (matches PROG_SWDCLK_PIN) */
@@ -50,15 +47,16 @@
 #define DP_SELECT    0x8  /* Bank/APSel (Write-only) */
 #define DP_RDBUFF    0xC  /* Read Buffer (Read-only) */
 
-/* AP Register Addresses */
+/* AP Register Addresses (AHB-AP, ADIv5 §A3.4.1).
+ * NOTE: DRW is at 0x0C — 0x08 is a reserved register. A previous value of
+ * 0x8 here made every memory read/write hit the reserved slot and return 0. */
 #define AP_CSW       0x0  /* Control/Status Word */
 #define AP_TAR       0x4  /* Transfer Address */
-#define AP_DRW       0x8  /* Data Read/Write */
+#define AP_DRW       0xC  /* Data Read/Write */
 #define AP_BD0       0x10 /* Banked Data 0 */
 #define AP_BD1       0x14
 #define AP_BD2       0x18
 #define AP_BD3       0x1C
-#define AP_MB        0x0C /* Memory Barrier */
 
 /* ADIv5 AP CSW Access Size Constants */
 #define ADIV5_AP_CSW_SIZE_BYTE     0x00000000
@@ -138,41 +136,6 @@ swd_result_t swd_set_turnaround_cycles(uint8_t cycles);
 
 swd_result_t swd_write_dp_no_check(uint8_t reg, uint32_t value);
 swd_result_t swd_read_dpidr_retry(uint32_t *idcode);
-uint32_t swd_bitbang_read_idcode(void);
-
-/* ============================================================================
- * Bitbang SWD Transport (default driver)
- * ============================================================================ */
-
-/**
- * Full bitbang SWD transaction (request -> turnaround -> ACK -> data/parity
- * -> idle). Mirrors the timing proven in swd_bitbang_read_idcode(): 5us
- * half-period clocks, ACK/data sampled ~2us after the rising edge.
- * @param request Request byte (from swd_build_request())
- * @param data In/out 32-bit data word (write data / read result)
- * @return ACK value (SWD_ACK_OK / SWD_ACK_WAIT / SWD_ACK_FAULT) or 0x07 on
- *         protocol error (no ACK, parity mismatch, timeout)
- */
-uint8_t swd_bb_transfer(uint8_t request, uint32_t *data);
-
-/* Bitbang write turnaround: full bit periods of SWCLK-low held after the ACK
- * before the data phase. Tune via SWD WRALIGN. */
-extern uint8_t swd_bb_write_turn_clocks;
-
-/** Bitbang line reset (60+ HIGH cycles, optional 4 idle cycles). */
-void swd_bb_line_reset_ext(bool idle_cycles);
-
-/** Bitbang JTAG-to-SWD switch (line reset -> 0xE79E -> post reset -> idle). */
-void swd_bb_jtag_to_swd(void);
-
-/** Bitbang N-bit write, LSB-first (bit 0 first on the wire). */
-void swd_bb_write_bits(uint32_t bit_count, uint32_t data);
-
-/** Bitbang N-bit read, LSB-first; returns bits in [bit_count-1:0]. */
-uint32_t swd_bb_read_bits(uint32_t bit_count);
-
-/** Configure GPIO4/5/6 for bitbang mode (SIO, 12mA fast). */
-void swd_bb_gpio_init(void);
 
 /**
  * Write bits to target via SWDIO.
