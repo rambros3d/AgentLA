@@ -118,4 +118,9 @@ ch32_result_t ch32_v20x_flash_unlock(void);
 ch32_result_t ch32_v20x_flash_erase(uint32_t addr, uint32_t len);
 ch32_result_t ch32_v20x_flash_program(uint32_t addr, const uint8_t *data, uint32_t len);
 
+/* CH32V20x microprocessor debug control (RISC-V DM) */
+ch32_result_t ch32v20x_halt_microprocessor(void);
+ch32_result_t ch32v20x_resume_microprocessor(void);
+ch32_result_t ch32v20x_reset_microprocessor_and_run(void);
+
 #endif /* CH32_H */

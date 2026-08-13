@@ -194,8 +194,9 @@ ch32_result_t ch32_probe_target(ch32_mode_t mode) {
         rvswd_reset();
         /* Verify the DTM responds by reading DMSTATUS (DMI reg 0x11). */
         uint32_t dmstatus = 0;
-        rvswd_result_t res = rvswd_read(RVSWD_REG_DMSTATUS, &dmstatus);
-        if (res != RVSWD_OK || dmstatus == 0 || dmstatus == 0xFFFFFFFF) {
+        ch32_result_t res = riscv_dmi_read(RVSWD_REG_DMSTATUS, &dmstatus);
+        printf("DIAG: ch32_probe_target res=%d dmstatus=0x%08lX\r\n", (int)res, (unsigned long)dmstatus);
+        if (res != CH32_OK || dmstatus == 0 || dmstatus == 0xFFFFFFFF) {
             /* No target responding on the RVSWD bus — report instead of guessing */
             printf("CH32: RVSWD DMSTATUS failed (res=%d val=0x%08lX) — check wiring\r\n",
                    (int)res, (unsigned long)dmstatus);
@@ -509,4 +510,100 @@ ch32_result_t ch32_v20x_flash_program(uint32_t addr, const uint8_t *data, uint32
     riscv_resume();
 
     return CH32_OK;
+}
+
+/* ============================================================================
+ * CH32V20x Microprocessor Debug Control (RISC-V DM abstract command interface)
+ * ============================================================================
+ * Ported from references/RVSWD_pico/ch32_debug.c, adapted to the AgentLA
+ * DMI layer (riscv_dmi_read/write, which retries up to 5 times per access).
+ * These only make sense for 2-wire RVSWD targets (CH32V203 / V307).
+ *
+ * Halt  : dmactive|haltreq -> wait for ANYHALTED|ALLHALTED -> clear haltreq
+ * Resume: dmactive|resumereq -> wait for ANYRUNNING|ALLRUNNING
+ * Reset : ndmreset pulse -> wait for ANYHAVERESET|ALLHAVERESET -> ack + run
+ */
+
+ch32_result_t ch32v20x_halt_microprocessor(void) {
+    ch32_result_t res = riscv_dmi_write(DMI_DMCONTROL, 0x80000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x80000001);
+    if (res != CH32_OK) return res;
+
+    int timeout = 1000;
+    while (timeout-- > 0) {
+        uint32_t dmstatus = 0;
+        res = riscv_dmi_read(DMI_DMSTATUS, &dmstatus);
+        if (res != CH32_OK) return res;
+        /* ANYHALTED (bit 8) + ALLHALTED (bit 9) */
+        if (((dmstatus >> 8) & 0b11) == 0b11) {
+            break;
+        }
+        sleep_us(100);
+    }
+    if (timeout <= 0) return CH32_ERR_TIMEOUT;
+
+    /* Clear haltreq — core stays halted (dmactive remains set) */
+    return riscv_dmi_write(DMI_DMCONTROL, 0x00000001);
+}
+
+ch32_result_t ch32v20x_resume_microprocessor(void) {
+    ch32_result_t res = riscv_dmi_write(DMI_DMCONTROL, 0x80000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x80000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x00000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x40000001);
+    if (res != CH32_OK) return res;
+
+    int timeout = 1000;
+    while (timeout-- > 0) {
+        uint32_t dmstatus = 0;
+        res = riscv_dmi_read(DMI_DMSTATUS, &dmstatus);
+        if (res != CH32_OK) return res;
+        /* ANYRUNNING (bit 10) + ALLRUNNING (bit 11) */
+        if (((dmstatus >> 10) & 0b11) == 0b11) {
+            break;
+        }
+        sleep_us(100);
+    }
+    if (timeout <= 0) return CH32_ERR_TIMEOUT;
+
+    /* Clear resumereq */
+    return riscv_dmi_write(DMI_DMCONTROL, 0x00000001);
+}
+
+ch32_result_t ch32v20x_reset_microprocessor_and_run(void) {
+    ch32_result_t res = riscv_dmi_write(DMI_DMCONTROL, 0x80000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x80000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x00000001);
+    if (res != CH32_OK) return res;
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x00000003);  /* ndmreset | dmactive */
+    if (res != CH32_OK) return res;
+
+    int timeout = 5;
+    while (timeout-- > 0) {
+        uint32_t dmstatus = 0;
+        res = riscv_dmi_read(DMI_DMSTATUS, &dmstatus);
+        if (res != CH32_OK) return res;
+        /* ANYHAVERESET (bit 18) + ALLHAVERESET (bit 19) */
+        if (((dmstatus >> 18) & 0b11) == 0b11) {
+            break;
+        }
+        sleep_ms(10);
+    }
+    if (timeout <= 0) return CH32_ERR_TIMEOUT;
+
+    /* Release reset, ack the reset, then clear ack + dmactive so the
+     * target boots and runs from reset vector. */
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x00000001);
+    if (res != CH32_OK) return res;
+    sleep_ms(10);
+    res = riscv_dmi_write(DMI_DMCONTROL, 0x10000001);  /* ackhavereset | dmactive */
+    if (res != CH32_OK) return res;
+    sleep_ms(10);
+    return riscv_dmi_write(DMI_DMCONTROL, 0x00000001);
 }

@@ -73,10 +73,10 @@ swd_result_t swd_init(void) {
         return SWD_OK;
     }
 
-    /* Check if UART is active on shared pins */
+    /* Release UART mode if active on shared pins */
     extern volatile bool programmer_mode_active;
     if (programmer_mode_active) {
-        return SWD_ERR_PROTOCOL;
+        prog_exit_mode();
     }
 
     /* Initialize diagnostic LED */

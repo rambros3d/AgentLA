@@ -886,8 +886,7 @@ static swd_result_t swd_get_idcode_with_fallback(uint32_t *idcode) {
 
 static void cmd_swd_idcode(char* args) {
     (void)args;
-    if (!swd_initialized) {
-        if (PROG_MODE_IS_ACTIVE()) { send_response("ERR cannot use SWD while UART is active on GPIO4-5"); return; }
+    if (!swd_is_initialized()) {
         swd_result_t r = swd_init();
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
@@ -900,8 +899,7 @@ static void cmd_swd_idcode(char* args) {
 
 static void cmd_swd_test(char* args) {
     (void)args;
-    if (!swd_initialized) {
-        if (PROG_MODE_IS_ACTIVE()) { send_response("ERR cannot use SWD while UART is active on GPIO4-5"); return; }
+    if (!swd_is_initialized()) {
         swd_result_t r = swd_init();
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
@@ -920,8 +918,7 @@ static void cmd_swd_test(char* args) {
 
 static void cmd_stm32_test(char* args) {
     (void)args;
-    if (!swd_initialized) {
-        if (PROG_MODE_IS_ACTIVE()) { send_response("ERR cannot use SWD while UART is active on GPIO4-5"); return; }
+    if (!swd_is_initialized()) {
         swd_result_t r = swd_init();
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
@@ -950,8 +947,7 @@ static void cmd_stm32_test(char* args) {
 
 static void cmd_swd_reset(char* args) {
     (void)args;
-    if (!swd_initialized) {
-        if (PROG_MODE_IS_ACTIVE()) { send_response("ERR cannot use SWD while UART is active on GPIO4-5"); return; }
+    if (!swd_is_initialized()) {
         swd_result_t r = swd_init();
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
         swd_initialized = true;
@@ -1441,6 +1437,7 @@ static void cmd_flash_write(char* args) {
 }
 
 static void cmd_ch32_read(char* args);
+static void cmd_ch32_readm(char* args);
 
 static void cmd_flash_read(char* args) {
     if (g_ch32_target.probed && !swd_initialized) {
@@ -1906,6 +1903,32 @@ static void cmd_ch32_read(char* args) {
     send_response(msg);
 }
 
+/* CH32 READM <addr> — single-word memory read diagnostic (F1 investigation).
+ * Calls riscv_read_mem() directly (PROGBUF0 = lw a0,0(a1) path), bypassing the
+ * block-read program / AUTOEXECDATA streaming. Compare CH32 READM 0x20000000
+ * (SRAM control, expect real data) vs CH32 READM 0x08000000 (main flash):
+ *   - flash also returns constant 0x4000B0C3  => flash-bus behavior fault
+ *   - flash returns real data                  => block-read program fault */
+static void cmd_ch32_readm(char* args) {
+    if (args == NULL) { send_response("ERR usage: CH32 READM <addr>"); return; }
+    while (*args == ' ') args++;
+    if (!g_ch32_target.probed || g_ch32_target.mode != CH32_MODE_2WIRE_SWD) {
+        send_response("ERR CH32 READM requires probed RVSWD target (run CH32 DETECT mcu=ch32v203 first)");
+        return;
+    }
+    uint32_t addr = (uint32_t)strtoul(args, NULL, 0);
+
+    uint32_t val = 0;
+    ch32_result_t res = riscv_read_mem(addr, &val);
+    char msg[96];
+    if (res != CH32_OK) {
+        sprintf(msg, "ERR CH32 READM 0x%08lX failed res=%d", (unsigned long)addr, (int)res);
+    } else {
+        sprintf(msg, "OK CH32 READM 0x%08lX = 0x%08lX", (unsigned long)addr, (unsigned long)val);
+    }
+    send_response(msg);
+}
+
 static void process_command(char* cmd) {
     char* args = strchr(cmd, ' ');
     if(args) { *args = '\0'; args++; }
@@ -2327,7 +2350,8 @@ static void process_command(char* cmd) {
         else if(args && strncmp(args, "FLASH ", 6) == 0) cmd_ch32_flash(args + 6);
         else if(args && strncmp(args, "ERASE ", 6) == 0) cmd_ch32_erase(args + 6);
         else if(args && strncmp(args, "READ ", 5) == 0) cmd_ch32_read(args + 5);
-        else { send_response("ERR unknown CH32 subcommand: DETECT|FLASH|ERASE|READ"); }
+        else if(args && strncmp(args, "READM ", 6) == 0) cmd_ch32_readm(args + 6);
+        else { send_response("ERR unknown CH32 subcommand: DETECT|FLASH|ERASE|READ|READM"); }
     }
     else if(strcmp(cmd, "PROGBUF") == 0) {
         if(args && strncmp(args, "STATUS", 6) == 0) {
@@ -2386,19 +2410,23 @@ static void process_command(char* cmd) {
             send_response(msg);
         }
         else if(args && strncmp(args, "READ ", 5) == 0) {
-            uint32_t reg = (uint32_t)strtol(args + 5, NULL, 0);
+            uint32_t reg = (uint32_t)strtoul(args + 5, NULL, 0);
             uint32_t val = 0;
             rvswd_result_t r = rvswd_read((uint8_t)reg, &val);
             char msg[96];
-            sprintf(msg, r == RVSWD_OK ? "RVSWD READ reg=0x%02lX val=0x%08lX" : "RVSWD READ FAILED reg=0x%02lX res=%d",
-                    (unsigned long)reg, (unsigned long)val, (int)r);
+            if (r == RVSWD_OK) {
+                sprintf(msg, "RVSWD READ reg=0x%02lX val=0x%08lX", (unsigned long)reg, (unsigned long)val);
+            } else {
+                sprintf(msg, "RVSWD READ FAILED reg=0x%02lX res=%d val=0x%08lX",
+                        (unsigned long)reg, (int)r, (unsigned long)val);
+            }
             send_response(msg);
         }
         else if(args && strncmp(args, "WRITE ", 6) == 0) {
-            uint32_t reg = (uint32_t)strtol(args + 6, NULL, 0);
+            uint32_t reg = (uint32_t)strtoul(args + 6, NULL, 0);
             char *val_str = strchr(args + 6, ' ');
             if (!val_str) { send_response("ERR usage: RVSWD WRITE <reg> <val>"); return; }
-            uint32_t val = (uint32_t)strtol(val_str, NULL, 0);
+            uint32_t val = (uint32_t)strtoul(val_str, NULL, 0);
             rvswd_result_t r = rvswd_write((uint8_t)reg, val);
             char msg[96];
             sprintf(msg, r == RVSWD_OK ? "OK RVSWD WRITE reg=0x%02lX val=0x%08lX" : "ERR RVSWD WRITE res=%d",

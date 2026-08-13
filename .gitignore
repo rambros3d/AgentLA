@@ -8,6 +8,7 @@ build/
 *.map
 *.dis
 *.d
+.cache/
 
 # CMake
 CMakeCache.txt

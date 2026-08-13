@@ -178,6 +178,15 @@ def stage_flash(ser):
 def stage_debug(ser):
     """Stage 3: HALT/STEP/REGS/READ/WRITE on the running heartbeat target."""
     print_header("STAGE 3: Interactive Cortex-M3 Hardware Debug")
+    # The target was flashed while the OLD firmware was still executing from
+    # the same flash, so the CPU has faulted. Pulse nRST (GPIO6) to reboot
+    # into the freshly programmed heartbeat firmware before debugging it.
+    print("  Rebooting target into freshly flashed firmware (DEBUG RESET)...")
+    lines = send_cmd(ser, 'DEBUG RESET', timeout=3.0)
+    for l in lines:
+        print(f"  {l}")
+    if not cmd_ok(lines, 'OK DEBUG RESET'):
+        print("  ✗ DEBUG RESET failed"); sys.exit(1)
     # HALT the running firmware.
     lines = send_cmd(ser, 'DEBUG HALT', timeout=3.0)
     for l in lines:

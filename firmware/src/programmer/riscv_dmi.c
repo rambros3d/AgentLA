@@ -12,8 +12,13 @@ ch32_result_t riscv_dmi_write(uint8_t reg, uint32_t data) {
         /* CH32V20x/V30x use WCH's RVSWD 2-wire protocol, NOT ARM SWD.
          * DMI registers are addressed directly in the RVSWD header:
          *   [7-bit reg][1-bit op][1-bit parity] ...
-         * The RVSWD transport handles the wire framing. */
-        rvswd_result_t res = rvswd_write(reg, data);
+         * Include retry loop matching reference implementations. */
+        rvswd_result_t res = RVSWD_ERR_TIMEOUT;
+        for (int retry = 0; retry < 5; retry++) {
+            res = rvswd_write(reg, data);
+            if (res == RVSWD_OK) break;
+            sleep_us(50);
+        }
         return (res == RVSWD_OK) ? CH32_OK : CH32_ERR_TIMEOUT;
     }
 }
@@ -26,8 +31,13 @@ ch32_result_t riscv_dmi_read(uint8_t reg, uint32_t *data) {
         *data = swio_get(reg);
         return CH32_OK;
     } else {
-        /* CH32V20x/V30x: RVSWD 2-wire DMI read */
-        rvswd_result_t res = rvswd_read(reg, data);
+        /* CH32V20x/V30x: RVSWD 2-wire DMI read with retry */
+        rvswd_result_t res = RVSWD_ERR_TIMEOUT;
+        for (int retry = 0; retry < 5; retry++) {
+            res = rvswd_read(reg, data);
+            if (res == RVSWD_OK) break;
+            sleep_us(50);
+        }
         return (res == RVSWD_OK) ? CH32_OK : CH32_ERR_TIMEOUT;
     }
 }

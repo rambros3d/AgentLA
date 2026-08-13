@@ -2,7 +2,8 @@
  * rvswd.h - WCH RVSWD (2-wire RISC-V Debug) PIO Transport
  *
  * Implements WCH's 2-wire RVSWD protocol for CH32V20x / CH32V30x
- * (QingKe V4 RISC-V cores). Uses PIO1 SM2 with:
+ * (QingKe V4 RISC-V cores). Uses PIO0 SM0 (shared dynamically with ARM
+ * SWD — only one of probe.pio / rvswd.pio is loaded at a time):
  *   SWCLK = GPIO 4 (sideset)
  *   SWDIO = GPIO 5 (OUT/SET/IN)
  *
@@ -21,13 +22,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
-#include "hardware/pio.h"   /* for pio1 */
+#include "hardware/pio.h"   /* for pio0 */
 
-/* Pins and PIO allocation */
+/* Pins and PIO allocation (PIO0 SM0, shared with ARM SWD via probe.pio) */
 #define RVSWD_SWCLK_PIN   4   /* GPIO 4 — shared with SWD SWCLK */
 #define RVSWD_SWDIO_PIN   5   /* GPIO 5 — shared with SWD/SWIO data */
-#define RVSWD_PIO         pio1
-#define RVSWD_SM          2   /* SM2 (SM0=SWD, SM1=SWIO) */
+#define RVSWD_PIO         pio0
+#define RVSWD_SM          0   /* SM0 — shared with ARM SWD */
 
 /* DMI register addresses carried in the RVSWD 7-bit address field */
 #define RVSWD_REG_DMCONTROL  0x10

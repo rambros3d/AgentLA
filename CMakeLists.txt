@@ -60,7 +60,7 @@ pico_generate_pio_header(${PROJECT_NAME}
 )
 
 pico_generate_pio_header(${PROJECT_NAME}
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/rvswd.pio
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/src/programmer/rvswd/rvswd.pio
 )
 
 pico_set_program_name(AgentLA "AgentLA")

@@ -138,7 +138,12 @@ void probe_write_mode(void) {
     probe_wait_idle();
 }
 
+#include "programmer/rvswd/rvswd_pio_transport.h"
+
 void probe_init(void) {
+    if (rvswd_transport_is_initialized()) {
+        rvswd_transport_deinit();
+    }
     if (!probe.initted) {
         probe_gpio_init();
         uint offset = pio_add_program(pio0, &probe_program);
