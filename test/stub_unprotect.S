@@ -44,20 +44,28 @@ _start:
     bnez t3, fail
 
     # ---- option byte erase ----
-    li t3, 0x20             # OPTER
+    li t3, 0x220            # OPTER | OPTWRE
     sw t3, 0(t2)
-    li t3, 0x60             # OPTER | STRT
+    li t3, 0x260            # OPTER | OPTWRE | STRT
     sw t3, 0(t2)
     call wait_flash          # t4: 0=ok 1=timeout
     bnez t4, fail
+    # capture STATR after the option erase (diagnosis: did OPTER error?)
+    la t1, STATR
+    lw t1, 0(t1)
+    sw t1, 8(t0)            # statr_erase @ DONE_BASE+0x08
 
     # ---- program option bytes (RDPR first, triggers auto mass erase) ----
-    li t3, 0x10             # OPTPG
+    li t3, 0x210            # OPTPG | OPTWRE
     sw t3, 0(t2)
     la t5, OB_BASE
-    li t3, 0x5AA5
+    li t3, 0x00A5           # WCH RDP_Key: RDPR=0xA5, nRDPR=0x00
     sh t3, 0(t5)            # RDPR
     call wait_flash
+    # capture STATR after the RDPR program (PGERR => un-erased cell, etc.)
+    la t1, STATR
+    lw t1, 0(t1)
+    sw t1, 12(t0)           # statr_rdpr @ DONE_BASE+0x0C
 
     # re-unlock OBKEYR before subsequent option writes
     la t2, OBKEYR
@@ -66,29 +74,29 @@ _start:
     li t3, KEY2
     sw t3, 0(t2)
     la t2, CTLR
-    li t3, 0x10             # OPTPG
+    li t3, 0x210            # OPTPG | OPTWRE
     sw t3, 0(t2)
 
     li t3, 0xC03F
     sh t3, 2(t5)            # USER
     call wait_flash
-    li t3, 0xFF00
-    sh t3, 4(t5)            # WRPR0
-    call wait_flash
-    li t3, 0xFF00
-    sh t3, 6(t5)            # WRPR1
+    li t3, 0x00FF
+    sh t3, 4(t5)            # Data0
     call wait_flash
     li t3, 0x00FF
-    sh t3, 8(t5)            # WRPR2
+    sh t3, 6(t5)            # Data1
     call wait_flash
     li t3, 0x00FF
-    sh t3, 10(t5)           # WRPR3
+    sh t3, 8(t5)            # WRPR0 (0x00 low byte => WPR bits 1 = unprotected)
     call wait_flash
     li t3, 0x00FF
-    sh t3, 12(t5)           # DATA0
+    sh t3, 10(t5)           # WRPR1
     call wait_flash
     li t3, 0x00FF
-    sh t3, 14(t5)           # DATA1
+    sh t3, 12(t5)           # WRPR2
+    call wait_flash
+    li t3, 0x00FF
+    sh t3, 14(t5)           # WRPR3
     call wait_flash
 
     # clear OPTPG
@@ -108,7 +116,7 @@ fail:
 
 wait_flash:
     la t1, STATR
-    li t6, 40000000         # timeout count (~30s at 8MHz)
+    li t6, 80000000         # timeout count (~60s at 8MHz; RDPR program runs a mass erase)
 wf_loop:
     lw t4, 0(t1)
     andi t4, t4, 3          # BSY | WRBSY

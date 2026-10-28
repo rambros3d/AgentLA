@@ -95,29 +95,31 @@ static ch32_result_t run_progbuf(void) {
     return CH32_ERR_TIMEOUT;
 }
 
-/* Run PROGBUF with ABSTRACTAUTO enabled for repeated execution.
- * CRITICAL: This must be called AFTER the first word is already in DATA0
- * (PicoRVD feeds word0, then POSTEXEC, then enables AUTOEXECDATA).
- * AUTOEXECDATA (bit 0) — NOT AUTOEXECPROG (bit 16) — is what makes each
- * subsequent DATA0 write re-execute the PROGBUF program on V203. */
-static ch32_result_t enable_progbuf_auto(void) {
-    /* CRITICAL: Run POSTEXEC FIRST before enabling ABSTRACTAUTO.
-     * CH32V203 has a chip bug where setting ABSTRACTAUTO before the first
-     * POSTEXEC causes undefined behavior (PicoRVD: "can't set AUTOCMD
-     * before COMMAND or things break all weird"). */
-    ch32_result_t res = run_progbuf();
+/* Strict variant used by the vendored memory-access paths (get/set/block).
+ * A CMDERR means the abstract op faulted (e.g. flash read under RDP gives
+ * cmderr=3) and DATA0 would hold a STALE value — propagate the error instead
+ * of clearing it and returning OK (F8). The flash-write streamer keeps using
+ * the lenient run_progbuf() because WCH reports non-fatal bus errors for
+ * writes that still succeed. */
+static ch32_result_t run_progbuf_strict(void) {
+    uint32_t cmd = CMD_TYPE_ACCESS_REG | CMD_POSTEXEC;
+    ch32_result_t res = riscv_dmi_write(DMI_COMMAND, cmd);
     if (res != CH32_OK) return res;
 
-    /* Now enable ABSTRACTAUTO: auto-execute PROGBUF after each DATA0 access */
-    res = riscv_dmi_write(DMI_ABSTRACTAUTO, ABSTRACTAUTO_AUTOEXECDATA);
-    if (res != CH32_OK) return res;
-
-    return CH32_OK;
-}
-
-/* Disable ABSTRACTAUTO */
-static void stop_progbuf_auto(void) {
-    riscv_dmi_write(DMI_ABSTRACTAUTO, 0);
+    for (int i = 0; i < 1000; i++) {
+        uint32_t abstractcs = 0;
+        res = riscv_dmi_read(DMI_ABSTRACTCS, &abstractcs);
+        if (res != CH32_OK) return res;
+        if (!(abstractcs & ABSTRACTCS_BUSY)) {
+            if ((abstractcs & ABSTRACTCS_CMDERR_MASK) != ABSTRACTCS_ERR_NONE) {
+                riscv_dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_ERR_MASK);
+                return CH32_ERR_NACK;
+            }
+            return CH32_OK;
+        }
+        sleep_us(10);
+    }
+    return CH32_ERR_TIMEOUT;
 }
 
 /* Wait for PROGBUF program to complete (BUSY flag cleared) */
@@ -226,7 +228,7 @@ ch32_result_t ch32_progbuf_init(void) {
 void ch32_progbuf_deinit(void) {
     if (!progbuf_initialized) return;
 
-    stop_progbuf_auto();
+    riscv_dmi_write(DMI_ABSTRACTAUTO, 0);
     restore_progbuf();
     restore_registers();
 
@@ -328,14 +330,11 @@ ch32_result_t ch32_progbuf_flash_write(uint32_t addr, const uint8_t *data, uint3
     riscv_write_reg(0x1000 + 15, FLASH_CTLR_FTPG | FLASH_CTLR_BUFRST);   /* a5 */
     riscv_write_reg(0x1000 + 16, page_sz - 1);                            /* a6 (page mask) */
 
-    /* Feed data words to PROGBUF — PicoRVD ordering:
-     *   1. write word0 to DATA0
-     *   2. POSTEXEC (executes program once, consuming word0)
-     *   3. enable AUTOEXECDATA (each subsequent DATA0 write auto-executes)
-     *   4. write remaining words, waiting for BUSY between each */
+    /* Feed data words to PROGBUF — one explicit POSTEXEC per word (no
+     * ABSTRACTAUTO streaming: AUTOEXECDATA wedges the WCH DM after ~30-80
+     * executions, F9). */
     uint32_t size_words = len / 4;
     uint32_t page_count = (size_words + (page_sz / 4 - 1)) / (page_sz / 4);
-    bool first_word = true;
 
     for (uint32_t page = 0; page < page_count; page++) {
         for (uint32_t word_idx = 0; word_idx < (page_sz / 4); word_idx++) {
@@ -355,28 +354,21 @@ ch32_result_t ch32_progbuf_flash_write(uint32_t addr, const uint8_t *data, uint3
                 }
             }
 
-            /* Write data to DATA0 */
+            /* Feed each word with an explicit POSTEXEC instead of ABSTRACTAUTO
+             * streaming: the WCH DM wedges after ~30-80 consecutive
+             * AUTOEXECDATA executions (F9), while the DATA0-write + POSTEXEC
+             * + busy-wait pattern (the RAM-stub loader) never wedges. */
             res = riscv_dmi_write(DMI_DATA0, word);
-            if (res != CH32_OK) { stop_progbuf_auto(); return res; }
-
-            if (first_word) {
-                /* Word0 is now in DATA0 — run POSTEXEC once, then enable auto */
-                res = enable_progbuf_auto();
-                if (res != CH32_OK) { stop_progbuf_auto(); return res; }
-                first_word = false;
-            } else {
-                /* Subsequent words auto-execute; wait for completion */
-                res = wait_progbuf_done();
-                if (res != CH32_OK) { stop_progbuf_auto(); return res; }
-            }
+            if (res != CH32_OK) return res;
+            res = run_progbuf();
+            if (res != CH32_OK) return res;
         }
 
-        /* End of page - wait for write to complete */
+        /* End of page - wait for the page write (START) to complete */
         wait_progbuf_done();
     }
 
     /* Cleanup */
-    stop_progbuf_auto();
     riscv_write_mem(PROGBUF_FLASH_CTLR, 0);
 
     /* Clear EOP flag */
@@ -389,32 +381,210 @@ ch32_result_t ch32_progbuf_flash_write(uint32_t addr, const uint8_t *data, uint3
     return CH32_OK;
 }
 
-/* PROGBUF block-read program (core stays halted) — PicoRVD's proven pattern,
- * with the DATA0/DATA1 magic offsets patched for CH32V203.
- * V203 HARTINFO=0x00312380 => data0 magic = 0xE0000000|(HARTINFO&0x7ff)
- * = 0xE0000380, data1 = 0xE0000384 (minichlink's formula). The old V003
- * offsets 0xF4/0xF8 pointed at a fixed garbage location (readback showed the
- * constant 0x4000B0C3).
- *   lui   a0, 0xE0000
- *   lw    a1, 0x384(a0)   ; a1 = [DATA1 magic] = pointer
- *   lw    a1, 0x000(a1)   ; a1 = [pointer]      = memory word
- *   sw    a1, 0x380(a0)   ; DATA0 magic = word (host reads it)
- *   lw    a1, 0x384(a0)   ; a1 = pointer
- *   addi  a1, a1, 4       ; pointer += 4
- *   sw    a1, 0x384(a0)   ; store back pointer
- *   ebreak
- * With AUTOEXECDATA set, each host read of DATA0 re-runs the program, so
- * consecutive words stream out. Works for flash AND SRAM on V203. */
+/* ============================================================================
+ * PicoRVD PROGBUF Memory-Access Programs
+ * ============================================================================
+ * Ported verbatim from RVDebug.cpp (MIT License, https://github.com/aappleby/picorvd):
+ *   prog_get_set_u32      (RVDebug.cpp:540) — single combined get/set program,
+ *                          direction flagged by DATA1 bit 0, clobbers A0/A1 only
+ *   prog_get_block_aligned (RVDebug.cpp:602) — ABSTRACTAUTO-pipelined block read
+ *   prog_set_block_aligned (RVDebug.cpp:637) — ABSTRACTAUTO-pipelined block write
+ *
+ * The templates carry V003's DTM offsets (0xF4/0xF8). The WCH DTM aliases its
+ * DATA0/DATA1 registers into system bus space; the offset is a property of the
+ * target chip's DTM (NOT of the wire transport):
+ *   CH32V003      -> 0xE00000F4 / 0xE00000F8   (PicoRVD's shipped values)
+ *   CH32V20x/V30x -> 0xE0000380 / 0xE0000384   (HARTINFO-derived, minichlink's
+ *                     formula 0xE0000000 | (HARTINFO & 0x7FF))
+ * patch_dtm_offsets() rewrites the 0xF4/0xF8 immediates to the active family's
+ * offsets before the program is loaded into PROGBUF, so one copy of each
+ * program serves every family.
+ * ============================================================================ */
+
+typedef struct {
+    uint32_t data0_off;  /* DTM DATA0 system-bus offset */
+    uint32_t data1_off;  /* DTM DATA1 system-bus offset (DATA0 + 4) */
+} dtm_offsets_t;
+
+/* DTM DATA0/DATA1 magic offsets keyed on the target chip family. Unknown chips
+ * default to the V20x/V30x DTM layout (the current shipping target). */
+static dtm_offsets_t dtm_offsets_for_chip(ch32_chip_t chip) {
+    switch (chip) {
+    case CH32_CHIP_V003:
+        return (dtm_offsets_t){0xF4, 0xF8};
+    case CH32_CHIP_V203:
+    case CH32_CHIP_V307:
+    default:
+        return (dtm_offsets_t){0x380, 0x384};
+    }
+}
+
+static dtm_offsets_t active_dtm_offsets(void) {
+    return dtm_offsets_for_chip(g_ch32_target.chip_type);
+}
+
+/* Rewrite the DTM DATA0/DATA1 immediates in a PicoRVD program template (built
+ * with V003's 0xF4/0xF8) to the given family's offsets. Only instructions whose
+ * 12-bit immediate is 0xF4 (DATA0) or 0xF8 (DATA1) are touched; the rest of the
+ * programs are identical across families. Handles I-type (lw/addi) and S-type
+ * (sw) immediates. */
+static void patch_dtm_offsets(uint32_t *prog, int nwords, dtm_offsets_t offs) {
+    for (int i = 0; i < nwords; i++) {
+        uint32_t w = prog[i];
+        switch (w & 0x7F) {
+        case 0x03:  /* I-type: lw */
+        case 0x13:  /* I-type: addi */
+            if (((w >> 20) & 0xFFF) == 0xF4) {
+                w = (w & 0x000FFFFF) | (offs.data0_off << 20);
+            } else if (((w >> 20) & 0xFFF) == 0xF8) {
+                w = (w & 0x000FFFFF) | (offs.data1_off << 20);
+            }
+            break;
+        case 0x23: { /* S-type: sw */
+            uint32_t imm12 = ((w >> 25) << 5) | ((w >> 7) & 0x1F);
+            if (imm12 == 0xF4 || imm12 == 0xF8) {
+                uint32_t repl = (imm12 == 0xF4) ? offs.data0_off : offs.data1_off;
+                w &= ~(0x7Fu << 25) & ~(0x1Fu << 7);
+                w |= ((repl >> 5) & 0x7F) << 25;
+                w |= (repl & 0x1F) << 7;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        prog[i] = w;
+    }
+}
+
+/* Load a program into PROGBUF0-7 with the active family's DTM offsets baked in. */
+static void load_progbuf_dtm(const uint32_t *prog, int nwords) {
+    uint32_t patched[8];
+    for (int i = 0; i < nwords && i < 8; i++) patched[i] = prog[i];
+    patch_dtm_offsets(patched, (nwords < 8) ? nwords : 8, active_dtm_offsets());
+    load_progbuf(patched, (nwords < 8) ? nwords : 8);
+}
+
+/* Single combined get/set program: data0 = data to write, data1 = address.
+ * DATA1 bit 0 = 0 reads (get_u32), bit 0 = 1 writes (set_u32). */
+static const uint16_t prog_get_set_u32[16] = {
+    0x0537, 0xe000,  /* lui   a0, 0xE0000              */
+    0x0513, 0x0f45,  /* addi  a0, a0, 0xF4 (DATA0)     */
+    0x414c,          /* lw    a1, 4(a0)   ; a1 = DATA1 */
+    0x8985,          /* andi  a1, a1, 1   ; direction? */
+    0xc591,          /* beqz  a1, get_u32              */
+    0x414c,          /* set_u32: lw a1, 4(a0)          */
+    0x15fd,          /* addi  a1, a1, -1  ; clear dir  */
+    0x4108,          /* lw    a0, 0(a0)   ; a0 = data  */
+    0xc188,          /* sw    a0, 0(a1)   ; store      */
+    0x9002,          /* ebreak                         */
+    0x414c,          /* get_u32: lw a1, 4(a0)          */
+    0x418c,          /* lw    a1, 0(a1)   ; a1 = word  */
+    0xc10c,          /* sw    a1, 0(a0)   ; DATA0 = it */
+    0x9002,          /* ebreak                         */
+};
+
+/* Block-read program: DATA1 holds the pointer, DATA0 carries each word.
+ * The host runs one explicit POSTEXEC per word (AUTOEXECDATA streaming
+ * wedges the WCH DM after ~30-80 executions, F9) and reads DATA0 each
+ * time. Works for flash AND SRAM. */
 static const uint32_t prog_get_block_aligned[8] = {
     0xe0000537,  /* lui    a0, 0xE0000        */
-    0x38452583,  /* lw     a1, 0x384(a0)      */
-    0x0005a583,  /* lw     a1, 0x000(a1)      */
-    0x38b52023,  /* sw     a1, 0x380(a0)      */
-    0x38452583,  /* lw     a1, 0x384(a0)      */
-    0x00458593,  /* addi   a1, a1, 4          */
-    0x38b52223,  /* sw     a1, 0x384(a0)      */
-    0x00100073,  /* ebreak                   */
+    0x0f852583,  /* lw     a1, 0x0F8(a0)      ; a1 = [DATA1 magic] = pointer */
+    0x0005a583,  /* lw     a1, 0x000(a1)      ; a1 = [pointer] = memory word */
+    0x0eb52a23,  /* sw     a1, 0x0F4(a0)      ; DATA0 magic = word           */
+    0x0f852583,  /* lw     a1, 0x0F8(a0)      ; a1 = pointer                 */
+    0x00458593,  /* addi   a1, a1, 4          ; pointer += 4                 */
+    0x0eb52c23,  /* sw     a1, 0x0F8(a0)      ; store back pointer           */
+    0x00100073,  /* ebreak                                                   */
 };
+
+/* Block-write program: DATA1 holds the pointer, DATA0 receives words. */
+static const uint32_t prog_set_block_aligned[8] = {
+    0xe0000537,  /* lui    a0, 0xE0000        */
+    0x0f852583,  /* lw     a1, 0x0F8(a0)      ; a1 = [DATA1 magic] = pointer */
+    0x0f452503,  /* lw     a0, 0x0F4(a0)      ; a0 = [DATA0 magic] = word    */
+    0x00a5a023,  /* sw     a0, 0x000(a1)      ; store word at pointer        */
+    0x00458593,  /* addi   a1, a1, 4          ; pointer += 4                 */
+    0xe0000537,  /* lui    a0, 0xE0000        */
+    0x0eb52c23,  /* sw     a1, 0x0F8(a0)      ; store back pointer           */
+    0x00100073,  /* ebreak                                                   */
+};
+
+/* ============================================================================
+ * Vendored Memory-Access API (PicoRVD RVDebug.cpp:567/583/598/633)
+ * NOTE: the core must be halted before calling these (they execute PROGBUF
+ * via POSTEXEC, which requires the core halted). The riscv_dmi.c wrappers
+ * handle halt/resume.
+ * ============================================================================ */
+
+ch32_result_t ch32_progbuf_get_set_u32(uint32_t addr, uint32_t *val, bool write) {
+    if (!val) return CH32_ERR_UNSUPPORTED;
+    if (addr & 3) return CH32_ERR_UNSUPPORTED;
+
+    load_progbuf_dtm((const uint32_t *)prog_get_set_u32, 8);
+
+    ch32_result_t res;
+    if (write) {
+        /* PicoRVD order: DATA0 first, then DATA1 (with direction bit). */
+        res = riscv_dmi_write(DMI_DATA0, *val);
+        if (res != CH32_OK) return res;
+        res = riscv_dmi_write(DMI_DATA1, addr | 1);
+        if (res != CH32_OK) return res;
+    } else {
+        res = riscv_dmi_write(DMI_DATA1, addr);
+        if (res != CH32_OK) return res;
+    }
+
+    res = run_progbuf_strict();
+    if (res != CH32_OK) return res;
+
+    if (!write) {
+        return riscv_dmi_read(DMI_DATA0, val);
+    }
+    return CH32_OK;
+}
+
+ch32_result_t ch32_progbuf_get_block_aligned(uint32_t addr, uint32_t *dst, int size_dwords) {
+    if (!dst || size_dwords <= 0) return CH32_ERR_UNSUPPORTED;
+    if (addr & 3) return CH32_ERR_UNSUPPORTED;
+
+    load_progbuf_dtm(prog_get_block_aligned, 8);
+
+    ch32_result_t res = riscv_dmi_write(DMI_DATA1, addr);
+    if (res != CH32_OK) return res;
+
+    for (int i = 0; i < size_dwords; i++) {
+        /* Per-word POSTEXEC (no ABSTRACTAUTO streaming): each execution loads
+         * the next word into DATA0 and advances the pointer. AUTOEXECDATA
+         * wedges the WCH DM after ~30-80 executions (F9); the explicit
+         * POSTEXEC + read pattern (the RAM-stub loader) does not. */
+        res = run_progbuf_strict();
+        if (res != CH32_OK) return res;
+        res = riscv_dmi_read(DMI_DATA0, &dst[i]);
+        if (res != CH32_OK) return res;
+    }
+    return CH32_OK;
+}
+
+ch32_result_t ch32_progbuf_set_block_aligned(uint32_t addr, const uint32_t *src, int size_dwords) {
+    if (!src || size_dwords <= 0) return CH32_ERR_UNSUPPORTED;
+    if (addr & 3) return CH32_ERR_UNSUPPORTED;
+
+    load_progbuf_dtm(prog_set_block_aligned, 8);
+
+    ch32_result_t res = riscv_dmi_write(DMI_DATA1, addr);
+    if (res != CH32_OK) return res;
+
+    for (int i = 0; i < size_dwords; i++) {
+        res = riscv_dmi_write(DMI_DATA0, src[i]);
+        if (res != CH32_OK) return res;
+        /* Per-word POSTEXEC — see get_block_aligned (AUTOEXECDATA wedges). */
+        res = run_progbuf_strict();
+        if (res != CH32_OK) return res;
+    }
+    return CH32_OK;
+}
 
 ch32_result_t ch32_progbuf_flash_read(uint32_t addr, uint8_t *data, uint32_t len) {
     if (!data || len == 0) return CH32_ERR_UNSUPPORTED;
@@ -422,7 +592,9 @@ ch32_result_t ch32_progbuf_flash_read(uint32_t addr, uint8_t *data, uint32_t len
     ch32_result_t res = riscv_halt();
     if (res != CH32_OK) return res;
 
-    /* Ensure FLASH_CTLR is reset and locked to enable normal read mode */
+    /* Ensure FLASH_CTLR is reset and locked to enable normal read mode.
+     * NOTE: V20x-specific prep — stays in this wrapper, NOT in the shared
+     * block-read primitive. */
     riscv_write_mem(CH32V20x_FLASH_CTLR, 0);
     riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FLOCK);
 
@@ -440,38 +612,9 @@ ch32_result_t ch32_progbuf_flash_read(uint32_t addr, uint8_t *data, uint32_t len
         riscv_write_reg(0x7B0, dcsr);
     }
 
-    /* Load block-read program into PROGBUF */
-    for (uint32_t i = 0; i < 8; i++) {
-        res = riscv_dmi_write(DMI_PROGBUF0 + i, prog_get_block_aligned[i]);
-        if (res != CH32_OK) {
-            printf("CH32: Failed to load block-read program word %lu\r\n", (unsigned long)i);
-            return res;
-        }
-    }
-
-    /* Point DATA1 at the start address (PicoRVD set_data1) */
-    res = riscv_dmi_write(DMI_DATA1, aligned_addr);
-    if (res != CH32_OK) return res;
-
     uint8_t aligned_buf[256];
-    uint32_t *cursor = (uint32_t *)aligned_buf;
-
-    for (uint32_t i = 0; i < word_count; i++) {
-        if (i == 0) {
-            /* First run: POSTEXEC once, then enable AUTOEXECDATA so each
-             * DATA0 read re-executes the program for the next word */
-            res = run_progbuf();
-            if (res != CH32_OK) { stop_progbuf_auto(); return res; }
-            res = riscv_dmi_write(DMI_ABSTRACTAUTO, ABSTRACTAUTO_AUTOEXECDATA);
-            if (res != CH32_OK) { stop_progbuf_auto(); return res; }
-        }
-        if (i == word_count - 1) {
-            /* Stop auto before the last read */
-            stop_progbuf_auto();
-        }
-        res = riscv_dmi_read(DMI_DATA0, &cursor[i]);
-        if (res != CH32_OK) { stop_progbuf_auto(); return res; }
-    }
+    res = ch32_progbuf_get_block_aligned(aligned_addr, (uint32_t *)aligned_buf, (int)word_count);
+    if (res != CH32_OK) return res;
 
     /* Copy requested portion */
     uint32_t copy_len = len;

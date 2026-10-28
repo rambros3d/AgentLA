@@ -24,7 +24,8 @@ Flash and debug target MCUs via UART bootloader + SWD.
 |------|----------------|------------------|-----------|--------------------------------|
 | 0    | PROG_I2C_SDA   | I2C0 SDA (F2)    | BI        | Target I2C data                |
 | 1    | PROG_I2C_SCL   | I2C0 SCL (F2)    | BI        | Target I2C clock               |
-| 4    | PROG_SWDCLK    | PIO1 (F7)        | OUT       | Target SWCLK (SWD)             |
+| 2    | PROG_BOOT0     | GPIO (SIO)       | OUT       | Dedicated BOOT0 for bootloader recovery (push-pull, `BOOT0 HIGH/LOW`) |
+| 3    | —              | GPIO (SIO)       | IN/OUT    | **Reserved / spare** |
 | 5    | PROG_SWDIO     | PIO1 (F7)        | BI        | Target SWDIO (SWD)             |
 | 6    | PROG_NRESET    | GPIO (SIO)       | OUT       | Target nRST (open-drain)       |
 | 7    | —              | GPIO (SIO)       | —         | **NOT USED** — target powered externally (RP2350 GPIO7 max ~12mA insufficient) |

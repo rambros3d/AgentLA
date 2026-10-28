@@ -21,6 +21,8 @@ const flash_algorithm_t *current_algorithm = NULL;
 static bool stm32f1_flash_erase(uint32_t addr, uint32_t size);
 static bool stm32f1_flash_write(uint32_t addr, const uint8_t *data, uint32_t len);
 static bool stm32f1_flash_read(uint32_t addr, uint8_t *data, uint32_t len);
+static bool stm32f1_unlock_flash(void);
+static bool stm32f1_wait_flash_bsy(void);
 static bool rp2040_flash_erase(uint32_t addr, uint32_t size);
 static bool rp2040_flash_write(uint32_t addr, const uint8_t *data, uint32_t len);
 static bool rp2040_flash_read(uint32_t addr, uint8_t *data, uint32_t len);
@@ -190,6 +192,19 @@ swd_result_t target_detect(void) {
                 current_target.ram_size = 20 * 1024;
                 break;
         }
+
+        /* Read factory-reported flash size for STM32F1 (half-word at 0x1FFFF7E0, in KiB). */
+        if (current_target.family == TARGET_FAMILY_STM32F1) {
+            uint32_t fs_kb = 0;
+            if (swd_write_ap(AP_CSW, 0x23000012) == SWD_OK &&
+                swd_write_ap(AP_TAR, 0x1FFFF7E0) == SWD_OK &&
+                swd_read_ap(AP_DRW, &fs_kb) == SWD_OK) {
+                uint32_t kb = fs_kb & 0xFFFFu;
+                if (kb != 0 && kb <= 1024u) {
+                    current_target.flash_size = kb * 1024u;
+                }
+            }
+        }
     } else if (current_target.part_id == TARGET_PART_NRF52840) {
         current_target.family = TARGET_FAMILY_NRF52;
         current_target.name = "nRF52840";
@@ -261,6 +276,172 @@ bool target_flash_write(uint32_t addr, const uint8_t *data, uint32_t len) {
 bool target_flash_read(uint32_t addr, uint8_t *data, uint32_t len) {
     if (!current_algorithm || !current_algorithm->flash_read) return false;
     return current_algorithm->flash_read(addr, data, len);
+}
+
+bool target_is_rdp_protected(void) {
+    if (current_target.family != TARGET_FAMILY_STM32F1) return false;
+    uint32_t v = 0;
+    if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) != SWD_OK) return false;
+    if (swd_write_ap(AP_TAR, 0x1FFFF800u) != SWD_OK) return false;
+    if (swd_read_ap(AP_DRW, &v) != SWD_OK) return false;
+    /* Level-0 (unprotected): RDP byte 0xA5 / complement 0x5A. */
+    return !((v & 0x00FFu) == 0xA5u && ((v >> 8) & 0xFFu) == 0x5Au);
+}
+
+bool target_nordic_mass_erase(void) {
+    uint32_t config = 0x4001E504u;
+    uint32_t eraseall = 0x4001E50Cu;
+    uint32_t ready = 0x4001E400u;
+    /* CONFIG.WEN = 1 (write enable) */
+    if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) != SWD_OK) return false;
+    if (swd_write_ap(AP_TAR, config) != SWD_OK) return false;
+    if (swd_write_ap(AP_DRW, 1u) != SWD_OK) return false;
+    /* ERASEALL = 1 */
+    if (swd_write_ap(AP_TAR, eraseall) != SWD_OK) return false;
+    if (swd_write_ap(AP_DRW, 1u) != SWD_OK) return false;
+    for (int i = 0; i < 500 && i < 1000; i++) {
+        uint32_t v = 0;
+        if (swd_write_ap(AP_TAR, ready) == SWD_OK && swd_read_ap(AP_DRW, &v) == SWD_OK) {
+            if (v & 0x00000001u) break; /* READY */
+        }
+        sleep_ms(1);
+    }
+    /* Disable writing. */
+    if (swd_write_ap(AP_TAR, config) != SWD_OK) return false;
+    if (swd_write_ap(AP_DRW, 0u) != SWD_OK) return false;
+    return true;
+}
+
+bool target_lock_rdp_level1(void) {
+    if (current_target.family != TARGET_FAMILY_STM32F1) return false;
+    uint8_t ob[32];
+    uint32_t addr = 0x1FFFF800u;
+    /* Read current option bytes (16 halfwords). */
+    for (uint32_t i = 0; i < 32; i++) {
+        uint32_t v = 0;
+        if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) != SWD_OK) return false;
+        if (swd_write_ap(AP_TAR, addr + i) != SWD_OK) return false;
+        if (swd_read_ap(AP_DRW, &v) != SWD_OK) return false;
+        /* Halfword stream; bytes at (addr+i). */
+        ob[i] = (uint8_t)v;
+    }
+
+    /* Modify RDP low byte at [1FFFF800] -> 0x00 (level 1), complement -> 0xFF. */
+    ob[0] = 0x00;
+    ob[1] = 0xFF;
+
+    /* Unlock flash & option bytes. */
+    if (stm32f1_unlock_flash() != true) return false;
+    /* Unlock option bytes (OPTKEYR at 0x40022008). */
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022008u);
+    swd_write_ap(AP_DRW, 0x45670123u);
+    swd_write_ap(AP_TAR, 0x40022008u);
+    swd_write_ap(AP_DRW, 0xCDEF89ABu);
+
+    /* Erase option bytes. */
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000020u); /* OPTER */
+    swd_write_ap(AP_TAR, 0x40022014u);
+    swd_write_ap(AP_DRW, 0x1FFFF800u);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000060u); /* OPTER|STRT */
+    if (!stm32f1_wait_flash_bsy()) {
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+        swd_write_ap(AP_TAR, 0x40022010u);
+        swd_write_ap(AP_DRW, 0x00000000u);
+        return false;
+    }
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000000u);
+
+    /* Program option bytes in 16-bit accesses. */
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000010u); /* OPTPG */
+    for (uint32_t i = 0; i < 16; i += 2) {
+        uint16_t halfword = (uint16_t)(ob[i] | (ob[i + 1] << 8));
+        /* Only bytes [0,1] were changed for RDP; all others are preserved. */
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_16BIT);
+        swd_write_ap(AP_TAR, 0x1FFFF800u + i);
+        swd_write_ap(AP_DRW, (uint32_t)halfword << (8U * ((0x1FFFF800u + i) & 2U)));
+        if (!stm32f1_wait_flash_bsy()) break;
+    }
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000080u); /* LOCK */
+    return true;
+}
+
+bool target_unlock_rdp(void) {
+    if (current_target.family != TARGET_FAMILY_STM32F1) return false;
+    uint8_t ob[32];
+    uint32_t addr = 0x1FFFF800u;
+    for (uint32_t i = 0; i < 32; i++) {
+        uint32_t v = 0;
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+        swd_write_ap(AP_TAR, addr + i);
+        if (swd_read_ap(AP_DRW, &v) != SWD_OK) return false;
+        ob[i] = (uint8_t)v;
+    }
+    ob[0] = 0xA5;
+    ob[1] = 0x5A;
+
+    if (stm32f1_unlock_flash() != true) return false;
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022008u);
+    swd_write_ap(AP_DRW, 0x45670123u);
+    swd_write_ap(AP_TAR, 0x40022008u);
+    swd_write_ap(AP_DRW, 0xCDEF89ABu);
+
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000020u);
+    swd_write_ap(AP_TAR, 0x40022014u);
+    swd_write_ap(AP_DRW, 0x1FFFF800u);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000060u);
+    if (!stm32f1_wait_flash_bsy()) {
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+        swd_write_ap(AP_TAR, 0x40022010u);
+        swd_write_ap(AP_DRW, 0x00000000u);
+        return false;
+    }
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000000u);
+
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000010u);
+    for (uint32_t i = 0; i < 16; i += 2) {
+        uint16_t halfword = (uint16_t)(ob[i] | (ob[i + 1] << 8));
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_16BIT);
+        swd_write_ap(AP_TAR, 0x1FFFF800u + i);
+        swd_write_ap(AP_DRW, (uint32_t)halfword << (8U * ((0x1FFFF800u + i) & 2U)));
+        if (!stm32f1_wait_flash_bsy()) break;
+    }
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, 0x40022010u);
+    swd_write_ap(AP_DRW, 0x00000080u);
+    return true;
+}
+
+/* placeholders declared for future families */
+/* Multi-family RDP lock/unlock is STM32F1-only until other families land. */
+
+bool target_mass_erase(void) {
+    if (!target_is_connected()) return false;
+    if (current_target.family == TARGET_FAMILY_STM32F1) {
+        return target_flash_erase(current_target.flash_base, current_target.flash_size);
+    }
+    if (current_target.family == TARGET_FAMILY_NRF52) {
+        return target_nordic_mass_erase();
+    }
+    /* Mass-erase paths for other families are still being implemented. */
+    return false;
 }
 
 /* ============================================================================

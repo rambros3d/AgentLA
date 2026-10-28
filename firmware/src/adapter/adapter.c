@@ -40,6 +40,7 @@ void adapter_i2c_init(void) {
 void adapter_uart_init(void) {
     uart_adapter = uart1;
     uart_init(uart_adapter, 115200);
+    uart_set_format(uart_adapter, 8, 1, UART_PARITY_EVEN);
     gpio_set_function(ADAPTER_UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(ADAPTER_UART_RX_PIN, GPIO_FUNC_UART);
     uart_initialized = true;

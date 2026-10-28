@@ -1,7 +1,6 @@
 # Tasks: Import RVSWD PIO Transport & CH32V203 Hardware Verification
 
-> **STATUS: DEFERRED** (2026-08-14). Paused by user; will resume later.
-> Resume points: (1) fix firmware bugs F8 (`riscv_read_mem()` stale DATA0) and F9 (PIO wedge) in `design.md`, (2) reflash probe, (3) retry RAM-stub unprotect (`test/stub_unprotect.S` + `test/test_rvswd_ramstub_unprotect.py`), (4) flash heartbeat on PB21. Target chip is currently RDP-protected with a corrupted option array (see F6).
+> **STATUS: IN PROGRESS** (2026-08-14). F8/F9 firmware bugs fixed, probe reflashed, RAM-stub unprotect **VERIFIED** (RDP cleared, WPR unprotected — see `design.md` F10). Remaining blockers are **hardware-only**: the CH32V203's main-flash **erase** is dead — writes stick but erase never clears cells (see `design.md` F13) — so flash program/verify and the V203 completion gate cannot be finished on this chip. A healthy V203 is required to close sections 5.2/5.4.
 
 ## 1. Transport Vendor & PIO Driver Setup
 
@@ -34,25 +33,28 @@
 
 ## 5. Primary Verification Phase 2: CH32V203 Hardware Read, Flash & Debug Validation
 
-- [~] 5.1 **CH32V203 Target Detection & Read** — **PARTIAL — target DETECTs but is READ-PROTECTED**:
+- [~] 5.1 **CH32V203 Target Detection & Read** — **PARTIAL — target DETECTs but was READ-PROTECTED**:
   - [x] Connect probe to CH32V203 dev board (GPIO4=SWCLK, GPIO5=SWDIO, GND)
   - [x] Run `CH32 DETECT mcu=ch32v203` — works after target power-cycle: `DMSTATUS=0x00000C82`, `chip_id=0x20310500`, `flash=64KB`, `page=256B`
   - [x] Region sweep (`test/test_rvswd_region_sweep.py`): ESIG/option-bytes/SRAM/peripherals readable; main flash (`0x08000000`) AND bootloader (`0x1FFF8000`) read fault `cmderr=3`
-  - [x] Root cause: **chip shipped READ-PROTECTED** — `FLASH_OBR=0xFE` (RDPRT=1), `RDPR=0xFF`. Unprotect value is `RDP_Key=0x00A5` → `0x5AA5`. See `design.md` F1/F6-F10.
-- [ ] 5.2 **CH32V203 Flash Operations** — **BLOCKED (hardware): chip is read-protected and unprotect attempts corrupted the option array**:
-  - [ ] Read-protection confirmed via OBR/RDPR (see 5.1); flash reads fault under RDP (this supersedes the earlier `0x4000B0C3` read-back finding)
-  - [ ] Halted-core debug unprotect attempts (`test/test_rvswd_unprotect*.py`): every op `cmderr=0` but option array is now `0xE339E339`, `OBR=0x03FFFFFF` (OPTERR=1), RDP still active — halted-core option programming does not stick on this chip
-  - [~] RAM-stub recovery (`test/stub_unprotect.S` + `test/test_rvswd_ramstub_unprotect.py`): stub loads + verifies via PROGBUF AUTOEXECDATA, PC/SP set works — **blocked by probe wedge (F9)** whenever the bus is touched during the stub's flash-op window
-  - [ ] Program firmware binary payload to `0x08000000` (heartbeat, LED on PB21) once unprotected
-  - [ ] Read back flash content and verify 100% byte-exact match with binary
-- [~] 5.3 **CH32V203 Debug Operations** — **PARTIAL**: `test/test_rvswd_hardware.py` passes **4/4** (DMI reads real values, halt works `DMSTATUS 0x000C0382`, resume works `0x000C0C82`):
+  - [x] Root cause: **chip shipped READ-PROTECTED** — `FLASH_OBR=0xFE` (RDPRT=1), `RDPR=0xFF`. Unprotect value is `RDP_Key=0x00A5` → `0x5AA5`. See `design.md` F1/F6/F10.
+- [~] 5.2 **CH32V203 Flash Operations** — **BLOCKED (hardware): main-flash array erase is dead on this chip** (see `design.md` F13):
+  - [x] Read-protection confirmed via OBR/RDPR (see 5.1); flash reads fault under RDP (this supersedes the earlier `0x4000B0C3` read-back finding)
+  - [x] Halted-core debug unprotect attempts (`test/test_rvswd_unprotect*.py`): every op `cmderr=0` but option array went `0xE339E339`, RDP stayed active — halted-core option programming does not stick on this chip
+  - [x] RAM-stub recovery (`test/stub_unprotect.S` + `test/test_rvswd_ramstub_unprotect.py`): **VERIFIED** — stub loads via per-word POSTEXEC, RDP cleared (`OBR=0x03FFFCFC`), all blocks unprotected (`WPR=0xFFFFFFFF`), option array `0xC03F5AA5 / 0x00FF00FF / ...` (see `design.md` F10). F9 wedge gone; probe fully responsive throughout.
+  - [ ] Program firmware binary payload to `0x08000000` (heartbeat, LED on PB21) — **IMPOSSIBLE on this chip: main-array erase never clears cells (writes stick but there are no erased cells; reads revert to `0xE339E339`); requires a healthy V203**
+  - [ ] Read back flash content and verify 100% byte-exact match with binary — **blocked by un-erasable array**
+- [~] 5.3 **CH32V203 Debug Operations** — **PARTIAL** (halt/registers/resume verified; the rest is blocked by the dead target):
   - [x] Issue `CH32 HALT` / `DEBUG HALT`: Verify CPU halts (`DMSTATUS` halted bits set)
   - [x] Read CPU registers (`R0`–`R15`, `PC`): Verify valid values returned (via GPR abstract reads)
-  - [ ] Issue `DEBUG STEP`: Single-step instruction, verify `PC` increments
+  - [ ] Issue `DEBUG STEP`: Single-step instruction, verify `PC` increments — not completed on V203 (dead flash, board degraded); verify on a healthy V203
   - [~] Mutate CPU register / SRAM address: GPR write/read round-trip verified; SRAM read path verified address-dependent
   - [x] Issue `CH32 RESUME` / `DEBUG RUN`: Verify target resumes execution smoothly
-- [ ] 5.4 Document all test results and mark change complete — blocked on 5.1/5.2
+- [ ] 5.4 Document all test results and mark change complete — blocked on 5.2 (needs healthy V203)
 
-### Open firmware bugs to fix (blocking flash work; see `design.md` F8/F9)
-- [ ] `riscv_read_mem()` discards `wait_abstract_cmd_complete()` errors (`riscv_dmi.c:216/224/232`) → stale DATA0 (DETECT shows garbage chip_id after errors)
-- [ ] PIO SM wedge when the target stalls the bus during flash ops (needs robust re-init/recovery, or the RVSWD transport must detect and self-heal)
+### Firmware bugs found & FIXED during this phase (see `design.md` F8/F9)
+- [x] `riscv_read_mem()` discarded `wait_abstract_cmd_complete()` errors (`riscv_dmi.c`) → stale DATA0 after faulted abstract ops (e.g. flash read under RDP). Fixed: propagate the error, don't read DATA0.
+- [x] `ch32_v20x_wait_flash_busy()` ignored `WRPRTERR`/`PGERR` → a write-protected flash silently "succeeded". Fixed: check/clear W1C error flags, return `CH32_ERR_FLASH`.
+- [x] PIO SM wedge when the target stalls the bus during flash ops: bounded-FIFO timeouts now fully re-init the PIO SM (self-heal). The WCH target DM also wedges on ~30–80 consecutive AUTOEXECDATA streamed executions — all firmware streaming paths (`ch32_progbuf_flash_write()`, `get/set_block_aligned()`) converted to one explicit POSTEXEC per word (proven: 113-word stub load, no wedge).
+- [x] Flash erase order fixed to minichlink's sequence (`CTLR=FTER` → `ADDR` → `CTLR=FTER|STRT`); the old order never started the erase on V203.
+- [ ] (Pre-existing, documented) PROGBUF flash-WRITE can't work on V203 (`cmderr=3`, flash controller doesn't intercept debug-context writes) — dormant `ch32_sram_flash_write` SRAM-blob path is the intended fix (and is the mechanism the F13 tests used); on this chip moot anyway (array un-erasable).

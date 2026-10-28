@@ -23,17 +23,23 @@ typedef enum {
     CH32_ERR_FLASH
 } ch32_result_t;
 
+/* Transport (wire protocol) selection. These are distinct protocols:
+ *   SWIO   — WCH 1-wire serial wire IO, CH32V003 only (swio.c/swio.pio)
+ *   RVSWD  — WCH 2-wire RISC-V SWD variant, CH32V20x/V30x (rvswd.c)
+ * ARM SWD (Cortex-M, swd.c/target.c) is deliberately NOT part of this
+ * enum — it has its own module and command family. */
 typedef enum {
-    CH32_MODE_1WIRE_SDI = 0,  /* CH32V003 single wire */
-    CH32_MODE_2WIRE_SWD = 1   /* CH32V203 / V307 2-wire RV-SWD */
+    CH32_MODE_SWIO = 0,   /* 1-wire SWIO (CH32V003) */
+    CH32_MODE_RVSWD = 1   /* 2-wire RVSWD (CH32V203 / V307) */
 } ch32_mode_t;
 
-/* CH32 chip variants */
+/* CH32 chip variants — chip properties (DTM offsets, flash controller,
+ * page size) are keyed on chip_type, NOT on the transport mode. */
 typedef enum {
     CH32_CHIP_UNKNOWN = 0,
     CH32_CHIP_V003,           /* QingKe V2A core, 1-wire SWIO */
-    CH32_CHIP_V203,           /* QingKe V4A core, 2-wire SWD */
-    CH32_CHIP_V307,           /* QingKe V4A core, 2-wire SWD */
+    CH32_CHIP_V203,           /* QingKe V4A core, 2-wire RVSWD */
+    CH32_CHIP_V307,           /* QingKe V4A core, 2-wire RVSWD */
     CH32_CHIP_F103,           /* ARM Cortex-M3 (Blue Pill compatible) */
 } ch32_chip_t;
 
@@ -76,7 +82,7 @@ typedef struct {
     const char *name;       /* CLI token, e.g. "ch32v203" */
     const char *label;      /* display name, e.g. "CH32V203" */
     ch32_chip_t chip;
-    ch32_mode_t mode;       /* debug interface: 1-wire SWIO or 2-wire RVSWD */
+    ch32_mode_t mode;       /* debug transport: SWIO (1-wire) or RVSWD (2-wire) */
     uint32_t flash_size;    /* flash size in bytes */
     uint32_t page_size;     /* flash page size in bytes */
     uint32_t esig_addr;     /* ESIG register for chip id (informational) */

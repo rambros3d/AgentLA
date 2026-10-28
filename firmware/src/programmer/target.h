@@ -126,6 +126,12 @@ const flash_algorithm_t *target_get_flash_algorithm(void);
  * @return true on success
  */
 bool target_flash_erase(uint32_t addr, uint32_t size);
+bool target_mass_erase(void);
+bool target_is_rdp_protected(void);
+bool target_is_rdp_protected(void);
+bool target_lock_rdp_level1(void);
+bool target_unlock_rdp(void);
+bool target_nordic_mass_erase(void);
 
 /**
  * Flash write operation.

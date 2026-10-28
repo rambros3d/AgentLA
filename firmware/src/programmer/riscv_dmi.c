@@ -1,14 +1,17 @@
 #include "riscv_dmi.h"
+#include "ch32_progbuf.h"
 #include "swio.h"
 #include "rvswd.h"
 #include <stdio.h>
 
 ch32_result_t riscv_dmi_write(uint8_t reg, uint32_t data) {
-    if (g_ch32_target.mode == CH32_MODE_1WIRE_SDI) {
+    switch (g_ch32_target.mode) {
+    case CH32_MODE_SWIO:
         /* Use PIO-based SWIO engine for ~10x faster writes */
         swio_put(reg, data);
         return CH32_OK;
-    } else {
+
+    case CH32_MODE_RVSWD: {
         /* CH32V20x/V30x use WCH's RVSWD 2-wire protocol, NOT ARM SWD.
          * DMI registers are addressed directly in the RVSWD header:
          *   [7-bit reg][1-bit op][1-bit parity] ...
@@ -21,16 +24,21 @@ ch32_result_t riscv_dmi_write(uint8_t reg, uint32_t data) {
         }
         return (res == RVSWD_OK) ? CH32_OK : CH32_ERR_TIMEOUT;
     }
+    default:
+        return CH32_ERR_UNSUPPORTED;
+    }
 }
 
 ch32_result_t riscv_dmi_read(uint8_t reg, uint32_t *data) {
     if (!data) return CH32_ERR_UNSUPPORTED;
 
-    if (g_ch32_target.mode == CH32_MODE_1WIRE_SDI) {
+    switch (g_ch32_target.mode) {
+    case CH32_MODE_SWIO:
         /* Use PIO-based SWIO engine for ~10x faster reads */
         *data = swio_get(reg);
         return CH32_OK;
-    } else {
+
+    case CH32_MODE_RVSWD: {
         /* CH32V20x/V30x: RVSWD 2-wire DMI read with retry */
         rvswd_result_t res = RVSWD_ERR_TIMEOUT;
         for (int retry = 0; retry < 5; retry++) {
@@ -39,6 +47,9 @@ ch32_result_t riscv_dmi_read(uint8_t reg, uint32_t *data) {
             sleep_us(50);
         }
         return (res == RVSWD_OK) ? CH32_OK : CH32_ERR_TIMEOUT;
+    }
+    default:
+        return CH32_ERR_UNSUPPORTED;
     }
 }
 
@@ -190,48 +201,70 @@ ch32_result_t riscv_read_mem(uint32_t addr, uint32_t *val) {
         return riscv_dmi_read(DMI_SBDATA0, val);
     }
 
-    /* Fallback for chips without SBA (e.g. CH32V203 / V307):
-     * Use PROGBUF instruction execution (lw a0, 0(a1)) */
+    /* PROGBUF path (chips without SBA, e.g. CH32V203/V307). Aligned accesses
+     * use the vendored single get/set program (PicoRVD prog_get_set_u32 —
+     * clobbers only A0/A1, direction via DATA1 bit 0); unaligned addresses
+     * fall back to the original lw a0, 0(a1) program. */
     bool was_halted = false;
     riscv_is_halted(&was_halted);
     if (!was_halted) {
         riscv_halt();
     }
 
-    /* Load PROGBUF0 = lw a0, 0(a1) (0x0005a503), PROGBUF1 = ebreak (0x00100073) */
-    if (current_progbuf0 != 0x0005a503) {
-        riscv_dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_ERR_MASK);
-        riscv_dmi_write(DMI_PROGBUF0, 0x0005a503);
-        riscv_dmi_write(DMI_PROGBUF1, 0x00100073);
-        current_progbuf0 = 0x0005a503;
-    }
+    ch32_result_t res;
+    if ((addr & 3) == 0) {
+        res = ch32_progbuf_get_set_u32(addr, val, false);
+    } else {
+        /* Load PROGBUF0 = lw a0, 0(a1) (0x0005a503), PROGBUF1 = ebreak (0x00100073) */
+        if (current_progbuf0 != 0x0005a503) {
+            riscv_dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_ERR_MASK);
+            riscv_dmi_write(DMI_PROGBUF0, 0x0005a503);
+            riscv_dmi_write(DMI_PROGBUF1, 0x00100073);
+            current_progbuf0 = 0x0005a503;
+        }
 
-    /* Set a1 (reg 0x100b) = addr */
-    riscv_dmi_write(DMI_DATA0, addr);
-    ch32_result_t res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_WRITE | CMD_AARSIZE_32 | CMD_REGNO(0x100B));
-    if (res != CH32_OK) {
-        if (!was_halted) riscv_resume();
-        return res;
-    }
-    wait_abstract_cmd_complete();
+        /* Set a1 (reg 0x100b) = addr */
+        riscv_dmi_write(DMI_DATA0, addr);
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_WRITE | CMD_AARSIZE_32 | CMD_REGNO(0x100B));
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
+        /* F8: propagate abstract-command errors — a faulted op (e.g. flash
+         * read under RDP, cmderr=3) leaves DATA0 stale; must not be returned
+         * as if valid. */
+        res = wait_abstract_cmd_complete();
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
 
-    /* Execute PROGBUF (postexec) */
-    res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
-    if (res != CH32_OK) {
-        if (!was_halted) riscv_resume();
-        return res;
-    }
-    wait_abstract_cmd_complete();
+        /* Execute PROGBUF (postexec) */
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
+        res = wait_abstract_cmd_complete();
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
 
-    /* Read a0 (reg 0x100a) into DATA0 */
-    res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_AARSIZE_32 | CMD_REGNO(0x100A));
-    if (res != CH32_OK) {
-        if (!was_halted) riscv_resume();
-        return res;
-    }
-    wait_abstract_cmd_complete();
+        /* Read a0 (reg 0x100a) into DATA0 */
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_AARSIZE_32 | CMD_REGNO(0x100A));
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
+        res = wait_abstract_cmd_complete();
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
 
-    res = riscv_dmi_read(DMI_DATA0, val);
+        res = riscv_dmi_read(DMI_DATA0, val);
+    }
 
     if (!was_halted) {
         riscv_resume();
@@ -263,47 +296,64 @@ ch32_result_t riscv_write_mem(uint32_t addr, uint32_t val) {
         return riscv_sba_wait_busy();
     }
 
-    /* Fallback for chips without SBA (e.g. CH32V203 / V307):
-     * Use PROGBUF instruction execution (sw s0, 0(a1)) */
+    /* PROGBUF path (chips without SBA, e.g. CH32V203/V307). Aligned accesses
+     * use the vendored single get/set program (PicoRVD prog_get_set_u32 —
+     * clobbers only A0/A1, direction via DATA1 bit 0); unaligned addresses
+     * fall back to the original sw s0, 0(a1) program. */
     bool was_halted = false;
     riscv_is_halted(&was_halted);
     if (!was_halted) {
         riscv_halt();
     }
 
-    /* Load PROGBUF0 = sw s0, 0(a1) (0x0085a023), PROGBUF1 = ebreak (0x00100073) */
-    if (current_progbuf0 != 0x0085a023) {
-        riscv_dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_ERR_MASK);
-        riscv_dmi_write(DMI_PROGBUF0, 0x0085a023);
-        riscv_dmi_write(DMI_PROGBUF1, 0x00100073);
-        current_progbuf0 = 0x0085a023;
-    }
+    ch32_result_t res;
+    if ((addr & 3) == 0) {
+        uint32_t data = val;
+        res = ch32_progbuf_get_set_u32(addr, &data, true);
+    } else {
+        /* Load PROGBUF0 = sw s0, 0(a1) (0x0085a023), PROGBUF1 = ebreak (0x00100073) */
+        if (current_progbuf0 != 0x0085a023) {
+            riscv_dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_ERR_MASK);
+            riscv_dmi_write(DMI_PROGBUF0, 0x0085a023);
+            riscv_dmi_write(DMI_PROGBUF1, 0x00100073);
+            current_progbuf0 = 0x0085a023;
+        }
 
-    /* Set s0 (reg 0x1008) = val */
-    riscv_dmi_write(DMI_DATA0, val);
-    ch32_result_t res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_WRITE | CMD_AARSIZE_32 | CMD_REGNO(0x1008));
-    if (res != CH32_OK) {
-        if (!was_halted) riscv_resume();
-        return res;
-    }
-    wait_abstract_cmd_complete();
+        /* Set s0 (reg 0x1008) = val */
+        riscv_dmi_write(DMI_DATA0, val);
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_WRITE | CMD_AARSIZE_32 | CMD_REGNO(0x1008));
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
+        /* F8: propagate abstract-command errors (stale DATA0 guard). */
+        res = wait_abstract_cmd_complete();
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
 
-    /* Set a1 (reg 0x100b) = addr */
-    riscv_dmi_write(DMI_DATA0, addr);
-    res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_WRITE | CMD_AARSIZE_32 | CMD_REGNO(0x100B));
-    if (res != CH32_OK) {
-        if (!was_halted) riscv_resume();
-        return res;
-    }
-    wait_abstract_cmd_complete();
+        /* Set a1 (reg 0x100b) = addr */
+        riscv_dmi_write(DMI_DATA0, addr);
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_TRANSFER | CMD_WRITE | CMD_AARSIZE_32 | CMD_REGNO(0x100B));
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
+        res = wait_abstract_cmd_complete();
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
 
-    /* Execute PROGBUF (postexec) */
-    res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
-    if (res != CH32_OK) {
-        if (!was_halted) riscv_resume();
-        return res;
+        /* Execute PROGBUF (postexec) */
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
+        if (res != CH32_OK) {
+            if (!was_halted) riscv_resume();
+            return res;
+        }
+        res = wait_abstract_cmd_complete();
     }
-    res = wait_abstract_cmd_complete();
 
     if (!was_halted) {
         riscv_resume();

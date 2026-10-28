@@ -78,8 +78,43 @@ ch32_result_t ch32_progbuf_flash_erase(uint32_t addr, uint32_t len);
  */
 ch32_result_t ch32_progbuf_flash_write(uint32_t addr, const uint8_t *data, uint32_t len);
 
+/* ============================================================================
+ * Vendored PicoRVD PROGBUF memory-access API (MIT, https://github.com/aappleby/picorvd)
+ * The core must be halted before calling these; the riscv_dmi.c wrappers handle
+ * halt/resume. DTM DATA0/DATA1 magic offsets are selected by chip family
+ * (g_ch32_target.chip_type), independent of the transport mode.
+ * ============================================================================ */
+
 /**
- * Read flash via System Bus Access.
+ * Single combined get/set aligned 32-bit memory access (PicoRVD prog_get_set_u32).
+ * Clobbers only A0/A1; direction via DATA1 bit 0.
+ * @param addr 4-byte aligned target address
+ * @param val  read: receives the word; write: contains the word to write
+ * @param write false = read, true = write
+ * @return CH32_OK on success
+ */
+ch32_result_t ch32_progbuf_get_set_u32(uint32_t addr, uint32_t *val, bool write);
+
+/**
+ * ABSTRACTAUTO-pipelined block read (PicoRVD get_block_aligned).
+ * @param addr 4-byte aligned start address
+ * @param dst  receives size_dwords words
+ * @param size_dwords word count (> 0)
+ * @return CH32_OK on success
+ */
+ch32_result_t ch32_progbuf_get_block_aligned(uint32_t addr, uint32_t *dst, int size_dwords);
+
+/**
+ * ABSTRACTAUTO-pipelined block write (PicoRVD set_block_aligned).
+ * @param addr 4-byte aligned start address
+ * @param src  source words
+ * @param size_dwords word count (> 0)
+ * @return CH32_OK on success
+ */
+ch32_result_t ch32_progbuf_set_block_aligned(uint32_t addr, const uint32_t *src, int size_dwords);
+
+/**
+ * Read flash via block-aligned PROGBUF read (get_block_aligned path).
  * @param addr Source address
  * @param data Destination buffer
  * @param len Length in bytes

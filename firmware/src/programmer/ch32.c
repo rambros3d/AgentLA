@@ -124,19 +124,19 @@ uint32_t ch32_sdi_read_word(void) {
 static const ch32_mcu_info_t ch32_mcu_table[] = {
     {
         .name = "ch32v003", .label = "CH32V003",
-        .chip = CH32_CHIP_V003, .mode = CH32_MODE_1WIRE_SDI,
+        .chip = CH32_CHIP_V003, .mode = CH32_MODE_SWIO,
         .flash_size = 16 * 1024, .page_size = 64,
         .esig_addr = CH32V003_ESIG_ADDR, .chip_id = 0x00300500,
     },
     {
         .name = "ch32v203", .label = "CH32V203",
-        .chip = CH32_CHIP_V203, .mode = CH32_MODE_2WIRE_SWD,
+        .chip = CH32_CHIP_V203, .mode = CH32_MODE_RVSWD,
         .flash_size = 64 * 1024, .page_size = 256,
         .esig_addr = CH32V203_ESIG_ADDR, .chip_id = 0x20305040,
     },
     {
         .name = "ch32v307", .label = "CH32V307",
-        .chip = CH32_CHIP_V307, .mode = CH32_MODE_2WIRE_SWD,
+        .chip = CH32_CHIP_V307, .mode = CH32_MODE_RVSWD,
         .flash_size = 256 * 1024, .page_size = 256,
         .esig_addr = CH32V203_ESIG_ADDR, .chip_id = 0x30705040,
     },
@@ -162,7 +162,8 @@ ch32_result_t ch32_probe_target(ch32_mode_t mode) {
     g_ch32_target.mode = mode;
     g_ch32_target.probed = false;
 
-    if (mode == CH32_MODE_1WIRE_SDI) {
+    switch (mode) {
+    case CH32_MODE_SWIO: {
         /* Initialize PIO-based SWIO engine (10x faster than bit-bang). */
         swio_init();
 
@@ -183,7 +184,9 @@ ch32_result_t ch32_probe_target(ch32_mode_t mode) {
             chip_id != 0 && chip_id != 0xFFFFFFFF) {
             g_ch32_target.chip_id = chip_id;
         }
-    } else {
+        break;
+    }
+    case CH32_MODE_RVSWD: {
         /* CH32V20x/V30x speak WCH's RVSWD 2-wire protocol (NOT ARM SWD).
          * Initialize the RVSWD transport and send a line reset. */
         rvswd_result_t r = rvswd_init();
@@ -212,16 +215,21 @@ ch32_result_t ch32_probe_target(ch32_mode_t mode) {
             chip_id != 0 && chip_id != 0xFFFFFFFF) {
             g_ch32_target.chip_id = chip_id;
         }
+        break;
+    }
+    default:
+        printf("CH32: unknown transport mode %d\r\n", (int)mode);
+        return CH32_ERR_UNSUPPORTED;
     }
 
     /* If no specific MCU model was selected (legacy mode= path), apply
      * mode-based defaults so flash params are never zero. */
     if (g_ch32_target.chip_type == CH32_CHIP_UNKNOWN) {
-        g_ch32_target.chip_type = (mode == CH32_MODE_1WIRE_SDI) ? CH32_CHIP_V003 : CH32_CHIP_V203;
-        g_ch32_target.flash_size_bytes = (mode == CH32_MODE_1WIRE_SDI) ? (16 * 1024) : (64 * 1024);
-        g_ch32_target.page_size = (mode == CH32_MODE_1WIRE_SDI) ? 64 : 256;
+        g_ch32_target.chip_type = (mode == CH32_MODE_SWIO) ? CH32_CHIP_V003 : CH32_CHIP_V203;
+        g_ch32_target.flash_size_bytes = (mode == CH32_MODE_SWIO) ? (16 * 1024) : (64 * 1024);
+        g_ch32_target.page_size = (mode == CH32_MODE_SWIO) ? 64 : 256;
         if (g_ch32_target.chip_id == 0) {
-            g_ch32_target.chip_id = (mode == CH32_MODE_1WIRE_SDI) ? 0x00300500 : 0x20305040;
+            g_ch32_target.chip_id = (mode == CH32_MODE_SWIO) ? 0x00300500 : 0x20305040;
         }
     }
 
@@ -246,7 +254,7 @@ ch32_result_t ch32_probe_mcu(const ch32_mcu_info_t *mcu) {
     if (res != CH32_OK) {
         /* Leave params set so the user sees what was attempted */
         printf("CH32: %s probe failed (mode=%s)\r\n", mcu->label,
-               (mcu->mode == CH32_MODE_1WIRE_SDI) ? "1wire" : "2wire");
+               (mcu->mode == CH32_MODE_SWIO) ? "1wire" : "2wire");
         return res;
     }
 
@@ -324,10 +332,11 @@ ch32_result_t ch32_flash_program(uint32_t addr, const uint8_t *data, uint32_t le
     if (!data || len == 0) return CH32_ERR_UNSUPPORTED;
 
     /* CH32V20x/V30x: PROGBUF execution is the proven path (PicoRVD uses it
-     * on V203 hardware). The core stays halted; each DATA0 write re-executes
-     * the flash routine via ABSTRACTAUTO.AUTOEXECDATA. The old SRAM-based
-     * approach (ch32_sram_flash_write) relied on DPC + resume + ebreak which
-     * doesn't halt reliably on V203, so it is no longer used for these chips. */
+     * on V203 hardware). The core stays halted; each word is fed via an
+     * explicit POSTEXEC (AUTOEXECDATA streaming wedges the WCH DM, F9).
+     * The old SRAM-based approach (ch32_sram_flash_write) relied on DPC +
+     * resume + ebreak which doesn't halt reliably on V203, so it is no
+     * longer used for these chips. */
     if (g_ch32_target.chip_type == CH32_CHIP_V203 ||
         g_ch32_target.chip_type == CH32_CHIP_V307) {
         if (!ch32_progbuf_is_available()) {
@@ -406,6 +415,14 @@ static ch32_result_t ch32_v20x_wait_flash_busy(void) {
         uint32_t statr = 0;
         ch32_result_t res = riscv_read_mem(CH32V20x_FLASH_STATR, &statr);
         if (res == CH32_OK && !(statr & 0x01)) {
+            /* BSY cleared — surface latched flash error flags instead of
+             * reporting success on a failed operation (F8-class: the old
+             * code ignored WRPRTERR/PGERR, so a write-protected or un-erased
+             * flash silently "succeeded"). Clear them (W1C) and report. */
+            if (statr & (0x04U | 0x10U)) {   /* PGERR | WRPRTERR */
+                riscv_write_mem(CH32V20x_FLASH_STATR, 0x04U | 0x10U);
+                return CH32_ERR_FLASH;
+            }
             return CH32_OK;
         }
         sleep_us(50);
@@ -437,11 +454,13 @@ ch32_result_t ch32_v20x_flash_erase(uint32_t addr, uint32_t len) {
     uint32_t end_addr = (addr + len + page_sz - 1) & ~(page_sz - 1);
 
     for (uint32_t curr = start_addr; curr < end_addr; curr += page_sz) {
-        /* Set page address */
+        /* minichlink's proven order: arm erase mode FIRST, then the address,
+         * then STRT. (Writing the address before FTER never starts the
+         * operation on V203 — BSY never sets and no erase happens.) */
+        res = riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FTER);
+        if (res != CH32_OK) return res;
         res = riscv_write_mem(CH32V20x_FLASH_ADDR, curr);
         if (res != CH32_OK) return res;
-
-        /* Fast Page Erase: FTER (1<<17) + STRT (1<<6) */
         res = riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FTER | CH32V20x_CTLR_STRT);
         if (res != CH32_OK) return res;
 
@@ -450,8 +469,10 @@ ch32_result_t ch32_v20x_flash_erase(uint32_t addr, uint32_t len) {
     }
 
     /* Clear erase mode and lock flash to re-enable read mode */
-    riscv_write_mem(CH32V20x_FLASH_CTLR, 0);
-    riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FLOCK);
+    res = riscv_write_mem(CH32V20x_FLASH_CTLR, 0);
+    if (res != CH32_OK) return res;
+    res = riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FLOCK);
+    if (res != CH32_OK) return res;
     riscv_resume();
 
     return CH32_OK;

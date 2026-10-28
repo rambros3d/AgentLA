@@ -23,6 +23,7 @@
 #include "programmer/programmer.h"
 #include "programmer/target.h"
 #include "programmer/usb_hid.h"
+#include "programmer/algo_runner.h"
 #include "programmer/ch32.h"
 #include "programmer/ch32_progbuf.h"
 #include "programmer/swio.h"
@@ -929,11 +930,12 @@ static void cmd_stm32_test(char* args) {
         result = target_detect();
         if (result == SWD_OK && target_is_connected()) {
             const target_info_t *info = target_get_info();
-            char msg[160];
-            sprintf(msg, "OK STM32 TEST PASS idcode=0x%08lX target=%s flash=%luK ram=%luK",
+            char msg[192];
+            sprintf(msg, "OK STM32 TEST PASS idcode=0x%08lX target=%s flash=%luK ram=%luK protection=%s",
                     (unsigned long)idcode, info->name,
                     (unsigned long)(info->flash_size / 1024),
-                    (unsigned long)(info->ram_size / 1024));
+                    (unsigned long)(info->ram_size / 1024),
+                    target_is_rdp_protected() ? "rdp1" : "none");
             send_response(msg);
         } else {
             char msg[96];
@@ -1551,6 +1553,10 @@ static void cmd_flash_verify(char* args) {
 #define CORTEXM_DHCSR  0xE000EDF0u
 #define CORTEXM_DCRSR  0xE000EDF4u
 #define CORTEXM_DCRDR  0xE000EDF8u
+#define CORTEXM_AIRCR  0xE000ED0Cu   /* Application Interrupt and Reset Control */
+
+#define AIRCR_VECTKEY       0x05FA0000u
+#define AIRCR_SYSRESETREQ   0x00000004u
 
 #define DHCSR_DBGKEY     0xA05F0000u
 #define DHCSR_C_DEBUGEN  0x00000001u
@@ -1594,14 +1600,23 @@ static void cmd_debug(char* args) {
     }
 
     if (strncmp(args, "RESET", 5) == 0) {
-        /* Pulse the target nRST line (GPIO6) to reboot the freshly programmed
-         * firmware, then re-establish the SWD link. nRST resets the STM32F1
-         * SWJ-DP as well, so a full reconnect (JTAG-to-SWD + DPIDR + power-up)
-         * is required before further AP access works. */
-        swd_assert_reset();
-        sleep_ms(20);
-        swd_deassert_reset();
-        sleep_ms(10);
+        /* Reset the target CPU. Default is the SWD software reset via
+         * AIRCR.SYSRESETREQ which needs no nRST wire. "DEBUG RESET HW"
+         * pulses the GPIO6 nRST line instead (hard reset that also resets
+         * the SWJ-DP). Either way a full SWD re-connect (line reset +
+         * DPIDR + power-up) is performed before responding. */
+        bool hw_reset = (args[5] == ' ' && strncmp(args + 6, "HW", 2) == 0);
+        if (hw_reset) {
+            swd_assert_reset();
+            sleep_ms(20);
+            swd_deassert_reset();
+            sleep_ms(10);
+        } else {
+            /* VECTKEY | SYSRESETREQ asserts the system reset request; the
+             * reset controller reboots the core. The DP survives it. */
+            debug_mem_write32(CORTEXM_AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
+            sleep_ms(50);
+        }
         swd_line_reset();
         target_detect();   /* full link re-connect (ignores DBGMCU FAULT recovery) */
         sleep_ms(100);     /* let the freshly booted firmware reach main() */
@@ -1726,7 +1741,7 @@ static void cmd_ch32_detect(char* args) {
      * Legacy (backward compatible): CH32 DETECT mode=1wire|mode=2wire */
     char *mcu_name = NULL;
     bool mcu_specified = false;
-    ch32_mode_t mode = CH32_MODE_1WIRE_SDI;
+    ch32_mode_t mode = CH32_MODE_SWIO;
     bool mode_specified = false;
 
     if (args) {
@@ -1737,11 +1752,11 @@ static void cmd_ch32_detect(char* args) {
                 mcu_specified = true;
             } else if (strncmp(token, "mode=", 5) == 0) {
                 mode_specified = true;
-                if (strcmp(token + 5, "2wire") == 0) mode = CH32_MODE_2WIRE_SWD;
-                else if (strcmp(token + 5, "1wire") == 0) mode = CH32_MODE_1WIRE_SDI;
+                if (strcmp(token + 5, "2wire") == 0) mode = CH32_MODE_RVSWD;
+                else if (strcmp(token + 5, "1wire") == 0) mode = CH32_MODE_SWIO;
                 else { send_response("ERR CH32 DETECT invalid mode: use 1wire|2wire"); return; }
             } else if (strcmp(token, "2wire") == 0) {  /* legacy bare arg */
-                mode = CH32_MODE_2WIRE_SWD;
+                mode = CH32_MODE_RVSWD;
                 mode_specified = true;
             }
             token = strtok(NULL, " ");
@@ -1765,7 +1780,7 @@ static void cmd_ch32_detect(char* args) {
             return;
         }
         res = ch32_probe_mcu(mcu);
-        mode_str = (mcu->mode == CH32_MODE_1WIRE_SDI) ? "1wire" : "2wire";
+        mode_str = (mcu->mode == CH32_MODE_SWIO) ? "1wire" : "2wire";
         if (res != CH32_OK || !g_ch32_target.probed) {
             char msg[128];
             sprintf(msg, "ERR CH32 DETECT failed: no %s on the wire (mode=%s)", mcu->label, mode_str);
@@ -1785,7 +1800,7 @@ static void cmd_ch32_detect(char* args) {
 
     /* Legacy mode= path (no mcu=): probe transport, model defaults by mode */
     res = ch32_probe_target(mode);
-    mode_str = (mode == CH32_MODE_1WIRE_SDI) ? "1wire" : "2wire";
+    mode_str = (mode == CH32_MODE_SWIO) ? "1wire" : "2wire";
     if (res != CH32_OK || !g_ch32_target.probed) {
         char msg[128];
         sprintf(msg, "ERR CH32 DETECT failed (mode=%s)", mode_str);
@@ -1912,7 +1927,7 @@ static void cmd_ch32_read(char* args) {
 static void cmd_ch32_readm(char* args) {
     if (args == NULL) { send_response("ERR usage: CH32 READM <addr>"); return; }
     while (*args == ' ') args++;
-    if (!g_ch32_target.probed || g_ch32_target.mode != CH32_MODE_2WIRE_SWD) {
+    if (!g_ch32_target.probed || g_ch32_target.mode != CH32_MODE_RVSWD) {
         send_response("ERR CH32 READM requires probed RVSWD target (run CH32 DETECT mcu=ch32v203 first)");
         return;
     }
@@ -1927,6 +1942,130 @@ static void cmd_ch32_readm(char* args) {
         sprintf(msg, "OK CH32 READM 0x%08lX = 0x%08lX", (unsigned long)addr, (unsigned long)val);
     }
     send_response(msg);
+}
+
+static bool algo_consent = false;
+
+static void cmd_algo_consent(char *args) {
+    if (args && (strcmp(args, "ON") == 0 || strcmp(args, "on") == 0)) {
+        algo_consent = true;
+        send_response("OK ALGO CONSENT ON");
+    } else if (args && (strcmp(args, "OFF") == 0 || strcmp(args, "off") == 0)) {
+        algo_consent = false;
+        send_response("OK ALGO CONSENT OFF");
+    } else {
+        char msg[64];
+        sprintf(msg, "ALGO CONSENT %s", algo_consent ? "ON" : "OFF");
+        send_response(msg);
+    }
+}
+
+static void cmd_mass_erase(char *args) {
+    (void)args;
+    bool confirm = false;
+    if (args && strstr(args, "CONFIRM") != NULL) confirm = true;
+    if (!confirm) { send_response("ERR CONFIRM REQUIRED"); return; }
+
+    if (!swd_is_initialized()) {
+        swd_result_t r = swd_init();
+        if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
+        swd_initialized = true;
+    }
+    swd_result_t r = target_detect();
+    if (r != SWD_OK || !target_is_connected()) { send_response("ERR TARGET NOT IDENTIFIED"); return; }
+    const target_info_t *info = target_get_info();
+    char banner[192];
+    sprintf(banner, "MASS ERASE: target=%s flash=%lu bytes protection=rdp1",
+            info->name, (unsigned long)info->flash_size);
+    send_response(banner);
+
+    if (!target_mass_erase()) { send_response("ERR MASS ERASE FAILED"); return; }
+
+    /* Re-identify to confirm recovery. */
+    target_detect();
+    const target_info_t *after = target_get_info();
+    char done[128];
+    sprintf(done, "OK MASS ERASE DONE protection=%s", after ? after->name : "unknown");
+    send_response(done);
+}
+
+static void cmd_boot0(char *args) {
+    /* Default dedicated BOOT0 pin (configurable). */
+    const uint BOOT0_PIN = 2;
+    if (args && (strcmp(args, "HIGH") == 0 || strcmp(args, "high") == 0)) {
+        gpio_init(BOOT0_PIN);
+        gpio_set_dir(BOOT0_PIN, GPIO_OUT);
+        gpio_put(BOOT0_PIN, 1);
+        send_response("OK BOOT0 HIGH");
+    } else if (args && (strcmp(args, "LOW") == 0 || strcmp(args, "low") == 0)) {
+        gpio_init(BOOT0_PIN);
+        gpio_set_dir(BOOT0_PIN, GPIO_OUT);
+        gpio_put(BOOT0_PIN, 0);
+        send_response("OK BOOT0 LOW");
+    } else {
+        char msg[64];
+        sprintf(msg, "OK BOOT0 PIN %d (HIGH|LOW)", BOOT0_PIN);
+        send_response(msg);
+    }
+}
+static void cmd_algo_test(char *args) {
+    (void)args;
+    if (!swd_is_initialized()) {
+        swd_result_t r = swd_init();
+        if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
+        swd_initialized = true;
+    }
+    static const uint8_t prog[] = { 0x42, 0x20, 0x00, 0xBE }; /* MOVS R0,#0x42 ; BKPT #0 */
+    const uint32_t addr = 0x20000100u;
+    if (algo_ram_download(addr, prog, sizeof(prog)) != SWD_OK) { send_response("ERR stage download"); return; }
+    if (algo_core_halt() != SWD_OK) { send_response("ERR stage halt"); return; }
+    if (algo_core_write_reg(0, 0x00000000u) != SWD_OK) { send_response("ERR stage wr R0"); return; }
+    if (algo_core_write_reg(14, 0x00000000u) != SWD_OK) { send_response("ERR stage wr LR"); return; }
+    if (algo_core_write_reg(15, addr | 1u) != SWD_OK) { send_response("ERR stage wr PC"); return; }
+    if (algo_core_resume() != SWD_OK) { send_response("ERR stage resume"); return; }
+    bool halted = false;
+    for (int i = 0; i < 5000; i++) {
+        uint32_t dhcsr = 0;
+        if (algo_mem_read32(CORTEXM_DHCSR, &dhcsr) == SWD_OK && (dhcsr & DHCSR_S_HALT)) { halted = true; break; }
+        sleep_us(10);
+    }
+    if (!halted) { send_response("ERR stage timeout (no halt)"); return; }
+    uint32_t ret = 0;
+    if (algo_core_read_reg(0, &ret) != SWD_OK) { send_response("ERR stage read R0"); return; }
+    char msg[64]; sprintf(msg, "OK ALGOTEST ret=0x%08lX", (unsigned long)ret);
+    send_response(msg);
+}
+static void cmd_rdp_lock(char *args) {
+    (void)args;
+    bool confirm = false;
+    if (args && strstr(args, "CONFIRM") != NULL) confirm = true;
+    if (!confirm) { send_response("ERR CONFIRM REQUIRED"); return; }
+    if (!swd_is_initialized()) {
+        swd_result_t r = swd_init();
+        if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
+        swd_initialized = true;
+    }
+    if (!target_is_connected()) { target_detect(); }
+    if (!target_is_connected()) { send_response("ERR TARGET NOT IDENTIFIED"); return; }
+    send_response("LOCKING RDP LEVEL 1 (potentially irreversible)");
+    if (!target_lock_rdp_level1()) { send_response("ERR RDP LOCK FAILED"); return; }
+    send_response("OK RDP LOCKED (level 1) - use RDPUNLOCK CONFIRM to revert");
+}
+
+static void cmd_rdp_unlock(char *args) {
+    bool confirm = false;
+    if (args && strstr(args, "CONFIRM") != NULL) confirm = true;
+    if (!confirm) { send_response("ERR CONFIRM REQUIRED"); return; }
+    if (!swd_is_initialized()) {
+        swd_result_t r = swd_init();
+        if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
+        swd_initialized = true;
+    }
+    if (!target_is_connected()) { target_detect(); }
+    if (!target_is_connected()) { send_response("ERR TARGET NOT IDENTIFIED"); return; }
+    send_response("UNLOCKING RDP (mass-erase-level dependent; may fail)");
+    if (!target_unlock_rdp()) { send_response("ERR RDP UNLOCK FAILED"); return; }
+    send_response("OK RDP UNLOCKED (level 0)");
 }
 
 static void process_command(char* cmd) {
@@ -2165,11 +2304,22 @@ static void process_command(char* cmd) {
         else if(args && strcmp(args, "DRIVER") == 0) cmd_prog_driver(args + 6);
         else { send_response("ERR unknown PROG subcommand: DRIVER"); }
     }
+    else if(strcmp(cmd, "MASSERASE") == 0) cmd_mass_erase(args ? args : "");
+    else if(strcmp(cmd, "RDPLOCK") == 0) cmd_rdp_lock(args ? args : "");
+    else if(strcmp(cmd, "RDPUNLOCK") == 0) cmd_rdp_unlock(args ? args : "");
+    else if(strcmp(cmd, "ALGOTEST") == 0) cmd_algo_test(args ? args : "");
+    else if(strcmp(cmd, "ALGOCONSENT") == 0) cmd_algo_consent(args ? args : "");
+    else if(strcmp(cmd, "BOOT0") == 0) cmd_boot0(args ? args : "");
     else if(strcmp(cmd, "SWD") == 0) {
         if(args && strcmp(args, "IDCODE") == 0) cmd_swd_idcode(NULL);
         else if(args && strcmp(args, "RESET") == 0) cmd_swd_reset(NULL);
         else if(args && strcmp(args, "TEST") == 0) cmd_swd_test(NULL);
         else if(args && strcmp(args, "PINS") == 0) cmd_swd_pins(NULL);
+        else if(args && strcmp(args, "DEINIT") == 0) {
+            swd_deinit();
+            swd_initialized = false;
+            send_response("OK SWD DEINIT");
+        }
         else if(args && strncmp(args, "CLOCK ", 6) == 0) {
             uint32_t khz = (uint32_t)strtol(args + 6, NULL, 0);
             swd_result_t r = swd_set_clock(khz);

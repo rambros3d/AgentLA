@@ -35,15 +35,33 @@ static rvswd_transport_handle_t g_rvswd = {
 };
 
 /*
+ * Full state-machine recovery. After a bounded-FIFO timeout the SM may be
+ * stuck mid-routine (blocked on pull/push, or jumped to a garbage address
+ * via a desynced command word) — pio_sm_clear_fifos() alone leaves it
+ * desynced and the next transactions fail, wedging the probe for minutes
+ * (F9). Return the SM to the command dispatcher in a known state, mirroring
+ * the proven tail of rvswd_transport_init().
+ */
+static void rvswd_transport_recover(void) {
+    pio_sm_set_enabled(g_rvswd.pio, g_rvswd.sm, false);
+    pio_sm_clear_fifos(g_rvswd.pio, g_rvswd.sm);
+    pio_sm_restart(g_rvswd.pio, g_rvswd.sm);
+    uint entry_point = g_rvswd.pio_offset + rvswd_io_offset_get_next_cmd;
+    pio_sm_exec(g_rvswd.pio, g_rvswd.sm, entry_point);
+    pio_sm_set_enabled(g_rvswd.pio, g_rvswd.sm, true);
+}
+
+/*
  * Bounded PIO FIFO put. A stalled SM (e.g. no target on the bus) must NEVER
  * freeze the single-threaded firmware — pio_sm_put_blocking() would spin
- * forever once the TX FIFO fills. Returns false on timeout.
+ * forever once the TX FIFO fills. Returns false on timeout, after recovering
+ * the SM so the next transaction starts clean.
  */
 static bool rvswd_put_bounded(uint32_t data) {
     absolute_time_t deadline = make_timeout_time_us(RVSWD_TIMEOUT_US);
     while (pio_sm_is_tx_fifo_full(g_rvswd.pio, g_rvswd.sm)) {
         if (time_reached(deadline)) {
-            pio_sm_clear_fifos(g_rvswd.pio, g_rvswd.sm);
+            rvswd_transport_recover();
             return false;
         }
         tight_loop_contents();
@@ -54,13 +72,14 @@ static bool rvswd_put_bounded(uint32_t data) {
 
 /*
  * Bounded PIO FIFO get. Returns false on timeout (RX FIFO never filled),
- * leaving *data untouched. Mirror of the swio_get() 1ms timeout pattern.
+ * leaving *data untouched, after recovering the SM (F9). Mirror of the
+ * swio_get() 1ms timeout pattern.
  */
 static bool rvswd_get_bounded(uint32_t *data) {
     absolute_time_t deadline = make_timeout_time_us(RVSWD_TIMEOUT_US);
     while (pio_sm_is_rx_fifo_empty(g_rvswd.pio, g_rvswd.sm)) {
         if (time_reached(deadline)) {
-            pio_sm_clear_fifos(g_rvswd.pio, g_rvswd.sm);
+            rvswd_transport_recover();
             return false;
         }
         tight_loop_contents();
@@ -200,6 +219,10 @@ bool rvswd_transport_is_initialized(void) {
 
 rvswd_result_t rvswd_transport_reset(void) {
     if (!g_rvswd.initialized) return RVSWD_ERR_NOT_INIT;
+
+    /* Self-heal first: a fresh reset (e.g. CH32 DETECT retry after a wedge)
+     * must start from a known SM state (F9). */
+    rvswd_transport_recover();
 
     /* NOTE: the PIO command count field is 8 bits (count-1 in bits 31:24).
      * 300 would truncate (299 & 0xFF = 43), so use 256 which encodes

@@ -1,5 +1,6 @@
 # Build artifacts
 build/
+build*/
 *.o
 *.elf
 *.bin
@@ -33,13 +34,7 @@ __pycache__/
 Thumbs.db
 
 # Embedded git repos / submodules
-references/logicanalyzer/
-references/sigrok-pico/
-references/spi_sniffer_pio/
-build/_deps/picotool-src/
+references/
 
-# OpenSpec
-openspec/
-.claude/
-.kilocode/
-.opencode/
+# Agents
+.*/
