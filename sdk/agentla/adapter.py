@@ -15,9 +15,23 @@ class I2CDevice:
         addr: Default I2C slave address for subsequent operations
     """
 
-    def __init__(self, connection: Connection, addr: int = 0x00):
+    def __init__(self, connection: Connection, addr: int = 0x00, claim_handle: int = None):
         self._conn = connection
         self._addr = addr
+        self._claim_handle = claim_handle
+
+    def claim(self, pins, function=2, observer: bool = False) -> int:
+        """Claim flexible I2C pins and store the resulting handle."""
+        pin_str = ",".join(str(p) for p in pins)
+        cmd = f"PINCLAIM pins={pin_str} func={int(function)} observer={1 if observer else 0}"
+        response = self._conn.send_command(cmd)
+        if response.startswith("ERR"):
+            raise DeviceError(response)
+        for part in response.split():
+            if part.startswith("HANDLE="):
+                self._claim_handle = int(part.split("=", 1)[1])
+                return self._claim_handle
+        raise DeviceError(f"Unexpected claim response: {response}")
 
     @property
     def address(self) -> int:
@@ -25,7 +39,7 @@ class I2CDevice:
         return self._addr
 
     def read(self, addr: int = None, reg: int = 0x00, length: int = 1,
-             timeout_ms: int = 100) -> bytes:
+             timeout_ms: int = 100, claim_handle: int = None) -> bytes:
         """Read bytes from an I2C slave register.
 
         Args:
@@ -42,7 +56,11 @@ class I2CDevice:
             TimeoutError: If the transaction times out.
         """
         target_addr = addr if addr is not None else self._addr
-        cmd = f"I2C_READ addr=0x{target_addr:02X} reg=0x{reg:02X} len={length} timeout={timeout_ms}"
+        handle = self._claim_handle if claim_handle is None else claim_handle
+        if handle is None:
+            from .exceptions import DeviceError
+            raise DeviceError("ERR I2C requires ownership handle")
+        cmd = f"handle={handle} I2C_READ addr=0x{target_addr:02X} reg=0x{reg:02X} len={length} timeout={timeout_ms}"
         response = self._conn.send_command(cmd)
 
         if response.startswith("ERR"):
@@ -58,7 +76,7 @@ class I2CDevice:
         return bytes(byte_values)
 
     def write(self, addr: int = None, reg: int = 0x00, data: bytes = b"",
-              timeout_ms: int = 100) -> int:
+              timeout_ms: int = 100, claim_handle: int = None) -> int:
         """Write bytes to an I2C slave register.
 
         Args:
@@ -75,8 +93,12 @@ class I2CDevice:
             TimeoutError: If the transaction times out.
         """
         target_addr = addr if addr is not None else self._addr
+        handle = self._claim_handle if claim_handle is None else claim_handle
+        if handle is None:
+            from .exceptions import DeviceError
+            raise DeviceError("ERR I2C requires ownership handle")
         data_hex = ",".join(f"{b:02X}" for b in data)
-        cmd = f"I2C_WRITE addr=0x{target_addr:02X} reg=0x{reg:02X} data={data_hex} timeout={timeout_ms}"
+        cmd = f"I2C_WRITE handle={handle} addr=0x{target_addr:02X} reg=0x{reg:02X} data={data_hex} timeout={timeout_ms}"
         response = self._conn.send_command(cmd)
 
         if response.startswith("ERR"):
@@ -87,13 +109,18 @@ class I2CDevice:
 
         return len(data)
 
-    def clear_bus(self) -> bool:
+    def clear_bus(self, claim_handle: int = None) -> bool:
         """Recover a stuck I2C bus by toggling SCL 9 times.
 
         Returns:
             True if the bus clear command was accepted.
         """
-        response = self._conn.send_command("I2C_CLEAR")
+        handle = self._claim_handle if claim_handle is None else claim_handle
+        if handle is None:
+            from .exceptions import DeviceError
+            raise DeviceError("ERR I2C requires ownership handle")
+        cmd = f"I2C_CLEAR handle={handle}"
+        response = self._conn.send_command(cmd)
         if response.startswith("ERR"):
             raise DeviceError(response)
         return "OK I2C BUS CLEARED" in response
@@ -109,10 +136,28 @@ class UARTDevice:
         connection: Connection instance connected to the adapter CDC port
     """
 
-    def __init__(self, connection: Connection):
+    def __init__(self, connection: Connection, claim_handle: int = None):
         self._conn = connection
+        self._claim_handle = claim_handle
 
-    def write(self, data: bytes, baud: int = 115200) -> int:
+    def claim(self, pins, function=1, observer: bool = False) -> int:
+        """Claim flexible UART pins and store the resulting handle."""
+        from .device import Device
+        _ = Device
+        pin_str = ",".join(str(p) for p in pins)
+        cmd = f"PINCLAIM pins={pin_str} func={int(function)} observer={1 if observer else 0}"
+        response = self._conn.send_command(cmd)
+        if response.startswith("ERR"):
+            from .exceptions import DeviceError
+            raise DeviceError(response)
+        for part in response.split():
+            if part.startswith("HANDLE="):
+                self._claim_handle = int(part.split("=", 1)[1])
+                return self._claim_handle
+        from .exceptions import DeviceError
+        raise DeviceError(f"Unexpected claim response: {response}")
+
+    def write(self, data: bytes, baud: int = 115200, claim_handle: int = None) -> int:
         """Write bytes to a UART serial device.
 
         Args:
@@ -130,8 +175,12 @@ class UARTDevice:
                 f"ERR invalid baud rate, min=1200 max=921600 (got {baud})"
             )
 
+        handle = self._claim_handle if claim_handle is None else claim_handle
+        if handle is None:
+            from .exceptions import DeviceError
+            raise DeviceError("ERR UART requires ownership handle")
         data_hex = ",".join(f"{b:02X}" for b in data)
-        cmd = f"UART_WRITE baud={baud} data={data_hex}"
+        cmd = f"UART_WRITE handle={handle} baud={baud} data={data_hex}"
         response = self._conn.send_command(cmd)
 
         if response.startswith("ERR"):
@@ -143,7 +192,7 @@ class UARTDevice:
         return len(data)
 
     def read(self, max_len: int = 64, baud: int = 115200,
-             timeout_ms: int = 1000) -> bytes:
+             timeout_ms: int = 1000, claim_handle: int = None) -> bytes:
         """Read up to max_len bytes from a UART serial device.
 
         Args:
@@ -159,7 +208,11 @@ class UARTDevice:
         if max_len > 256:
             max_len = 256
 
-        cmd = f"UART_READ baud={baud} len={max_len} timeout={timeout_ms}"
+        handle = self._claim_handle if claim_handle is None else claim_handle
+        if handle is None:
+            from .exceptions import DeviceError
+            raise DeviceError("ERR UART requires ownership handle")
+        cmd = f"UART_READ handle={handle} baud={baud} len={max_len} timeout={timeout_ms}"
         response = self._conn.send_command(cmd)
 
         if response.startswith("ERR"):

@@ -78,6 +78,10 @@ target_link_libraries(AgentLA
     pico_stdlib
     tinyusb_device
     tinyusb_board
+    pico_lwip
+    pico_lwip_http
+    pico_httpd_content
+    pico_rand
     hardware_dma
     hardware_pio
     hardware_clocks
@@ -92,11 +96,25 @@ target_link_libraries(AgentLA
     hardware_uart
 )
 
+# HTTP content embedding - Phase 2 scaffold
+pico_add_library(pico_httpd_content NOFLAG)
+pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/index.html
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/style.css
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/winbox.min.css
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/winbox.js
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/wallpaper.svg
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/mcp.json
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/ok.json
+)
 pico_add_extra_outputs(AgentLA)
+
 
 target_include_directories(AgentLA PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/firmware/src
     ${CMAKE_CURRENT_LIST_DIR}/firmware/pio
+    /home/sun/sandbox/fedora/.pico-sdk/src/rp2_common/pico_lwip/include
+    /home/sun/sandbox/fedora/.pico-sdk/lib/tinyusb/lib/networking
 )
 
 target_compile_definitions(AgentLA PUBLIC

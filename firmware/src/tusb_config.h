@@ -42,8 +42,13 @@
 #define CFG_TUD_MIDI            0
 #define CFG_TUD_VENDOR          1
 
-/* HID Endpoint Buffer Size */
-#define CFG_TUD_HID_EP_BUFSIZE  64
+/* Network (RNDIS/ECM) Configuration */
+#define CFG_TUD_NET              1
+#define CFG_TUD_RNDIS            0
+#define CFG_TUD_ECM_RNDIS        1
+#ifndef CFG_TUD_NET_MTU
+#define CFG_TUD_NET_MTU          1500
+#endif
 
 /* CDC Buffer Sizes */
 #define CFG_TUD_CDC_RX_BUFSIZE  1024

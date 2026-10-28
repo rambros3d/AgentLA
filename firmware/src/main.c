@@ -18,11 +18,14 @@
 #include "capture.pio.h"
 #include "loopback.pio.h"
 #include "analyzer/capture.h"
+#include "pin_owner.h"
 #include "analyzer/decode.h"
 #include "programmer/swd.h"
 #include "programmer/programmer.h"
 #include "programmer/target.h"
 #include "programmer/usb_hid.h"
+extern void network_init(void);
+extern void network_task(void);
 #include "programmer/algo_runner.h"
 #include "programmer/ch32.h"
 #include "programmer/ch32_progbuf.h"
@@ -30,6 +33,12 @@
 #include "programmer/rvswd.h"
 #include "programmer/riscv_dmi.h"
 #include "tusb.h"
+#include "lwip/init.h"
+#include "lwip/netif.h"
+#include "lwip/etharp.h"
+#include "lwip/opt.h"
+#include "lwip/ip_addr.h"
+#include "netif/ethernet.h"
 
 /* --- Crash info flash location --- */
 #define CRASH_FLASH_OFFSET (2048u * 1024u - 8192u)  /* 2nd-to-last 4KB sector */
@@ -153,7 +162,34 @@ static DEVICE_STATE device_state = DEVICE_IDLE;
 static char cmd_buffer[768];
 static uint16_t cmd_pos = 0;
 
+#define WEB_COMMAND_RESPONSE_CAPACITY 1024
+
+static char web_command_response[WEB_COMMAND_RESPONSE_CAPACITY];
+static size_t web_command_response_len;
+static int web_command_capture_active = 0;
+static uint32_t web_command_status = 0;
+
+static void append_web_command_response(const char* text) {
+    if (!text) return;
+    size_t note = strlen(text);
+    if (web_command_response_len + note + 2 < WEB_COMMAND_RESPONSE_CAPACITY) {
+        memcpy(web_command_response + web_command_response_len, text, note);
+        web_command_response_len += note;
+        web_command_response[web_command_response_len++] = '\n';
+        web_command_response[web_command_response_len] = '\0';
+    }
+}
+
+static void process_command(char* cmd);
+
 static void send_response(const char* response) {
+    if (response == NULL) return;
+
+    if (web_command_capture_active != 0) {
+        append_web_command_response(response);
+        return;
+    }
+
     printf("%s\r\n", response);
     fflush(stdout);
 }
@@ -232,6 +268,7 @@ static void cmd_confirm(void) {
 }
 
 static void cmd_i2c_read(char* args) {
+    uint32_t handle = 0;
     uint8_t addr = 0;
     uint8_t reg = 0;
     uint8_t len = 0;
@@ -239,13 +276,18 @@ static void cmd_i2c_read(char* args) {
 
     char* token = strtok(args, " ");
     while (token != NULL) {
-        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtol(token + 5, NULL, 0);
+        if (strncmp(token, "handle=", 7) == 0) handle = (uint32_t)atoi(token + 7);
+        else if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtol(token + 5, NULL, 0);
         else if (strncmp(token, "reg=", 4) == 0) reg = (uint8_t)strtol(token + 4, NULL, 0);
         else if (strncmp(token, "len=", 4) == 0) len = (uint8_t)atoi(token + 4);
         else if (strncmp(token, "timeout=", 8) == 0) timeout_ms = (uint32_t)atoi(token + 8);
         token = strtok(NULL, " ");
     }
 
+    if (handle == 0 || !adapter_i2c_bind_claim(handle)) {
+        send_response("ERR I2C requires valid adapter claim handle");
+        return;
+    }
     if (len == 0 || len > 64) {
         send_response("ERR invalid len, max 64");
         return;
@@ -277,6 +319,7 @@ static void cmd_i2c_read(char* args) {
 }
 
 static void cmd_i2c_write(char* args) {
+    uint32_t handle = 0;
     uint8_t addr = 0;
     uint8_t reg = 0;
     uint8_t data[64];
@@ -285,7 +328,8 @@ static void cmd_i2c_write(char* args) {
 
     char* token = strtok(args, " ");
     while (token != NULL) {
-        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtol(token + 5, NULL, 0);
+        if (strncmp(token, "handle=", 7) == 0) handle = (uint32_t)atoi(token + 7);
+        else if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtol(token + 5, NULL, 0);
         else if (strncmp(token, "reg=", 4) == 0) reg = (uint8_t)strtol(token + 4, NULL, 0);
         else if (strncmp(token, "data=", 5) == 0) {
             char* data_str = token + 5;
@@ -300,6 +344,10 @@ static void cmd_i2c_write(char* args) {
         token = strtok(NULL, " ");
     }
 
+    if (handle == 0 || !adapter_i2c_bind_claim(handle)) {
+        send_response("ERR I2C requires valid adapter claim handle");
+        return;
+    }
     if (data_len == 0) {
         send_response("ERR no data provided");
         return;
@@ -319,13 +367,15 @@ static void cmd_i2c_write(char* args) {
 }
 
 static void cmd_uart_write(char* args) {
+    uint32_t handle = 0;
     uint32_t baud = 115200;
     uint8_t data[256];
     uint8_t data_len = 0;
 
     char* token = strtok(args, " ");
     while (token != NULL) {
-        if (strncmp(token, "baud=", 5) == 0) baud = (uint32_t)atoi(token + 5);
+        if (strncmp(token, "handle=", 7) == 0) handle = (uint32_t)atoi(token + 7);
+        else if (strncmp(token, "baud=", 5) == 0) baud = (uint32_t)atoi(token + 5);
         else if (strncmp(token, "data=", 5) == 0) {
             char* data_str = token + 5;
             char* saveptr;
@@ -338,12 +388,16 @@ static void cmd_uart_write(char* args) {
         token = strtok(NULL, " ");
     }
 
+    if (handle == 0 || !adapter_uart_bind_claim(handle)) {
+        send_response("ERR UART requires valid adapter claim handle");
+        return;
+    }
     if (baud < 1200 || baud > 921600) {
         send_response("ERR invalid baud rate, min=1200 max=921600");
         return;
     }
 
-    /* Lazy init UART - GPIO 4/5 may be shared with SWD */
+    /* Lazy init UART - flexible pins may need setup */
     adapter_uart_init_lazy();
 
     bool success = adapter_uart_write(data, data_len, baud);
@@ -358,16 +412,23 @@ static void cmd_uart_write(char* args) {
 }
 
 static void cmd_uart_read(char* args) {
+    uint32_t handle = 0;
     uint32_t baud = 115200;
     uint32_t max_len = 64;
     uint32_t timeout_ms = 1000;
 
     char* token = strtok(args, " ");
     while (token != NULL) {
-        if (strncmp(token, "baud=", 5) == 0) baud = (uint32_t)atoi(token + 5);
+        if (strncmp(token, "handle=", 7) == 0) handle = (uint32_t)atoi(token + 7);
+        else if (strncmp(token, "baud=", 5) == 0) baud = (uint32_t)atoi(token + 5);
         else if (strncmp(token, "len=", 4) == 0) max_len = (uint8_t)atoi(token + 4);
         else if (strncmp(token, "timeout=", 8) == 0) timeout_ms = (uint32_t)atoi(token + 8);
         token = strtok(NULL, " ");
+    }
+
+    if (handle == 0 || !adapter_uart_bind_claim(handle)) {
+        send_response("ERR UART requires valid adapter claim handle");
+        return;
     }
 
     if (baud < 1200 || baud > 921600) {
@@ -377,8 +438,13 @@ static void cmd_uart_read(char* args) {
 
     if (max_len > 256) max_len = 256;
 
-    /* Lazy init UART - GPIO 4/5 may be shared with SWD */
+    /* Flexible claim pins may need setup */
     adapter_uart_init_lazy();
+
+    if (!adapter_uart_bind_claim(handle)) {
+        send_response("ERR UART requires valid adapter claim handle");
+        return;
+    }
 
     uint8_t data[256];
     memset(data, 0, sizeof(data));
@@ -400,7 +466,15 @@ static void cmd_uart_read(char* args) {
 }
 
 static void cmd_i2c_clear(char* args) {
-    (void)args;
+    uint32_t handle = 0;
+    if (args != NULL) {
+        while (*args == ' ') args++;
+        if (strncmp(args, "handle=", 7) == 0) handle = (uint32_t)atoi(args + 7);
+    }
+    if (handle == 0 || !adapter_i2c_bind_claim(handle)) {
+        send_response("ERR I2C requires valid adapter claim handle");
+        return;
+    }
     adapter_i2c_clear_bus();
     sleep_ms(10);
     send_response("OK I2C BUS CLEARED");
@@ -643,6 +717,15 @@ static bool st_timer_cb(struct repeating_timer *rt) {
 static volatile bool st_core1_done = false;
 static uint st_tx_pin_g = 4;
 
+/* Dual-core split: Core 1 handles high-frequency capture/decode.
+   Core 0 handles networking, USB, and web UI serving. */
+static void core1_main(void) {
+    // Core 1: dedicated capture/decode loop
+    while(1) {
+        tight_loop_contents();
+    }
+}
+
 static void core1_bitbang(void) {
     while(!st_core1_done) {
         gpio_put(st_tx_pin_g, 1);
@@ -842,9 +925,17 @@ static void cmd_adc(char* args) {
     if(rate > 500000) rate = 500000;
     if(samples > 32768) samples = 32768;
 
+    uint8_t adc_pin = (uint8_t)pin;
+    uint32_t adc_claim = 0;
+    if (!pin_owner_claim_pins(&adc_pin, 1, GPIO_FUNC_SIO, 0, &adc_claim)) {
+        send_response("ERR ADC pin unavailable (already claimed)");
+        return;
+    }
+
     device_state = DEVICE_CAPTURING;
     if(!StartAdcCapture(pin, rate, samples)) {
         device_state = DEVICE_IDLE;
+        pin_owner_release_claim(adc_claim, NULL);
         send_response("ERR ADC capture failed");
         return;
     }
@@ -863,6 +954,7 @@ static void cmd_adc(char* args) {
     }
     printf("ADC DONE samples=%lu\r\n", size);
     device_state = DEVICE_IDLE;
+    pin_owner_release_claim(adc_claim, NULL);
 }
 
 static void cmd_status(void) {
@@ -2068,10 +2160,253 @@ static void cmd_rdp_unlock(char *args) {
     send_response("OK RDP UNLOCKED (level 0)");
 }
 
+static void cmd_uartloop(char *args) {
+    (void)args;
+    /* Force direct hardware test on ADAPTER UART pins, ignoring SWD guard. */
+    uart_init(uart1, 115200);
+    uart_set_format(uart1, 8, 1, UART_PARITY_EVEN);
+    gpio_set_function(ADAPTER_UART_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(ADAPTER_UART_RX_PIN, GPIO_FUNC_UART);
+
+    /* transmit */
+    uart_putc(uart1, 0x55);
+    /* small delay for loopback through wire */
+    sleep_us(2000);
+    int got = -1;
+    int32_t timeout_us = 2000;
+    int32_t start = make_timeout_time_us(timeout_us);
+    while (!time_reached(start) && got < 0) {
+        if (uart_is_readable(uart1)) {
+            got = uart_getc(uart1);
+        }
+    }
+    char msg[64];
+    if (got >= 0) sprintf(msg, "UARTLOOP DATA %02X", got);
+    else sprintf(msg, "UARTLOOP TIMEOUT (no data on RX=%d)", ADAPTER_UART_RX_PIN);
+    send_response(msg);
+}
+static void cmd_pin_claim(char* args) {
+    uint8_t pins[8];
+    uint8_t pin_count = 0;
+    uint8_t function = GPIO_FUNC_SIO;
+    uint8_t observer_only = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL && pin_count < 8) {
+        if (strncmp(token, "pin=", 4) == 0) {
+            if (pin_count < 8) {
+                pins[pin_count++] = (uint8_t)atoi(token + 4);
+            }
+        } else if (strncmp(token, "pins=", 5) == 0) {
+            char* pos = token + 5;
+            while (*pos != '\0' && pin_count < 8) {
+                char* end = NULL;
+                uint8_t p = (uint8_t)strtol(pos, &end, 0);
+                if (end != pos) {
+                    pins[pin_count++] = p;
+                    if (*end == ',') {
+                        pos = end + 1;
+                    } else {
+                        pos = end;
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else if (strncmp(token, "func=", 5) == 0) {
+            unsigned long val = atoi(token + 5);
+            function = (uint8_t)val;
+        } else if (strncmp(token, "observer=", 9) == 0) {
+            observer_only = (uint8_t)atoi(token + 9);
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (pin_count == 0) {
+        send_response("ERR missing pins");
+        return;
+    }
+
+    pin_owner_result_t result = PIN_OWNER_ERROR_CAPACITY;
+    uint32_t handle = 0;
+    bool ok = pin_owner_claim_pins(pins, pin_count, function, observer_only, &handle);
+    if (!ok) {
+        char msg[192];
+        sprintf(msg, "ERR PINCLAIM FAILED pins=%u function=%u reason=%d", pin_count, (unsigned)function, (int)result);
+        send_response(msg);
+        return;
+    }
+
+    char msg[192];
+    sprintf(msg, "OK PINCLAIM HANDLE=%lu PINS=%u FUNCTION=%u OBSERVER=%u", (unsigned long)handle, pin_count, (unsigned)function, observer_only);
+    send_response(msg);
+}
+
+static void cmd_pin_release(char* args) {
+    uint32_t handle = 0;
+
+    if (args != NULL) {
+        char* token = strtok(args, " ");
+        while (token != NULL) {
+            if (strncmp(token, "handle=", 7) == 0) {
+                handle = (uint32_t)atoi(token + 7);
+            }
+            token = strtok(NULL, " ");
+        }
+    }
+
+    if (handle == 0) {
+        send_response("ERR missing handle");
+        return;
+    }
+
+    pin_owner_result_t result = PIN_OWNER_OK;
+    bool ok = pin_owner_release_claim(handle, &result);
+    if (ok) {
+        send_response("OK PINRELEASE");
+    } else {
+        char msg[192];
+        sprintf(msg, "ERR PINRELEASE FAILED handle=%lu result=%d", (unsigned long)handle, (int)result);
+        send_response(msg);
+    }
+}
+
+
+static void cmd_safe_discover(char* args) {
+    (void)args;
+    char msg[768];
+    size_t pos = 0;
+    pos += (size_t)snprintf(msg + pos, sizeof(msg) - pos, "OK SAFEDISCOVER");
+    for (uint8_t pin = PIN_OWNER_FLEX_MIN; pin <= PIN_OWNER_FLEX_MAX; pin++) {
+        int used = pin_owner_has_driver(pin);
+        uint8_t observers = pin_owner_observer_count(pin);
+        pos += (size_t)snprintf(msg + pos, sizeof(msg) - pos, ",%u:d=%d:o=%u", pin, used, observers);
+    }
+    send_response(msg);
+}
+
+static void cmd_pin_owner_status(char* args) {
+    (void)args;
+    const pin_owner_inventory_t* inventory = pin_owner_get_inventory();
+    char msg[192];
+    sprintf(msg, "OK PINOWNER INVENTORY_RANGE=%u-%u FLEXIBLE=%u ANALOG=%u", PIN_OWNER_FLEX_MIN, PIN_OWNER_FLEX_MAX,
+            inventory != NULL ? inventory->flexible_pin_count : 0,
+            inventory != NULL ? inventory->analog_capable_pin_count : 0);
+    send_response(msg);
+}
+
+
+static void cmd_capture_claim(char* args) {
+    uint8_t pins[8];
+    uint8_t count = 0;
+    uint8_t trigger = 255;
+
+    char* token = strtok(args, " ");
+    while (token != NULL && count < 8) {
+        if (strncmp(token, "pins=", 5) == 0) {
+            char* pos = token + 5;
+            while (*pos != '\0' && count < 8) {
+                char* end = NULL;
+                uint8_t p = (uint8_t)strtol(pos, &end, 0);
+                if (end != pos) {
+                    pins[count++] = p;
+                    if (*end == ',') {
+                        pos = end + 1;
+                    } else {
+                        pos = end;
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else if (strncmp(token, "trigger=", 8) == 0) {
+            trigger = (uint8_t)atoi(token + 8);
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (count == 0 || count > 8) {
+        send_response("ERR CAPTURECLAIM needs 1-8 pins");
+        return;
+    }
+
+    uint32_t handle = 0;
+    if (!capture_claim_bank(pins, count, trigger, &handle)) {
+        send_response("ERR CAPTURECLAIM failed (bank already active or invalid pins)");
+        return;
+    }
+
+    char msg[128];
+    sprintf(msg, "OK CAPTURECLAIM HANDLE=%lu PINS=%u TRIGGER=%u", (unsigned long)handle, count, trigger);
+    send_response(msg);
+}
+
+static void cmd_capture_release(char* args) {
+    uint32_t handle = 0;
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "handle=", 7) == 0) {
+            handle = (uint32_t)atoi(token + 7);
+        }
+        token = strtok(NULL, " ");
+    }
+
+    pin_owner_result_t result = PIN_OWNER_OK;
+    if (handle == 0 || !capture_release_bank(handle, &result)) {
+        char msg[128];
+        sprintf(msg, "ERR CAPTURERELEASE FAILED handle=%lu result=%d", (unsigned long)handle, (int)result);
+        send_response(msg);
+        return;
+    }
+    send_response("OK CAPTURERELEASE");
+}
+
+void network_execute_command(const char *command_line, int *status) {
+    char command_copy[768];
+
+    if (command_line == NULL || status == NULL) return;
+
+    web_command_capture_active = 1;
+    web_command_response[0] = '\0';
+    web_command_response_len = 0;
+    web_command_status = 0;
+    memset(command_copy, 0, sizeof(command_copy));
+    snprintf(command_copy, sizeof(command_copy), "%s", command_line);
+
+    process_command(command_copy);
+
+    web_command_capture_active = 0;
+    if (strstr(web_command_response, "ERR ")) {
+        web_command_status = 1;
+    } else {
+        web_command_status = 0;
+    }
+
+    *status = web_command_status;
+}
+
+const char *network_command_response(void) {
+    return web_command_response;
+}
+
+size_t network_command_response_length(void) {
+    return web_command_response_len;
+}
+
+int network_command_status(void) {
+    return web_command_status;
+}
+
 static void process_command(char* cmd) {
     char* args = strchr(cmd, ' ');
     if(args) { *args = '\0'; args++; }
     if(strcmp(cmd, "IDENTIFY") == 0) cmd_identify();
+    else if(strcmp(cmd, "PINCLAIM") == 0) cmd_pin_claim(args ? args : "");
+    else if(strcmp(cmd, "PINRELEASE") == 0) cmd_pin_release(args ? args : "");
+    else if(strcmp(cmd, "PINOWNER") == 0) cmd_pin_owner_status(args ? args : "");
+    else if(strcmp(cmd, "SAFEDISCOVER") == 0) cmd_safe_discover(args ? args : "");
+    else if(strcmp(cmd, "CAPTURECLAIM") == 0) cmd_capture_claim(args ? args : "");
+    else if(strcmp(cmd, "CAPTURERELEASE") == 0) cmd_capture_release(args ? args : "");
     else if(strcmp(cmd, "VERSION") == 0) cmd_version();
     else if(strcmp(cmd, "CONFIRM") == 0) cmd_confirm();
     else if(strcmp(cmd, "CRASHINFO") == 0) cmd_crashinfo();
@@ -2309,6 +2644,7 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "RDPUNLOCK") == 0) cmd_rdp_unlock(args ? args : "");
     else if(strcmp(cmd, "ALGOTEST") == 0) cmd_algo_test(args ? args : "");
     else if(strcmp(cmd, "ALGOCONSENT") == 0) cmd_algo_consent(args ? args : "");
+    else if(strcmp(cmd, "UARTLOOP") == 0) cmd_uartloop(args ? args : "");
     else if(strcmp(cmd, "BOOT0") == 0) cmd_boot0(args ? args : "");
     else if(strcmp(cmd, "SWD") == 0) {
         if(args && strcmp(args, "IDCODE") == 0) cmd_swd_idcode(NULL);
@@ -2675,8 +3011,13 @@ int main() {
     }
 
     printf("\r\n=== AgentLA v" FIRMWARE_VERSION " Starting ===\r\n");
-    printf("USB CDC + HID composite device\r\n");
+    network_init();
+
+    printf("USB CDC + HID composite device + NETWORK\r\n");
     printf("BUILD:%s %s\r\n", BUILD_TIMESTAMP, GIT_HASH);
+
+    /* Initialize pin ownership with a blank flexible registry. */
+    pin_owner_init();
 
     /* Initialize adapter I2C only - skip UART init to avoid GPIO 4/5 conflict with SWD */
     adapter_init_i2c_only();
@@ -2689,6 +3030,9 @@ int main() {
     gpio_put(LED_IO, 0);
 
     while(1) {
+        /* Network stack */
+        network_task();
+
         /* Process USB HID (CMSIS-DAP) */
         usb_hid_task();
 

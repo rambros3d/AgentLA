@@ -38,26 +38,36 @@ static bool dap_response_pending = false;
  * ═══════════════════════════════════════════════════════════════════ */
 
 /* Interface numbers */
+/* Interface numbers */
+#define ITF_NET          0
+#define ITF_NET_DATA     1
 enum {
-    ITF_NUM_CDC0 = 0,      /* CDC0 Communication interface (CLI) */
-    ITF_NUM_CDC0_DATA,     /* CDC0 Data interface */
-    ITF_NUM_CDC1,          /* CDC1 Communication interface (Debug) */
-    ITF_NUM_CDC1_DATA,     /* CDC1 Data interface */
-    ITF_NUM_HID,           /* HID CMSIS-DAP interface */
+    ITF_NUM_CDC0     = ITF_NET_DATA + 1,   /* CDC0 CLI */
+    ITF_NUM_CDC0_DATA,                      /* CDC0 data */
+    ITF_NUM_CDC1,                           /* CDC1 debug */
+    ITF_NUM_CDC1_DATA,                      /* CDC1 data */
+    ITF_NUM_HID,                            /* HID DAP */
     ITF_NUM_TOTAL
 };
+/* NUM interfaces jump: NET 2 */
+
 
 /* Endpoint numbers */
+/* Endpoint numbers */
 enum {
-    EDPT_CDC0_NOTIF = 0x82, /* CDC0 notification endpoint (IN) */
-    EDPT_CDC0_OUT   = 0x02, /* CDC0 data OUT */
-    EDPT_CDC0_IN    = 0x83, /* CDC0 data IN */
-    EDPT_CDC1_NOTIF = 0x84, /* CDC1 notification endpoint (IN) */
-    EDPT_CDC1_OUT   = 0x04, /* CDC1 data OUT */
-    EDPT_CDC1_IN    = 0x85, /* CDC1 data IN */
-    EDPT_HID_OUT    = 0x01, /* HID OUT (SET_REPORT) */
-    EDPT_HID_IN     = 0x81, /* HID IN (GET_REPORT) */
+    EDPT_NET_NOTIF = 0x81,
+    EDPT_NET_OUT   = 0x02, /* net data OUT */
+    EDPT_NET_IN    = 0x82, /* net data IN */
+    EDPT_CDC0_NOTIF = 0x83,
+    EDPT_CDC0_OUT   = 0x03,
+    EDPT_CDC0_IN    = 0x84,
+    EDPT_CDC1_NOTIF = 0x85,
+    EDPT_CDC1_OUT   = 0x05,
+    EDPT_CDC1_IN    = 0x86,
+    EDPT_HID_OUT    = 0x01,
+    EDPT_HID_IN     = 0x87,
 };
+
 
 /* Device descriptor — composite with IAD */
 static const tusb_desc_device_t desc_device = {
@@ -78,18 +88,34 @@ static const tusb_desc_device_t desc_device = {
 };
 
 /* Configuration descriptor — CDC0 + CDC1 + HID composite */
+/* NET IAD uses TUD_RNDIS */
 static const uint8_t desc_config[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0,
-        TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN,
+        TUD_CONFIG_DESC_LEN + 240 + TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN,
         0x00, 500),
 
-    /* CDC0 CLI Interface (ITF 0,1) */
+    /* NET interface (RNDIS) */
+    /* Interface association */
+    8, TUSB_DESC_INTERFACE_ASSOCIATION, 0, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0xFF, 0,
+    /* Communication IF 0 */
+    9, TUSB_DESC_INTERFACE, ITF_NET, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0xFF, 0,
+    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, 0x10, 0x01,
+    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_CALL_MANAGEMENT, 0x00, 1,
+    4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 0x02,
+    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, ITF_NET, 1,
+    7, TUSB_DESC_ENDPOINT, EDPT_NET_NOTIF, 0x03, 8, 0, 4,
+    /* ACM Data Interface 1 */
+    9, TUSB_DESC_INTERFACE, ITF_NET_DATA, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EDPT_NET_OUT,   0x02, 64, 0,
+    7, TUSB_DESC_ENDPOINT, EDPT_NET_IN,    0x02, 64, 0,
+
+    /* CDC0 CLI Interface (ITF 2,3) */
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC0, 5, EDPT_CDC0_NOTIF, 8, EDPT_CDC0_OUT, EDPT_CDC0_IN, 64),
 
-    /* CDC1 Debug Interface (ITF 2,3) */
+    /* CDC1 Debug Interface (ITF 4,5) */
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC1, 6, EDPT_CDC1_NOTIF, 8, EDPT_CDC1_OUT, EDPT_CDC1_IN, 64),
 
-    /* HID CMSIS-DAP Interface (ITF 4) */
+    /* HID CMSIS-DAP Interface (ITF 6) */
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE,
         sizeof(hid_report_desc), EDPT_HID_OUT, EDPT_HID_IN, 64, 1),
 };

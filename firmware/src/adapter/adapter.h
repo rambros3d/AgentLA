@@ -26,6 +26,8 @@ void adapter_poll(void);
 
 bool adapter_i2c_read(uint8_t addr, uint8_t reg, uint8_t len, uint8_t *data, uint32_t timeout_ms);
 bool adapter_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, uint8_t len, uint32_t timeout_ms);
+bool adapter_i2c_bind_claim(uint32_t handle);
+bool adapter_uart_bind_claim(uint32_t handle);
 bool adapter_i2c_clear_bus(void);
 bool adapter_uart_write(const uint8_t *data, uint8_t len, uint32_t baud);
 int adapter_uart_read(uint8_t *data, uint8_t max_len, uint32_t baud, uint32_t timeout_ms);

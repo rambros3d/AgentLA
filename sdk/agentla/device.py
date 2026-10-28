@@ -49,6 +49,38 @@ class Device:
         self._channels = None
         self._sample_rate = None
     
+    def claim_pins(self, pins, function, observer: bool = False) -> int:
+        """Create an explicit ownership handle for flexible pins.
+
+        Args:
+            pins: List of physical GPIO pin numbers.
+            function: Function ID (such as GPIO_FUNC_I2C or a literal int).
+            observer: ``True`` for a read-only observer claim.
+
+        Returns:
+            Ownership handle required by all flexible-role operations.
+        """
+        pin_str = ",".join(str(p) for p in pins)
+        cmd = f"PINCLAIM pins={pin_str} func={int(function)} observer={1 if observer else 0}"
+        response = self._conn.send_command(cmd)
+        if response.startswith("ERR"):
+            from .exceptions import DeviceError
+            raise DeviceError(response)
+        for part in response.split():
+            if part.startswith("HANDLE="):
+                return int(part.split("=", 1)[1])
+        from .exceptions import DeviceError
+        raise DeviceError(f"Unexpected claim response: {response}")
+    
+    def release_claim(self, handle: int) -> bool:
+        """Release an ownership handle."""
+        cmd = f"PINRELEASE handle={handle}"
+        response = self._conn.send_command(cmd)
+        if response.startswith("ERR"):
+            from .exceptions import DeviceError
+            raise DeviceError(response)
+        return True
+    
     def identify(self) -> DeviceInfo:
         """Identify device and return capabilities."""
         response = self._conn.send_command("IDENTIFY")

@@ -51,7 +51,7 @@
     #define MAX_BLAST_FREQ 200000000
 #endif
 
-#define CAPTURE_BUFFER_SIZE (128 * 3 * 1024)
+#define CAPTURE_BUFFER_SIZE (64 * 3 * 1024)
 #define MAX_CHANNELS 10
 
 #define FIRMWARE_VERSION "v1.0"

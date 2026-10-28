@@ -1,5 +1,6 @@
 #include "adapter.h"
 #include "board_settings.h"
+#include "pin_owner.h"
 #include "programmer/swd.h"
 #include <string.h>
 
@@ -11,6 +12,17 @@ static volatile uint8_t uart_rx_tail;
 static uint32_t current_baud = 0;
 
 static bool uart_initialized = false;
+
+static uint8_t adapter_i2c_sda_pin = 0;
+static uint8_t adapter_i2c_scl_pin = 0;
+static uint32_t adapter_i2c_active_handle = 0;
+static bool adapter_i2c_pinned = false;
+static bool adapter_i2c_ready = false;
+
+static uint8_t adapter_uart_tx_pin = 0;
+static uint8_t adapter_uart_rx_pin = 0;
+static uint32_t adapter_uart_active_handle = 0;
+static bool adapter_uart_pinned = false;
 
 void adapter_init(void) {
     adapter_state = ADAPTER_IDLE;
@@ -30,30 +42,74 @@ void adapter_init_i2c_only(void) {
 }
 
 void adapter_i2c_init(void) {
-    i2c_init(i2c1, I2C_ADAPTER_FREQ_HZ);
-    gpio_set_function(ADAPTER_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(ADAPTER_I2C_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(ADAPTER_I2C_SCL_PIN);
-    gpio_pull_up(ADAPTER_I2C_SDA_PIN);
+    /* Flexible roles no longer assume fixed pins until a claim handle is bound. */
+    adapter_i2c_active_handle = 0;
+    adapter_i2c_pinned = false;
+    adapter_i2c_ready = false;
+}
+
+bool adapter_i2c_bind_claim(uint32_t handle) {
+    const pin_owner_claim_t *claim = pin_owner_get_claim(handle);
+    if (claim == NULL || claim->observer_only != 0 || claim->pin_count != 2) {
+        return false;
+    }
+    if (!pin_owner_is_flexible(claim->pins[0]) || !pin_owner_is_flexible(claim->pins[1])) {
+        return false;
+    }
+    if (claim->function != GPIO_FUNC_I2C && claim->function != GPIO_FUNC_SIO) {
+        return false;
+    }
+
+    adapter_i2c_sda_pin = claim->pins[0];
+    adapter_i2c_scl_pin = claim->pins[1];
+    adapter_i2c_active_handle = handle;
+    adapter_i2c_pinned = true;
+    adapter_i2c_ready = false;
+    return true;
 }
 
 void adapter_uart_init(void) {
-    uart_adapter = uart1;
-    uart_init(uart_adapter, 115200);
-    uart_set_format(uart_adapter, 8, 1, UART_PARITY_EVEN);
-    gpio_set_function(ADAPTER_UART_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(ADAPTER_UART_RX_PIN, GPIO_FUNC_UART);
-    uart_initialized = true;
+    adapter_uart_active_handle = 0;
+    adapter_uart_pinned = false;
+    adapter_uart_init_lazy();
+}
+
+bool adapter_uart_bind_claim(uint32_t handle) {
+    const pin_owner_claim_t *claim = pin_owner_get_claim(handle);
+    if (claim == NULL || claim->observer_only != 0 || claim->pin_count != 2) {
+        return false;
+    }
+    if (!pin_owner_is_flexible(claim->pins[0]) || !pin_owner_is_flexible(claim->pins[1])) {
+        return false;
+    }
+    if (claim->function != GPIO_FUNC_UART && claim->function != GPIO_FUNC_SIO) {
+        return false;
+    }
+
+    adapter_uart_tx_pin = claim->pins[0];
+    adapter_uart_rx_pin = claim->pins[1];
+    adapter_uart_active_handle = handle;
+    adapter_uart_pinned = true;
+    uart_initialized = false;
+    return true;
 }
 
 void adapter_uart_init_lazy(void) {
     if (uart_initialized) return;
-    /* Check if SWD is active - if so, don't initialize UART on GPIO 4/5 */
-    if (swd_is_initialized()) {
-        /* SWD is using GPIO 4/5, cannot use UART */
+    /* UART pins are flexible claims, so uninitialized ownership is intentional. */
+    if (!adapter_uart_pinned || adapter_uart_tx_pin == 0 || adapter_uart_rx_pin == 0) {
         return;
     }
-    adapter_uart_init();
+    /* Check if SWD is active - if so, avoid changing shared PIO pins. */
+    if (swd_is_initialized()) {
+        return;
+    }
+    adapter_uart_bind_claim(adapter_uart_active_handle);
+    uart_adapter = uart1;
+    uart_init(uart_adapter, 115200);
+    gpio_set_function(adapter_uart_tx_pin, GPIO_FUNC_UART);
+    gpio_set_function(adapter_uart_rx_pin, GPIO_FUNC_UART);
+    uart_initialized = true;
 }
 
 void adapter_poll(void) {
@@ -67,7 +123,17 @@ void adapter_poll(void) {
 }
 
 bool adapter_i2c_read(uint8_t addr, uint8_t reg, uint8_t len, uint8_t *data, uint32_t timeout_ms) {
+    if (!adapter_i2c_pinned || adapter_i2c_sda_pin == 0 || adapter_i2c_scl_pin == 0) return false;
     if (len == 0 || len > 64) return false;
+
+    if (!adapter_i2c_ready) {
+        i2c_init(i2c1, I2C_ADAPTER_FREQ_HZ);
+        gpio_set_function(adapter_i2c_scl_pin, GPIO_FUNC_I2C);
+        gpio_set_function(adapter_i2c_sda_pin, GPIO_FUNC_I2C);
+        gpio_pull_up(adapter_i2c_scl_pin);
+        gpio_pull_up(adapter_i2c_sda_pin);
+        adapter_i2c_ready = true;
+    }
 
     uint8_t buf[1] = {reg};
     int result = i2c_write_timeout_us(i2c1, addr, buf, 1, true, timeout_ms * 1000);
@@ -80,7 +146,17 @@ bool adapter_i2c_read(uint8_t addr, uint8_t reg, uint8_t len, uint8_t *data, uin
 }
 
 bool adapter_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, uint8_t len, uint32_t timeout_ms) {
+    if (!adapter_i2c_pinned || adapter_i2c_sda_pin == 0 || adapter_i2c_scl_pin == 0) return false;
     if (len == 0 || len > 64) return false;
+
+    if (!adapter_i2c_ready) {
+        i2c_init(i2c1, I2C_ADAPTER_FREQ_HZ);
+        gpio_set_function(adapter_i2c_scl_pin, GPIO_FUNC_I2C);
+        gpio_set_function(adapter_i2c_sda_pin, GPIO_FUNC_I2C);
+        gpio_pull_up(adapter_i2c_scl_pin);
+        gpio_pull_up(adapter_i2c_sda_pin);
+        adapter_i2c_ready = true;
+    }
 
     uint8_t buf[65];
     if (len + 1 > sizeof(buf)) return false;
@@ -95,9 +171,10 @@ bool adapter_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, uint8_t l
 }
 
 bool adapter_i2c_clear_bus(void) {
+    if (!adapter_i2c_pinned || adapter_i2c_sda_pin == 0 || adapter_i2c_scl_pin == 0) return false;
     i2c_inst_t *i2c_inst = i2c1;
-    uint sda_pin = ADAPTER_I2C_SDA_PIN;
-    uint scl_pin = ADAPTER_I2C_SCL_PIN;
+    uint sda_pin = adapter_i2c_sda_pin;
+    uint scl_pin = adapter_i2c_scl_pin;
 
     gpio_set_function(sda_pin, GPIO_FUNC_SIO);
     gpio_set_function(scl_pin, GPIO_FUNC_SIO);
@@ -129,7 +206,7 @@ bool adapter_i2c_clear_bus(void) {
 }
 
 bool adapter_uart_write(const uint8_t *data, uint8_t len, uint32_t baud) {
-    if (baud == 0) return false;
+    if (baud == 0 || !adapter_uart_pinned || !uart_initialized || uart_adapter == NULL) return false;
     if (baud < 1200 || baud > 921600) return false;
 
     if (baud != current_baud) {

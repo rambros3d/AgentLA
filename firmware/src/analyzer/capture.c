@@ -6,6 +6,7 @@
 #include "hardware/clocks.h"
 #include "string.h"
 #include "hardware/sync.h"
+#include "pin_owner.h"
 #include "hardware/structs/syscfg.h"
 #include "hardware/structs/systick.h"
 #include "hardware/structs/bus_ctrl.h"
@@ -797,4 +798,80 @@ uint16_t* GetAdcBuffer(uint32_t* size, uint32_t* first) {
     *size = adc_sample_index;
     *first = 0;
     return adcBuffer;
+}
+
+static uint32_t capture_active_bank_claim = 0;
+
+bool capture_validate_claimed_pins(const uint8_t* channels, uint8_t channel_count, uint8_t trigger_pin) {
+    if (channel_count == 0 || channel_count > MAX_CHANNELS) return false;
+    if (channel_count > 8) return false;
+
+    uint8_t selected[MAX_CHANNELS];
+    for (uint8_t i = 0; i < channel_count; i++) selected[i] = channels[i];
+
+    uint8_t span_width = 1;
+    uint8_t low = selected[0];
+    uint8_t high = selected[0];
+    bool trigger_is_selected = (trigger_pin == 255);
+    for (uint8_t i = 0; i < channel_count; i++) {
+        const uint8_t pin = selected[i];
+        if (!pin_owner_is_flexible(pin)) return false;
+        if (pin < low) low = pin;
+        if (pin > high) high = pin;
+        if (trigger_pin != 255 && trigger_pin == pin) trigger_is_selected = true;
+    }
+    span_width = (uint8_t)(high - low + 1);
+    if (span_width > 8) return false;
+    if (trigger_pin != 255 && !trigger_is_selected) return false;
+    return true;
+}
+
+bool capture_claim_bank(const uint8_t* channels, uint8_t channel_count,
+                        uint8_t trigger_pin, uint32_t* claim_handle) {
+    if (capture_active_bank_claim != 0) return false;
+    if (channels == NULL || claim_handle == NULL ||
+        !capture_validate_claimed_pins(channels, channel_count, trigger_pin)) {
+        return false;
+    }
+
+    uint8_t low = channels[0];
+    uint8_t high = channels[0];
+    for (uint8_t i = 1; i < channel_count; i++) {
+        if (channels[i] < low) low = channels[i];
+        if (channels[i] > high) high = channels[i];
+    }
+
+    uint8_t span_width = (uint8_t)(high - low + 1);
+    uint8_t span[8];
+    for (uint8_t i = 0; i < span_width; i++) {
+        span[i] = (uint8_t)(low + i);
+    }
+
+    uint32_t handle = 0;
+    if (!pin_owner_claim_pins(span, span_width, GPIO_FUNC_PIO0, 0, &handle)) {
+        return false;
+    }
+
+    *claim_handle = handle;
+    capture_active_bank_claim = handle;
+    return true;
+}
+
+bool capture_release_bank(uint32_t claim_handle, pin_owner_result_t* result) {
+    if (claim_handle == 0 || claim_handle != capture_active_bank_claim) {
+        if (result != NULL) *result = PIN_OWNER_ERROR_NOT_FOUND;
+        return false;
+    }
+    if (IsCapturing()) {
+        StopCapture();
+    }
+    bool ok = pin_owner_release_claim(claim_handle, result);
+    if (ok) {
+        capture_active_bank_claim = 0;
+    }
+    return ok;
+}
+
+uint32_t capture_active_bank_handle(void) {
+    return capture_active_bank_claim;
 }

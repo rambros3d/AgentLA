@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentLA Web UI</title>
+    <style>
+        body {
+            background-color: #08111d;
+            margin: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #1e1e1e;
+            z-index: 99999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        #loading-screen.fade-out { opacity: 0; visibility: hidden; }
+        .loader-content { text-align: center; color: #ffffff; }
+        .loader-content h2 { margin: 20px 0 5px 0; font-size: 24px; letter-spacing: 1px; font-weight: 600; }
+        .loader-content p { margin: 0; color: #a0a0ab; font-size: 13px; }
+        .spinner {
+            width: 45px;
+            height: 45px;
+            margin: 0 auto;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #0d84fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .screens-hidden { display: none; }
+        .tool-card { padding: 12px; color: #e6edf3; }
+        .tool-card h3 { margin: 0 0 10px 0; font-size: 16px; }
+        .tool-card label { display: block; margin: 6px 0 2px; font-size: 12px; color: #a0a0ab; }
+        .tool-card input, .tool-card select, .tool-card textarea {
+            background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 6px; width: 100%; box-sizing: border-box;
+        }
+        .tool-card button {
+            background: #21262d; color: #e6edf3; border: 1px solid #6e7681; border-radius: 6px; padding: 6px 10px; cursor: pointer; margin: 4px 2px;
+        }
+        .tool-card button:hover { background: #30363d; }
+        .tool-card pre { background: #0d1117; border: 1px solid #30363d; padding: 8px; border-radius: 6px; overflow: auto; max-height: 180px; font-size: 11px; }
+        .tool-card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .gpio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+        .gpio-pin { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px 4px; text-align: center; font-size: 12px; cursor: pointer; }
+        .gpio-pin:hover { background: #30363d; }
+        .progress-track { background: #21262d; border-radius: 4px; height: 8px; overflow: hidden; margin: 6px 0; }
+        .progress-fill { background: #2ea043; height: 100%; width: 0%; transition: width .2s; }
+        .status-indicator.connected .status-dot { background: #2ea043; }
+    </style>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="winbox.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <h2>AgentLA</h2>
+            <p>Connecting...</p>
+        </div>
+    </div>
+
+    <div id="top-bar">
+        <div class="bar-left">
+            <div class="menu-item bold" id="start-btn"><span class="start-menu-icon" aria-hidden="true"></span><span>AgentLA</span></div>
+            <div id="taskbar-apps" class="taskbar-apps"></div>
+        </div>
+        <div class="bar-right">
+            <div id="connection-status" class="status-indicator">
+                <div class="status-dot"></div>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="start-menu" class="hidden">
+        <div class="start-apps-grid">
+            <div class="app-icon launcher" data-app="flasher">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
+                <span>Flasher</span>
+            </div>
+            <div class="app-icon launcher" data-app="logic">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><path d="m2 21h4v-5h9v5h6"/><path d="M2 9V3h4v6h4V3h4v6h4V3h2"/></svg></div>
+                <span>Logic Analyzer</span>
+            </div>
+            <div class="app-icon launcher" data-app="debugger">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg></div>
+                <span>Debugger</span>
+            </div>
+            <div class="app-icon launcher" data-app="gpio">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h.01M16 8h.01M8 16h.01M16 16h.01"/></svg></div>
+                <span>GPIO</span>
+            </div>
+            <div class="app-icon launcher" data-app="i2c">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><rect x="2.5" y="3.5" width="19" height="17" rx="3"/><text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="10">I2C</text></svg></div>
+                <span>I2C Master</span>
+            </div>
+            <div class="app-icon launcher" data-app="spi">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><rect x="2.5" y="3.5" width="19" height="17" rx="3"/><text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="9">SPI</text></svg></div>
+                <span>SPI Master</span>
+            </div>
+
+            <div class="app-icon launcher" data-app="command">
+                <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
+                <span>Command</span>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:none">
+        <div id="tpl-flasher" class="app-content">
+            <div class="tool-card">
+                <h3>Flasher</h3>
+                <label>Target binary (.hex/.bin/.uf2)</label>
+                <input type="file" id="flash-file" accept=".hex,.bin,.uf2">
+                <label>Start address (hex)</label>
+                <input id="flash-addr" value="0x08000000">
+                <label>Chunk size (bytes)</label>
+                <input id="flash-chunk" value="256">
+                <label>Verify after write</label>
+                <input id="flash-verify" type="checkbox" checked>
+                <label>Progress</label>
+                <div class="progress-track"><div id="flash-progress" class="progress-fill"></div></div>
+                <div class="row">
+                    <button id="flash-send">Flash target</button>
+                    <button id="flash-clear">Clear log</button>
+                </div>
+                <pre id="flash-log">Ready. Select a file, then Flash target.</pre>
+            </div>
+        </div>
+
+        <div id="tpl-logic" class="app-content">
+            <div class="tool-card">
+                <h3>Logic analyzer</h3>
+                <canvas id="la-canvas" width="720" height="180" style="width:100%;background:#05070a;border:1px solid #30363d;border-radius:6px;"></canvas>
+                <div class="row">
+                    <label style="flex:1">Rate (Hz)<input id="la-rate" value="1000000"></label>
+                    <label style="flex:1">Samples<input id="la-samples" value="1024"></label>
+                    <label style="flex:1">Decoder
+                        <select id="la-decoder">
+                            <option value="none">None</option>
+                            <option value="uart">UART</option>
+                            <option value="i2c">I2C</option>
+                            <option value="spi">SPI</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="row">
+                    <button id="la-capture">Configure &amp; capture</button>
+                    <button id="la-decode">Run decode</button>
+                </div>
+                <pre id="la-log">Idle.</pre>
+            </div>
+        </div>
+
+        <div id="tpl-debugger" class="app-content">
+            <div class="tool-card">
+                <h3>Debugger</h3>
+                <div class="row">
+                    <button id="dbg-halt">Halt</button>
+                    <button id="dbg-step">Step</button>
+                    <button id="dbg-run">Run</button>
+                    <button id="dbg-status">Status</button>
+                </div>
+                <label>Memory address (hex)</label>
+                <input id="dbg-addr" value="0x20000000">
+                <label>Length</label>
+                <input id="dbg-len" value="64">
+                <div class="row">
+                    <button id="dbg-readmem">Read memory</button>
+                </div>
+                <pre id="dbg-log">Disconnected.</pre>
+            </div>
+        </div>
+
+        <div id="tpl-gpio" class="app-content">
+            <div class="tool-card">
+                <h3>GPIO pin grid</h3>
+                <div id="gpio-grid" class="gpio-grid"></div>
+                <div class="row">
+                    <button id="gpio-readall">Read all</button>
+                    <button id="gpio-clear">Clear log</button>
+                </div>
+                <pre id="gpio-log">Idle.</pre>
+            </div>
+        </div>
+
+        <div id="tpl-i2c" class="app-content">
+            <div class="tool-card">
+                <h3>I2C master</h3>
+                <label>Address (hex)</label>
+                <input id="i2c-addr" value="0x50">
+                <label>Tx (hex)</label>
+                <input id="i2c-tx" placeholder="00FFAA">
+                <label>Rx length</label>
+                <input id="i2c-rx" value="4" type="number">
+                <label>Baud</label>
+                <select id="i2c-baud">
+                    <option value="100000">100 kHz</option>
+                    <option value="400000">400 kHz</option>
+                    <option value="1000000">1 MHz</option>
+                </select>
+                <div class="row">
+                    <button id="i2c-scan">Scan</button>
+                    <button id="i2c-write">Write</button>
+                    <button id="i2c-read">Read</button>
+                    <button id="i2c-wr">Write then Read</button>
+                    <button id="i2c-clear">Clear log</button>
+                </div>
+                <pre id="i2c-log">Idle.</pre>
+            </div>
+        </div>
+
+        <div id="tpl-command" class="app-content">
+            <div class="tool-card">
+                <h3>Command bridge</h3>
+                <label>Command name</label>
+                <input id="cmd-name" value="IDENTIFY">
+                <label>Arguments</label>
+                <input id="cmd-args" value="">
+                <label>Last 30 lines (not available yet)</label>
+                <pre id="cmd-log">Use any firmware command exposed by the network bridge.
+Success/failure is returned as JSON.</pre>
+                <div class="row">
+                    <button id="cmd-run">Run command</button>
+                    <button id="cmd-clear">Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-spi" class="app-content">
+            <div class="tool-card">
+                <h3>SPI master</h3>
+                <label>Tx (hex)</label>
+                <input id="spi-tx" placeholder="00FFAA">
+                <label>Rx length</label>
+                <input id="spi-rx" value="1" type="number">
+                <label>Baud</label>
+                <select id="spi-baud">
+                    <option value="1000000">1 MHz</option>
+                    <option value="5000000">5 MHz</option>
+                    <option value="10000000">10 MHz</option>
+                </select>
+                <div class="row">
+                    <button id="spi-write">Write</button>
+                    <button id="spi-read">Read</button>
+                    <button id="spi-wr">Write then Read</button>
+                    <button id="spi-clear">Clear log</button>
+                </div>
+                <pre id="spi-log">Idle.</pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="winbox.js"></script>
+    <script>
+        const appDefs = {
+            flasher: { title: 'Flasher', width: 460, height: 360 },
+            logic: { title: 'Logic analyzer', width: 760, height: 400 },
+            debugger: { title: 'Debugger', width: 460, height: 400 },
+            gpio: { title: 'GPIO', width: 420, height: 460 },
+            i2c: { title: 'I2C Master', width: 420, height: 520 },
+            spi: { title: 'SPI Master', width: 420, height: 420 },
+            command: { title: 'Command bridge', width: 520, height: 420 }
+        };
+
+        function tpl(name) {
+            const el = document.getElementById('tpl-' + name);
+            return el ? el.innerHTML : '<div>Missing template</div>';
+        }
+
+        async function callMcp(method, name, args) {
+            try {
+                if (name) {
+                    let url = '/mcp?method=cmd&name=' + encodeURIComponent(name);
+                    if (args) url += '&args=' + encodeURIComponent(args);
+                    const r = await fetch(url);
+                    return await r.text();
+                }
+                const r = await fetch('/mcp?method=' + encodeURIComponent(method));
+                return await r.text();
+            } catch (e) {
+                return 'ERROR: ' + e;
+            }
+        }
+
+        function openApp(name) {
+            const cfg = appDefs[name];
+            if (!cfg) return;
+            const win = new WinBox({
+                title: cfg.title,
+                width: cfg.width,
+                height: cfg.height,
+                html: tpl(name)
+            });
+            setTimeout(function() { initApp(name, win); }, 50);
+            return win;
+        }
+
+        function $(win, sel) { return win.body.querySelector(sel); }
+        function logTo(el, msg) { if (el) el.textContent = msg; }
+
+        function initFlasher(win) {
+            const btn = $(win, '#flash-send');
+            const clear = $(win, '#flash-clear');
+            const fileInput = $(win, '#flash-file');
+            const progress = $(win, '#flash-progress');
+            const out = $(win, '#flash-log');
+            if (btn) btn.addEventListener('click', async function() {
+                const f = fileInput.files && fileInput.files[0];
+                if (!f) { logTo(out, 'No file selected.'); return; }
+                const baseText = $(win, '#flash-addr').value.trim();
+                const chunkSetting = parseInt($(win, '#flash-chunk').value.trim(),10);
+                const chunkSize = isNaN(chunkSetting) ? 256 : Math.max(16, Math.min(chunkSetting, 256));
+                const verifyEnabled = $(win, '#flash-verify').checked;
+                const baseAddr = parseInt(baseText, 16);
+                if (!isFinite(baseAddr)) { logTo(out, 'Invalid start address.'); return; }
+
+                const bytes = new Uint8Array(await f.arrayBuffer());
+                const total = bytes.length;
+                if (total === 0) { logTo(out, 'Firmware file is empty.'); return; }
+                progress.style.width = '0%';
+                logTo(out, 'Loaded ' + f.name + ' (' + total + ' bytes) at 0x' + baseAddr.toString(16).toUpperCase());
+
+                function hexFromBytes(i, n) {
+                    let hex = '';
+                    for (let j = i; j < i + n; j++) hex += bytes[j].toString(16).padStart(2, '0').toUpperCase();
+                    return hex;
+                }
+
+                let res = await callMcp('cmd', 'FLASH ERASE', baseText + ' ' + total);
+                logTo(out, out.textContent + '\nErase: ' + res);
+                if (!/^OK FLASH ERASE\b/i.test(res)) {
+                    progress.style.width = '0%';
+                    return;
+                }
+
+                for (let offset = 0; offset < total; offset += chunkSize) {
+                    const n = Math.min(chunkSize, total - offset);
+                    const chunkAddr = baseAddr + offset;
+                    const hex = hexFromBytes(offset, n);
+                    progress.style.width = Math.round(((offset + n) / total) * 92 + 4) + '%';
+                    res = await callMcp('cmd', 'FLASH WRITE', chunkAddr.toString(16) + ' ' + hex);
+                    if (!/^OK FLASH WROTE/i.test(res)) {
+                        logTo(out, out.textContent + '\nFailed at offset ' + offset + ': ' + res);
+                        progress.style.width = '0%';
+                        return;
+                    }
+                    logTo(out, out.textContent + '\nWrite: ' + res);
+                    if (verifyEnabled) {
+                        res = await callMcp('cmd', 'FLASH VERIFY', chunkAddr.toString(16) + ' ' + hex);
+                        if (!/^OK FLASH VERIFY PASS/i.test(res)) {
+                            logTo(out, out.textContent + '\nVerify failed at offset ' + offset + ': ' + res);
+                            progress.style.width = '0%';
+                            return;
+                        }
+                    }
+                }
+
+                progress.style.width = '100%';
+                logTo(out, out.textContent + '\nComplete: ' + total + ' bytes programmed and verified.');
+            });
+            if (clear) clear.addEventListener('click', function() { progress.style.width = '0%'; logTo(out, 'Ready.'); });
+
+ 
+        function initCommand(win) {
+            const nameEl = $(win, '#cmd-name');
+            const argsEl = $(win, '#cmd-args');
+            const out = $(win, '#cmd-log');
+            const btn = $(win, '#cmd-run');
+            const clear = $(win, '#cmd-clear');
+            if (btn) btn.addEventListener('click', async function() {
+                const name = nameEl.value.trim();
+                const args = argsEl.value.trim();
+                logTo(out, 'Running ' + name + ' ' + args + '...');
+                const res = await callMcp('cmd', name, args);
+                logTo(out, out.textContent + '\n' + res);
+            });
+            if (clear) clear.addEventListener('click', function() { logTo(out, 'Idle.'); });
+        }
+
+        let adapterI2cHandle = null;
+        async function ensureI2cClaim() {
+            if (adapterI2cHandle) return adapterI2cHandle;
+            const res = await callMcp('cmd', 'PINCLAIM', 'pins=10,11 func=2');
+            const match = res.match(/HANDLE=(\d+)/);
+            if (match) adapterI2cHandle = match[1];
+            return adapterI2cHandle;
+        }
+
+        function initDebugger(win) {
+            const out = $(win, '#dbg-log');
+            const run = async function(command, label) {
+                logTo(out, (label || command) + '...');
+                logTo(out, out.textContent + '\n' + await callMcp('cmd', command));
+            };
+            const h = $(win, '#dbg-halt'); if (h) h.addEventListener('click', function() { run('DEBUG HALT', 'Halt'); });
+            const s = $(win, '#dbg-step'); if (s) s.addEventListener('click', function() { run('DEBUG STEP', 'Step'); });
+            const r = $(win, '#dbg-run'); if (r) r.addEventListener('click', function() { run('DEBUG RUN', 'Run'); });
+            const st = $(win, '#dbg-status'); if (st) st.addEventListener('click', function() { run('STATUS', 'Status'); });
+            const rm = $(win, '#dbg-readmem'); if (rm) rm.addEventListener('click', async function() {
+                const addr = $(win, '#dbg-addr').value.trim();
+                const len = $(win, '#dbg-len').value.trim();
+                logTo(out, 'Read memory ' + addr + ' len ' + len + '...');
+                logTo(out, out.textContent + '\n' + await callMcp('cmd', 'FLASH READ', addr + ' ' + len));
+            });
+        }
+
+        function initGpio(win) {
+            const grid = $(win, '#gpio-grid');
+            const out = $(win, '#gpio-log');
+            if (grid) {
+                grid.innerHTML = '';
+                for (let i = 0; i < 30; i++) {
+                    const d = document.createElement('div');
+                    d.className = 'gpio-pin';
+                    d.textContent = 'GP' + i;
+                    d.addEventListener('click', async function() {
+                        logTo(out, 'GP' + i + ': ' + await callMcp('cmd', 'SAFEDISCOVER', ''));
+                    });
+                    grid.appendChild(d);
+                }
+            }
+            const readAll = $(win, '#gpio-readall'); if (readAll) readAll.addEventListener('click', async function() {
+                logTo(out, out.textContent + '\n' + await callMcp('cmd', 'STATUS', ''));
+            });
+            const clear = $(win, '#gpio-clear'); if (clear) clear.addEventListener('click', function() { logTo(out, 'Idle.'); });
+        }
+
+        function initLogic(win) {
+            const canvas = $(win, '#la-canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width, h = canvas.height;
+                ctx.fillStyle = '#05070a';
+                ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = '#1f6feb';
+                ctx.beginPath();
+                for (let i = 0; i < w; i++) {
+                    const v = Math.sin(i / 30) * 0.3 + Math.sin(i / 7) * 0.1;
+                    const y = h / 2 - v * h * 0.6;
+                    if (i === 0) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+                }
+                ctx.stroke();
+            }
+            const out = $(win, '#la-log');
+            const btn = $(win, '#la-capture');
+            const decBtn = $(win, '#la-decode');
+            if (btn) btn.addEventListener('click', async function() {
+                const rate = $(win, '#la-rate').value;
+                const samples = $(win, '#la-samples').value;
+                const dec = $(win, '#la-decoder').value;
+                logTo(out, 'Configured: ' + rate + ' Hz, ' + samples + ' samples, decoder=' + dec);
+                let res = await callMcp('cmd', 'CONFIGURE', 'channels=20,21,22,23,24,25,26,27,28,29 rate=' + rate);
+                logTo(out, out.textContent + '\nConfigure: ' + res);
+                res = await callMcp('cmd', 'CAPTURE', 'samples=' + samples + ' mode=R');
+                logTo(out, out.textContent + '\nCapture: ' + res);
+            });
+            if (decBtn) decBtn.addEventListener('click', async function() {
+                const dec = $(win, '#la-decoder').value;
+                const samples = $(win, '#la-samples').value;
+                const resp = await callMcp('cmd', 'CAPTURE', 'samples=' + samples + ' mode=D protocol=' + dec.toUpperCase() + ' sda=21 scl=20');
+                logTo(out, dec + ':\n' + resp);
+            });
+        }
+
+        function initI2c(win) {
+            const out = $(win, '#i2c-log');
+            const run = async function(label, commandText) {
+                logTo(out, label + '...');
+                logTo(out, out.textContent + '\n' + await callMcp('cmd', commandText));
+            };
+            const scan = $(win, '#i2c-scan'); if (scan) scan.addEventListener('click', function() { run('Status', 'STATUS'); });
+            const w = $(win, '#i2c-write'); if (w) w.addEventListener('click', async function() {
+                const addr = $(win, '#i2c-addr').value;
+                const reg = '0x00';
+                let tx = $(win, '#i2c-tx').value.trim().replace(/\s+/g, '');
+                let pairs = [];
+                for (let i = 0; i + 1 < tx.length; i += 2) pairs.push(parseInt(tx.slice(i, i + 2), 16));
+                const target = tx.length > 0 ? pairs.join(',') : '00';
+                await ensureI2cClaim();
+                run('Write', 'I2C_WRITE handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=' + reg + ' data=' + target);
+            });
+            const r = $(win, '#i2c-read'); if (r) r.addEventListener('click', async function() {
+                const addr = $(win, '#i2c-addr').value;
+                const rx = $(win, '#i2c-rx').value;
+                await ensureI2cClaim();
+                run('Read', 'I2C_READ handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=0x00 len=' + rx);
+            });
+            const wr = $(win, '#i2c-wr'); if (wr) wr.addEventListener('click', async function() {
+                const addr = $(win, '#i2c-addr').value;
+                const tx = $(win, '#i2c-tx').value;
+                const rx = $(win, '#i2c-rx').value;
+                await ensureI2cClaim();
+                run('Write then Read', 'I2C_WRITE addr=' + addr + ' reg=0x00 data=' + tx + ' then I2C_READ addr=' + addr + ' reg=0x00 len=' + rx);
+            });
+            const clear = $(win, '#i2c-clear'); if (clear) clear.addEventListener('click', async function() {
+                await ensureI2cClaim();
+                run('Clear bus', 'I2C_CLEAR handle=' + adapterI2cHandle);
+            });
+        }
+
+        function initApp(name, win) {
+            if (name === 'flasher') initFlasher(win);
+            else if (name === 'command') initCommand(win);
+            else if (name === 'debugger') initDebugger(win);
+            else if (name === 'gpio') initGpio(win);
+            else if (name === 'logic') initLogic(win);
+            else if (name === 'i2c') initI2c(win);
+            else if (name === 'spi') { const out = $(win, '#spi-log'); logTo(out, 'SPI adapter commands are not exposed yet; use command console.'); }
+            else {
+                const out = win.body.querySelector('pre');
+                logTo(out, (name || 'tool') + ' opened via unified command bridge.');
+            }
+        }
+
+        function connectSSE() {
+            try {
+                const es = new EventSource('/sse/capture');
+                es.onmessage = function(e) { console.log('SSE', e.data); };
+                es.onerror = function() { /* backend SSE placeholder */ };
+            } catch (e) { /* ignore */ }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const startBtn = document.getElementById('start-btn');
+            const startMenu = document.getElementById('start-menu');
+            const statusDot = document.querySelector('#connection-status .status-dot');
+            const statusText = document.querySelector('#connection-status .status-text');
+            if (startBtn && startMenu) startBtn.addEventListener('click', function() { startMenu.classList.toggle('hidden'); });
+
+            document.querySelectorAll('.launcher').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    const app = el.getAttribute('data-app');
+                    openApp(app);
+                    if (startMenu) startMenu.classList.add('hidden');
+                });
+            });
+
+            document.addEventListener('click', function(e) {
+                if (startMenu && !startMenu.contains(e.target) && !startBtn.contains(e.target)) startMenu.classList.add('hidden');
+            });
+
+            async function updateStatus() {
+                const res = await callMcp('identify');
+                if (statusText) statusText.textContent = 'Connected';
+                if (statusDot) statusDot.classList.add('connected');
+            }
+            updateStatus();
+            connectSSE();
+            setTimeout(function() {
+                const ls = document.getElementById('loading-screen');
+                if (ls) ls.classList.add('fade-out');
+            }, 600);
+        });
+    </script>
+</body>
+</html>

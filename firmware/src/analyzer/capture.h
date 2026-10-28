@@ -2,6 +2,7 @@
 #define __AGENTLA_CAPTURE__
 
 #include "board_settings.h"
+#include "pin_owner.h"
 #include "structs.h"
 
 bool StartCaptureSimple(uint32_t freq, uint32_t preLength, uint32_t postLength, const uint8_t* capturePins, uint8_t capturePinCount, uint8_t triggerPin, bool invertTrigger, CHANNEL_MODE captureMode);
@@ -24,3 +25,8 @@ bool IsAdcCapturing();
 uint16_t* GetAdcBuffer(uint32_t* size, uint32_t* first);
 
 #endif
+
+bool capture_claim_bank(const uint8_t* channels, uint8_t channel_count, uint8_t trigger_pin, uint32_t* claim_handle);
+bool capture_release_bank(uint32_t claim_handle, pin_owner_result_t* result);
+uint32_t capture_active_bank_handle(void);
+bool capture_validate_claimed_pins(const uint8_t* channels, uint8_t channel_count, uint8_t trigger_pin);

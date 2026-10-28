@@ -188,3 +188,24 @@ GPIO   20  21  22  23  24  25  26  27  28  29
 - SPI1: GPIO8-11 (RX/CSn/SCK/TX on F0)
 - PIO0/1/2: All GPIO0-29 (F6/F7/F8)
 - CAN: No hardware peripheral — PIO bit-bang on GPIO18-19
+
+## Dynamic Ownership (v1)
+
+The firmware now reserves `GPIO0–9` for Programmer resources in all modes. Roles on `GPIO10–29` are not assigned at boot; they must be claimed explicitly through the ownership API.
+
+### Ownership Summary
+
+- Flexible claims support Adapter, Capture, bridging, and ADC/Scope-type roles.
+- Each successful claim returns a handle. A handle is required by every I2C, UART, and Capture claim-oriented command.
+- Capture claims reserve a full contiguous pin span from the lowest to highest selected channel, with the selected subset exposed in metadata.
+- Only one capture bank may be active.
+- I2C, UART, and Adapter claim handles must carry pin count and function compatibility.
+- `PINCLAIM`, `PINRELEASE`, and `PINOWNER` provide basic runtime management.
+- `CAPTURECLAIM` and `CAPTURERELEASE` manage span-based capture banks.
+
+### Task 9.2/9.3 Error and Lifecycle Summary
+
+- `PINCLAIM` returns ownership failure when pins are outside `GPIO10–29`, not function-supported, or already owned as drivers.
+- `PINOWNER` reports only structured runtime capability.
+- Release requests are idempotent; any remaining dependent observers may block release.
+- Discovery mode is intended to report only and never mutate functions or claims.
