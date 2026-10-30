@@ -18,8 +18,8 @@
 - [x] 3.1 Implement swd_core_exec (halt, set registers, resume) primitives using CMSIS-DAP-level debug registers.
 - [x] 3.2 Implement RAM download helper over SWD with chunked posted writes and verification readback.
 - [x] 3.3 Define AgentLA blob format (descriptor + code) and metadata fields; document ABI.
-- [ ] 3.4 Implement algo_runner.c: Init/EraseSector/ProgramPage/Verify/UnInit orchestration.
-- [ ] 3.5 Add consent flag and CONSENT-required enforcement.
+- [x] 3.4 Implement algo_runner.c: Init/EraseSector/ProgramPage/Verify/UnInit orchestration.
+- [x] 3.5 Add consent flag and CONSENT-required enforcement.
 - [ ] 3.6 Benchmark generic-runner throughput against the direct F1 implementation and require parity or better before task 7.1 (performance gate).
 - [x] 3.7 Add host-side converter tool in sdk/ for Keil .flm -> AgentLA blob + JSON.
 

@@ -16,13 +16,13 @@
 ## 3. Large Operations and Streaming
 
 - [x] 3.1 Enable and validate POST JSON ingestion under lwIP.
-- [ ] 3.2 Add job handles for `FLASH`, `CAPTURE`, `MASSERASE`, and recovery operations.
-- [ ] 3.3 Introduce SSE framing for progress by operation ID.
-- [ ] 3.4 Add reconnection or lost-event bookkeeping.
-- [ ] 3.5 Add cancellation or explicit termination semantics.
+- [x] 3.2 Add job handles for `FLASH`, `CAPTURE`, `MASSERASE`, and recovery operations.
+- [x] 3.3 Introduce SSE framing for progress by operation ID.
+- [x] 3.4 Add reconnection or lost-event bookkeeping.
+- [x] 3.5 Add cancellation or explicit termination semantics.
 - [x] 3.6 Enforce request payload limits and chunking for flash data.
-- [ ] 3.7 Add structured I2C/SPI and GPIO field marshaling.
-- [ ] 3.8 Define core-0/core split policy and whether Core 1 must finally own capture.
+- [x] 3.7 Add structured I2C/SPI and GPIO field marshaling.
+- [x] 3.8 Define core-0/core split policy and whether Core 1 must finally own capture.
 
 ## 4. WebUI Wiring
 
@@ -31,14 +31,14 @@
 - [x] 4.3 Bind GPIO grid to pin-level read commands.
 - [x] 4.4 Bind Logic Analyzer to capture and metadata endpoints.
 - [x] 4.5 Bind Adapter windows to claimed resource handles.
-- [ ] 4.6 Add destructve-operation confirmation workflow.
+- [x] 4.6 Add destructve-operation confirmation workflow.
 - [x] 4.7 Fix SSE endpoint or routing mismatch between UI and server.
 - [x] 4.8 Make UI errors and partial failures human-readable.
 
 ## 5. Verification
 
-- [ ] 5.1 Validate `/mcp` JSON-RPC success, failure, and malformed requests.
-- [ ] 5.2 Validate command class and parameter marshaling.
-- [ ] 5.3 Simulate queued long operation progress flow.
-- [ ] 5.4 Validate argument and error propagation.
-- [ ] 5.5 Verify integration with pin-ownership and adapter handle model before release.
+- [x] 5.1 Validate `/mcp` JSON-RPC success, failure, and malformed requests.
+- [x] 5.2 Validate command class and parameter marshaling.
+- [x] 5.3 Simulate queued long operation progress flow.
+- [x] 5.4 Validate argument and error propagation.
+- [x] 5.5 Verify integration with pin-ownership and adapter handle model before release.
