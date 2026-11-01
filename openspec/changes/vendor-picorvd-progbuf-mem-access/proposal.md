@@ -5,7 +5,7 @@ PicoRVD is the canonical, field-proven reference implementation for WCH QingKe R
 ## What Changes
 
 - Add a new `ch32_progbuf_get_set_u32` abstract-command function ported from PicoRVD's `prog_get_set_u32` (16 halfwords, one program for both read and write, direction flagged by DATA1 bit 0, clobbers only A0/A1).
-- Add a `ch32_progbuf_get_block_aligned` fast-read path and a `ch32_progbuf_set_block_aligned` fast-write path ported from PicoRVD's `get_block_aligned`/`set_block_aligned`, using `ABSTRACTAUTO` (`ABSTRACTAUTO_AUTOEXECDATA`) so each DATA0 access auto-re-executes the program for the next word.
+- Add a `ch32_progbuf_get_block_aligned` fast-read path and a `ch32_progbuf_set_block_aligned` fast-write path ported from PicoRVD's `get_block_aligned`/`set_block_aligned`, executing per-word `POSTEXEC` (avoiding `ABSTRACTAUTO_AUTOEXECDATA` streaming which wedges the WCH Debug Module hardware after ~30-80 executions).
 - Parameterize the WCH DTM DATA0/DATA1 magic offsets per **chip family** (a DTM property, not a transport property) via a single lookup keyed on `g_ch32_target.chip_type`: **0xF4/0xF8** for CH32V003 and **0x380/0x384** for CH32V203/V307. This replaces the hard-patched values in `ch32_progbuf.c`.
 - Rename the transport enum for clarity: `CH32_MODE_1WIRE_SDI` → `CH32_MODE_SWIO`, `CH32_MODE_2WIRE_SWD` → `CH32_MODE_RVSWD`, and make mode dispatch exhaustive (switch + default error). SWIO, RVSWD, and ARM SWD remain three distinct transports (ARM SWD stays in `swd.c`, intentionally not in the enum).
 - Add license attribution headers to the ported program tables (MIT, aappleby/picorvd) matching the existing `swio.c`/`swio.pio`/`ch32_progbuf.c` convention.
@@ -16,7 +16,7 @@ PicoRVD is the canonical, field-proven reference implementation for WCH QingKe R
 
 ### New Capabilities
 
-- `ch32-progbuf-mem-access`: Vended PROGBUF-based aligned memory read/write (single combined get/set program clobbering only A0/A1) plus `ABSTRACTAUTO`-pipelined block read/write, with WCH DTM DATA0/DATA1 magic offsets centralized in a lookup keyed on chip family (0xF4/0xF8 for CH32V003, 0x380/0x384 for CH32V20x/V30x) — independent of the transport (SWIO vs RVSWD).
+- `ch32-progbuf-mem-access`: Vended PROGBUF-based aligned memory read/write (single combined get/set program clobbering only A0/A1) plus per-word POSTEXEC block read/write, with WCH DTM DATA0/DATA1 magic offsets centralized in a lookup keyed on chip family (0xF4/0xF8 for CH32V003, 0x380/0x384 for CH32V20x/V30x) — independent of the transport (SWIO vs RVSWD).
 
 ### Modified Capabilities
 

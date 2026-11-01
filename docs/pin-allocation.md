@@ -86,9 +86,10 @@ FLASH VERIFY <addr> <hex>     # Verify flash contents
 |-------------|------------------|-----------------|-------------|
 | STM32F1xx   | 0x0BA00477       | Functional      | ✅ Ready    |
 | STM32H5xx   | 0x0BE12477       | Functional (8KB sector, 128-bit write) | ✅ Ready    |
-| STM32F4xx   | 0x0BA00477       | Stub            | ⚠️ Planned  |
+| PY32F0xx    | 0x0BC11477       | Functional (sector erase, 32-bit/page write) | ✅ Ready    |
+| RP2350      | 0x00021477 / 0x0BC12477 | Verified (CMSIS-DAP / Probe-rs / Picotool) | ✅ Ready    |
 | RP2040      | 0x0BC12477       | Read only       | ⚠️ Planned  |
-| RP2350      | 0x0BC12477       | Read only       | ⚠️ Planned  |
+| STM32F4xx   | 0x0BA00477       | Stub            | ⚠️ Planned  |
 
 ### Connections
 

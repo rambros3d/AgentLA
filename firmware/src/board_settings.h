@@ -11,8 +11,19 @@
 /* Adapter mode pins — dedicated, no sharing with programmer */
 #define ADAPTER_I2C_SCL_PIN 10  /* I2C1 SCL (F2) */
 #define ADAPTER_I2C_SDA_PIN 11  /* I2C1 SDA (F2) */
+#define ADAPTER_I3C_BASE_PIN 10
+#define ADAPTER_I3C_SDA_PIN  10  /* I3C SDA on PIO2 */
+#define ADAPTER_I3C_SCL_PIN  11  /* I3C SCL on PIO2 */
 #define ADAPTER_UART_TX_PIN 12  /* UART TX */
 #define ADAPTER_UART_RX_PIN 13  /* UART RX */
+
+/* I3C PIO Assignment on RP2350 */
+#if NUM_PIOS >= 3
+#define I3C_PIO_INSTANCE    pio2
+#else
+#define I3C_PIO_INSTANCE    pio0
+#endif
+#define I3C_PIO_SM          0
 
 #define GPIO_LED
 #define LED_IO 25  /* Pico 2 LED is on GPIO25, shared with USB D- */

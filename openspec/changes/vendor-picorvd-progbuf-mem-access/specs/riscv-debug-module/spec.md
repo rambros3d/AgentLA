@@ -11,4 +11,4 @@ The system SHALL read and write DMI registers over 2-wire RVSWD and 1-wire SWIO 
 - **WHEN** CPU register or memory read is issued
 - **THEN** system executes RISC-V abstract commands via `COMMAND` (`0x17`) and `DATA0` (`0x04`)
 - **AND** aligned memory accesses SHALL use the vendored combined get/set PROGBUF program (clobbering only A0/A1, direction via DATA1 bit 0) instead of separate per-direction programs
-- **AND** block accesses SHALL use `ABSTRACTAUTO_AUTOEXECDATA` pipelining
+- **AND** block accesses SHALL use explicit per-word POSTEXEC execution

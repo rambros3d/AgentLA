@@ -1,6 +1,7 @@
 #include "board_settings.h"
 #include "structs.h"
 #include "adapter/adapter.h"
+#include "adapter/adapter_i3c.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -479,6 +480,397 @@ static void cmd_i2c_clear(char* args) {
     adapter_i2c_clear_bus();
     sleep_ms(10);
     send_response("OK I2C BUS CLEARED");
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * I3C ADAPTER COMMANDS
+ * ═══════════════════════════════════════════════════════════════════ */
+
+static uint16_t parse_hex_bytes(const char* str, uint8_t* out, uint16_t max_len) {
+    uint16_t count = 0;
+    if (str == NULL) return 0;
+    while (*str && count < max_len) {
+        while (*str == ' ' || *str == ',') str++;
+        if (!*str) break;
+        char* next;
+        unsigned long val = strtoul(str, &next, 0);
+        if (next == str) {
+            if (isxdigit((int)str[0]) && isxdigit((int)str[1])) {
+                char tmp[3] = { str[0], str[1], '\0' };
+                val = strtoul(tmp, NULL, 16);
+                next = (char*)str + 2;
+            } else {
+                break;
+            }
+        }
+        out[count++] = (uint8_t)val;
+        str = next;
+    }
+    return count;
+}
+
+static void cmd_i3c_init(char* args) {
+    uint32_t freq_khz = 12500;
+    uint8_t sda_pin = ADAPTER_I3C_SDA_PIN;
+    uint8_t scl_pin = ADAPTER_I3C_SCL_PIN;
+    uint32_t handle = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "freq=", 5) == 0) freq_khz = (uint32_t)strtoul(token + 5, NULL, 0);
+        else if (strncmp(token, "sda=", 4) == 0) sda_pin = (uint8_t)atoi(token + 4);
+        else if (strncmp(token, "scl=", 4) == 0) scl_pin = (uint8_t)atoi(token + 4);
+        else if (strncmp(token, "handle=", 7) == 0) handle = (uint32_t)atoi(token + 7);
+        else if (isdigit((int)token[0])) {
+            freq_khz = (uint32_t)strtoul(token, NULL, 0);
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (handle != 0) {
+        if (!adapter_i3c_bind_claim(handle)) {
+            send_response("ERR I3C invalid claim handle");
+            return;
+        }
+    }
+
+    i3c_status_t status = adapter_i3c_init(sda_pin, scl_pin, freq_khz);
+    if (status != I3C_STATUS_OK) {
+        char msg[96];
+        sprintf(msg, "ERR I3C INIT %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+
+    char response[96];
+    sprintf(response, "OK I3C INIT freq=%lu pins=%u,%u", (unsigned long)freq_khz, sda_pin, scl_pin);
+    send_response(response);
+}
+
+static void cmd_i3c_scan(char* args) {
+    (void)args;
+    char addrs_str[256];
+    addrs_str[0] = '\0';
+    uint8_t found_count = 0;
+
+    for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
+        if (adapter_i3c_checkack(addr) == I3C_STATUS_OK) {
+            if (found_count > 0) strcat(addrs_str, ",");
+            char buf[8];
+            sprintf(buf, "0x%02X", addr);
+            strcat(addrs_str, buf);
+            found_count++;
+        }
+    }
+
+    char response[300];
+    if (found_count > 0) {
+        sprintf(response, "OK I3C SCAN addrs=%s", addrs_str);
+    } else {
+        sprintf(response, "OK I3C SCAN NONE");
+    }
+    send_response(response);
+}
+
+static void cmd_i3c_entdaa(char* args) {
+    uint8_t addr = 0x08;
+    if (args && *args) {
+        while (*args == ' ') args++;
+        if (strncmp(args, "addr=", 5) == 0) addr = (uint8_t)strtoul(args + 5, NULL, 0);
+        else if (*args) addr = (uint8_t)strtoul(args, NULL, 0);
+    }
+
+    i3c_device_info_t info;
+    memset(&info, 0, sizeof(info));
+    i3c_status_t status = adapter_i3c_entdaa(addr, &info);
+    if (status != I3C_STATUS_OK) {
+        char msg[96];
+        sprintf(msg, "ERR I3C ENTDAA %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+
+    char response[160];
+    sprintf(response, "OK I3C ENTDAA addr=0x%02X pid=%02X%02X%02X%02X%02X%02X bcr=0x%02X dcr=0x%02X",
+            info.dynamic_addr,
+            info.pid[0], info.pid[1], info.pid[2], info.pid[3], info.pid[4], info.pid[5],
+            info.bcr, info.dcr);
+    send_response(response);
+}
+
+static void cmd_i3c_rstdaa(char* args) {
+    (void)args;
+    i3c_status_t status = adapter_i3c_rstdaa();
+    if (status != I3C_STATUS_OK) {
+        char msg[64];
+        sprintf(msg, "ERR I3C RSTDAA %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+    send_response("OK I3C RSTDAA");
+}
+
+static void cmd_i3c_read(char* args) {
+    uint8_t addr = 0;
+    uint32_t len = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtoul(token + 5, NULL, 0);
+        else if (strncmp(token, "len=", 4) == 0) len = (uint32_t)strtoul(token + 4, NULL, 0);
+        else if (addr == 0) addr = (uint8_t)strtoul(token, NULL, 0);
+        else if (len == 0) len = (uint32_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+    }
+
+    if (addr == 0 || len == 0 || len > 256) {
+        send_response("ERR I3C READ requires valid addr and len (1-256)");
+        return;
+    }
+
+    uint8_t rx_buf[256];
+    uint32_t read_bytes = len;
+    i3c_status_t status = adapter_i3c_sdr_privread(addr, rx_buf, &read_bytes);
+    if (status != I3C_STATUS_OK && status != I3C_STATUS_IBI) {
+        char msg[64];
+        sprintf(msg, "ERR I3C READ %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+
+    char hex_data[600];
+    hex_data[0] = '\0';
+    for (uint32_t i = 0; i < read_bytes; i++) {
+        if (i > 0) strcat(hex_data, ",");
+        char b[4];
+        sprintf(b, "%02X", rx_buf[i]);
+        strcat(hex_data, b);
+    }
+
+    char response[640];
+    sprintf(response, "I3C DATA %s", hex_data);
+    send_response(response);
+}
+
+static void cmd_i3c_write(char* args) {
+    uint8_t addr = 0;
+    uint8_t data[256];
+    uint16_t data_len = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtoul(token + 5, NULL, 0);
+        else if (strncmp(token, "data=", 5) == 0) {
+            data_len = parse_hex_bytes(token + 5, data, sizeof(data));
+        }
+        else if (addr == 0) {
+            addr = (uint8_t)strtoul(token, NULL, 0);
+        }
+        else if (data_len == 0) {
+            data_len = parse_hex_bytes(token, data, sizeof(data));
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (addr == 0 || data_len == 0) {
+        send_response("ERR I3C WRITE requires addr and data");
+        return;
+    }
+
+    i3c_status_t status = adapter_i3c_sdr_privwrite(addr, data, data_len);
+    if (status != I3C_STATUS_OK) {
+        char msg[64];
+        sprintf(msg, "ERR I3C WRITE %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+
+    char response[64];
+    sprintf(response, "OK I3C WRITE %u bytes", data_len);
+    send_response(response);
+}
+
+static void cmd_i3c_writeread(char* args) {
+    uint8_t addr = 0;
+    uint8_t write_data[128];
+    uint16_t write_len = 0;
+    uint32_t read_len = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "addr=", 5) == 0) addr = (uint8_t)strtoul(token + 5, NULL, 0);
+        else if (strncmp(token, "data=", 5) == 0) {
+            write_len = parse_hex_bytes(token + 5, write_data, sizeof(write_data));
+        }
+        else if (strncmp(token, "rlen=", 5) == 0) read_len = (uint32_t)strtoul(token + 5, NULL, 0);
+        else if (addr == 0) addr = (uint8_t)strtoul(token, NULL, 0);
+        else if (write_len == 0) write_len = parse_hex_bytes(token, write_data, sizeof(write_data));
+        else if (read_len == 0) read_len = (uint32_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+    }
+
+    if (addr == 0 || write_len == 0 || read_len == 0 || read_len > 256) {
+        send_response("ERR I3C WRITEREAD requires addr, write data, and read len");
+        return;
+    }
+
+    uint8_t rx_buf[256];
+    uint32_t actual_read = read_len;
+    i3c_status_t status = adapter_i3c_sdr_privwriteread(addr, write_data, write_len, rx_buf, &actual_read);
+    if (status != I3C_STATUS_OK && status != I3C_STATUS_IBI) {
+        char msg[64];
+        sprintf(msg, "ERR I3C WRITEREAD %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+
+    char hex_data[600];
+    hex_data[0] = '\0';
+    for (uint32_t i = 0; i < actual_read; i++) {
+        if (i > 0) strcat(hex_data, ",");
+        char b[4];
+        sprintf(b, "%02X", rx_buf[i]);
+        strcat(hex_data, b);
+    }
+
+    char response[640];
+    sprintf(response, "I3C DATA %s", hex_data);
+    send_response(response);
+}
+
+static void cmd_i3c_ccc(char* args) {
+    char subcmd[16] = {0};
+    char mode[16] = {0};
+    uint8_t ccc_id = 0;
+    uint8_t addr = 0;
+    uint8_t data[64];
+    uint16_t data_len = 0;
+    uint32_t read_len = 0;
+
+    char* token = strtok(args, " ");
+    if (token) strncpy(subcmd, token, sizeof(subcmd) - 1);
+    token = strtok(NULL, " ");
+    if (token) strncpy(mode, token, sizeof(mode) - 1);
+
+    if (strcmp(subcmd, "BC") == 0 && strcmp(mode, "WRITE") == 0) {
+        token = strtok(NULL, " ");
+        if (token) ccc_id = (uint8_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+        if (token) data_len = parse_hex_bytes(token, data, sizeof(data));
+
+        uint8_t payload[65];
+        payload[0] = ccc_id;
+        if (data_len > 0) memcpy(payload + 1, data, data_len);
+
+        i3c_status_t status = adapter_i3c_sdr_ccc_broadcast_write(payload, data_len + 1);
+        if (status != I3C_STATUS_OK) {
+            char msg[64];
+            sprintf(msg, "ERR I3C CCC %s", adapter_i3c_get_errorstring(status));
+            send_response(msg);
+            return;
+        }
+        send_response("OK I3C CCC BC WRITE");
+    } else if (strcmp(subcmd, "DIRECT") == 0 && strcmp(mode, "WRITE") == 0) {
+        token = strtok(NULL, " ");
+        if (token) addr = (uint8_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+        if (token) ccc_id = (uint8_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+        if (token) data_len = parse_hex_bytes(token, data, sizeof(data));
+
+        i3c_status_t status = adapter_i3c_sdr_ccc_direct_write(&ccc_id, 1, addr, data, data_len);
+        if (status != I3C_STATUS_OK) {
+            char msg[64];
+            sprintf(msg, "ERR I3C CCC %s", adapter_i3c_get_errorstring(status));
+            send_response(msg);
+            return;
+        }
+        send_response("OK I3C CCC DIRECT WRITE");
+    } else if (strcmp(subcmd, "DIRECT") == 0 && strcmp(mode, "READ") == 0) {
+        token = strtok(NULL, " ");
+        if (token) addr = (uint8_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+        if (token) ccc_id = (uint8_t)strtoul(token, NULL, 0);
+        token = strtok(NULL, " ");
+        if (token) read_len = (uint32_t)strtoul(token, NULL, 0);
+        if (read_len == 0 || read_len > 64) read_len = 8;
+
+        uint8_t rx_buf[64];
+        uint32_t actual = read_len;
+        i3c_status_t status = adapter_i3c_sdr_ccc_direct_read(&ccc_id, 1, addr, rx_buf, &actual);
+        if (status != I3C_STATUS_OK) {
+            char msg[64];
+            sprintf(msg, "ERR I3C CCC %s", adapter_i3c_get_errorstring(status));
+            send_response(msg);
+            return;
+        }
+
+        char hex_data[200];
+        hex_data[0] = '\0';
+        for (uint32_t i = 0; i < actual; i++) {
+            if (i > 0) strcat(hex_data, ",");
+            char b[4];
+            sprintf(b, "%02X", rx_buf[i]);
+            strcat(hex_data, b);
+        }
+        char response[220];
+        sprintf(response, "I3C DATA %s", hex_data);
+        send_response(response);
+    } else {
+        send_response("ERR invalid CCC format. Usage: I3C_CCC BC WRITE <id> [data] | I3C_CCC DIRECT WRITE/READ <addr> <id> [data/len]");
+    }
+}
+
+static void cmd_i3c_poll(char* args) {
+    uint32_t max_len = 16;
+    if (args && *args) {
+        uint32_t val = (uint32_t)strtoul(args, NULL, 0);
+        if (val > 0 && val <= 64) max_len = val;
+    }
+
+    uint8_t data[64];
+    uint32_t len = max_len;
+    i3c_status_t status = adapter_i3c_poll(data, &len);
+    if (status == I3C_STATUS_OK && len > 0) {
+        uint8_t addr = data[0] >> 1;
+        uint8_t mdb = len > 1 ? data[1] : 0x00;
+        char msg[64];
+        sprintf(msg, "OK I3C IBI addr=0x%02X mdb=0x%02X", addr, mdb);
+        send_response(msg);
+    } else if (status == I3C_STATUS_NO_IBI) {
+        send_response("OK I3C NO_IBI");
+    } else {
+        char msg[64];
+        sprintf(msg, "ERR I3C POLL %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+    }
+}
+
+static void cmd_i3c_reset(char* args) {
+    (void)args;
+    i3c_status_t status = adapter_i3c_targetreset();
+    if (status != I3C_STATUS_OK) {
+        char msg[64];
+        sprintf(msg, "ERR I3C RESET %s", adapter_i3c_get_errorstring(status));
+        send_response(msg);
+        return;
+    }
+    send_response("OK I3C RESET");
+}
+
+static void cmd_i3c_clk(char* args) {
+    uint32_t freq_khz = 12500;
+    if (args && *args) {
+        freq_khz = (uint32_t)strtoul(args, NULL, 0);
+    }
+    i3c_status_t status = adapter_i3c_set_clkrate(freq_khz);
+    if (status != I3C_STATUS_OK) {
+        send_response("ERR I3C CLK frequency out of range (40 - 12500 kHz)");
+        return;
+    }
+    char msg[64];
+    sprintf(msg, "OK I3C CLK freq=%lu kHz", (unsigned long)freq_khz);
+    send_response(msg);
 }
 
 static void cmd_reboot(char* args) {
@@ -2670,6 +3062,17 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "UART_WRITE") == 0) cmd_uart_write(args ? args : "");
     else if(strcmp(cmd, "UART_READ") == 0) cmd_uart_read(args ? args : "");
     else if(strcmp(cmd, "I2C_CLEAR") == 0) cmd_i2c_clear(args ? args : "");
+    else if(strcmp(cmd, "I3C_INIT") == 0) cmd_i3c_init(args ? args : "");
+    else if(strcmp(cmd, "I3C_SCAN") == 0) cmd_i3c_scan(args ? args : "");
+    else if(strcmp(cmd, "I3C_ENTDAA") == 0) cmd_i3c_entdaa(args ? args : "");
+    else if(strcmp(cmd, "I3C_RSTDAA") == 0) cmd_i3c_rstdaa(args ? args : "");
+    else if(strcmp(cmd, "I3C_READ") == 0) cmd_i3c_read(args ? args : "");
+    else if(strcmp(cmd, "I3C_WRITE") == 0) cmd_i3c_write(args ? args : "");
+    else if(strcmp(cmd, "I3C_WRITEREAD") == 0) cmd_i3c_writeread(args ? args : "");
+    else if(strcmp(cmd, "I3C_CCC") == 0) cmd_i3c_ccc(args ? args : "");
+    else if(strcmp(cmd, "I3C_POLL") == 0) cmd_i3c_poll(args ? args : "");
+    else if(strcmp(cmd, "I3C_RESET") == 0) cmd_i3c_reset(args ? args : "");
+    else if(strcmp(cmd, "I3C_CLK") == 0) cmd_i3c_clk(args ? args : "");
     else if(strcmp(cmd, "REBOOT") == 0) cmd_reboot(args ? args : "");
     else if(strcmp(cmd, "BOOTSEL") == 0 || strcmp(cmd, "BOOT") == 0 || strcmp(cmd, "RESET") == 0 || strcmp(cmd, "BOOTMODE") == 0) cmd_bootsel(args ? args : "");
     else if(strcmp(cmd, "SELFTEST") == 0) cmd_selftest(args ? args : "");

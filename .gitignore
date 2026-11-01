@@ -44,3 +44,5 @@ references/
 # Agents
 .agent/
 .*/
+!.github/
+!.github/**

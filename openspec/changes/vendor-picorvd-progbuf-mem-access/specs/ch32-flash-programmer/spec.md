@@ -13,4 +13,4 @@ The system SHALL identify connected CH32 microcontrollers using ESIG and IDCODE 
 
 #### Scenario: Flash readback verification
 - **WHEN** flash contents are verified after programming
-- **THEN** the system SHALL read back the written data using the vendored `get_block_aligned` fast-read path (via `ABSTRACTAUTO_AUTOEXECDATA`) rather than word-at-a-time reads
+- **THEN** the system SHALL read back the written data using the vendored `get_block_aligned` fast-read path (via per-word `POSTEXEC`) rather than word-at-a-time reads

@@ -38,24 +38,21 @@ The system SHALL use the correct WCH DTM DATA0/DATA1 magic offsets for the activ
 - **WHEN** a memory access is performed via PROGBUF
 - **THEN** the offset lookup SHALL be selected by chip family only, and the transport (SWIO for 1-wire, RVSWD for 2-wire) SHALL be selected by `g_ch32_target.mode`
 
-### Requirement: ABSTRACTAUTO-pipelined block memory access
-The system SHALL support block-aligned memory reads and writes ported from PicoRVD's `get_block_aligned`/`set_block_aligned`, using `ABSTRACTAUTO_AUTOEXECDATA` so each DATA0 access re-executes the program for the next word.
+### Requirement: Pipelined block memory access via explicit POSTEXEC
+The system SHALL support block-aligned memory reads and writes ported from PicoRVD's `prog_get_block_aligned`/`prog_set_block_aligned`, using explicit per-word `POSTEXEC` execution to avoid WCH Debug Module hardware lockups caused by `ABSTRACTAUTO_AUTOEXECDATA` streaming.
 
-#### Scenario: Block-aligned read pipeline
+#### Scenario: Block-aligned read execution
 - **WHEN** the system reads N aligned 32-bit words
 - **THEN** it SHALL load the block-read program into PROGBUF
 - **AND** write the start address into DATA1
-- **AND** execute the first word via `POSTEXEC`
-- **AND** enable `ABSTRACTAUTO_AUTOEXECDATA` so each DATA0 read produces the next word
-- **AND** disable auto-execution before the final read
+- **AND** execute one explicit `POSTEXEC` per word to advance the pointer and populate DATA0
+- **AND** read DATA0 for each word without enabling `ABSTRACTAUTO_AUTOEXECDATA`
 
-#### Scenario: Block-aligned write pipeline
+#### Scenario: Block-aligned write execution
 - **WHEN** the system writes N aligned 32-bit words
 - **THEN** it SHALL load the block-write program into PROGBUF
 - **AND** write the start address into DATA1
-- **AND** write each word into DATA0
-- **AND** enable `ABSTRACTAUTO_AUTOEXECDATA` after the first word so each subsequent DATA0 write stores the next word
-- **AND** disable auto-execution after the final word
+- **AND** for each word, write DATA0 and execute one explicit `POSTEXEC` to store the word and advance the pointer without enabling `ABSTRACTAUTO_AUTOEXECDATA`
 
 ### Requirement: Vended attribution
 The system SHALL carry license attribution for the ported PicoRVD program tables.

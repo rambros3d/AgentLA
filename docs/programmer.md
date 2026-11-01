@@ -177,14 +177,26 @@ FLASH WRITE 0x08000000 <hex_data>
 FLASH VERIFY 0x08000000 <hex_data>
 ```
 
-#### RP2040/RP2350
+#### Puya PY32F0xx (PY32F002A, PY32F003, PY32F030)
 
 ```bash
 SWD TEST
-# Expected: OK SWD TEST PASS idcode=0x0BC12477 target=RP2040
+# Expected: OK SWD TEST PASS idcode=0x0BC11477 target=Puya PY32F030
 
-# Flash read only (erase/write not yet implemented)
-FLASH READ 0x10000000 64
+# Erase and program flash (0x08000000 base)
+FLASH ERASE 0x08000000 0x1000
+FLASH WRITE 0x08000000 <hex_data>
+FLASH VERIFY 0x08000000 <hex_data>
+```
+
+#### RP2350 (Raspberry Pi Pico 2) & RP2040
+
+```bash
+SWD TEST
+# Expected: OK SWD TEST PASS idcode=0x00021477 target=RP2350
+
+# Verified flashing via CMSIS-DAP probe / probe-rs / picotool load
+python3 test/flash_pico2_blink.py
 ```
 
 ### Mode Conflict Detection

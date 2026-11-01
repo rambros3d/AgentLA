@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>AgentLA — RP2350 High-Speed Multi-Tool Bench Engine</title>
+    <meta name="description" content="AgentLA: Touch-first 100 MS/s Logic Analyzer, Multi-core Flasher, Debugger, Bus Masters, and Dynamic Pin Allocation on RP2350.">
+    <link rel="stylesheet" href="landing.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300e5ff'><rect x='3' y='3' width='7' height='7'/><rect x='14' y='3' width='7' height='7'/><rect x='14' y='14' width='7' height='7'/><rect x='3' y='14' width='7' height='7'/></svg>">
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="site-header">
+        <div class="nav-container">
+            <div class="brand">
+                <span class="brand-chip">RP2350</span>
+                <span class="brand-name">AgentLA</span>
+            </div>
+            <nav class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#pinout">Pin Matrix</a>
+                <a href="#connect">Connect Device</a>
+                <a href="demo/" class="btn-nav-demo">Launch Demo →</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <main>
+        <section class="hero-section">
+            <div class="hero-container">
+                <div class="hero-badge">OPEN HARDWARE &amp; FIRMWARE FOR EMBEDDED ENGINEERS</div>
+                <h1 class="hero-title">High-Speed Multi-Tool Bench Engine</h1>
+                <p class="hero-subtitle">
+                    Touch-first 100 MS/s Logic Analyzer, SWD / RV-SWD / WCH-SDI Flasher &amp; Debugger, Bus Masters, and Dynamic Pin Allocation powered by the Raspberry Pi RP2350.
+                </p>
+
+                <!-- Primary Call to Action Bar -->
+                <div class="hero-actions">
+                    <a href="demo/" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Launch Interactive Demo
+                    </a>
+                    <a href="#connect" class="btn btn-secondary" id="btn-hero-connect">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="2" y1="12" x2="22" y2="12"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        Search Local Device
+                    </a>
+                </div>
+
+                <!-- Live Subnet Discovery Card -->
+                <div class="discovery-card" id="discovery-card">
+                    <div class="discovery-header">
+                        <span class="status-indicator-dot" id="discovery-dot"></span>
+                        <span class="discovery-title" id="discovery-title">Subnet Probe Discovery</span>
+                        <span class="discovery-target">http://192.168.7.1</span>
+                    </div>
+                    <div class="discovery-body">
+                        <p id="discovery-status-text">Click "Check Device" to test if an AgentLA hardware unit is reachable on your local network.</p>
+                        <div class="discovery-buttons">
+                            <button class="btn btn-sm" id="btn-check-device">
+                                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
+                                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                </svg>
+                                Check Device
+                            </button>
+                            <a href="http://192.168.7.1" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary" id="btn-open-direct" style="display: none;">
+                                Open 192.168.7.1 ↗
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Feature Grid -->
+        <section id="features" class="features-section">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">All-In-One Bench Architecture</h2>
+                    <p class="section-desc">Engineered for hardware reverse engineering, automated regression tests, and interactive target bring-up.</p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #00e5ff;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+                                <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
+                                <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
+                            </svg>
+                        </div>
+                        <h3>100 MS/s Logic Analyzer</h3>
+                        <p>10-Channel PIO0 capture engine with multi-touch pinch-to-zoom, nanosecond resolution, and real-time SPI, I2C, and UART protocol decoding.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #ff9f0a;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+                                <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
+                            </svg>
+                        </div>
+                        <h3>Multi-Arch Flasher</h3>
+                        <p>High-speed target flashing supporting standard ARM SWD, RISC-V RV-SWD, and WCH QingKe 1-wire SDI with hardware memory verify.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #34c759;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+                                <circle cx="12" cy="12" r="9"/>
+                                <path d="M9 9l6 6M15 9l-6 6"/>
+                            </svg>
+                        </div>
+                        <h3>Hardware Debugger</h3>
+                        <p>Halt, step, run, and live RAM memory hex inspection for Cortex-M0+/M33 and RISC-V RV32EC cores directly inside your browser.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #af52de;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
+                            </svg>
+                        </div>
+                        <h3>Dynamic Pin Ownership</h3>
+                        <p>Strict driver/observer arbitration: GPIO 0–9 fixed programmer block; GPIO 10–29 flexible dynamic pool with conflict protection.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #0d84fa;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+                                <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
+                                <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
+                            </svg>
+                        </div>
+                        <h3>Bus Masters (I2C / SPI / I3C)</h3>
+                        <p>Hardware bus controllers with automated peripheral scanning, register read/write sequences, and live protocol transaction logs.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #cba6f7;">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+                                <polyline points="4 17 10 11 4 5"/>
+                                <line x1="12" y1="19" x2="20" y2="19"/>
+                            </svg>
+                        </div>
+                        <h3>Agent &amp; MCP Integration</h3>
+                        <p>Native Model Context Protocol (MCP) server endpoints allowing AI coding agents to control instruments and analyze signals autonomously.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive 30-Pin Domain Matrix -->
+        <section id="pinout" class="pinout-section">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">RP2350 30-Pin Architecture</h2>
+                    <p class="section-desc">Click any pin to inspect runtime ownership domains, hardware roles, and allocation rules.</p>
+                </div>
+
+                <div class="pinout-visualizer">
+                    <div class="pin-legend">
+                        <div class="legend-item"><span class="legend-color fixed"></span> Fixed Programmer (GP0–9)</div>
+                        <div class="legend-item"><span class="legend-color flexible"></span> Flexible Dynamic Pool (GP10–25)</div>
+                        <div class="legend-item"><span class="legend-color adc"></span> Analog / Flexible (GP26–29)</div>
+                    </div>
+
+                    <div class="pin-grid" id="pinout-chips-container">
+                        <!-- Populated by JavaScript -->
+                    </div>
+
+                    <div class="pin-detail-box" id="pin-detail-box">
+                        <div class="detail-header">
+                            <span class="detail-pin-name" id="detail-pin-name">Select a pin</span>
+                            <span class="detail-badge" id="detail-badge">Info</span>
+                        </div>
+                        <p class="detail-desc" id="detail-desc">Click on any pin above to view its multiplexing capabilities, allocation limits, and driver states.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Connection Guide -->
+        <section id="connect" class="connect-section">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">Connecting to Hardware</h2>
+                    <p class="section-desc">AgentLA presents an RNDIS USB Ethernet interface providing an embedded web server and JSON-RPC API.</p>
+                </div>
+
+                <div class="connect-grid">
+                    <div class="connect-step">
+                        <div class="step-num">1</div>
+                        <h3>Plug in USB-C</h3>
+                        <p>Connect your AgentLA RP2350 probe to your workstation. The device enumerates as a USB Composite Device with CDC-ACM serial and RNDIS Ethernet.</p>
+                    </div>
+                    <div class="connect-step">
+                        <div class="step-num">2</div>
+                        <h3>Auto-IP Network</h3>
+                        <p>AgentLA hosts an embedded DHCP server allocating your host machine an address on the <code>192.168.7.0/24</code> subnet.</p>
+                    </div>
+                    <div class="connect-step">
+                        <div class="step-num">3</div>
+                        <h3>Open WebUI</h3>
+                        <p>Navigate to <a href="http://192.168.7.1" target="_blank">http://192.168.7.1</a> or <a href="http://agentla.local" target="_blank">http://agentla.local</a> in any modern browser for full zero-install control.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="footer-container">
+            <div class="footer-left">
+                <p>AgentLA — High-Speed Open Bench Engine</p>
+                <p class="footer-sub">Raspberry Pi RP2350 ARM Cortex-M33 &amp; Hazard3 RISC-V</p>
+            </div>
+            <div class="footer-right">
+                <a href="demo/">Live Demo</a>
+                <a href="http://192.168.7.1" target="_blank">Direct Device Link</a>
+                <a href="https://github.com/agentla" target="_blank">GitHub</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="landing.js"></script>
+</body>
+</html>

@@ -1,47 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>AgentLA Web UI</title>
+    <title>AgentLA - Adaptive Touch &amp; Desktop WebUI</title>
+    <script>
+        // Restore theme immediately to avoid flash of wrong palette
+        (function() {
+            var saved = localStorage.getItem('agentla-theme');
+            if (saved === 'light' || saved === 'dark') {
+                document.documentElement.setAttribute('data-theme', saved);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                document.documentElement.setAttribute('data-theme', 'dark'); // Default to Deep Dark
+            }
+        })();
+    </script>
     <style>
         body { 
             background-color: #08111d; 
             margin: 0; 
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            touch-action: manipulation;
         }
         #loading-screen {
             position: fixed; 
             top: 0; 
             left: 0; 
             width: 100vw; 
-            height: 100vh; 
-            background-color: #1e1e1e; 
+            height: 100dvh; 
+            background-color: #08111d; 
             z-index: 99999; 
             display: flex; 
             justify-content: center; 
             align-items: center; 
-            transition: opacity 0.5s ease, visibility 0.5s ease;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
         }
         #loading-screen.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
         .loader-content { text-align: center; color: #ffffff; }
-        .loader-content h2 { margin: 20px 0 5px 0; font-size: 24px; letter-spacing: 1px; font-weight: 600; }
-        .loader-content p { margin: 0; color: #a0a0ab; font-size: 13px; }
+        .loader-content h2 { margin: 18px 0 6px 0; font-size: 22px; letter-spacing: 1px; font-weight: 700; }
+        .loader-content p { margin: 0; color: #9cb0c9; font-size: 13px; }
         .spinner { 
-            width: 45px; 
-            height: 45px; 
+            width: 42px; 
+            height: 42px; 
             margin: 0 auto; 
-            border: 4px solid rgba(255, 255, 255, 0.1); 
-            border-left-color: #0d84fa; 
+            border: 3.5px solid rgba(255, 255, 255, 0.12); 
+            border-left-color: #00e5ff; 
             border-radius: 50%; 
-            animation: spin 1s linear infinite; 
+            animation: spin 0.9s linear infinite; 
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="winbox.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -50,129 +61,567 @@
         <div class="loader-content">
             <div class="spinner"></div>
             <h2>AgentLA</h2>
-            <p>Connecting...</p>
+            <p>Initializing Adaptive Shell...</p>
         </div>
     </div>
 
-    <!-- Top Bar -->
-    <div id="top-bar">
+    <!-- Top Application Bar -->
+    <header id="top-bar" class="app-header">
         <div class="bar-left">
-            <div class="menu-item bold" id="start-btn">
+            <div class="brand-item" id="brand-logo" title="AgentLA Workspace Hub">
                 <span class="start-menu-icon" aria-hidden="true"></span>
-                <span>AgentLA</span>
+                <span class="brand-title">AgentLA</span>
             </div>
-            <div id="taskbar-apps" class="taskbar-apps"></div>
+
+            <!-- View Mode Switcher: Single vs Split Mode & Presets -->
+            <div class="view-mode-bar" id="view-mode-bar">
+                <div class="segmented-control mode-segment" role="group" aria-label="Workspace View Mode">
+                    <button class="sub-btn active" id="btn-mode-single" title="Single Pane Focus">
+                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        </svg>
+                        <span class="btn-label-desktop">Focus</span>
+                    </button>
+                    <button class="sub-btn" id="btn-mode-split" title="Dual-Slot Split View">
+                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
+                            <rect x="3" y="3" width="8" height="18" rx="1.5"/>
+                            <rect x="13" y="3" width="8" height="18" rx="1.5"/>
+                        </svg>
+                        <span class="btn-label-desktop">Split</span>
+                    </button>
+                </div>
+
+                <div class="quick-presets" id="quick-presets">
+                    <button class="preset-pill" id="preset-bus-debug" title="Preset: Logic Analyzer + Bus Master">
+                        <span class="preset-dot"></span> Bus Debug
+                    </button>
+                    <button class="preset-pill" id="preset-target-bringup" title="Preset: Target Flasher + Console">
+                        <span class="preset-dot"></span> Bring-Up
+                    </button>
+                </div>
+            </div>
         </div>
+
         <div class="bar-right">
-            <div id="connection-status" class="status-indicator">
+            <div id="connection-status" class="status-indicator" title="Hardware Bridge Watchdog">
                 <div class="status-dot"></div>
-                <span class="status-text">Disconnected</span>
+                <span class="status-text">Connecting...</span>
             </div>
-        </div>
-    </div>
 
-    <!-- Start Menu -->
-    <div id="start-menu" class="hidden">
-        <div class="start-apps-grid">
-            <div class="app-icon launcher" data-app="flasher">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
-                    </svg>
-                </div>
-                <span>Target Flasher</span>
-            </div>
-            <div class="app-icon launcher" data-app="logic">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
-                        <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
-                    </svg>
-                </div>
-                <span>Logic Analyzer</span>
-            </div>
-            <div class="app-icon launcher" data-app="debugger">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <circle cx="12" cy="12" r="9"/>
-                        <path d="M9 9l6 6M15 9l-6 6"/>
-                    </svg>
-                </div>
-                <span>Target Debugger</span>
-            </div>
-            <div class="app-icon launcher" data-app="gpio">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2"/>
-                        <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
-                    </svg>
-                </div>
-                <span>GPIO &amp; Pin Matrix</span>
-            </div>
-            <div class="app-icon launcher" data-app="i2c">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
-                        <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
-                        <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="10" font-family="Segoe UI, Arial, sans-serif">I<tspan baseline-shift="super" font-size="6">2</tspan>C</text>
-                    </svg>
-                </div>
-                <span>I2C Master</span>
-            </div>
-            <div class="app-icon launcher" data-app="spi">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
-                        <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
-                        <text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="9" font-family="Segoe UI, Arial, sans-serif">SPI</text>
-                    </svg>
-                </div>
-                <span>SPI Master</span>
-            </div>
-            <div class="app-icon launcher" data-app="command">
-                <div class="icon-box">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                        <polyline points="4 17 10 11 4 5"/>
-                        <line x1="12" y1="19" x2="20" y2="19"/>
-                    </svg>
-                </div>
-                <span>Command Console</span>
-            </div>
-        </div>
+            <!-- Dual-Mode Theme Toggle -->
+            <button class="theme-toggle-btn" id="btn-theme-toggle" title="Toggle Deep Dark / Light Theme" aria-label="Toggle Theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" fill="none" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
 
-        <div class="start-system-options">
-            <div class="sys-item launcher" data-app="settings">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+            <!-- Quick Inspector / Settings Trigger -->
+            <button class="action-btn icon-btn header-btn" id="btn-header-settings" title="System Settings">
+                <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" fill="none" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                 </svg>
-                System Settings
-            </div>
-            <div class="sys-item launcher" data-app="about">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Shell: Rail + Workspace -->
+    <div id="app-shell" class="app-shell">
+        <!-- Desktop Left Navigation Rail (>= 900px) -->
+        <nav id="left-nav-rail" class="left-nav-rail" aria-label="Desktop Workspace Navigation">
+            <button class="nav-rail-item active" data-view="dashboard" title="Dashboard Overview">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span>Hub</span>
+            </button>
+            <button class="nav-rail-item" data-view="logic" title="Logic Analyzer">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
+                    <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
+                </svg>
+                <span>Logic</span>
+            </button>
+            <button class="nav-rail-item" data-view="flasher" title="Target Flasher">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
+                </svg>
+                <span>Flasher</span>
+            </button>
+            <button class="nav-rail-item" data-view="debugger" title="Target Debugger">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M9 9l6 6M15 9l-6 6"/>
+                </svg>
+                <span>Debugger</span>
+            </button>
+            <button class="nav-rail-item" data-view="gpio" title="GPIO &amp; Pin Matrix">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
+                </svg>
+                <span>Pins</span>
+            </button>
+            <button class="nav-rail-item" data-view="i2c" title="I2C Master">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
+                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
+                    <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="9" font-family="Segoe UI, Arial, sans-serif">I²C</text>
+                </svg>
+                <span>I2C</span>
+            </button>
+            <button class="nav-rail-item" data-view="spi" title="SPI Master">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
+                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
+                    <text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="8.5" font-family="Segoe UI, Arial, sans-serif">SPI</text>
+                </svg>
+                <span>SPI</span>
+            </button>
+            <button class="nav-rail-item" data-view="command" title="Command Console">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <polyline points="4 17 10 11 4 5"/>
+                    <line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+                <span>Console</span>
+            </button>
+            <div class="nav-rail-spacer"></div>
+            <button class="nav-rail-item" data-view="about" title="About &amp; Pinout">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
                     <line x1="12" y1="18" x2="12" y2="11.3"/>
                     <line x1="13.29" y1="7.9" x2="10.71" y2="7.9"/>
                 </svg>
-                About &amp; Pinout
-            </div>
-            <div class="sys-item" id="btn-reboot">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M 19.82,17.11 C 14.80,24.80 2.85,21.38 2.67,12.19 2.48,3.01 14.27,-0.90 19.61,6.58 m 0.11,-2.81 0.46,3.34 -3.36,-0.45 z"/>
+                <span>About</span>
+            </button>
+        </nav>
+
+        <!-- Main Workspace Container -->
+        <main id="main-workspace" class="main-workspace">
+            
+            <!-- View 1: Unified Dashboard Overview (Default Landing View) -->
+            <section id="view-dashboard" class="workspace-view active">
+                <div class="dashboard-scrollable">
+                    <!-- Probe Health & Telemetry Header Banner -->
+                    <div class="dashboard-hero-card">
+                        <div class="hero-left">
+                            <div class="hero-chip-badge">RP2350 HIGH-SPEED BENCH ENGINE</div>
+                            <h1 class="hero-title">AgentLA Unified Workspace Hub</h1>
+                            <p class="hero-sub">Touch-first instrumentation, live telemetry, and dynamic pin claim orchestration</p>
+                        </div>
+                        <div class="hero-telemetry-grid">
+                            <div class="telemetry-pill">
+                                <span class="telem-label">SYS CLOCK</span>
+                                <span class="telem-val" id="telem-clock">150 MHz</span>
+                            </div>
+                            <div class="telemetry-pill">
+                                <span class="telem-label">CORE VOLTAGE</span>
+                                <span class="telem-val" id="telem-vreg">1.10 V</span>
+                            </div>
+                            <div class="telemetry-pill">
+                                <span class="telem-label">STATUS</span>
+                                <span class="telem-val status-accent" id="telem-state">IDLE</span>
+                            </div>
+                            <div class="telemetry-pill">
+                                <span class="telem-label">INTERFACE</span>
+                                <span class="telem-val" id="telem-ip">192.168.7.1</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 1-Tap Quick-Launch Instrument Tiles -->
+                    <div class="section-title-row">
+                        <h2 class="dashboard-section-heading">Bench Instruments</h2>
+                        <span class="heading-badge">1-Tap Quick Launch</span>
+                    </div>
+
+                    <div class="dashboard-tiles-grid">
+                        <div class="dash-tile" data-tool="logic">
+                            <div class="tile-icon-box" style="--tile-color: #00e5ff;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
+                                    <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">Logic Analyzer</div>
+                                <div class="tile-desc">10-Ch 100 MS/s PIO0 with multi-touch pinch-zoom and SPI/I2C/UART decoders</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="flasher">
+                            <div class="tile-icon-box" style="--tile-color: #ff9f0a;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">Target Flasher</div>
+                                <div class="tile-desc">High-speed SWD, RV-SWD, and WCH-SDI flash programmer with verify</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="debugger">
+                            <div class="tile-icon-box" style="--tile-color: #34c759;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <circle cx="12" cy="12" r="9"/>
+                                    <path d="M9 9l6 6M15 9l-6 6"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">Target Debugger</div>
+                                <div class="tile-desc">Halt, single-step, run, and live memory hex inspection for Cortex-M &amp; RISC-V</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="gpio">
+                            <div class="tile-icon-box" style="--tile-color: #af52de;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">GPIO &amp; Pin Matrix</div>
+                                <div class="tile-desc">Dynamic pin claims, role inspection, and conflict resolution across all 30 pins</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="i2c">
+                            <div class="tile-icon-box" style="--tile-color: #0d84fa;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
+                                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
+                                    <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="9" font-family="Segoe UI, Arial, sans-serif">I²C</text>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">I2C Master</div>
+                                <div class="tile-desc">Hardware I2C1 bus scanning, register read/write, and live protocol transaction table</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="spi">
+                            <div class="tile-icon-box" style="--tile-color: #ff2a6d;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
+                                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
+                                    <text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="8.5" font-family="Segoe UI, Arial, sans-serif">SPI</text>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">SPI Master</div>
+                                <div class="tile-desc">Full-duplex SPI1 master with up to 10 MHz clock and padded transfer log</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="command">
+                            <div class="tile-icon-box" style="--tile-color: #cba6f7;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <polyline points="4 17 10 11 4 5"/>
+                                    <line x1="12" y1="19" x2="20" y2="19"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">Command Console</div>
+                                <div class="tile-desc">Raw JSON-RPC 2.0 / MCP endpoint console with quick action command chips</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="about">
+                            <div class="tile-icon-box" style="--tile-color: #34c759;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" y1="18" x2="12" y2="11.3"/>
+                                    <line x1="13.29" y1="7.9" x2="10.71" y2="7.9"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">About &amp; Pinout</div>
+                                <div class="tile-desc">Interactive SVG pinout diagram and hardware peripheral specifications</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+                    </div>
+
+                    <!-- Interactive 30-Pin Domain Allocation Widget (GPIO 0-29) -->
+                    <div class="section-title-row" style="margin-top: 24px;">
+                        <div>
+                            <h2 class="dashboard-section-heading">30-Pin Dynamic Ownership &amp; Allocation</h2>
+                            <p class="heading-sub">Runtime pin registry: Fixed Programmer (GP0–9) and Flexible Dynamic Pool (GP10–29)</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="dynamic-registry-pill" id="dash-registry-status">
+                                <span class="status-dot green"></span> Auto-Sync (SAFEDISCOVER)
+                            </span>
+                            <button class="action-btn outline btn-sm" id="btn-dash-refresh-pins">
+                                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
+                                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                </svg>
+                                Sync Pins
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dash-pin-domains-card">
+                        <!-- Domain 1: Fixed Programmer Block (GP0 - GP9) -->
+                        <div class="domain-group domain-fixed-block">
+                            <div class="domain-group-header">
+                                <span class="domain-badge domain-prog">🔒 FIXED PROGRAMMER BLOCK (NON-FLEXIBLE)</span>
+                                <span class="domain-range">GP0 – GP9 (SWD / RV-SWD / WCH-SDI / UART0 / BOOT0 — Cannot be claimed by flexible roles)</span>
+                            </div>
+                            <div class="domain-pins-row" id="dash-pins-prog"></div>
+                        </div>
+
+                        <!-- Flexible Pool Header -->
+                        <div class="flex-pool-divider">
+                            <span class="flex-pool-badge">⚡ FLEXIBLE POOL (GP10 – GP29): DYNAMIC RUNTIME CLAIMS</span>
+                            <span class="flex-pool-sub">Atomic claim validation, active driver exclusivity, and shared read-only observation</span>
+                        </div>
+
+                        <!-- Domain 2: Adapter Interface (GP10 - GP19) -->
+                        <div class="domain-group">
+                            <div class="domain-group-header">
+                                <span class="domain-badge domain-adapt">DOMAIN 2: ADAPTER BUS INTERFACE</span>
+                                <span class="domain-range">GP10 – GP19 (I2C1 / SPI1 / UART1 / CAN / I3C — Dynamic ownership)</span>
+                            </div>
+                            <div class="domain-pins-row" id="dash-pins-adapt"></div>
+                        </div>
+
+                        <!-- Domain 3: Logic Analyzer & ADC (GP20 - GP29) -->
+                        <div class="domain-group">
+                            <div class="domain-group-header">
+                                <span class="domain-badge domain-la">DOMAIN 3: LOGIC ANALYZER &amp; ADC</span>
+                                <span class="domain-range">GP20 – GP29 (Span-based Capture Bank / GP26–GP29: Analog Capable ADC0–3)</span>
+                            </div>
+                            <div class="domain-pins-row" id="dash-pins-la"></div>
+                        </div>
+
+                        <div class="domain-footer-status">
+                            <div class="domain-stats-group">
+                                <span>Drivers Active: <strong id="dash-driver-count">0</strong></span>
+                                <span>Observers: <strong id="dash-observer-count">0</strong></span>
+                                <span>Analog Pins: <strong>GP26–GP29</strong></span>
+                            </div>
+                            <div style="flex-grow: 1;"></div>
+                            <span id="dash-pin-selected-status">Click any pin chip above to inspect RP2350 capabilities or claim/release.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View 2: Dual-Slot Dockable Workspace -->
+            <section id="view-instruments" class="workspace-view">
+                <div id="slot-container" class="slot-container mode-single">
+                    <!-- SLOT 1 -->
+                    <div id="slot-1" class="instrument-slot active-slot" data-slot="1">
+                        <div class="slot-header">
+                            <div class="slot-title-group">
+                                <span class="slot-badge">Slot 1</span>
+                                <select class="compact-select slot-tool-select" data-slot="1">
+                                    <option value="logic" selected>Logic Analyzer</option>
+                                    <option value="flasher">Target Flasher</option>
+                                    <option value="debugger">Target Debugger</option>
+                                    <option value="gpio">GPIO &amp; Pin Matrix</option>
+                                    <option value="i2c">I2C Master</option>
+                                    <option value="spi">SPI Master</option>
+                                    <option value="command">Command Console</option>
+                                    <option value="about">About &amp; Pinout</option>
+                                </select>
+                            </div>
+                            <div class="slot-actions">
+                                <button class="action-btn icon-btn slot-swap-btn" title="Swap Slot 1 &amp; Slot 2">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                        <polyline points="17 14 12 9 7 14"/>
+                                        <line x1="12" y1="9" x2="12" y2="21"/>
+                                    </svg>
+                                </button>
+                                <button class="action-btn icon-btn slot-config-btn" title="Slot Inspector &amp; Config">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+                                        <circle cx="12" cy="12" r="3"/>
+                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="slot-body" id="slot-1-content"></div>
+                    </div>
+
+                    <!-- SLOT 2 (Dual Split Pane) -->
+                    <div id="slot-2" class="instrument-slot" data-slot="2">
+                        <div class="slot-header">
+                            <div class="slot-title-group">
+                                <span class="slot-badge">Slot 2</span>
+                                <select class="compact-select slot-tool-select" data-slot="2">
+                                    <option value="i2c" selected>I2C Master</option>
+                                    <option value="spi">SPI Master</option>
+                                    <option value="logic">Logic Analyzer</option>
+                                    <option value="flasher">Target Flasher</option>
+                                    <option value="debugger">Target Debugger</option>
+                                    <option value="gpio">GPIO &amp; Pin Matrix</option>
+                                    <option value="command">Command Console</option>
+                                    <option value="about">About &amp; Pinout</option>
+                                </select>
+                            </div>
+                            <div class="slot-actions">
+                                <button class="action-btn icon-btn slot-swap-btn" title="Swap Slot 1 &amp; Slot 2">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                        <polyline points="17 14 12 9 7 14"/>
+                                        <line x1="12" y1="9" x2="12" y2="21"/>
+                                    </svg>
+                                </button>
+                                <button class="action-btn icon-btn slot-config-btn" title="Slot Inspector &amp; Config">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+                                        <circle cx="12" cy="12" r="3"/>
+                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                                    </svg>
+                                </button>
+                                <button class="action-btn icon-btn slot-close-btn" id="btn-close-slot-2" title="Close Split View (Focus Single)">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="slot-body" id="slot-2-content"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Mobile & Tablet Bottom Navigation Bar (< 900px, >= 48px touch targets) -->
+        <nav id="bottom-nav-bar" class="bottom-nav-bar" aria-label="Mobile Navigation Bar">
+            <button class="bottom-nav-item active" data-view="dashboard">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
                 </svg>
-                Reboot Device
-            </div>
-            <div class="sys-item text-red" id="btn-bootsel-mode">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M 19.82,17.11 C 14.80,24.80 2.85,21.38 2.67,12.19 2.48,3.01 14.27,-0.90 19.61,6.58 m 0.11,-2.81 0.46,3.34 -3.36,-0.45 z"/>
+                <span>Hub</span>
+            </button>
+            <button class="bottom-nav-item" data-view="logic">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
+                    <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
                 </svg>
-                Reboot to BOOTSEL Mode
+                <span>Logic</span>
+            </button>
+            <button class="bottom-nav-item" data-view="flasher">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
+                </svg>
+                <span>Flash</span>
+            </button>
+            <button class="bottom-nav-item" data-view="debugger">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M9 9l6 6M15 9l-6 6"/>
+                </svg>
+                <span>Debug</span>
+            </button>
+            <button class="bottom-nav-item" data-view="gpio">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
+                </svg>
+                <span>Pins</span>
+            </button>
+            <button class="bottom-nav-item" id="btn-bottom-more" data-view="more">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <circle cx="12" cy="12" r="1.5"/>
+                    <circle cx="19" cy="12" r="1.5"/>
+                    <circle cx="5" cy="12" r="1.5"/>
+                </svg>
+                <span>More</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Slide-Up Bottom Sheet (Touch) / Slide-Out Right Drawer (Desktop) -->
+    <div id="inspector-overlay" class="inspector-overlay"></div>
+    <aside id="inspector-drawer" class="inspector-drawer" aria-label="Tool Inspector and Configuration">
+        <div class="drawer-header">
+            <div class="drawer-drag-handle" aria-hidden="true"></div>
+            <div class="drawer-title-row">
+                <h3 class="drawer-title" id="drawer-title">Inspector &amp; Configuration</h3>
+                <button class="action-btn icon-btn drawer-close-btn" id="btn-close-drawer" aria-label="Close Inspector">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
             </div>
+        </div>
+        <div class="drawer-content" id="drawer-content">
+            <!-- Dynamically populated -->
+        </div>
+    </aside>
+
+    <!-- Mobile "More Tools" Bottom Sheet Menu -->
+    <div id="more-menu-sheet" class="more-menu-sheet">
+        <div class="sheet-drag-handle" aria-hidden="true"></div>
+        <div class="more-menu-header">
+            <h3>Additional Instruments</h3>
+            <button class="action-btn icon-btn btn-close-more" aria-label="Close">✕</button>
+        </div>
+        <div class="more-menu-grid">
+            <button class="more-tool-btn" data-view="i2c">
+                <div class="more-tool-icon">I²C</div>
+                <span>I2C Master</span>
+            </button>
+            <button class="more-tool-btn" data-view="spi">
+                <div class="more-tool-icon">SPI</div>
+                <span>SPI Master</span>
+            </button>
+            <button class="more-tool-btn" data-view="command">
+                <div class="more-tool-icon">&gt;_</div>
+                <span>Console</span>
+            </button>
+            <button class="more-tool-btn" data-view="about">
+                <div class="more-tool-icon">ℹ</div>
+                <span>About</span>
+            </button>
+            <button class="more-tool-btn" data-action="settings">
+                <div class="more-tool-icon">⚙</div>
+                <span>Settings</span>
+            </button>
+            <button class="more-tool-btn text-amber" id="btn-more-reboot">
+                <div class="more-tool-icon">↻</div>
+                <span>Reboot</span>
+            </button>
+            <button class="more-tool-btn text-red" id="btn-more-bootsel">
+                <div class="more-tool-icon">⚡</div>
+                <span>BOOTSEL</span>
+            </button>
         </div>
     </div>
 
-    <!-- Hidden Window Templates -->
-    <div style="display: none;">
+    <!-- Hidden Storage for Tool Templates -->
+    <div id="templates-store" style="display: none;">
 
         <!-- Flasher Template -->
         <div id="template-flasher" class="app-content">
@@ -222,9 +671,9 @@
 
                 <div class="control-bar" style="padding: 0; background: transparent; border: none;">
                     <button class="action-btn outline" id="btn-flash-detect">Detect Target</button>
-                    <button class="action-btn outline" id="btn-flash-program" style="border-color: var(--term-accent-color); color: #fff; background: rgba(13, 132, 250, 0.15);">Flash Target</button>
+                    <button class="action-btn outline" id="btn-flash-program" style="border-color: var(--term-accent-color); color: #fff; background: rgba(13, 132, 250, 0.2);">Flash Target</button>
                     <div style="flex-grow: 1;"></div>
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a0a0ab; cursor: pointer;">
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
                         <input type="checkbox" id="flash-verify-check" checked> Verify write
                     </label>
                     <button class="action-btn outline icon-btn" id="btn-flash-clear" title="Clear log">
@@ -334,6 +783,11 @@
                         <option value="1000000">1 MS/s</option>
                         <option value="500000">500 kS/s</option>
                     </select>
+
+                    <div class="divider"></div>
+                    <span class="dynamic-registry-pill" id="logic-bank-pill" title="Dynamic span-based capture bank claim">
+                        <span class="status-dot green"></span> <span id="logic-bank-text">Bank: GP20–GP27</span>
+                    </span>
                 </div>
             </div>
         </div>
@@ -343,7 +797,7 @@
             <div class="debugger-container">
                 <div class="dbg-header">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-weight: 600; font-size: 13px; color: #fff;">Hardware Target</span>
+                        <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">Hardware Target</span>
                         <div class="dbg-status-pill disconnected" id="dbg-status-pill">
                             <span class="status-dot"></span>
                             <span id="dbg-status-text">DISCONNECTED</span>
@@ -380,7 +834,7 @@
                             </tr>
                         </thead>
                         <tbody id="dbg-hex-body">
-                            <tr><td colspan="3" style="text-align: center; color: #a0a0ab; padding: 20px;">No memory loaded. Connect target and click Read Memory.</td></tr>
+                            <tr><td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 20px;">No memory loaded. Connect target and click Read Memory.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -392,26 +846,84 @@
         <!-- GPIO & Pin Matrix Template -->
         <div id="template-gpio" class="app-content">
             <div class="pin-matrix-container">
-                <div class="pin-group">
+                <!-- Dynamic Ownership Controls -->
+                <div class="pin-group dynamic-claims-panel">
                     <div class="pin-group-header">
-                        <span>Programmer / Probe Interface (GP0 - GP9)</span>
-                        <span style="font-size: 10px; color: #a0a0ab;">SWD / RV-SWD / WCH-SDI / UART Bootloader</span>
+                        <span>Dynamic Pin Ownership Registry (GPIO 10 – 29)</span>
+                        <span style="font-size: 10px; color: var(--accent-cyan);">Atomic Validation &amp; Conflict Reporting</span>
+                    </div>
+                    <div class="claims-control-grid">
+                        <div class="claims-field">
+                            <label>Role Preset</label>
+                            <select class="compact-select" id="gpio-claim-preset">
+                                <option value="i2c" selected>I2C1 Adapter (GP10, GP11)</option>
+                                <option value="spi">SPI1 Adapter (GP14, GP15, GP16, GP17)</option>
+                                <option value="uart">UART1 Adapter (GP12, GP13)</option>
+                                <option value="capture">PIO0 Capture Bank (GP20–GP27)</option>
+                                <option value="adc">Scope Analog (GP26, GP27)</option>
+                                <option value="custom">Custom Configuration...</option>
+                            </select>
+                        </div>
+                        <div class="claims-field">
+                            <label>Pins (10–29)</label>
+                            <input type="text" class="cmd-input" id="gpio-claim-pins" value="10,11" spellcheck="false" placeholder="10,11">
+                        </div>
+                        <div class="claims-field" style="max-width: 100px;">
+                            <label>Function</label>
+                            <select class="compact-select" id="gpio-claim-func">
+                                <option value="3" selected>I2C (3)</option>
+                                <option value="1">SPI (1)</option>
+                                <option value="2">UART (2)</option>
+                                <option value="6">PIO0 (6)</option>
+                                <option value="7">PIO1 (7)</option>
+                                <option value="5">SIO (5)</option>
+                            </select>
+                        </div>
+                        <div class="claims-field claims-field-check">
+                            <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="gpio-claim-observer"> Observer Only (Shared Read)
+                            </label>
+                        </div>
+                        <div class="claims-btn-row">
+                            <button class="action-btn outline btn-sm" id="btn-gpio-claim">Claim (PINCLAIM)</button>
+                            <button class="action-btn outline btn-sm" id="btn-gpio-safediscover">Safe Discover</button>
+                        </div>
+                    </div>
+
+                    <div class="claims-release-row">
+                        <div class="claims-field" style="max-width: 140px;">
+                            <label>Active Handle</label>
+                            <input type="text" class="cmd-input" id="gpio-release-handle" placeholder="Handle #" spellcheck="false">
+                        </div>
+                        <button class="action-btn outline btn-sm" id="btn-gpio-release" style="margin-top: 14px;">Release Handle</button>
+                        <div style="flex-grow: 1;"></div>
+                        <span id="gpio-active-claims-summary" style="font-size: 11px; color: var(--text-secondary); align-self: center;">No active user claims.</span>
+                    </div>
+                </div>
+
+                <!-- Domain 1: Fixed Programmer -->
+                <div class="pin-group domain-fixed-block">
+                    <div class="pin-group-header">
+                        <span>🔒 Fixed Programmer Block (GP0 - GP9)</span>
+                        <span style="font-size: 10px; color: var(--text-secondary);">SWD / RV-SWD / WCH-SDI / UART Bootloader (Fixed)</span>
                     </div>
                     <div class="pin-matrix-grid" id="gpio-grid-prog"></div>
                 </div>
 
+                <!-- Domain 2: Flexible Adapter -->
                 <div class="pin-group">
                     <div class="pin-group-header">
-                        <span>Adapter Interface (GP10 - GP19)</span>
-                        <span style="font-size: 10px; color: #a0a0ab;">I2C1 / UART1 / SPI1 / CAN</span>
+                        <span>⚡ Flexible Adapter Interface (GP10 - GP19)</span>
+                        <span style="font-size: 10px; color: var(--text-secondary);">I2C1 / UART1 / SPI1 / CAN / I3C (Dynamic Claims)</span>
                     </div>
                     <div class="pin-matrix-grid" id="gpio-grid-adapt"></div>
                 </div>
 
+                <!-- Domain 3: Flexible Analyzer & ADC -->
                 <div class="pin-group">
                     <div class="pin-group-header">
-                        <span>Logic Analyzer (GP20 - GP29)</span>
-                        <span style="font-size: 10px; color: #a0a0ab;">10-Channel Passive Capture (PIO0)</span>
+                        <span>⚡ Flexible Logic Analyzer &amp; ADC (GP20 - GP29)</span>
+                        <span style="font-size: 10px; color: var(--text-secondary);">Span-based Capture Bank (PIO0) / GP26–GP29: Analog Capable</span>
                     </div>
                     <div class="pin-matrix-grid" id="gpio-grid-la"></div>
                 </div>
@@ -419,7 +931,7 @@
                 <div class="control-bar" style="padding: 0; background: transparent; border: none;">
                     <button class="action-btn outline" id="btn-gpio-refresh">Refresh All Pins</button>
                     <div style="flex-grow: 1;"></div>
-                    <pre id="gpio-log-text" style="font-size: 11px; color: #a0a0ab; margin: 0; background: none; border: none; padding: 0;">Click a pin chip to inspect or claim state.</pre>
+                    <pre id="gpio-log-text" style="font-size: 11px; color: var(--text-secondary); margin: 0; background: none; border: none; padding: 0;">Click a pin chip to inspect or claim state.</pre>
                 </div>
             </div>
         </div>
@@ -455,6 +967,10 @@
                         <button class="action-btn outline" id="btn-i2c-write">Write</button>
                         <button class="action-btn outline" id="btn-i2c-read">Read</button>
                         <button class="action-btn outline" id="btn-i2c-wr">Write then Read</button>
+                        <span class="dynamic-registry-pill" id="i2c-claim-pill" title="Dynamic pin claim handle">
+                            <span class="status-dot green"></span> <span id="i2c-claim-text">Claim: GP10,GP11</span>
+                        </span>
+                        <button class="action-btn outline btn-sm" id="btn-i2c-release-claim" title="Release I2C dynamic pin claim">Release</button>
                         <div class="bus-right-controls">
                             <select class="compact-select" id="i2c-baud">
                                 <option value="100000">100 kHz (Std)</option>
@@ -502,6 +1018,10 @@
                         <button class="action-btn outline" id="btn-spi-write">Write</button>
                         <button class="action-btn outline" id="btn-spi-read">Read</button>
                         <button class="action-btn outline" id="btn-spi-wr">Write then Read</button>
+                        <span class="dynamic-registry-pill" id="spi-claim-pill" title="Dynamic pin claim handle">
+                            <span class="status-dot green"></span> <span id="spi-claim-text">Claim: GP14-17</span>
+                        </span>
+                        <button class="action-btn outline btn-sm" id="btn-spi-release-claim" title="Release SPI dynamic pin claim">Release</button>
                         <div class="bus-right-controls">
                             <select class="compact-select" id="spi-baud">
                                 <option value="1000000" selected>1 MHz</option>
@@ -547,10 +1067,10 @@
                     <!-- Interactive SVG pinout generated by app.js -->
                 </div>
                 <div class="about-container" style="display: flex; flex-direction: row; box-sizing: border-box; align-items: center; gap: 20px; padding: 10px 0;">
-                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid rgba(255, 255, 255, 0.08); padding-right: 20px;">
-                        <div style="font-size: 18px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">AgentLA</div>
-                        <div style="margin-bottom: 12px; font-size: 12px; color: #a0a0ab;">Embedded Bring-Up &amp; Debug Multitool</div>
-                        <div style="font-size: 11px; color: #34c759; background: rgba(52, 199, 89, 0.12); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(52, 199, 89, 0.3);">
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid var(--border-color); padding-right: 20px;">
+                        <div style="font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px;">AgentLA</div>
+                        <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-secondary);">Embedded Bring-Up &amp; Debug Multitool</div>
+                        <div style="font-size: 11px; color: var(--accent-green); background: rgba(52, 199, 89, 0.12); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(52, 199, 89, 0.3);">
                             RP2350 High-Speed Core
                         </div>
                     </div>
@@ -560,7 +1080,7 @@
                             <tr><td>Chip Target</td><td class="info-chip">RP2350 (ARM / RISC-V)</td></tr>
                             <tr><td>Programmer Modes</td><td>SWD, RV-SWD, WCH-SDI</td></tr>
                             <tr><td>Logic Channels</td><td>10-Ch (100 MS/s PIO0)</td></tr>
-                            <tr><td>Adapter Masters</td><td>I2C1, SPI1, UART1, CAN</td></tr>
+                            <tr><td>Adapter Masters</td><td>I2C1, SPI1, UART1, CAN, I3C</td></tr>
                             <tr><td>Clock Freq</td><td class="info-clock">150 MHz</td></tr>
                         </table>
                     </div>
@@ -572,7 +1092,19 @@
         <div id="template-settings" class="app-content">
             <div class="settings-container">
                 <div class="settings-section">
-                    <div class="settings-section-title">Appearance</div>
+                    <div class="settings-section-title">Theme &amp; Appearance</div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">Color Theme</div>
+                            <div class="settings-subtext">Toggle between Deep Dark lab slate and High-Contrast Light</div>
+                        </div>
+                        <div class="settings-control-group">
+                            <select class="compact-select settings-theme-select" id="settings-theme-select">
+                                <option value="dark">Deep Dark (#08111d)</option>
+                                <option value="light">High-Contrast Light</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="settings-row settings-row-stack">
                         <div><div class="settings-label">Wallpaper Hue</div></div>
                         <div class="settings-control-group">
@@ -583,8 +1115,26 @@
                         <div><div class="settings-label">Transparency Effect</div></div>
                         <select class="compact-select settings-select settings-transparency-select">
                             <option value="transparent">Acrylic Glass (Transparent)</option>
-                            <option value="solid">Solid Dark Slate</option>
+                            <option value="solid">Solid Slate</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Device Hardware Actions</div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">Reboot AgentLA Device</div>
+                            <div class="settings-subtext">Restart MCU firmware and USB peripheral stack</div>
+                        </div>
+                        <button class="action-btn outline btn-sm" id="btn-reboot">Reboot Device</button>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label text-red">Reboot into USB BOOTSEL Mode</div>
+                            <div class="settings-subtext">Drop into RP2350 ROM bootloader for UF2 drag-and-drop firmware upgrades</div>
+                        </div>
+                        <button class="action-btn outline btn-sm text-red" id="btn-bootsel-mode" style="border-color: rgba(255, 69, 58, 0.4);">Enter BOOTSEL</button>
                     </div>
                 </div>
             </div>
@@ -592,8 +1142,7 @@
 
     </div>
 
-    <!-- Scripts -->
-    <script src="winbox.js"></script>
+    <!-- Application Script -->
     <script src="app.js"></script>
 </body>
 </html>

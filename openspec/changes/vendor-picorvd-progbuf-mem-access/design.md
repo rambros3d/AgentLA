@@ -14,7 +14,7 @@ Constraints: the public API (`riscv_read_mem`, `riscv_write_mem`, `riscv_write_h
 
 **Goals:**
 - Port `prog_get_set_u32` as a single combined get/set aligned memory access (A0/A1-only clobber).
-- Port `get_block_aligned` and `set_block_aligned` with `ABSTRACTAUTO_AUTOEXECDATA` pipelining.
+- Port `get_block_aligned` and `set_block_aligned` using explicit per-word `POSTEXEC` (avoiding `ABSTRACTAUTO_AUTOEXECDATA` streaming which wedges WCH silicon after ~30-80 executions).
 - Centralize per-family DTM magic offsets in a single lookup keyed on `chip_type`: CH32V003 `0xF4`/`0xF8`, CH32V20x/V30x `0x380`/`0x384`.
 - Rename the transport enum to `CH32_MODE_SWIO`/`CH32_MODE_RVSWD` and make mode dispatch exhaustive (switch + default error).
 - Route aligned reads/writes in `riscv_dmi.c` through the vendored single-program path; use block-aligned read for flash readback.
@@ -53,7 +53,7 @@ Program tables are grouped in a new section with a header crediting PicoRVD / aa
 
 - [CH32V003 hardware untested for this change] → The `0xF4`/`0xF8` offsets are PicoRVD's shipped values used on real V003 silicon; the block-read path is already validated on V203. V003 read/flash/debug over SWIO is a **mandatory completion-gate task**, not optional.
 - [Changing the hot mem path could regress V203 flash] → Keep `ch32_progbuf_flash_write` untouched; only the readback path changes. Validate via existing readback parity tests before/after.
-- [ABSTRACTAUTO ordering bug on V203] → Preserve the existing "POSTEXEC before ABSTRACTAUTO" ordering (documented at `ch32_progbuf.c:103-107`) in all pipelined helpers.
+- [ABSTRACTAUTO hardware wedge on WCH DM] → WCH Debug Module hardware wedges after ~30-80 AUTOEXECDATA streamed executions (discovered in F9 of `import-rvswd-pio-transport`). Mitigated by switching block access routines (`ch32_progbuf_get_block_aligned` / `set_block_aligned`) to explicit per-word `POSTEXEC` executions.
 - [Unaligned accesses] → The vendored programs require 4-byte alignment; all callers are checked at the wrapper boundary, unaligned falls back to prior behavior.
 
 ## Migration Plan

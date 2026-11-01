@@ -63,6 +63,10 @@ pico_generate_pio_header(${PROJECT_NAME}
     ${CMAKE_CURRENT_LIST_DIR}/firmware/src/programmer/rvswd/rvswd.pio
 )
 
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/i3c.pio
+)
+
 pico_set_program_name(AgentLA "AgentLA")
 pico_set_program_version(AgentLA "1.0")
 add_compile_definitions(FIRMWARE_VERSION="v1.0")
@@ -108,8 +112,6 @@ pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/index.html
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/app.js
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/style.css
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/winbox.min.css
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/winbox.js
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/wallpaper.svg
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/mcp.json
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/ok.json
