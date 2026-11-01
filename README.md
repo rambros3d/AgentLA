@@ -107,6 +107,39 @@ AgentLA runs an embedded HTTP server and virtual network stack over USB, deliver
 
 ---
 
+### 6. Model Context Protocol (MCP) Server & Agentic Hardware Bring-Up (`MCP`)
+AgentLA is purpose-built for the age of agentic engineering. It embeds a native **Model Context Protocol (MCP)** server over its USB virtual Ethernet interface (`http://192.168.7.1/mcp` or `http://agentla.lab/mcp`), enabling AI coding agents (such as Google Antigravity, Claude Desktop, Cursor, and Cline) to directly inspect, interact with, flash, and verify real physical circuits in an autonomous closed loop.
+
+* **Native Embedded HTTP JSON-RPC 2.0**:
+  * Direct tool execution via `POST /mcp` with standard JSON-RPC payloads, or query parameters via `GET /mcp?method=cmd&name=<cmd>&args=<args>`.
+  * Tool discovery endpoint (`GET /mcp?method=list`) exposing hardware capabilities:
+    * `TARGET DETECT` / `SWD` / `CH32` / `PY32`: Autonomous target MCU identification, core status, and flash configuration.
+    * `FLASH`: Memory reads, sector erases, FLM pack algorithm execution, and hex writes.
+    * `CAPTURE`: Configurable logic analyzer acquisition, signal triggers, and protocol decoding.
+    * `I2C_READ` / `I2C_WRITE`: Target I²C sensor and peripheral bus interrogation.
+    * `UART_READ` / `UART_WRITE`: Serial telemetry exchange and target bootloader handshaking.
+    * `ADC` / `MEASURE`: Voltage measurement and logic rail verification.
+    * `PINCLAIM` / `PINRELEASE` / `SAFEDISCOVER`: Hardware pin arbitration and bus safety checks.
+* **Asynchronous Jobs & Event Streaming**:
+  * Non-blocking queueing for long operations (bulk flash erases, deep logic captures) with asynchronous status polling (`job_status`, `cancel`).
+  * Server-Sent Events (`sse_push`) for real-time progress notifications.
+* **Hardware Safety Classes**:
+  * Built-in safety filters prevent destructive self-tests or diagnostic commands unless explicitly authorized.
+* **Agent Integration Example**:
+  Add AgentLA to your agent MCP configuration (e.g. `claude_desktop_config.json` or Antigravity MCP settings):
+  ```json
+  {
+    "mcpServers": {
+      "agentla": {
+        "url": "http://192.168.7.1/mcp"
+      }
+    }
+  }
+  ```
+  AI models can compile embedded C/Rust firmware, flash the binary through AgentLA, trigger a logic capture, decode UART/I²C packets, and verify test assertions completely autonomously.
+
+---
+
 ## Quick Start
 
 ### 1. Flashing AgentLA Firmware
