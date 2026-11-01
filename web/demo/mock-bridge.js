@@ -205,6 +205,65 @@
                 }
             };
         }
+        else if (cleanName === 'OUTCLAIM') {
+            const pinMatch = cleanArgs.match(/pin=(\d+)/i);
+            const pin = pinMatch ? parseInt(pinMatch[1], 10) : 12;
+            const handleId = `HNDL_PWM_${++simState.claimCounter}`;
+            simState.activeClaims.set(handleId, { pins: [pin], func: 4, observer: 0 });
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: `OK OUTCLAIM HANDLE=${handleId} PIN=${pin} MODE=PWM`,
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName === 'OUTSET') {
+            const pinMatch = cleanArgs.match(/pin=(\d+)/i);
+            const freqMatch = cleanArgs.match(/freq=(\d+)/i);
+            const dutyMatch = cleanArgs.match(/duty=(\d+)/i);
+            const pin = pinMatch ? pinMatch[1] : '12';
+            const freq = freqMatch ? freqMatch[1] : '1000';
+            const duty = dutyMatch ? dutyMatch[1] : '50';
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: `OK OUTSET PIN=${pin} FREQ=${freq} DUTY=${duty}`,
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName === 'OUTRELEASE') {
+            const pinMatch = cleanArgs.match(/pin=(\d+)/i);
+            const pin = pinMatch ? parseInt(pinMatch[1], 10) : 12;
+            for (const [h, claim] of simState.activeClaims.entries()) {
+                if (claim.pins.includes(pin) && claim.func === 4) {
+                    simState.activeClaims.delete(h);
+                    break;
+                }
+            }
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: `OK OUTRELEASE PIN=${pin}`,
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName === 'ADCSCOPE' || cleanName === 'ADC') {
+            const now = Date.now();
+            const v0 = (1.65 + Math.sin(now / 200) * 0.8).toFixed(3);
+            const v1 = (0.80 + Math.cos(now / 150) * 0.5).toFixed(3);
+            const v2 = (2.20 + Math.sin(now / 300) * 0.4).toFixed(3);
+            const v3 = (1.10 + Math.sin(now / 100) * 0.2).toFixed(3);
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: `OK ADC CH0=${v0} CH1=${v1} CH2=${v2} CH3=${v3} RAW=2048,1000,2700,1360`,
+                    status: 0
+                }
+            };
+        }
         else if (cleanName === 'CONFIGURE' || cleanName === 'CAPTURE') {
             responsePayload = {
                 ok: true,

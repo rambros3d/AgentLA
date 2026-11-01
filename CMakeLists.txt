@@ -98,6 +98,7 @@ target_link_libraries(AgentLA
     hardware_flash
     hardware_exception
     hardware_adc
+    hardware_pwm
     hardware_vreg
     pico_multicore
     pico_base_headers

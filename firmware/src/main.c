@@ -16,6 +16,8 @@
 #include "pico/bootrom.h"
 #include "hardware/uart.h"
 #include "hardware/watchdog.h"
+#include "hardware/pwm.h"
+#include "hardware/adc.h"
 #include "capture.pio.h"
 #include "loopback.pio.h"
 #include "analyzer/capture.h"
@@ -1299,7 +1301,218 @@ static void cmd_measure(char* args) {
     send_response("PWM FREQ 1000.0 Hz PERIOD 0.001s DUTY 50.0%");
 }
 
+/* --- Hardware PWM Signal Generator --- */
+typedef struct {
+    uint8_t pin;
+    uint32_t claim_handle;
+    uint32_t freq;
+    uint8_t duty;
+    bool active;
+} pwm_generator_slot_t;
+
+static pwm_generator_slot_t pwm_slots[PIN_OWNER_FLEX_MAX - PIN_OWNER_FLEX_MIN + 1];
+
+static void pwm_generator_init(void) {
+    memset(pwm_slots, 0, sizeof(pwm_slots));
+}
+
+static pwm_generator_slot_t* get_pwm_slot(uint8_t pin) {
+    if (pin < PIN_OWNER_FLEX_MIN || pin > PIN_OWNER_FLEX_MAX) return NULL;
+    return &pwm_slots[pin - PIN_OWNER_FLEX_MIN];
+}
+
+static void cmd_out_claim(char* args) {
+    uint8_t pin = 255;
+    char mode[16] = "PWM";
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "pin=", 4) == 0) {
+            pin = (uint8_t)atoi(token + 4);
+        } else if (strncmp(token, "mode=", 5) == 0) {
+            strncpy(mode, token + 5, sizeof(mode) - 1);
+            mode[sizeof(mode) - 1] = '\0';
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (!pin_owner_is_flexible(pin)) {
+        send_response("ERR OUTCLAIM pin must be 10-29 (flexible pool)");
+        return;
+    }
+
+    pwm_generator_slot_t* slot = get_pwm_slot(pin);
+    if (!slot) {
+        send_response("ERR OUTCLAIM invalid pin");
+        return;
+    }
+
+    if (slot->active) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "OK OUTCLAIM HANDLE=%lu PIN=%u MODE=%s ALREADY_ACTIVE",
+                 (unsigned long)slot->claim_handle, pin, mode);
+        send_response(msg);
+        return;
+    }
+
+    uint32_t handle = 0;
+    if (!pin_owner_claim_pins(&pin, 1, GPIO_FUNC_PWM, 0, &handle)) {
+        send_response("ERR OUTCLAIM pin unavailable (already claimed)");
+        return;
+    }
+
+    gpio_set_function(pin, GPIO_FUNC_PWM);
+    slot->pin = pin;
+    slot->claim_handle = handle;
+    slot->active = true;
+    slot->freq = 1000;
+    slot->duty = 50;
+
+    char msg[128];
+    snprintf(msg, sizeof(msg), "OK OUTCLAIM HANDLE=%lu PIN=%u MODE=%s",
+             (unsigned long)handle, pin, mode);
+    send_response(msg);
+}
+
+static void cmd_out_set(char* args) {
+    uint8_t pin = 255;
+    uint32_t freq = 0;
+    int duty = -1;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "pin=", 4) == 0) {
+            pin = (uint8_t)atoi(token + 4);
+        } else if (strncmp(token, "freq=", 5) == 0) {
+            freq = (uint32_t)strtoul(token + 5, NULL, 10);
+        } else if (strncmp(token, "duty=", 5) == 0) {
+            duty = atoi(token + 5);
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (!pin_owner_is_flexible(pin)) {
+        send_response("ERR OUTSET pin must be 10-29");
+        return;
+    }
+
+    pwm_generator_slot_t* slot = get_pwm_slot(pin);
+    if (!slot || !slot->active) {
+        send_response("ERR OUTSET pin not claimed (run OUTCLAIM first)");
+        return;
+    }
+
+    if (freq < 1) freq = 1;
+    if (freq > 50000000) freq = 50000000;
+    if (duty < 0) duty = 0;
+    if (duty > 100) duty = 100;
+
+    uint32_t f_sys = clock_get_hz(clk_sys);
+    if (f_sys == 0) f_sys = 150000000;
+
+    float div = (float)f_sys / ((float)freq * 65536.0f);
+    if (div < 1.0f) div = 1.0f;
+    if (div > 255.0f) div = 255.0f;
+
+    uint32_t wrap = (uint32_t)((float)f_sys / ((float)freq * div));
+    if (wrap > 0) wrap -= 1;
+    if (wrap > 65534) wrap = 65534;
+    if (wrap < 1) wrap = 1;
+
+    uint32_t level = ((wrap + 1) * (uint32_t)duty) / 100;
+    if (duty >= 100) level = wrap + 1;
+
+    uint slice = pwm_gpio_to_slice_num(pin);
+    uint chan = pwm_gpio_to_channel(pin);
+
+    pwm_set_clkdiv(slice, div);
+    pwm_set_wrap(slice, (uint16_t)wrap);
+    pwm_set_chan_level(slice, chan, (uint16_t)level);
+    pwm_set_enabled(slice, true);
+
+    slot->freq = freq;
+    slot->duty = (uint8_t)duty;
+
+    char msg[128];
+    snprintf(msg, sizeof(msg), "OK OUTSET PIN=%u FREQ=%lu DUTY=%d", pin, (unsigned long)freq, duty);
+    send_response(msg);
+}
+
+static void cmd_out_release(char* args) {
+    uint8_t pin = 255;
+    uint32_t handle = 0;
+
+    char* token = strtok(args, " ");
+    while (token != NULL) {
+        if (strncmp(token, "pin=", 4) == 0) {
+            pin = (uint8_t)atoi(token + 4);
+        } else if (strncmp(token, "handle=", 7) == 0) {
+            handle = (uint32_t)strtoul(token + 7, NULL, 10);
+        }
+        token = strtok(NULL, " ");
+    }
+
+    if (pin == 255 && handle != 0) {
+        for (uint8_t p = PIN_OWNER_FLEX_MIN; p <= PIN_OWNER_FLEX_MAX; p++) {
+            if (pwm_slots[p - PIN_OWNER_FLEX_MIN].active &&
+                pwm_slots[p - PIN_OWNER_FLEX_MIN].claim_handle == handle) {
+                pin = p;
+                break;
+            }
+        }
+    }
+
+    if (!pin_owner_is_flexible(pin)) {
+        send_response("ERR OUTRELEASE invalid pin");
+        return;
+    }
+
+    pwm_generator_slot_t* slot = get_pwm_slot(pin);
+    if (!slot || !slot->active) {
+        send_response("ERR OUTRELEASE pin not claimed by signal generator");
+        return;
+    }
+
+    uint slice = pwm_gpio_to_slice_num(pin);
+    pwm_set_enabled(slice, false);
+    gpio_set_function(pin, GPIO_FUNC_SIO);
+    gpio_set_dir(pin, GPIO_IN);
+
+    pin_owner_result_t res = PIN_OWNER_OK;
+    pin_owner_release_claim(slot->claim_handle, &res);
+
+    slot->active = false;
+    slot->claim_handle = 0;
+
+    char msg[128];
+    snprintf(msg, sizeof(msg), "OK OUTRELEASE PIN=%u", pin);
+    send_response(msg);
+}
+
+static void cmd_adc_scope_read(void) {
+    adc_init();
+    for (uint pin = 26; pin <= 29; pin++) {
+        adc_gpio_init(pin);
+    }
+    float voltages[4];
+    uint16_t raws[4];
+    for (uint ch = 0; ch < 4; ch++) {
+        adc_select_input(ch);
+        raws[ch] = adc_read();
+        voltages[ch] = (float)raws[ch] * 3.3f / 4096.0f;
+    }
+    char msg[128];
+    snprintf(msg, sizeof(msg), "OK ADC CH0=%.3f CH1=%.3f CH2=%.3f CH3=%.3f RAW=%u,%u,%u,%u",
+             voltages[0], voltages[1], voltages[2], voltages[3],
+             raws[0], raws[1], raws[2], raws[3]);
+    send_response(msg);
+}
+
 static void cmd_adc(char* args) {
+    if (args != NULL && (strstr(args, "SCOPE") || strstr(args, "scope") || strstr(args, "READ") || strstr(args, "read") || strstr(args, "ALL") || strstr(args, "all"))) {
+        cmd_adc_scope_read();
+        return;
+    }
     char* token = strtok(args, " ");
     uint32_t pin = 26;
     uint32_t rate = 100000;
@@ -3048,6 +3261,10 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "SAFEDISCOVER") == 0) cmd_safe_discover(args ? args : "");
     else if(strcmp(cmd, "CAPTURECLAIM") == 0) cmd_capture_claim(args ? args : "");
     else if(strcmp(cmd, "CAPTURERELEASE") == 0) cmd_capture_release(args ? args : "");
+    else if(strcmp(cmd, "OUTCLAIM") == 0) cmd_out_claim(args ? args : "");
+    else if(strcmp(cmd, "OUTSET") == 0) cmd_out_set(args ? args : "");
+    else if(strcmp(cmd, "OUTRELEASE") == 0) cmd_out_release(args ? args : "");
+    else if(strcmp(cmd, "ADCSCOPE") == 0 || strcmp(cmd, "ADCREAD") == 0) cmd_adc_scope_read();
     else if(strcmp(cmd, "VERSION") == 0) cmd_version();
     else if(strcmp(cmd, "CONFIRM") == 0) cmd_confirm();
     else if(strcmp(cmd, "CRASHINFO") == 0) cmd_crashinfo();
@@ -3683,6 +3900,7 @@ int main() {
 
     /* Initialize pin ownership with a blank flexible registry. */
     pin_owner_init();
+    pwm_generator_init();
 
     /* Initialize adapter I2C only - skip UART init to avoid GPIO 4/5 conflict with SWD */
     adapter_init_i2c_only();

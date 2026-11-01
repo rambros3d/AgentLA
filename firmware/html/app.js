@@ -10,6 +10,8 @@ const host = window.location.hostname || "192.168.7.1";
 
 const APP_TITLES = Object.freeze({
     logic: "Logic Analyzer",
+    generator: "Signal Generator",
+    scope: "Analog Scope",
     flasher: "Target Flasher",
     debugger: "Target Debugger",
     gpio: "GPIO & Pin Matrix",
@@ -19,6 +21,27 @@ const APP_TITLES = Object.freeze({
     about: "About & Pinout",
     settings: "System Settings"
 });
+
+function formatFreq(hz) {
+    if (!hz || isNaN(hz) || hz <= 0) return '0 Hz';
+    if (hz >= 1e6) return (hz / 1e6).toFixed(2) + ' MHz';
+    if (hz >= 1e3) return (hz / 1e3).toFixed(2) + ' kHz';
+    return hz.toFixed(0) + ' Hz';
+}
+
+function formatDuration(us) {
+    if (!us || isNaN(us) || us <= 0) return '0 µs';
+    if (us >= 1e6) return (us / 1e6).toFixed(2) + ' s';
+    if (us >= 1e3) return (us / 1e3).toFixed(2) + ' ms';
+    if (us >= 1) return us.toFixed(1) + ' µs';
+    return (us * 1e3).toFixed(0) + ' ns';
+}
+
+const APP_CLEANUPS = {
+    scope: null,
+    generator: null,
+    logic: null
+};
 
 // UI Settings storage
 const UI_SETTINGS_STORAGE_KEY = 'agentla-ui-settings';
@@ -262,6 +285,12 @@ function mountTool(slotId, toolName) {
     const templateElement = document.getElementById(`template-${toolName}`);
     if (!targetSlotContent || !templateElement) return;
 
+    const prevTool = slotMountedTools[slotId];
+    if (prevTool && APP_CLEANUPS[prevTool]) {
+        try { APP_CLEANUPS[prevTool](); } catch (e) { console.warn(e); }
+        APP_CLEANUPS[prevTool] = null;
+    }
+
     targetSlotContent.innerHTML = '';
     const content = templateElement.cloneNode(true);
     content.style.display = 'block';
@@ -298,7 +327,7 @@ function swapSlots() {
 }
 
 // --------------------------------------------------------------------------
-// Quick Split Presets (Task 4.3)
+// Quick Split Presets (Task 4.3 & Phase 5)
 // --------------------------------------------------------------------------
 function applyPresetBusDebug() {
     switchView('instruments');
@@ -314,6 +343,68 @@ function applyPresetTargetBringUp() {
     mountTool(1, 'flasher');
     mountTool(2, 'command');
     updateNavActiveStates('flasher');
+}
+
+async function applyPresetSniffI2c() {
+    switchView('instruments');
+    setWorkspaceMode('split');
+    mountTool(1, 'i2c');
+    mountTool(2, 'logic');
+    updateNavActiveStates('i2c');
+    // Claim adapter driver on GP10,11
+    await callMcp('cmd', 'PINCLAIM', 'pins=10,11 func=3 observer=0');
+    // Claim logic capture observer on identical pins
+    await callMcp('cmd', 'CAPTURECLAIM', 'pins=10,11 trigger=10');
+    const logicContainer = document.getElementById('slot-2-content');
+    if (logicContainer) {
+        const protoSel = logicContainer.querySelector('.decoder-protocol');
+        if (protoSel) {
+            protoSel.value = 'i2c';
+            protoSel.dispatchEvent(new Event('change'));
+        }
+        const baseSel = logicContainer.querySelector('.logic-base-pin');
+        if (baseSel) {
+            baseSel.value = '10';
+            baseSel.dispatchEvent(new Event('change'));
+        }
+        const spanSel = logicContainer.querySelector('.logic-channel-count');
+        if (spanSel) {
+            spanSel.value = '2';
+            spanSel.dispatchEvent(new Event('change'));
+        }
+    }
+    syncPinRegistry();
+}
+
+async function applyPresetSniffSpi() {
+    switchView('instruments');
+    setWorkspaceMode('split');
+    mountTool(1, 'spi');
+    mountTool(2, 'logic');
+    updateNavActiveStates('spi');
+    // Claim adapter driver on GP14,15,16,17
+    await callMcp('cmd', 'PINCLAIM', 'pins=14,15,16,17 func=1 observer=0');
+    // Claim logic capture observer on identical pins
+    await callMcp('cmd', 'CAPTURECLAIM', 'pins=14,15,16,17 trigger=14');
+    const logicContainer = document.getElementById('slot-2-content');
+    if (logicContainer) {
+        const protoSel = logicContainer.querySelector('.decoder-protocol');
+        if (protoSel) {
+            protoSel.value = 'spi';
+            protoSel.dispatchEvent(new Event('change'));
+        }
+        const baseSel = logicContainer.querySelector('.logic-base-pin');
+        if (baseSel) {
+            baseSel.value = '14';
+            baseSel.dispatchEvent(new Event('change'));
+        }
+        const spanSel = logicContainer.querySelector('.logic-channel-count');
+        if (spanSel) {
+            spanSel.value = '4';
+            spanSel.dispatchEvent(new Event('change'));
+        }
+    }
+    syncPinRegistry();
 }
 
 // --------------------------------------------------------------------------
@@ -865,10 +956,16 @@ function initLogicAnalyzer(container) {
     const decoderMenu = $(container, '.decoder-menu');
     const decoderApply = $(container, '.decoder-apply');
     const bankText = $(container, '#logic-bank-text');
+    const basePinSelect = $(container, '.logic-base-pin');
+    const channelCountSelect = $(container, '.logic-channel-count');
+    const timingBar = $(container, '#logic-timing-bar');
 
+    let basePin = basePinSelect ? parseInt(basePinSelect.value, 10) : 20;
+    let channelCount = channelCountSelect ? parseInt(channelCountSelect.value, 10) : 8;
     let trigEdgeRising = true;
     let activeChannels = [0, 1];
     let rawLogicData = null;
+    let currentMeasurements = [];
     let decodedFrames = [];
     let displayedSampleRate = sampleRateSelect ? parseFloat(sampleRateSelect.value) : 10000000;
     let xOffsetSamples = 0;
@@ -916,29 +1013,76 @@ function initLogicAnalyzer(container) {
         });
     }
 
-    pinBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const ch = parseInt(btn.getAttribute('data-pin'), 10);
-            if (btn.classList.contains('active')) {
-                if (activeChannels.length > 1) {
-                    btn.classList.remove('active');
-                    activeChannels = activeChannels.filter(c => c !== ch);
-                }
-            } else {
-                btn.classList.add('active');
-                activeChannels.push(ch);
-                activeChannels.sort((a, b) => a - b);
+    function rebuildChannels(newBase, newCount) {
+        basePin = newBase;
+        channelCount = newCount;
+        activeChannels = [];
+        for (let i = 0; i < Math.min(channelCount, 4); i++) activeChannels.push(i);
+        if (activeChannels.length === 0) activeChannels.push(0);
+
+        const channelsContainer = container.querySelector('.logic-channels');
+        if (channelsContainer) {
+            channelsContainer.innerHTML = '';
+            for (let i = 0; i < channelCount; i++) {
+                const btn = document.createElement('button');
+                btn.className = `pin-select-btn ${activeChannels.includes(i) ? 'active' : ''}`;
+                btn.setAttribute('data-pin', i);
+                btn.textContent = `D${i} (GP${basePin + i})`;
+                btn.addEventListener('click', () => {
+                    if (btn.classList.contains('active')) {
+                        if (activeChannels.length > 1) {
+                            btn.classList.remove('active');
+                            activeChannels = activeChannels.filter(c => c !== i);
+                        }
+                    } else {
+                        btn.classList.add('active');
+                        activeChannels.push(i);
+                        activeChannels.sort((a, b) => a - b);
+                    }
+                    updateBankSpanLabel();
+                    forceRedraw();
+                });
+                channelsContainer.appendChild(btn);
             }
-            updateBankSpanLabel();
-            forceRedraw();
+        }
+
+        if (trigSrcSelect) {
+            const curVal = trigSrcSelect.value;
+            trigSrcSelect.innerHTML = '';
+            for (let i = 0; i < channelCount; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = `D${i}`;
+                if (String(i) === curVal) opt.selected = true;
+                trigSrcSelect.appendChild(opt);
+            }
+        }
+
+        updateBankSpanLabel();
+        forceRedraw();
+    }
+
+    if (basePinSelect) {
+        basePinSelect.addEventListener('change', () => {
+            const p = parseInt(basePinSelect.value, 10);
+            rebuildChannels(p, channelCount);
         });
-    });
+    }
+
+    if (channelCountSelect) {
+        channelCountSelect.addEventListener('change', () => {
+            const c = parseInt(channelCountSelect.value, 10);
+            rebuildChannels(basePin, c);
+        });
+    }
+
+    rebuildChannels(basePin, channelCount);
 
     function updateBankSpanLabel() {
         if (!bankText || activeChannels.length === 0) return;
         const low = Math.min(...activeChannels);
         const high = Math.max(...activeChannels);
-        bankText.textContent = `Bank: GP${20 + low}–GP${20 + high}${activeCaptureBankHandle ? ` (#${activeCaptureBankHandle})` : ''}`;
+        bankText.textContent = `Bank: GP${basePin + low}–GP${basePin + high}${activeCaptureBankHandle ? ` (#${activeCaptureBankHandle})` : ''}`;
     }
 
     if (trigEdgeBtn) {
@@ -1099,8 +1243,8 @@ function initLogicAnalyzer(container) {
             displayedSampleRate = parseFloat(rate);
 
             // Dynamically claim capture bank span in flexible pool (GP10–GP29)
-            const physicalPins = activeChannels.map(ch => 20 + ch);
-            const triggerPin = 20 + trigCh;
+            const physicalPins = activeChannels.map(ch => basePin + ch);
+            const triggerPin = basePin + trigCh;
 
             const claimRes = await callMcp('cmd', 'CAPTURECLAIM', `pins=${physicalPins.join(',')} trigger=${triggerPin}`);
             if (claimRes.ok && claimRes.stdout) {
@@ -1115,14 +1259,21 @@ function initLogicAnalyzer(container) {
             btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Capturing...';
             await callMcp('cmd', 'CAPTURE', `samples=${numSamples} mode=R`);
 
-            const dummyData = new Uint8Array(numSamples);
-            for (let i = 0; i < numSamples; i++) {
-                const clk = (Math.floor(i / 16) % 2) << 0;
-                const data = (Math.floor(i / 32) % 2) << 1;
-                const pulse = (Math.floor(i / 64) % 2) << 2;
-                dummyData[i] = clk | data | pulse;
+            if (window.generateSyntheticWaveforms) {
+                rawLogicData = window.generateSyntheticWaveforms(numSamples);
+            } else {
+                const dummyData = new Uint8Array(numSamples);
+                for (let i = 0; i < numSamples; i++) {
+                    const clk = (Math.floor(i / 16) % 2) << 0;
+                    const data = (Math.floor(i / 32) % 2) << 1;
+                    const pulse = (Math.floor(i / 64) % 2) << 2;
+                    dummyData[i] = clk | data | pulse;
+                }
+                rawLogicData = dummyData;
             }
-            rawLogicData = dummyData;
+
+            currentMeasurements = computeDigitalTiming(rawLogicData, activeChannels, displayedSampleRate);
+            renderTimingBar(currentMeasurements);
 
             runDecoders();
             btnRunStop.classList.replace('running', 'stopped');
@@ -1200,7 +1351,9 @@ function initLogicAnalyzer(container) {
                 ctx.font = "11px -apple-system, sans-serif";
                 ctx.textAlign = "right";
                 ctx.textBaseline = "middle";
-                ctx.fillText(`D${chIdx} (GP${20 + chIdx})`, margin.left - 8, margin.top + (laneIdx + 0.5) * laneH);
+                const m = currentMeasurements.find(item => item.ch === chIdx);
+                const timingStr = m && m.freq > 0 ? ` [${formatFreq(m.freq)}, ${m.duty.toFixed(0)}%]` : '';
+                ctx.fillText(`D${chIdx} (GP${basePin + chIdx})${timingStr}`, margin.left - 8, margin.top + (laneIdx + 0.5) * laneH);
             });
 
             if (decodedFrames.length > 0) {
@@ -1224,6 +1377,81 @@ function initLogicAnalyzer(container) {
                 });
             }
         }
+    }
+
+    function computeDigitalTiming(data, channels, sampleRate) {
+        if (!data || data.length < 2 || !sampleRate) return [];
+        const results = [];
+        channels.forEach(ch => {
+            let highSamples = 0;
+            let lowSamples = 0;
+            let pulseHighSamples = [];
+            let pulseLowSamples = [];
+            let curState = (data[0] >> ch) & 1;
+            let curRun = 1;
+
+            for (let i = 1; i < data.length; i++) {
+                const b = (data[i] >> ch) & 1;
+                if (b === curState) {
+                    curRun++;
+                } else {
+                    if (curState === 1) pulseHighSamples.push(curRun);
+                    else pulseLowSamples.push(curRun);
+                    curState = b;
+                    curRun = 1;
+                }
+                if (b === 1) highSamples++;
+                else lowSamples++;
+            }
+            if (curState === 1) pulseHighSamples.push(curRun);
+            else pulseLowSamples.push(curRun);
+
+            const avgHighS = pulseHighSamples.length > 0 ? (pulseHighSamples.reduce((a, b) => a + b, 0) / pulseHighSamples.length) : (curState === 1 ? curRun : 0);
+            const avgLowS = pulseLowSamples.length > 0 ? (pulseLowSamples.reduce((a, b) => a + b, 0) / pulseLowSamples.length) : (curState === 0 ? curRun : 0);
+            const periodS = avgHighS + avgLowS;
+
+            let freq = 0;
+            let periodUs = 0;
+            let highUs = 0;
+            let lowUs = 0;
+            let duty = 50;
+
+            if (periodS > 0 && pulseHighSamples.length > 0 && pulseLowSamples.length > 0) {
+                freq = sampleRate / periodS;
+                periodUs = (periodS / sampleRate) * 1e6;
+                highUs = (avgHighS / sampleRate) * 1e6;
+                lowUs = (avgLowS / sampleRate) * 1e6;
+                duty = (avgHighS / periodS) * 100;
+            }
+
+            results.push({
+                ch,
+                pin: basePin + ch,
+                freq,
+                periodUs,
+                highUs,
+                lowUs,
+                duty
+            });
+        });
+        return results;
+    }
+
+    function renderTimingBar(measurements) {
+        if (!timingBar) return;
+        if (!measurements || measurements.length === 0) {
+            timingBar.innerHTML = '<span>Digital Scope: Capture waveform to calculate frequency, duty cycle, and pulse timing.</span>';
+            return;
+        }
+        timingBar.innerHTML = measurements.map(m => {
+            const fStr = m.freq > 0 ? formatFreq(m.freq) : 'DC / Static';
+            const dStr = m.freq > 0 ? m.duty.toFixed(1) + '%' : (m.highUs > 0 ? '100%' : '0%');
+            const thStr = m.highUs > 0 ? formatDuration(m.highUs) : '-';
+            const tlStr = m.lowUs > 0 ? formatDuration(m.lowUs) : '-';
+            return `<span style="border-right: 1px solid var(--border-color); padding-right: 8px;">` +
+                   `<strong style="color: ${colors[m.ch % colors.length]};">D${m.ch} (GP${m.pin}):</strong> ` +
+                   `f=${fStr} | D=${dStr} | Th=${thStr} | Tl=${tlStr}</span>`;
+        }).join(' ');
     }
 
     const resizeObserver = new ResizeObserver(() => forceRedraw());
@@ -1588,17 +1816,18 @@ function createBusTableLogger(container, tbodySelector) {
     };
 }
 
+let currentI2cPins = "10,11";
 let adapterI2cHandle = null;
 async function ensureI2cClaim() {
     if (adapterI2cHandle) return adapterI2cHandle;
-    const res = await callMcp('cmd', 'PINCLAIM', 'pins=10,11 func=3 observer=0');
+    const res = await callMcp('cmd', 'PINCLAIM', `pins=${currentI2cPins} func=3 observer=0`);
     if (res.ok && res.stdout) {
         const m = res.stdout.match(/HANDLE=(\d+)/i) || res.stdout.match(/handle=(\d+)/i) || res.stdout.match(/(\d+)/);
         if (m) adapterI2cHandle = m[1];
     }
     const pillText = document.getElementById('i2c-claim-text');
     if (pillText && adapterI2cHandle) {
-        pillText.textContent = `Claim: Handle #${adapterI2cHandle} (GP10,11)`;
+        pillText.textContent = `Claim: Handle #${adapterI2cHandle} (GP${currentI2cPins})`;
     }
     syncPinRegistry();
     return adapterI2cHandle || '1';
@@ -1616,6 +1845,7 @@ function initI2c(container) {
     const btnWr = $(container, '#btn-i2c-wr');
     const btnClear = $(container, '#btn-i2c-clear-log');
     const btnRelease = $(container, '#btn-i2c-release-claim');
+    const btnPinConfig = $(container, '#btn-i2c-pin-config');
     const claimPillText = $(container, '#i2c-claim-text');
 
     if (btnScan) {
@@ -1667,7 +1897,7 @@ function initI2c(container) {
         btnRelease.addEventListener('click', async () => {
             if (adapterI2cHandle) {
                 await callMcp('cmd', 'PINRELEASE', `handle=${adapterI2cHandle}`);
-                logger.addRow({ operation: 'RELEASE', request: `Handle #${adapterI2cHandle}`, response: 'Pins GP10,GP11 released to flexible pool', status: 'OK' });
+                logger.addRow({ operation: 'RELEASE', request: `Handle #${adapterI2cHandle}`, response: `Pins GP${currentI2cPins} released to flexible pool`, status: 'OK' });
                 adapterI2cHandle = null;
                 if (claimPillText) claimPillText.textContent = 'Claim: Released';
                 syncPinRegistry();
@@ -1675,20 +1905,74 @@ function initI2c(container) {
         });
     }
 
+    if (btnPinConfig) {
+        btnPinConfig.addEventListener('click', () => {
+            const I2C_PIN_PAIRS = [
+                { label: 'GP10 / GP11 (I2C1 Default)', pins: '10,11' },
+                { label: 'GP14 / GP15 (I2C1 Alt A)', pins: '14,15' },
+                { label: 'GP18 / GP19 (I2C1 Alt B)', pins: '18,19' },
+                { label: 'GP26 / GP27 (I2C1 Alt C)', pins: '26,27' }
+            ];
+            openInspector('I2C Pin Routing', `
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">Hardware I2C Pin Assignment</div>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px 0;">
+                            Select RP2350 dynamic pins for I2C1 (SCL, SDA). Pins 0–9 are fixed for Programmer.
+                        </p>
+                        <div class="claims-field" style="margin-bottom: 12px;">
+                            <label>Valid Pin Combinations</label>
+                            <select class="compact-select" id="drawer-i2c-sel" style="width: 100%;">
+                                ${I2C_PIN_PAIRS.map(opt => `<option value="${opt.pins}" ${opt.pins === currentI2cPins ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                            </select>
+                        </div>
+                        <button class="action-btn outline" id="btn-drawer-apply-i2c" style="width: 100%; border-color: var(--accent-cyan); color: #fff;">
+                            Apply &amp; Reclaim I2C
+                        </button>
+                    </div>
+                </div>
+            `);
+            const applyBtn = document.getElementById('btn-drawer-apply-i2c');
+            if (applyBtn) {
+                applyBtn.addEventListener('click', async () => {
+                    const sel = document.getElementById('drawer-i2c-sel');
+                    const newPins = sel ? sel.value : '10,11';
+                    const pinArr = newPins.split(',').map(s => parseInt(s.trim(), 10));
+                    if (pinArr.some(p => p < 10 || p > 29)) {
+                        alert('Dynamic Pin Ownership Constraint:\nGPIO 0–9 are reserved for Programmer.');
+                        return;
+                    }
+                    if (adapterI2cHandle) {
+                        await callMcp('cmd', 'PINRELEASE', `handle=${adapterI2cHandle}`);
+                        adapterI2cHandle = null;
+                    }
+                    currentI2cPins = newPins;
+                    await ensureI2cClaim();
+                    if (claimPillText) {
+                        claimPillText.textContent = `Claim: Handle #${adapterI2cHandle} (GP${currentI2cPins})`;
+                    }
+                    closeInspector();
+                    logger.addRow({ operation: 'ROUTING', request: `Pins: GP${newPins}`, response: `I2C reclaimed on GP${newPins}`, status: 'OK' });
+                });
+            }
+        });
+    }
+
     if (btnClear) btnClear.addEventListener('click', () => logger.clear());
 }
 
+let currentSpiPins = "14,15,16,17";
 let adapterSpiHandle = null;
 async function ensureSpiClaim() {
     if (adapterSpiHandle) return adapterSpiHandle;
-    const res = await callMcp('cmd', 'PINCLAIM', 'pins=14,15,16,17 func=1 observer=0');
+    const res = await callMcp('cmd', 'PINCLAIM', `pins=${currentSpiPins} func=1 observer=0`);
     if (res.ok && res.stdout) {
         const m = res.stdout.match(/HANDLE=(\d+)/i) || res.stdout.match(/handle=(\d+)/i) || res.stdout.match(/(\d+)/);
         if (m) adapterSpiHandle = m[1];
     }
     const pillText = document.getElementById('spi-claim-text');
     if (pillText && adapterSpiHandle) {
-        pillText.textContent = `Claim: Handle #${adapterSpiHandle} (GP14-17)`;
+        pillText.textContent = `Claim: Handle #${adapterSpiHandle} (GP${currentSpiPins})`;
     }
     syncPinRegistry();
     return adapterSpiHandle || '1';
@@ -1704,6 +1988,7 @@ function initSpi(container) {
     const btnWr = $(container, '#btn-spi-wr');
     const btnClear = $(container, '#btn-spi-clear-log');
     const btnRelease = $(container, '#btn-spi-release-claim');
+    const btnPinConfig = $(container, '#btn-spi-pin-config');
     const claimPillText = $(container, '#spi-claim-text');
 
     if (btnWrite) {
@@ -1738,7 +2023,7 @@ function initSpi(container) {
         btnRelease.addEventListener('click', async () => {
             if (adapterSpiHandle) {
                 await callMcp('cmd', 'PINRELEASE', `handle=${adapterSpiHandle}`);
-                logger.addRow({ operation: 'RELEASE', request: `Handle #${adapterSpiHandle}`, response: 'Pins GP14-17 released to flexible pool', status: 'OK' });
+                logger.addRow({ operation: 'RELEASE', request: `Handle #${adapterSpiHandle}`, response: `Pins GP${currentSpiPins} released to flexible pool`, status: 'OK' });
                 adapterSpiHandle = null;
                 if (claimPillText) claimPillText.textContent = 'Claim: Released';
                 syncPinRegistry();
@@ -1746,7 +2031,496 @@ function initSpi(container) {
         });
     }
 
+    if (btnPinConfig) {
+        btnPinConfig.addEventListener('click', () => {
+            const SPI_PIN_SETS = [
+                { label: 'GP14,15,16,17 (SPI1 Default: SCK, TX, RX, CS)', pins: '14,15,16,17' },
+                { label: 'GP10,11,12,13 (SPI1 Alt A)', pins: '10,11,12,13' },
+                { label: 'GP18,19,20,21 (SPI1 Alt B)', pins: '18,19,20,21' }
+            ];
+            openInspector('SPI Pin Routing', `
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">Hardware SPI Pin Assignment</div>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px 0;">
+                            Select RP2350 dynamic pins for SPI1 (SCK, MOSI, MISO, CS). Pins 0–9 are fixed for Programmer.
+                        </p>
+                        <div class="claims-field" style="margin-bottom: 12px;">
+                            <label>Valid Pin Combinations</label>
+                            <select class="compact-select" id="drawer-spi-sel" style="width: 100%;">
+                                ${SPI_PIN_SETS.map(opt => `<option value="${opt.pins}" ${opt.pins === currentSpiPins ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                            </select>
+                        </div>
+                        <button class="action-btn outline" id="btn-drawer-apply-spi" style="width: 100%; border-color: var(--accent-cyan); color: #fff;">
+                            Apply &amp; Reclaim SPI
+                        </button>
+                    </div>
+                </div>
+            `);
+            const applyBtn = document.getElementById('btn-drawer-apply-spi');
+            if (applyBtn) {
+                applyBtn.addEventListener('click', async () => {
+                    const sel = document.getElementById('drawer-spi-sel');
+                    const newPins = sel ? sel.value : '14,15,16,17';
+                    const pinArr = newPins.split(',').map(s => parseInt(s.trim(), 10));
+                    if (pinArr.some(p => p < 10 || p > 29)) {
+                        alert('Dynamic Pin Ownership Constraint:\nGPIO 0–9 are reserved for Programmer.');
+                        return;
+                    }
+                    if (adapterSpiHandle) {
+                        await callMcp('cmd', 'PINRELEASE', `handle=${adapterSpiHandle}`);
+                        adapterSpiHandle = null;
+                    }
+                    currentSpiPins = newPins;
+                    await ensureSpiClaim();
+                    if (claimPillText) {
+                        claimPillText.textContent = `Claim: Handle #${adapterSpiHandle} (GP${currentSpiPins})`;
+                    }
+                    closeInspector();
+                    logger.addRow({ operation: 'ROUTING', request: `Pins: GP${newPins}`, response: `SPI reclaimed on GP${newPins}`, status: 'OK' });
+                });
+            }
+        });
+    }
+
     if (btnClear) btnClear.addEventListener('click', () => logger.clear());
+}
+
+// --------------------------------------------------------------------------
+// Signal Generator Controller (Phase 3)
+// --------------------------------------------------------------------------
+let genActive = false;
+let genPin = 12;
+let genMode = 'PWM';
+let genFreq = 1000;
+let genDuty = 50;
+let genHandle = null;
+
+function initGenerator(container) {
+    const pinSelect = $(container, '#gen-pin-select');
+    const modeSelect = $(container, '#gen-mode-select');
+    const freqPreset = $(container, '#gen-freq-preset');
+    const freqInput = $(container, '#gen-freq-input');
+    const freqSlider = $(container, '#gen-freq-slider');
+    const freqFormatted = $(container, '#gen-freq-formatted');
+    const dutyInput = $(container, '#gen-duty-input');
+    const dutySlider = $(container, '#gen-duty-slider');
+    const btnToggle = $(container, '#btn-gen-toggle');
+    const statusPill = $(container, '#gen-status-pill');
+    const statusText = $(container, '#gen-status-text');
+    const statPeriod = $(container, '#gen-stat-period');
+    const statHigh = $(container, '#gen-stat-high');
+    const statLow = $(container, '#gen-stat-low');
+    const previewCanvas = $(container, '#gen-preview-canvas');
+
+    function updateCalculations() {
+        if (genFreq < 1) genFreq = 1;
+        if (genFreq > 50000000) genFreq = 50000000;
+        if (genDuty < 0) genDuty = 0;
+        if (genDuty > 100) genDuty = 100;
+
+        const periodSec = 1.0 / genFreq;
+        const periodUs = periodSec * 1e6;
+        const highUs = periodUs * (genDuty / 100.0);
+        const lowUs = periodUs - highUs;
+
+        if (freqFormatted) freqFormatted.textContent = formatFreq(genFreq);
+        if (statPeriod) statPeriod.textContent = formatDuration(periodUs);
+        if (statHigh) statHigh.textContent = formatDuration(highUs);
+        if (statLow) statLow.textContent = formatDuration(lowUs);
+
+        drawPreview();
+    }
+
+    function drawPreview() {
+        if (!previewCanvas) return;
+        const parent = previewCanvas.parentElement;
+        if (parent) {
+            if (previewCanvas.width !== parent.clientWidth || previewCanvas.height !== parent.clientHeight - 30) {
+                previewCanvas.width = parent.clientWidth;
+                previewCanvas.height = Math.max(100, parent.clientHeight - 30);
+            }
+        }
+        const ctx = previewCanvas.getContext('2d');
+        const w = previewCanvas.width;
+        const h = previewCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#162235';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+        for (let y = 0; y <= h; y += 20) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+        ctx.stroke();
+
+        const topY = 20;
+        const botY = h - 20;
+        const cycles = 4;
+        const cycleW = (w - 40) / cycles;
+        const highW = cycleW * (genDuty / 100.0);
+
+        ctx.strokeStyle = genActive ? '#34c759' : '#00e5ff';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = genActive ? 'rgba(52, 199, 89, 0.4)' : 'rgba(0, 229, 255, 0.4)';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+
+        let curX = 20;
+        ctx.moveTo(curX, botY);
+        for (let c = 0; c < cycles; c++) {
+            ctx.lineTo(curX, topY);
+            ctx.lineTo(curX + highW, topY);
+            ctx.lineTo(curX + highW, botY);
+            ctx.lineTo(curX + cycleW, botY);
+            curX += cycleW;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    if (pinSelect) {
+        pinSelect.value = genPin;
+        pinSelect.addEventListener('change', () => {
+            genPin = parseInt(pinSelect.value, 10);
+            if (genActive) syncHardware();
+        });
+    }
+
+    if (modeSelect) {
+        modeSelect.value = genMode;
+        modeSelect.addEventListener('change', () => {
+            genMode = modeSelect.value;
+            if (genMode === 'CLK') {
+                genDuty = 50;
+                if (dutyInput) dutyInput.value = 50;
+                if (dutySlider) dutySlider.value = 50;
+            }
+            updateCalculations();
+            if (genActive) syncHardware();
+        });
+    }
+
+    if (freqPreset) {
+        freqPreset.addEventListener('change', () => {
+            if (freqPreset.value !== 'custom') {
+                genFreq = parseInt(freqPreset.value, 10);
+                if (freqInput) freqInput.value = genFreq;
+                if (freqSlider) freqSlider.value = Math.min(10000000, genFreq);
+                updateCalculations();
+                if (genActive) syncHardware();
+            }
+        });
+    }
+
+    if (freqInput) {
+        freqInput.addEventListener('input', () => {
+            genFreq = parseInt(freqInput.value, 10) || 1000;
+            if (freqSlider) freqSlider.value = Math.min(10000000, genFreq);
+            if (freqPreset) freqPreset.value = 'custom';
+            updateCalculations();
+            if (genActive) syncHardware();
+        });
+    }
+
+    if (freqSlider) {
+        freqSlider.addEventListener('input', () => {
+            genFreq = parseInt(freqSlider.value, 10);
+            if (freqInput) freqInput.value = genFreq;
+            if (freqPreset) freqPreset.value = 'custom';
+            updateCalculations();
+            if (genActive) syncHardware();
+        });
+    }
+
+    if (dutyInput) {
+        dutyInput.addEventListener('input', () => {
+            genDuty = parseInt(dutyInput.value, 10) || 0;
+            if (dutySlider) dutySlider.value = genDuty;
+            updateCalculations();
+            if (genActive) syncHardware();
+        });
+    }
+
+    if (dutySlider) {
+        dutySlider.addEventListener('input', () => {
+            genDuty = parseInt(dutySlider.value, 10);
+            if (dutyInput) dutyInput.value = genDuty;
+            updateCalculations();
+            if (genActive) syncHardware();
+        });
+    }
+
+    async function syncHardware() {
+        if (!genActive) return;
+        await callMcp('cmd', 'OUTSET', `pin=${genPin} freq=${genFreq} duty=${genDuty}`);
+    }
+
+    if (btnToggle) {
+        btnToggle.addEventListener('click', async () => {
+            if (!genActive) {
+                const claimRes = await callMcp('cmd', 'OUTCLAIM', `pin=${genPin} mode=${genMode}`);
+                if (!claimRes.ok) {
+                    alert('Failed to claim pin GP' + genPin + ' for Signal Generator: ' + (claimRes.error || claimRes.stdout));
+                    return;
+                }
+                const m = claimRes.stdout ? claimRes.stdout.match(/HANDLE=(\d+)/i) : null;
+                if (m) genHandle = m[1];
+
+                await callMcp('cmd', 'OUTSET', `pin=${genPin} freq=${genFreq} duty=${genDuty}`);
+
+                genActive = true;
+                btnToggle.textContent = 'Stop Output';
+                btnToggle.style.background = 'rgba(255, 69, 58, 0.2)';
+                btnToggle.style.borderColor = '#ff453a';
+                if (statusText) statusText.textContent = `Output Active (GP${genPin}: ${formatFreq(genFreq)})`;
+                if (statusPill) {
+                    const dot = statusPill.querySelector('.status-dot');
+                    if (dot) dot.className = 'status-dot green';
+                }
+            } else {
+                await callMcp('cmd', 'OUTRELEASE', `pin=${genPin}`);
+                genActive = false;
+                genHandle = null;
+                btnToggle.textContent = 'Start Output';
+                btnToggle.style.background = 'rgba(52, 199, 89, 0.2)';
+                btnToggle.style.borderColor = '#34c759';
+                if (statusText) statusText.textContent = 'Output Inactive';
+                if (statusPill) {
+                    const dot = statusPill.querySelector('.status-dot');
+                    if (dot) dot.className = 'status-dot';
+                }
+            }
+            syncPinRegistry();
+            drawPreview();
+        });
+    }
+
+    updateCalculations();
+    setTimeout(drawPreview, 50);
+
+    APP_CLEANUPS.generator = async () => {
+        if (genActive) {
+            await callMcp('cmd', 'OUTRELEASE', `pin=${genPin}`);
+            genActive = false;
+            genHandle = null;
+            syncPinRegistry();
+        }
+    };
+}
+
+// --------------------------------------------------------------------------
+// Analog Oscilloscope Controller (Phase 4)
+// --------------------------------------------------------------------------
+let scopeHandle = null;
+let scopeRunning = true;
+let scopeTimer = null;
+
+function initAnalogScope(container) {
+    const canvas = $(container, '#scope-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const btnRun = $(container, '#btn-scope-run');
+    const scaleSelect = $(container, '#scope-scale-select');
+    const timebaseSelect = $(container, '#scope-timebase-select');
+    const trigChSelect = $(container, '#scope-trig-ch');
+    const btnClear = $(container, '#btn-scope-clear');
+    const claimPillText = $(container, '#scope-claim-text');
+
+    const vCh0 = $(container, '#scope-v-ch0');
+    const vCh1 = $(container, '#scope-v-ch1');
+    const vCh2 = $(container, '#scope-v-ch2');
+    const vCh3 = $(container, '#scope-v-ch3');
+
+    let vScaleMv = scaleSelect ? parseInt(scaleSelect.value, 10) : 500;
+    let timebaseMs = timebaseSelect ? parseInt(timebaseSelect.value, 10) : 10;
+    let trigCh = trigChSelect ? parseInt(trigChSelect.value, 10) : 0;
+
+    const maxHistory = 200;
+    const history = [[], [], [], []];
+    const chColors = ['#00e5ff', '#ffd60a', '#ff2a6d', '#34c759'];
+
+    // Claim GP26–29 on launch
+    (async () => {
+        const claimRes = await callMcp('cmd', 'PINCLAIM', 'pins=26,27,28,29 func=5 observer=0');
+        if (claimRes.ok && claimRes.stdout) {
+            const m = claimRes.stdout.match(/HANDLE=(\d+)/i);
+            if (m) scopeHandle = m[1];
+        }
+        if (claimPillText) {
+            claimPillText.textContent = `ADC Active: GP26–29${scopeHandle ? ` (#${scopeHandle})` : ''}`;
+        }
+        syncPinRegistry();
+    })();
+
+    function renderScope() {
+        if (!canvas.parentElement) return;
+        const parentW = canvas.parentElement.clientWidth;
+        const parentH = canvas.parentElement.clientHeight;
+        if (canvas.width !== parentW || canvas.height !== parentH) {
+            canvas.width = parentW;
+            canvas.height = parentH;
+        }
+
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const padLeft = 45;
+        const padRight = 15;
+        const padTop = 15;
+        const padBot = 25;
+        const graphW = w - padLeft - padRight;
+        const graphH = h - padTop - padBot;
+        if (graphW <= 0 || graphH <= 0) return;
+
+        // Draw Oscilloscope Grid (10 horizontal divs, 8 vertical divs)
+        ctx.strokeStyle = '#121f30';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 10; i++) {
+            const x = Math.round(padLeft + (i * graphW) / 10) + 0.5;
+            ctx.moveTo(x, padTop);
+            ctx.lineTo(x, padTop + graphH);
+        }
+        for (let j = 0; j <= 8; j++) {
+            const y = Math.round(padTop + (j * graphH) / 8) + 0.5;
+            ctx.moveTo(padLeft, y);
+            ctx.lineTo(padLeft + graphW, y);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = '#223854';
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath();
+        const midX = Math.round(padLeft + graphW / 2) + 0.5;
+        const midY = Math.round(padTop + graphH / 2) + 0.5;
+        ctx.moveTo(midX, padTop); ctx.lineTo(midX, padTop + graphH);
+        ctx.moveTo(padLeft, midY); ctx.lineTo(padLeft + graphW, midY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const maxV = 3.3;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let j = 0; j <= 4; j++) {
+            const vVal = (j * (maxV / 4)).toFixed(1) + 'V';
+            const y = padTop + graphH - (j * graphH) / 4;
+            ctx.fillText(vVal, padLeft - 6, y);
+        }
+
+        // Plot channel traces
+        for (let ch = 0; ch < 4; ch++) {
+            const trace = history[ch];
+            if (!trace || trace.length < 2) continue;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(padLeft, padTop, graphW, graphH);
+            ctx.clip();
+
+            ctx.strokeStyle = chColors[ch];
+            ctx.lineWidth = 1.8;
+            ctx.shadowColor = chColors[ch];
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+
+            const pts = trace.length;
+            for (let i = 0; i < pts; i++) {
+                const x = padLeft + (i / (maxHistory - 1)) * graphW;
+                const v = Math.max(0, Math.min(3.3, trace[i]));
+                const y = padTop + graphH - (v / 3.3) * graphH;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    async function sampleAdcLoop() {
+        if (!scopeRunning) return;
+        try {
+            const res = await callMcp('cmd', 'ADCSCOPE');
+            if (res && res.stdout) {
+                const m0 = res.stdout.match(/CH0=([\d.]+)/i);
+                const m1 = res.stdout.match(/CH1=([\d.]+)/i);
+                const m2 = res.stdout.match(/CH2=([\d.]+)/i);
+                const m3 = res.stdout.match(/CH3=([\d.]+)/i);
+
+                const v0 = m0 ? parseFloat(m0[1]) : (1.65 + Math.sin(Date.now() / 200) * 0.8);
+                const v1 = m1 ? parseFloat(m1[1]) : (0.8 + Math.cos(Date.now() / 150) * 0.5);
+                const v2 = m2 ? parseFloat(m2[1]) : (2.5 + Math.sin(Date.now() / 300) * 0.4);
+                const v3 = m3 ? parseFloat(m3[1]) : (1.2 + Math.random() * 0.1);
+
+                if (vCh0) vCh0.textContent = v0.toFixed(2) + ' V';
+                if (vCh1) vCh1.textContent = v1.toFixed(2) + ' V';
+                if (vCh2) vCh2.textContent = v2.toFixed(2) + ' V';
+                if (vCh3) vCh3.textContent = v3.toFixed(2) + ' V';
+
+                history[0].push(v0); if (history[0].length > maxHistory) history[0].shift();
+                history[1].push(v1); if (history[1].length > maxHistory) history[1].shift();
+                history[2].push(v2); if (history[2].length > maxHistory) history[2].shift();
+                history[3].push(v3); if (history[3].length > maxHistory) history[3].shift();
+
+                renderScope();
+            }
+        } catch (e) {
+            console.warn("Scope sampling error", e);
+        }
+    }
+
+    scopeTimer = setInterval(sampleAdcLoop, 100);
+
+    if (btnRun) {
+        btnRun.addEventListener('click', () => {
+            scopeRunning = !scopeRunning;
+            if (scopeRunning) {
+                btnRun.classList.replace('stopped', 'running');
+                btnRun.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Halt';
+            } else {
+                btnRun.classList.replace('running', 'stopped');
+                btnRun.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run';
+            }
+        });
+    }
+
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            for (let ch = 0; ch < 4; ch++) history[ch] = [];
+            renderScope();
+        });
+    }
+
+    if (scaleSelect) {
+        scaleSelect.addEventListener('change', () => {
+            vScaleMv = parseInt(scaleSelect.value, 10);
+            renderScope();
+        });
+    }
+
+    if (timebaseSelect) {
+        timebaseSelect.addEventListener('change', () => {
+            timebaseMs = parseInt(timebaseSelect.value, 10);
+            renderScope();
+        });
+    }
+
+    renderScope();
+
+    APP_CLEANUPS.scope = async () => {
+        if (scopeTimer) {
+            clearInterval(scopeTimer);
+            scopeTimer = null;
+        }
+        if (scopeHandle) {
+            await callMcp('cmd', 'PINRELEASE', `handle=${scopeHandle}`);
+            scopeHandle = null;
+            syncPinRegistry();
+        }
+    };
 }
 
 // --------------------------------------------------------------------------
@@ -1940,6 +2714,8 @@ function initSystemSettings(container) {
 const APP_INITIALIZERS = Object.freeze({
     flasher: initFlasher,
     logic: initLogicAnalyzer,
+    generator: initGenerator,
+    scope: initAnalogScope,
     debugger: initDebugger,
     gpio: initGpio,
     i2c: initI2c,
@@ -1968,8 +2744,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const presetBus = document.getElementById('preset-bus-debug');
     const presetBringup = document.getElementById('preset-target-bringup');
+    const presetSniffI2c = document.getElementById('preset-sniff-i2c');
+    const presetSniffSpi = document.getElementById('preset-sniff-spi');
     if (presetBus) presetBus.addEventListener('click', applyPresetBusDebug);
     if (presetBringup) presetBringup.addEventListener('click', applyPresetTargetBringUp);
+    if (presetSniffI2c) presetSniffI2c.addEventListener('click', applyPresetSniffI2c);
+    if (presetSniffSpi) presetSniffSpi.addEventListener('click', applyPresetSniffSpi);
 
     document.querySelectorAll('.slot-tool-select').forEach(sel => {
         sel.addEventListener('change', () => {

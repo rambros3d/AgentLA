@@ -98,6 +98,12 @@
                     <button class="preset-pill" id="preset-target-bringup" title="Preset: Target Flasher + Console">
                         <span class="preset-dot"></span> Bring-Up
                     </button>
+                    <button class="preset-pill" id="preset-sniff-i2c" title="Preset: Sniff I2C Bus (Driver + Observer)">
+                        <span class="preset-dot"></span> Sniff I2C
+                    </button>
+                    <button class="preset-pill" id="preset-sniff-spi" title="Preset: Sniff SPI Bus (Driver + Observer)">
+                        <span class="preset-dot"></span> Sniff SPI
+                    </button>
                     <button class="preset-pill" id="btn-webserial-connect" title="Connect physical RP2350 over USB (WebSerial)" style="border-color: rgba(0, 229, 255, 0.4); color: var(--accent-cyan);">
                         <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" style="vertical-align: middle; margin-right: 3px;">
                             <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
@@ -197,6 +203,19 @@
                     <text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="8.5" font-family="Segoe UI, Arial, sans-serif">SPI</text>
                 </svg>
                 <span>SPI</span>
+            </button>
+            <button class="nav-rail-item" data-view="generator" title="Signal Generator">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="M2 12h3l2-6 4 12 4-12 2 6h5"/>
+                </svg>
+                <span>Gen</span>
+            </button>
+            <button class="nav-rail-item" data-view="scope" title="Analog Oscilloscope">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+                    <path d="M3 12h4l3 8 4-16 3 8h4"/>
+                    <circle cx="12" cy="12" r="10"/>
+                </svg>
+                <span>Scope</span>
             </button>
             <button class="nav-rail-item" data-view="command" title="Command Console">
                 <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
@@ -341,6 +360,33 @@
                             <span class="tile-action-arrow">→</span>
                         </div>
 
+                        <div class="dash-tile" data-tool="generator">
+                            <div class="tile-icon-box" style="--tile-color: #ff9500;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <path d="M2 12h3l2-6 4 12 4-12 2 6h5"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">Signal Generator</div>
+                                <div class="tile-desc">Hardware PWM &amp; clock output (1 Hz to 50 MHz) on GPIO 10–29 with duty cycle control</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
+                        <div class="dash-tile" data-tool="scope">
+                            <div class="tile-icon-box" style="--tile-color: #00e5ff;">
+                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+                                    <path d="M3 12h4l3 8 4-16 3 8h4"/>
+                                    <circle cx="12" cy="12" r="10"/>
+                                </svg>
+                            </div>
+                            <div class="tile-content">
+                                <div class="tile-title">Analog Scope</div>
+                                <div class="tile-desc">4-channel real-time ADC oscilloscope (GP26–29 / ADC0–3) with 0–3.3V live waveform tracking</div>
+                            </div>
+                            <span class="tile-action-arrow">→</span>
+                        </div>
+
                         <div class="dash-tile" data-tool="command">
                             <div class="tile-icon-box" style="--tile-color: #cba6f7;">
                                 <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
@@ -448,6 +494,8 @@
                                 <span class="slot-badge">Slot 1</span>
                                 <select class="compact-select slot-tool-select" data-slot="1">
                                     <option value="logic" selected>Logic Analyzer</option>
+                                    <option value="generator">Signal Generator</option>
+                                    <option value="scope">Analog Scope</option>
                                     <option value="flasher">Target Flasher</option>
                                     <option value="debugger">Target Debugger</option>
                                     <option value="gpio">GPIO &amp; Pin Matrix</option>
@@ -485,6 +533,8 @@
                                 <select class="compact-select slot-tool-select" data-slot="2">
                                     <option value="i2c" selected>I2C Master</option>
                                     <option value="spi">SPI Master</option>
+                                    <option value="generator">Signal Generator</option>
+                                    <option value="scope">Analog Scope</option>
                                     <option value="logic">Logic Analyzer</option>
                                     <option value="flasher">Target Flasher</option>
                                     <option value="debugger">Target Debugger</option>
@@ -599,6 +649,14 @@
             <button class="action-btn icon-btn btn-close-more" aria-label="Close">✕</button>
         </div>
         <div class="more-menu-grid">
+            <button class="more-tool-btn" data-view="generator">
+                <div class="more-tool-icon">∿</div>
+                <span>Signal Gen</span>
+            </button>
+            <button class="more-tool-btn" data-view="scope">
+                <div class="more-tool-icon">⚡</div>
+                <span>Analog Scope</span>
+            </button>
             <button class="more-tool-btn" data-view="i2c">
                 <div class="more-tool-icon">I²C</div>
                 <span>I2C Master</span>
@@ -713,6 +771,10 @@
                     <canvas id="logic-canvas"></canvas>
                 </div>
 
+                <div class="logic-timing-bar" id="logic-timing-bar" style="display: flex; gap: 12px; font-size: 11px; color: var(--text-secondary); padding: 5px 10px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 4px; overflow-x: auto; white-space: nowrap; font-family: monospace;">
+                    <span>Digital Scope: Capture waveform to calculate frequency, duty cycle, and pulse timing.</span>
+                </div>
+
                 <div class="logic-controls control-bar">
                     <button class="action-btn outline run-control-btn btn-run-stop stopped">
                         <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run
@@ -792,6 +854,37 @@
                         <option value="2000000">2 MS/s</option>
                         <option value="1000000">1 MS/s</option>
                         <option value="500000">500 kS/s</option>
+                    </select>
+
+                    <div class="divider"></div>
+
+                    <span class="ctrl-label">Base</span>
+                    <select class="compact-select logic-base-pin" style="width: 80px;" title="Arbitrary capture span base pin">
+                        <option value="10">GP10</option>
+                        <option value="11">GP11</option>
+                        <option value="12">GP12</option>
+                        <option value="13">GP13</option>
+                        <option value="14">GP14</option>
+                        <option value="15">GP15</option>
+                        <option value="16">GP16</option>
+                        <option value="17">GP17</option>
+                        <option value="18">GP18</option>
+                        <option value="19">GP19</option>
+                        <option value="20" selected>GP20</option>
+                        <option value="21">GP21</option>
+                        <option value="22">GP22</option>
+                    </select>
+
+                    <span class="ctrl-label">Span</span>
+                    <select class="compact-select logic-channel-count" style="width: 75px;" title="Capture channel count">
+                        <option value="1">1 Ch</option>
+                        <option value="2">2 Ch</option>
+                        <option value="3">3 Ch</option>
+                        <option value="4">4 Ch</option>
+                        <option value="5">5 Ch</option>
+                        <option value="6">6 Ch</option>
+                        <option value="7">7 Ch</option>
+                        <option value="8" selected>8 Ch</option>
                     </select>
 
                     <div class="divider"></div>
@@ -981,6 +1074,7 @@
                             <span class="status-dot green"></span> <span id="i2c-claim-text">Claim: GP10,GP11</span>
                         </span>
                         <button class="action-btn outline btn-sm" id="btn-i2c-release-claim" title="Release I2C dynamic pin claim">Release</button>
+                        <button class="action-btn outline btn-sm btn-adapter-pin-config" id="btn-i2c-pin-config" title="Reconfigure I2C pins">Pin Config</button>
                         <div class="bus-right-controls">
                             <select class="compact-select" id="i2c-baud">
                                 <option value="100000">100 kHz (Std)</option>
@@ -1032,6 +1126,7 @@
                             <span class="status-dot green"></span> <span id="spi-claim-text">Claim: GP14-17</span>
                         </span>
                         <button class="action-btn outline btn-sm" id="btn-spi-release-claim" title="Release SPI dynamic pin claim">Release</button>
+                        <button class="action-btn outline btn-sm btn-adapter-pin-config" id="btn-spi-pin-config" title="Reconfigure SPI pins">Pin Config</button>
                         <div class="bus-right-controls">
                             <select class="compact-select" id="spi-baud">
                                 <option value="1000000" selected>1 MHz</option>
@@ -1094,6 +1189,184 @@
                             <tr><td>Clock Freq</td><td class="info-clock">150 MHz</td></tr>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signal Generator Template -->
+        <div id="template-generator" class="app-content">
+            <div class="generator-container" style="display: flex; flex-direction: column; height: 100%; padding: 14px; gap: 12px; box-sizing: border-box; overflow-y: auto;">
+                <div class="panel" style="padding: 16px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary);">Hardware Signal &amp; PWM Generator</h3>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">RP2350 slice-accurate clock and pulse output across flexible pins (GP10–29)</div>
+                        </div>
+                        <span class="dynamic-registry-pill" id="gen-status-pill">
+                            <span class="status-dot"></span> <span id="gen-status-text">Output Inactive</span>
+                        </span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 16px;">
+                        <div class="claims-field">
+                            <label>Output Pin (Flexible Pool)</label>
+                            <select class="compact-select" id="gen-pin-select">
+                                <option value="10">GP10</option>
+                                <option value="11">GP11</option>
+                                <option value="12" selected>GP12</option>
+                                <option value="13">GP13</option>
+                                <option value="14">GP14</option>
+                                <option value="15">GP15</option>
+                                <option value="16">GP16</option>
+                                <option value="17">GP17</option>
+                                <option value="18">GP18</option>
+                                <option value="19">GP19</option>
+                                <option value="20">GP20</option>
+                                <option value="21">GP21</option>
+                                <option value="22">GP22</option>
+                                <option value="23">GP23</option>
+                                <option value="24">GP24</option>
+                                <option value="25">GP25</option>
+                                <option value="26">GP26</option>
+                                <option value="27">GP27</option>
+                                <option value="28">GP28</option>
+                                <option value="29">GP29</option>
+                            </select>
+                        </div>
+                        <div class="claims-field">
+                            <label>Waveform Type</label>
+                            <select class="compact-select" id="gen-mode-select">
+                                <option value="PWM" selected>Square Wave / PWM</option>
+                                <option value="CLK">Clock Reference (50% Fixed)</option>
+                                <option value="PULSE">Pulse Generator</option>
+                            </select>
+                        </div>
+                        <div class="claims-field">
+                            <label>Frequency Presets</label>
+                            <select class="compact-select" id="gen-freq-preset">
+                                <option value="custom">Custom Value...</option>
+                                <option value="1000" selected>1 kHz (Audio / Test)</option>
+                                <option value="10000">10 kHz (Switching)</option>
+                                <option value="100000">100 kHz (I2C Std)</option>
+                                <option value="400000">400 kHz (I2C Fast)</option>
+                                <option value="1000000">1 MHz (SPI / MCU clk)</option>
+                                <option value="10000000">10 MHz (High Speed)</option>
+                                <option value="25000000">25 MHz (Ethernet / System)</option>
+                                <option value="50000000">50 MHz (Maximum Core)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Frequency (1 Hz – 50 MHz)</label>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <input type="number" class="cmd-input" id="gen-freq-input" value="1000" min="1" max="50000000" style="width: 110px; font-family: monospace;">
+                                    <span style="font-size: 11px; color: var(--text-secondary);" id="gen-freq-formatted">1.000 kHz</span>
+                                </div>
+                            </div>
+                            <input type="range" class="settings-range" id="gen-freq-slider" min="1" max="10000000" value="1000" step="1">
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Duty Cycle (0% – 100%)</label>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <input type="number" class="cmd-input" id="gen-duty-input" value="50" min="0" max="100" style="width: 70px; font-family: monospace;">
+                                    <span style="font-size: 11px; color: var(--text-secondary);">%</span>
+                                </div>
+                            </div>
+                            <input type="range" class="settings-range" id="gen-duty-slider" min="0" max="100" value="50" step="1">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <button class="action-btn outline btn-run-stop stopped" id="btn-gen-toggle" style="background: rgba(52, 199, 89, 0.2); border-color: #34c759; color: #fff; min-width: 140px;">
+                            Start Output
+                        </button>
+                        <div style="flex-grow: 1;"></div>
+                        <div style="display: flex; gap: 16px; font-size: 11px; color: var(--text-secondary); font-family: monospace;">
+                            <span>Period: <strong id="gen-stat-period" style="color: var(--text-primary);">1.00 ms</strong></span>
+                            <span>High Time: <strong id="gen-stat-high" style="color: var(--text-primary);">500.0 µs</strong></span>
+                            <span>Low Time: <strong id="gen-stat-low" style="color: var(--text-primary);">500.0 µs</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Preview Canvas -->
+                <div class="panel" style="flex: 1; min-height: 120px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column;">
+                    <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Waveform Model Preview</div>
+                    <canvas id="gen-preview-canvas" style="width: 100%; height: 100%; flex: 1; display: block; border-radius: 4px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analog Scope Template -->
+        <div id="template-scope" class="app-content">
+            <div class="scope-container" style="display: flex; flex-direction: column; height: 100%; padding: 10px; gap: 8px; box-sizing: border-box;">
+                <div class="scope-channel-bar" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span class="scope-ch-badge" style="background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
+                        CH0 (GP26 / ADC0): <strong id="scope-v-ch0">0.00 V</strong>
+                    </span>
+                    <span class="scope-ch-badge" style="background: rgba(255, 214, 10, 0.15); border: 1px solid #ffd60a; color: #ffd60a; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
+                        CH1 (GP27 / ADC1): <strong id="scope-v-ch1">0.00 V</strong>
+                    </span>
+                    <span class="scope-ch-badge" style="background: rgba(255, 42, 109, 0.15); border: 1px solid #ff2a6d; color: #ff2a6d; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
+                        CH2 (GP28 / ADC2): <strong id="scope-v-ch2">0.00 V</strong>
+                    </span>
+                    <span class="scope-ch-badge" style="background: rgba(52, 199, 89, 0.15); border: 1px solid #34c759; color: #34c759; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
+                        CH3 (GP29 / ADC3): <strong id="scope-v-ch3">0.00 V</strong>
+                    </span>
+                    <div style="flex-grow: 1;"></div>
+                    <span class="dynamic-registry-pill" id="scope-claim-pill">
+                        <span class="status-dot green"></span> <span id="scope-claim-text">ADC Active: GP26–29</span>
+                    </span>
+                </div>
+
+                <div class="graph-container-bare" style="flex: 1; min-height: 180px; position: relative; background: #060c14; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
+                    <canvas id="scope-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+                </div>
+
+                <div class="control-bar" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <button class="action-btn outline btn-run-stop stopped" id="btn-scope-run">
+                        <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <span class="ctrl-label">V/Div:</span>
+                    <select class="compact-select" id="scope-scale-select" style="width: 95px;">
+                        <option value="100">100 mV/div</option>
+                        <option value="200">200 mV/div</option>
+                        <option value="500" selected>500 mV/div</option>
+                        <option value="1000">1.0 V/div</option>
+                    </select>
+
+                    <div class="divider"></div>
+
+                    <span class="ctrl-label">Timebase:</span>
+                    <select class="compact-select" id="scope-timebase-select" style="width: 95px;">
+                        <option value="1">1 ms/div</option>
+                        <option value="5">5 ms/div</option>
+                        <option value="10" selected>10 ms/div</option>
+                        <option value="50">50 ms/div</option>
+                        <option value="100">100 ms/div</option>
+                    </select>
+
+                    <div class="divider"></div>
+
+                    <span class="ctrl-label">Trigger CH:</span>
+                    <select class="compact-select" id="scope-trig-ch" style="width: 75px;">
+                        <option value="0" selected>ADC0</option>
+                        <option value="1">ADC1</option>
+                        <option value="2">ADC2</option>
+                        <option value="3">ADC3</option>
+                    </select>
+
+                    <button class="action-btn outline btn-sm" id="btn-scope-clear" title="Clear Trace Buffer">Clear</button>
+                    <div style="flex-grow: 1;"></div>
+                    <span style="font-size: 11px; color: var(--text-secondary);">SAR ADC 0–3.3V (500 kS/s)</span>
                 </div>
             </div>
         </div>

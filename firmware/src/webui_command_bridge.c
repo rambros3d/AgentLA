@@ -226,7 +226,7 @@ void webui_dispatch_mcp(char **pcParam, char **pcValue, int iNumParams,
 
     if (strcmp(method, "list") == 0) {
         snprintf(response, response_capacity,
-                 "{\"tools\":[\"cmd\",\"IDENTIFY\",\"VERSION\",\"STATUS\",\"CONFIGURE\",\"CAPTURE\",\"ADC\",\"MEASURE\",\"I2C_READ\",\"I2C_WRITE\",\"UART_READ\",\"UART_WRITE\",\"FLASH\",\"DEBUG\",\"SWD\",\"PINCLAIM\",\"PINRELEASE\",\"SAFEDISCOVER\",\"MASSERASE\",\"PROG\",\"CH32\",\"RVSWD\",\"SWIO\"]}");
+                 "{\"tools\":[\"cmd\",\"IDENTIFY\",\"VERSION\",\"STATUS\",\"CONFIGURE\",\"CAPTURE\",\"ADC\",\"ADCSCOPE\",\"MEASURE\",\"I2C_READ\",\"I2C_WRITE\",\"UART_READ\",\"UART_WRITE\",\"FLASH\",\"DEBUG\",\"SWD\",\"PINCLAIM\",\"PINRELEASE\",\"SAFEDISCOVER\",\"CAPTURECLAIM\",\"CAPTURERELEASE\",\"OUTCLAIM\",\"OUTSET\",\"OUTRELEASE\",\"MASSERASE\",\"PROG\",\"CH32\",\"RVSWD\",\"SWIO\"]}");
         return;
     }
 
