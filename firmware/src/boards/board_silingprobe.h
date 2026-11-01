@@ -4,9 +4,8 @@
  *
  * Highlights:
  *  - RP2350B (QFN-80) with 48 GPIOs and 8 ADCs
- *  - 8MB/16MB QSPI PSRAM on dedicated CS1n (Pin 80)
- *  - MicroSD card slot for headless logging
- *  - USB-PD (up to 20V 3A / 60W) + DC Barrel Jack (7V-28V) dual-input power
+ *  - 520 KB high-speed on-chip SRAM
+ *  - Direct USB-C 5V VBUS (ESD + polyfuse) + optional DC Barrel Jack (7V-24V)
  *  - Auto-sensing 1.2V - 5.0V bi-directional level shifting (TXS0108E)
  *  - Qwiic / STEMMA QT 4-pin I2C quick-connect header
  *  - Dedicated CAN-FD (TCAN334) & RS-485 (SN65HVD3082) transceivers
@@ -50,11 +49,10 @@
 #define ADAPTER_I3C_SDA_PIN 16
 #define ADAPTER_I3C_SCL_PIN 17
 
-#define ADAPTER_SPI_SCK_PIN 18  /* Shared with MicroSD SPI */
-#define ADAPTER_SPI_MOSI_PIN 19 /* Shared with MicroSD SPI */
-#define ADAPTER_SPI_MISO_PIN 20 /* Shared with MicroSD SPI */
-#define ADAPTER_SPI_CS_PIN  21  /* Bus CS (or MicroSD CS in logging mode) */
-#define SD_SPI_CS_PIN       21
+#define ADAPTER_SPI_SCK_PIN 18
+#define ADAPTER_SPI_MOSI_PIN 19
+#define ADAPTER_SPI_MISO_PIN 20
+#define ADAPTER_SPI_CS_PIN  21
 
 #define ADAPTER_UART_TX_PIN 22
 #define ADAPTER_UART_RX_PIN 23
@@ -76,10 +74,7 @@
 #define ADC_CURRENT_PIN     46  /* ADC6: High-Side Target Current Sense (INA180) */
 #define ADC_VTARGET_PIN     47  /* ADC7: Target Voltage Sense (1.2V-5.0V, 10:1 divider) */
 
-/* Hardware Storage & Memory Expansion */
-#define HAS_QSPI_PSRAM      1
-#define PSRAM_SIZE_MB       8
-#define HAS_MICROSD_SLOT    1
+/* Additional Hardware Features */
 #define HAS_QWIIC_CONNECTOR 1
 #define HAS_LEVEL_SHIFTERS  1
 

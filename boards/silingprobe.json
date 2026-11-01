@@ -9,25 +9,22 @@
     "cores": "Dual ARM Cortex-M33 / Hazard3 RISC-V",
     "clock_max_mhz": 150,
     "sram_bytes": 532480,
-    "flash_bytes": 16777216,
-    "psram_bytes": 8388608,
-    "psram_interface": "Dedicated RP2350 QSPI CS1n (Pin 80)"
+    "flash_bytes": 16777216
   },
   "power_architecture": {
-    "usb_c_pd": {
-      "enabled": true,
-      "controller": "CH224K / HUSB238",
-      "profiles": "5V / 9V / 12V / 15V / 20V up to 3A (60W)",
-      "protection": "USBLC6-2SC6 ESD + resettable polyfuse"
+    "usb_c": {
+      "standard": "USB 2.0 Full-Speed Type-C (5V VBUS up to 1.5A/3A)",
+      "cc_pins": "Dual 5.1k pulldown resistors for standard Type-C host detection",
+      "protection": "ST USBLC6-2SC6 high-speed ESD + resettable PTC polyfuse"
     },
     "dc_barrel_jack": {
       "enabled": true,
       "connector": "5.5mm x 2.1mm / 2.5mm Center-Positive",
-      "voltage_range": "7.0V - 28.0V",
+      "voltage_range": "7.0V - 24.0V",
       "protection": "P-FET reverse-polarity protection + SMBJ24A TVS diode"
     },
     "regulators": {
-      "main_buck": "TI TPS54302 (5.0V 3A Step-Down)",
+      "main_buck": "TI TPS54302 (5.0V 3A Step-Down for DC Jack) with Ideal Diode OR-ing",
       "digital_ldo": "TI TLV75533 (3.3V 500mA)",
       "analog_ldo": "TI TPS7A2033 (3.3V Ultra-Low-Noise 12uVrms)",
       "vref_precision_ic": "TI REF3030 (3.000V +/-0.2% 35ppm/C)"
@@ -49,16 +46,6 @@
       "chip": "TI TXS0108E / TXB0108",
       "voltage_range": "1.2V - 5.0V",
       "target_reference_rail": "VTARGET"
-    }
-  },
-  "storage": {
-    "psram_mb": 8,
-    "microsd_slot": {
-      "enabled": true,
-      "connector": "Push-Push MicroSD Socket",
-      "interface": "High-Speed SPI (up to 25-50 MHz)",
-      "cs_pin": 21,
-      "features": ["Headless field logging", "CAN-FD / RS-485 / UART pcap/csv capture"]
     }
   },
   "features": {

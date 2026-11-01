@@ -11,8 +11,8 @@
 **Siling Probe** is an advanced open-hardware multi-instrument workstation probe based on the **RP2350B** (QFN-80 package). It provides a complete, simultaneous embedded toolset:
 - **Zero Pin-Sharing**: 48 GPIOs and 8 ADCs partitioned into 5 independent physical zones.
 - **Bi-Directional Auto-Sensing Level Shifting ($1.2\,\text{V} - 5.0\,\text{V}$)** on the Programmer and Bus Master pods via TI TXS0108E / TXB0108, referenced dynamically to target VCC (`VTARGET`).
-- **Heavy-Duty Dual-Input Power Architecture**: High-power USB-C USB-PD sink (up to 20V 3A / 60W) plus wide-input DC Barrel Jack ($7.0\,\text{V} - 28.0\,\text{V}$) with synchronous buck regulation ($5\,\text{V}$ 3A system rail).
-- **Deep Capture Buffers & Headless Logging**: 8 MB QSPI PSRAM on dedicated RP2350 `CS1n` for massive sample depth, plus a push-push MicroSD slot for headless CAN-FD, RS-485, and UART bus logging directly to `.pcap`/`.csv`.
+- **Robust Power Architecture**: Direct USB-C $5\,\text{V}$ VBUS with USBLC6-2SC6 ESD protection and resettable PTC fuse, plus wide-input DC Barrel Jack ($7.0\,\text{V} - 24.0\,\text{V}$) with synchronous buck step-down for high-current target boards.
+- **High-Speed Deterministic Capture**: 520 KB on-chip high-speed SRAM paired with 12 microcoded PIO state machines for zero-jitter, cycle-exact logic analyzer capture up to 150 MS/s.
 - **Plug-and-Play Sensor Ecosystem**: JST-SH 1.0mm 4-pin **Qwiic / STEMMA QT** connector tied to the Zone 3 I2C bus.
 
 ---
@@ -20,14 +20,13 @@
 ## 2. Power Architecture & Voltage Regulation
 
 ```
-[ USB-C Port ] ──> [ USBLC6-2SC6 ESD ] ──> [ CH224K / HUSB238 PD Sink ] (5V/9V/12V/15V/20V up to 3A) ──┐
-                                                                                                          ├──> [ Ideal Diode OR-ing ]
-[ DC Barrel Jack 5.5x2.1 ] ──> [ P-FET Rev-Pol ] ──> [ SMBJ24A TVS ] (7V - 28V) ─────────────────────────┘             │
-                                                                                                                        ▼
-                                                                                                       [ TI TPS54302 5.0V 3A Buck ]
-                                                                                                                        │
-                                         ┌──────────────────────────────────┬───────────────────────────────────────────┴──────────┐
-                                         ▼                                  ▼                                                      ▼
+[ USB-C Port (5V VBUS) ] ──> [ USBLC6-2SC6 ESD ] ──> [ PTC Polyfuse ] ──────────┐
+                                                                                 ├──> [ Ideal Diode OR-ing ]
+[ DC Barrel Jack 5.5x2.1 ] ──> [ P-FET Rev-Pol ] ──> [ SMBJ24A TVS ] ──> [ Buck ]┘             │
+  (7.0V - 24.0V Aux Power)                               (5.0V 3A TPS54302)                     ▼
+                                                                                      Internal 5.0V Rail
+                                         ┌──────────────────────────────────┬───────────────────┴──────────────────┐
+                                         ▼                                  ▼                                      ▼
                        [ TI TLV75533 3.3V 500mA LDO ]     [ TI TPS7A2033 3.3V Ultra-Low-Noise LDO ]            [ Programmable Target VCC ]
                                          │                                  │                                           (1.2V - 5.0V)
                                          ▼                                  ▼                                                      │
@@ -37,11 +36,11 @@
                                                                                                                       Target Board Power
 ```
 
-1. **Dual Power Inputs**:
-   - **USB-C USB-PD Sink**: Hardware-negotiated USB-PD controller (CH224K / HUSB238) negotiating up to 20V @ 3A from any PD charger or power bank.
-   - **DC Barrel Jack**: Standard 5.5mm x 2.1mm / 2.5mm jack accepting $7\,\text{V} - 28\,\text{V}$ from bench power supplies or industrial rails, protected with P-FET reverse-polarity protection and an SMBJ24A TVS surge suppressor.
+1. **Power Inputs**:
+   - **USB-C 5V VBUS**: Standard USB 2.0 Type-C input with dual 5.1kΩ CC pulldown resistors, ST USBLC6-2SC6 high-speed ESD protection, and a resettable PTC polyfuse.
+   - **DC Barrel Jack**: Standard 5.5mm x 2.1mm / 2.5mm jack accepting $7\,\text{V} - 24\,\text{V}$ from bench power supplies, protected with P-FET reverse-polarity protection and an SMBJ24A TVS surge suppressor.
 2. **System Step-Down & LDO Regulation**:
-   - **Main 5.0V 3A Rail**: TI TPS54302 synchronous buck regulator.
+   - **Main 5.0V Rail**: Fed directly from USB-C VBUS or from the DC Jack via a TI TPS54302 synchronous buck regulator with ideal diode OR-ing.
    - **Digital 3.3V Rail**: TI TLV75533 low-dropout regulator (500mA).
    - **Analog 3.3V Rail (AVDD)**: Dedicated TI TPS7A2033 ultra-low-noise ($12\,\mu\text{V}_{\text{RMS}}$) LDO.
    - **Precision ADC Reference**: TI REF3030 ($3.000\,\text{V} \pm 0.2\%$, $35\,\text{ppm}/^\circ\text{C}$).
@@ -103,10 +102,10 @@
 |---|---|---|---|---|
 | **GP16** | `BUS_I2C_SDA` | I2C0 SDA / PIO2 I3C | Bi-dir | Dedicated I2C / I3C SDA line (Qwiic SDA, 2.2kΩ pull-up) |
 | **GP17** | `BUS_I2C_SCL` | I2C0 SCL / PIO2 I3C | Bi-dir | Dedicated I2C / I3C SCL line (Qwiic SCL, 2.2kΩ pull-up) |
-| **GP18** | `BUS_SPI_SCK` | SPI0 SCK (F0) | Output | Dedicated SPI Serial Clock (shared with MicroSD) |
-| **GP19** | `BUS_SPI_MOSI` | SPI0 TX (F0) | Output | Master Out Slave In (shared with MicroSD) |
-| **GP20** | `BUS_SPI_MISO` | SPI0 RX (F0) | Input | Master In Slave Out (shared with MicroSD) |
-| **GP21** | `BUS_SPI_CS` | SIO | Output | External SPI CS / MicroSD CS in logging mode |
+| **GP18** | `BUS_SPI_SCK` | SPI0 SCK (F0) | Output | Dedicated SPI Serial Clock |
+| **GP19** | `BUS_SPI_MOSI` | SPI0 TX (F0) | Output | Master Out Slave In |
+| **GP20** | `BUS_SPI_MISO` | SPI0 RX (F0) | Input | Master In Slave Out |
+| **GP21** | `BUS_SPI_CS` | SIO | Output | Dedicated SPI Chip Select |
 | **GP22** | `BUS_UART_TX` | UART1 TX (F10) | Output | Dedicated Aux UART TX |
 | **GP23** | `BUS_UART_RX` | UART1 RX (F10) | Input | Dedicated Aux UART RX |
 
@@ -116,7 +115,7 @@
 *Connector: 2x10 2.54mm Shrouded Header with interleaved GND ground shield pins.*
 
 - Contiguous 16-pin range matching PIO0 `IN BASE 24` (`in pins, 16`).
-- Max capture rate: **100 MS/s standard (150 MS/s turbo)** with DMA streaming into internal SRAM or 8 MB external QSPI PSRAM.
+- Max capture rate: **100 MS/s standard (150 MS/s turbo)** with DMA streaming into internal 520 KB high-speed SRAM.
 - Any channel dynamically switchable to PWM generator or arbitrary pulse pattern generator (`OUTCLAIM`/`OUTSET`).
 
 | Channel | GPIO | Pin Header Pin | Function |
@@ -162,18 +161,7 @@
 
 ---
 
-## 4. Storage & Standalone Logging Subsystem
-
-1. **8 MB / 16 MB QSPI PSRAM (APMemory APS6404L / Winbond W956x)**:
-   - Sits on the RP2350 internal QSPI memory bus via dedicated `CS1n` (RP2350B Pin 80).
-   - Provides seamless memory-mapped XIP RAM access. Allows the logic analyzer DMA engine to capture continuous high-speed multi-megasample bursts without dropping data over USB.
-2. **Push-Push MicroSD Card Slot**:
-   - Connected to SPI0 bus (`SCK` GP18, `MOSI` GP19, `MISO` GP20, `CS` GP21) with dedicated card-detect switch and ESD protection.
-   - Enables headless field capture of CAN-FD, RS-485, and UART traffic directly into `.pcap` or `.csv` files.
-
----
-
-## 5. Software & Firmware Configuration
+## 4. Software & Firmware Configuration
 
 The hardware profile is declaratively represented in [`boards/silingprobe.json`](file:///run/media/sun/halo/AgentLA/boards/silingprobe.json) and exposed to the C firmware via [`firmware/src/boards/board_silingprobe.h`](file:///run/media/sun/halo/AgentLA/firmware/src/boards/board_silingprobe.h).
 
