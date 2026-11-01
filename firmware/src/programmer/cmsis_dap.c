@@ -19,7 +19,7 @@
 
 /* Transfer state */
 static uint8_t transfer_idle_cycles = 0;
-static uint8_t transfer_wait_retry = 100;
+static uint16_t transfer_wait_retry = 100;
 static uint32_t transfer_match_value = 0;
 static uint32_t transfer_match_mask = 0;
 
@@ -125,8 +125,9 @@ static uint16_t dap_disconnect(const uint8_t *req, uint8_t *response) {
 static uint16_t dap_transfer_configure(const uint8_t *req, uint8_t *response) {
     response[0] = DAP_TRANSFER_CONFIGURE;
     transfer_idle_cycles = req[1];
-    transfer_wait_retry = req[2];
-    /* req[3] = match_retry (not used) */
+    transfer_wait_retry = req[2] | (req[3] << 8);
+    swd_state.idle_cycles = transfer_idle_cycles;
+    /* req[4..5] = match_retry (not used) */
     response[1] = 0;
     return 2;
 }
@@ -134,83 +135,159 @@ static uint16_t dap_transfer_configure(const uint8_t *req, uint8_t *response) {
 /* DAP_Transfer command */
 static uint16_t dap_transfer(const uint8_t *req, uint8_t *response, uint16_t req_len) {
     response[0] = DAP_TRANSFER;
-    /* DCount = number of transfers minus 1 */
-    uint8_t request_count = req[1] + 1;
+    uint8_t dap_index = req[1];
+    (void)dap_index;
+    uint8_t request_count = req[2];
     response[1] = 0;  /* Response count */
     response[2] = DAP_TRANSFER_OK;  /* Status */
     
     uint16_t resp_idx = 3;
-    uint16_t req_idx = 2;
+    uint16_t req_idx = 3;
     uint8_t response_count = 0;
+    uint8_t post_read = 0;
     
     for (uint8_t i = 0; i < request_count; i++) {
         if (req_idx >= req_len) {
-            response[2] = DAP_TRANSFER_ERROR;
+            response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
             break;
         }
         
-        /* CMSIS-DAP request byte format:
-         * Bit 0: Start (always 1)
-         * Bit 1: APnDP (0=DP, 1=AP)
-         * Bit 2: RnW (0=Write, 1=Read)
-         * Bit 3: A[2]
-         * Bit 4: A[3]
-         * Bits 5: Parity (odd parity of bits 1-4)
-         * Bit 6: Stop (always 0)
-         * Bit 7: Park (always 1)
-         */
         uint8_t req_type = req[req_idx++];
         bool is_ap = (req_type & DAP_TRANSFER_APnDP) != 0;
         bool is_write = (req_type & DAP_TRANSFER_RnW) == 0;
-        /* Extract A[3:2] from request byte bits 2:3 */
-        uint8_t reg = req_type & 0x0C;
+        uint8_t a23 = (req_type >> 2) & 3;
+        uint8_t wire_req = swd_build_request(is_ap ? 1 : 0, is_write ? 0 : 1, a23);
         
-        swd_result_t result;
         uint32_t value = 0;
-        uint8_t retry = transfer_wait_retry;
-        
-        do {
-            if (is_write) {
-                if (req_idx + 4 > req_len) {
-                    response[2] = DAP_TRANSFER_ERROR;
+        if (is_write) {
+            if (post_read) {
+                /* Flush previous posted AP read to response before write */
+                uint8_t rdbuff_wire = swd_build_request(0, 1, 3);
+                uint32_t prev_data = 0;
+                uint8_t ack_prev = SWD_ACK_OK;
+                uint16_t r = transfer_wait_retry;
+                do {
+                    ack_prev = swd_transfer(rdbuff_wire, &prev_data);
+                    if (ack_prev == SWD_ACK_WAIT) sleep_us(10);
+                    else break;
+                } while (r-- > 0);
+                if (ack_prev != SWD_ACK_OK) {
+                    if (ack_prev == SWD_ACK_WAIT) response[2] = DAP_TRANSFER_WAIT;
+                    else if (ack_prev == SWD_ACK_FAULT) response[2] = DAP_TRANSFER_FAULT;
+                    else response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
                     break;
                 }
-                value = req[req_idx] | (req[req_idx+1] << 8) | 
-                        (req[req_idx+2] << 16) | (req[req_idx+3] << 24);
-                
-                if (is_ap) {
-                    result = swd_write_ap(reg, value);
-                } else {
-                    result = swd_write_dp(reg, value);
-                }
-            } else {
-                if (is_ap) {
-                    result = swd_read_ap(reg, &value);
-                } else {
-                    result = swd_read_dp(reg, &value);
-                }
+                put_le32(&response[resp_idx], prev_data);
+                resp_idx += 4;
+                post_read = 0;
             }
-            if (result == SWD_ERR_ACK_WAIT) {
-                sleep_us(100);
-            } else {
+
+            if (req_idx + 4 > req_len) {
+                response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
                 break;
             }
+            value = req[req_idx] | (req[req_idx+1] << 8) | 
+                    (req[req_idx+2] << 16) | (req[req_idx+3] << 24);
+            req_idx += 4;
+            
+            uint8_t ack = SWD_ACK_OK;
+            uint16_t retry = transfer_wait_retry;
+            do {
+                ack = swd_transfer(wire_req, &value);
+                if (ack == SWD_ACK_WAIT) sleep_us(10);
+                else break;
+            } while (retry-- > 0);
+            
+            if (ack != SWD_ACK_OK) {
+                if (ack == SWD_ACK_WAIT) response[2] = DAP_TRANSFER_WAIT;
+                else if (ack == SWD_ACK_FAULT) response[2] = DAP_TRANSFER_FAULT;
+                else response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                break;
+            }
+            response_count++;
+        } else {
+            /* Read register */
+            if (post_read) {
+                /* Read was posted before: this transfer returns previous data */
+                uint32_t prev_data = 0;
+                uint8_t ack = SWD_ACK_OK;
+                uint16_t retry = transfer_wait_retry;
+                do {
+                    ack = swd_transfer(wire_req, &prev_data);
+                    if (ack == SWD_ACK_WAIT) sleep_us(10);
+                    else break;
+                } while (retry-- > 0);
+                
+                if (ack != SWD_ACK_OK) {
+                    if (ack == SWD_ACK_WAIT) response[2] = DAP_TRANSFER_WAIT;
+                    else if (ack == SWD_ACK_FAULT) response[2] = DAP_TRANSFER_FAULT;
+                    else response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                    break;
+                }
+                put_le32(&response[resp_idx], prev_data);
+                resp_idx += 4;
+            } else if (is_ap) {
+                /* First AP read in packet: post it */
+                uint32_t dummy = 0;
+                uint8_t ack = SWD_ACK_OK;
+                uint16_t retry = transfer_wait_retry;
+                do {
+                    ack = swd_transfer(wire_req, &dummy);
+                    if (ack == SWD_ACK_WAIT) sleep_us(10);
+                    else break;
+                } while (retry-- > 0);
+                
+                if (ack != SWD_ACK_OK) {
+                    if (ack == SWD_ACK_WAIT) response[2] = DAP_TRANSFER_WAIT;
+                    else if (ack == SWD_ACK_FAULT) response[2] = DAP_TRANSFER_FAULT;
+                    else response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                    break;
+                }
+                post_read = 1;
+            } else {
+                /* DP read: immediate data */
+                uint32_t dp_data = 0;
+                uint8_t ack = SWD_ACK_OK;
+                uint16_t retry = transfer_wait_retry;
+                do {
+                    ack = swd_transfer(wire_req, &dp_data);
+                    if (ack == SWD_ACK_WAIT) sleep_us(10);
+                    else break;
+                } while (retry-- > 0);
+                
+                if (ack != SWD_ACK_OK) {
+                    if (ack == SWD_ACK_WAIT) response[2] = DAP_TRANSFER_WAIT;
+                    else if (ack == SWD_ACK_FAULT) response[2] = DAP_TRANSFER_FAULT;
+                    else response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                    break;
+                }
+                put_le32(&response[resp_idx], dp_data);
+                resp_idx += 4;
+            }
+            response_count++;
+        }
+    }
+    
+    if (response[2] == DAP_TRANSFER_OK && post_read) {
+        /* Flush final posted AP read from DP_RDBUFF */
+        uint8_t rdbuff_wire = swd_build_request(0, 1, 3);
+        uint32_t final_data = 0;
+        uint8_t ack = SWD_ACK_OK;
+        uint16_t retry = transfer_wait_retry;
+        do {
+            ack = swd_transfer(rdbuff_wire, &final_data);
+            if (ack == SWD_ACK_WAIT) sleep_us(10);
+            else break;
         } while (retry-- > 0);
         
-        if (is_write) {
-            req_idx += 4;
-        }
-
-        if (result != SWD_OK) {
-            response[2] = (result == SWD_ERR_ACK_WAIT) ? DAP_TRANSFER_WAIT : DAP_TRANSFER_FAULT;
-            break;
-        }
-        
-        if (!is_write) {
-            put_le32(&response[resp_idx], value);
+        if (ack == SWD_ACK_OK) {
+            put_le32(&response[resp_idx], final_data);
             resp_idx += 4;
+        } else {
+            if (ack == SWD_ACK_WAIT) response[2] = DAP_TRANSFER_WAIT;
+            else if (ack == SWD_ACK_FAULT) response[2] = DAP_TRANSFER_FAULT;
+            else response[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
         }
-        response_count++;
     }
     
     response[1] = response_count;
@@ -323,58 +400,94 @@ static uint16_t dap_write_abort(const uint8_t *req, uint8_t *response, uint16_t 
 /* DAP_TransferBlock command */
 static uint16_t dap_transfer_block(const uint8_t *req, uint8_t *response, uint16_t req_len) {
     response[0] = DAP_TRANSFER_BLOCK;
-    uint16_t count = req[1] | (req[2] << 8);
-    response[1] = count & 0xFF;
-    response[2] = (count >> 8) & 0xFF;
+    uint8_t dap_index = req[1];
+    (void)dap_index;
+    uint16_t count = req[2] | (req[3] << 8);
+    response[1] = 0;
+    response[2] = 0;
     response[3] = DAP_TRANSFER_OK;
 
+    if (count == 0) return 4;
+    if (req_len < 5) {
+        response[3] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+        return 4;
+    }
+
+    uint8_t req_type = req[4];
+    bool is_ap = (req_type & DAP_TRANSFER_APnDP) != 0;
+    bool is_write = (req_type & DAP_TRANSFER_RnW) == 0;
+    uint8_t a23 = (req_type >> 2) & 3;
+    uint8_t wire_req = swd_build_request(is_ap ? 1 : 0, is_write ? 0 : 1, a23);
+
     uint16_t resp_idx = 4;
-    uint16_t req_idx = 3;
+    uint16_t req_idx = 5;
+    uint16_t completed = 0;
+
+    if (!is_write && is_ap) {
+        /* Prime the MEM-AP pipeline for block reads */
+        uint32_t dummy = 0;
+        uint8_t ack = SWD_ACK_OK;
+        uint16_t retry = transfer_wait_retry;
+        do {
+            ack = swd_transfer(wire_req, &dummy);
+            if (ack == SWD_ACK_WAIT) sleep_us(10);
+            else break;
+        } while (retry-- > 0);
+
+        if (ack != SWD_ACK_OK) {
+            if (ack == SWD_ACK_WAIT) response[3] = DAP_TRANSFER_WAIT;
+            else if (ack == SWD_ACK_FAULT) response[3] = DAP_TRANSFER_FAULT;
+            else response[3] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+            return 4;
+        }
+    }
 
     for (uint16_t i = 0; i < count; i++) {
-        if (req_idx >= req_len) { response[3] = DAP_TRANSFER_ERROR; break; }
-
-        uint8_t req_type = req[req_idx++];
-        bool is_ap = (req_type & DAP_TRANSFER_APnDP) != 0;
-        bool is_write = (req_type & DAP_TRANSFER_RnW) == 0;
-        /* Extract A[3:2] from request byte bits 2:3 */
-        uint8_t reg = req_type & 0x0C;
-
-        swd_result_t result;
         uint32_t value = 0;
-        uint8_t retry = transfer_wait_retry;
-
-        do {
-            if (is_write) {
-                if (req_idx + 4 > req_len) { response[3] = DAP_TRANSFER_ERROR; break; }
-                value = req[req_idx] | (req[req_idx+1] << 8) |
-                        (req[req_idx+2] << 16) | (req[req_idx+3] << 24);
-                result = is_ap ? swd_write_ap(reg, value) : swd_write_dp(reg, value);
-            } else {
-                result = is_ap ? swd_read_ap(reg, &value) : swd_read_dp(reg, &value);
+        if (is_write) {
+            if (req_idx + 4 > req_len) {
+                response[3] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                break;
             }
-            if (result == SWD_ERR_ACK_WAIT) {
-                sleep_us(100);
+            value = req[req_idx] | (req[req_idx+1] << 8) |
+                    (req[req_idx+2] << 16) | (req[req_idx+3] << 24);
+            req_idx += 4;
+        } else if (is_ap && (i == count - 1)) {
+            /* Final transfer of AP read block: read DP_RDBUFF */
+            wire_req = swd_build_request(0, 1, 3);
+        }
+
+        uint8_t ack = SWD_ACK_OK;
+        uint16_t retry = transfer_wait_retry;
+        do {
+            uint32_t transfer_val = value;
+            ack = swd_transfer(wire_req, &transfer_val);
+            if (!is_write) {
+                value = transfer_val;
+            }
+            if (ack == SWD_ACK_WAIT) {
+                sleep_us(10);
             } else {
                 break;
             }
         } while (retry-- > 0);
 
-        if (is_write) {
-            req_idx += 4;
-        }
-
-        if (result != SWD_OK) {
-            response[3] = (result == SWD_ERR_ACK_WAIT) ? DAP_TRANSFER_WAIT : DAP_TRANSFER_FAULT;
+        if (ack == SWD_ACK_OK) {
+            if (!is_write) {
+                put_le32(&response[resp_idx], value);
+                resp_idx += 4;
+            }
+            completed++;
+        } else {
+            if (ack == SWD_ACK_WAIT) response[3] = DAP_TRANSFER_WAIT;
+            else if (ack == SWD_ACK_FAULT) response[3] = DAP_TRANSFER_FAULT;
+            else response[3] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
             break;
-        }
-
-        if (!is_write) {
-            put_le32(&response[resp_idx], value);
-            resp_idx += 4;
         }
     }
 
+    response[1] = completed & 0xFF;
+    response[2] = (completed >> 8) & 0xFF;
     return resp_idx;
 }
 

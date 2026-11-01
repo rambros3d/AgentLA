@@ -324,9 +324,7 @@ void usb_hid_task(void) {
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding) {
     (void)itf;
-    if (p_line_coding->bit_rate == 1200) {
-        reset_usb_boot(0, 0);
-    }
+    (void)p_line_coding;
 }
 
 bool usb_hid_is_ready(void) { return tud_mounted(); }

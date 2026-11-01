@@ -57,12 +57,13 @@
 #define DAP_TRANSFER_RnW           0x02
 #define DAP_TRANSFER_MATCH         0x10
 
-/* Transfer Response */
-#define DAP_TRANSFER_OK            0x00
-#define DAP_TRANSFER_WAIT          0x01
-#define DAP_TRANSFER_FAULT         0x02
-#define DAP_TRANSFER_ERROR         0x03
-#define DAP_TRANSFER_PARITY_ERROR  0x04
+/* Transfer Response (Bits [2:0] = ACK value, Bit 3 = Protocol Error, Bit 4 = Mismatch) */
+#define DAP_TRANSFER_OK            0x01
+#define DAP_TRANSFER_WAIT          0x02
+#define DAP_TRANSFER_FAULT         0x04
+#define DAP_TRANSFER_NO_ACK        0x07
+#define DAP_TRANSFER_ERROR         0x08
+#define DAP_TRANSFER_MISMATCH      0x10
 
 /* Process a CMSIS-DAP command and produce a response */
 uint16_t cmsis_dap_process(const uint8_t *request, uint8_t *response, uint16_t req_len);

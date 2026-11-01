@@ -106,6 +106,7 @@ target_link_libraries(AgentLA
 pico_add_library(pico_httpd_content NOFLAG)
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/index.html
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/app.js
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/style.css
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/winbox.min.css
     ${CMAKE_CURRENT_LIST_DIR}/firmware/html/winbox.js
