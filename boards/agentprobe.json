@@ -10,7 +10,56 @@
     "clock_max_mhz": 150,
     "sram_bytes": 532480,
     "flash_bytes": 16777216,
-    "psram_bytes": 8388608
+    "psram_bytes": 8388608,
+    "psram_interface": "Dedicated RP2350 QSPI CS1n (Pin 80)"
+  },
+  "power_architecture": {
+    "usb_c_pd": {
+      "enabled": true,
+      "controller": "CH224K / HUSB238",
+      "profiles": "5V / 9V / 12V / 15V / 20V up to 3A (60W)",
+      "protection": "USBLC6-2SC6 ESD + resettable polyfuse"
+    },
+    "dc_barrel_jack": {
+      "enabled": true,
+      "connector": "5.5mm x 2.1mm / 2.5mm Center-Positive",
+      "voltage_range": "7.0V - 28.0V",
+      "protection": "P-FET reverse-polarity protection + SMBJ24A TVS diode"
+    },
+    "regulators": {
+      "main_buck": "TI TPS54302 (5.0V 3A Step-Down)",
+      "digital_ldo": "TI TLV75533 (3.3V 500mA)",
+      "analog_ldo": "TI TPS7A2033 (3.3V Ultra-Low-Noise 12uVrms)",
+      "vref_precision_ic": "TI REF3030 (3.000V +/-0.2% 35ppm/C)"
+    },
+    "target_power": {
+      "voltage_range": "1.2V - 5.0V",
+      "firmware_switchable": true,
+      "current_sense_ic": "TI INA180 (GP46 / ADC6)",
+      "voltage_sense_divider": "10:1 (GP47 / ADC7)"
+    }
+  },
+  "level_shifting": {
+    "zone1_programmer": {
+      "chip": "TI TXS0108E",
+      "voltage_range": "1.2V - 5.0V",
+      "target_reference_rail": "VTARGET"
+    },
+    "zone3_bus_masters": {
+      "chip": "TI TXS0108E / TXB0108",
+      "voltage_range": "1.2V - 5.0V",
+      "target_reference_rail": "VTARGET"
+    }
+  },
+  "storage": {
+    "psram_mb": 8,
+    "microsd_slot": {
+      "enabled": true,
+      "connector": "Push-Push MicroSD Socket",
+      "interface": "High-Speed SPI (up to 25-50 MHz)",
+      "cs_pin": 21,
+      "features": ["Headless field logging", "CAN-FD / RS-485 / UART pcap/csv capture"]
+    }
   },
   "features": {
     "onboard_led": null,
@@ -19,13 +68,14 @@
     "has_hardware_can": true,
     "has_hardware_rs485": true,
     "target_current_sense": true,
-    "target_power_control": true
+    "target_power_control": true,
+    "qwiic_stemma_qt": true
   },
   "zones": {
     "zone1_programmer": {
       "name": "Target Programmer Header",
       "gpio_range": [0, 9],
-      "connector": "2x5 1.27mm / 2.54mm ARM Debug",
+      "connector": "2x5 1.27mm / 2.54mm ARM Debug with 1.2V-5.0V Level Translation",
       "pins": {
         "trst": 0,
         "tdo": 1,
@@ -58,9 +108,10 @@
       }
     },
     "zone3_bus_masters": {
-      "name": "Dedicated Bus Master Pod",
+      "name": "Dedicated Bus Master Pod & Quick-Connect",
       "gpio_range": [16, 23],
-      "connector": "2x5 2.54mm Shrouded Header",
+      "connector": "2x5 2.54mm Shrouded Header with 1.2V-5.0V Level Translation",
+      "qwiic_stemma_qt": "4-pin JST-SH 1.0mm (SDA=GP16, SCL=GP17, 3.3V, GND)",
       "i2c_i3c": {
         "sda_pin": 16,
         "scl_pin": 17
