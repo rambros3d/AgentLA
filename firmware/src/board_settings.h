@@ -101,7 +101,9 @@
 #endif
 
 #define CAPTURE_BUFFER_SIZE (64 * 3 * 1024)
+#ifndef MAX_CHANNELS
 #define MAX_CHANNELS 10
+#endif
 
 #define FIRMWARE_VERSION "v1.0"
 #define USB_VID 0x1209
