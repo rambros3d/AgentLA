@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "board_id": "agentprobe",
-  "name": "AgentProbe",
+  "board_id": "silingprobe",
+  "name": "Siling Probe",
   "vendor": "AgentLA",
   "mcu": {
     "chip": "RP2350B",

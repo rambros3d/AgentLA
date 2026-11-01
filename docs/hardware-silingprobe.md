@@ -1,14 +1,14 @@
-# AgentProbe Hardware Specification & Pinout
+# Siling Probe Hardware Specification & Pinout
 
 **Target MCU**: Raspberry Pi RP2350B (QFN-80)  
-**Board Profile ID**: `agentprobe`  
+**Board Profile ID**: `silingprobe`  
 **Baseline Profile**: `pico2` (RP2350A, QFN-60)
 
 ---
 
 ## 1. Executive Summary & Design Highlights
 
-**AgentProbe** is an advanced open-hardware multi-instrument workstation probe based on the **RP2350B** (QFN-80 package). It provides a complete, simultaneous embedded toolset:
+**Siling Probe** is an advanced open-hardware multi-instrument workstation probe based on the **RP2350B** (QFN-80 package). It provides a complete, simultaneous embedded toolset:
 - **Zero Pin-Sharing**: 48 GPIOs and 8 ADCs partitioned into 5 independent physical zones.
 - **Bi-Directional Auto-Sensing Level Shifting ($1.2\,\text{V} - 5.0\,\text{V}$)** on the Programmer and Bus Master pods via TI TXS0108E / TXB0108, referenced dynamically to target VCC (`VTARGET`).
 - **Heavy-Duty Dual-Input Power Architecture**: High-power USB-C USB-PD sink (up to 20V 3A / 60W) plus wide-input DC Barrel Jack ($7.0\,\text{V} - 28.0\,\text{V}$) with synchronous buck regulation ($5\,\text{V}$ 3A system rail).
@@ -170,3 +170,16 @@
 2. **Push-Push MicroSD Card Slot**:
    - Connected to SPI0 bus (`SCK` GP18, `MOSI` GP19, `MISO` GP20, `CS` GP21) with dedicated card-detect switch and ESD protection.
    - Enables headless field capture of CAN-FD, RS-485, and UART traffic directly into `.pcap` or `.csv` files.
+
+---
+
+## 5. Software & Firmware Configuration
+
+The hardware profile is declaratively represented in [`boards/silingprobe.json`](file:///run/media/sun/halo/AgentLA/boards/silingprobe.json) and exposed to the C firmware via [`firmware/src/boards/board_silingprobe.h`](file:///run/media/sun/halo/AgentLA/firmware/src/boards/board_silingprobe.h).
+
+To compile the firmware for the **Siling Probe** PCB:
+```bash
+# In CMake build settings (agentla_build_settings.cmake):
+cmake -B build-work -DSILINGPROBE_BOARD=ON
+make -C build-work -j4 AgentLA
+```

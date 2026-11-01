@@ -1,6 +1,12 @@
-# AgentLA Pin Allocation — RP2350 (QFN-60)
+# AgentLA Pin Allocation — Baseline & Custom Hardware
 
-## Overview
+AgentLA supports two distinct board profiles:
+1. **Pico 2 (`pico2`)**: Baseline Raspberry Pi Pico 2 board using **RP2350A** (QFN-60, 30 GPIOs, 4 ADCs). Documented below.
+2. **Siling Probe (`silingprobe`)**: Custom hardware PCB using **RP2350B** (QFN-80, 48 GPIOs, 8 ADCs) with dedicated transceivers, level shifting, 8MB PSRAM, MicroSD slot, and USB-PD/DC jack power. Fully documented in [hardware-silingprobe.md](file:///run/media/sun/halo/AgentLA/docs/hardware-silingprobe.md) and [silingprobe.json](file:///run/media/sun/halo/AgentLA/boards/silingprobe.json).
+
+---
+
+## Pico 2 (RP2350A QFN-60) Allocation Overview
 
 All 30 GPIO pins (GPIO0-29) allocated across three interfaces.
 Each interface owns a contiguous range, with GPIO 0/1 and 4/5 shared between programmer and adapter.
