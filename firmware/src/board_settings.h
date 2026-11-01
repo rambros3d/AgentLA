@@ -3,27 +3,57 @@
 
 #include "pico/stdlib.h"
 
-#define BOARD_NAME "RP2350"
-#define INPUT_PIN_BASE 20   /* Logic analyzer PIO0 IN base — GPIO20-29 (see pinMap in capture.c) */
+#if defined(AGENTPROBE_BOARD)
+    #include "boards/board_agentprobe.h"
+#else
+    #include "boards/board_pico2.h"
+#endif
+
 #define COMPLEX_TRIGGER_OUT_PIN 0
 #define COMPLEX_TRIGGER_IN_PIN 1
 
 /* Adapter mode pins — dedicated, no sharing with programmer */
+#ifndef ADAPTER_I2C_SCL_PIN
 #define ADAPTER_I2C_SCL_PIN 10  /* I2C1 SCL (F2) */
+#endif
+#ifndef ADAPTER_I2C_SDA_PIN
 #define ADAPTER_I2C_SDA_PIN 11  /* I2C1 SDA (F2) */
+#endif
+#ifndef ADAPTER_I3C_BASE_PIN
 #define ADAPTER_I3C_BASE_PIN 10
+#endif
+#ifndef ADAPTER_I3C_SDA_PIN
 #define ADAPTER_I3C_SDA_PIN  10  /* I3C SDA on PIO2 */
+#endif
+#ifndef ADAPTER_I3C_SCL_PIN
 #define ADAPTER_I3C_SCL_PIN  11  /* I3C SCL on PIO2 */
+#endif
+#ifndef ADAPTER_UART_TX_PIN
 #define ADAPTER_UART_TX_PIN 12  /* UART TX */
+#endif
+#ifndef ADAPTER_UART_RX_PIN
 #define ADAPTER_UART_RX_PIN 13  /* UART RX */
+#endif
 
 /* Dedicated Transceiver Pin Blocks */
+#ifndef CAN_TX_PIN
 #define CAN_TX_PIN   18
+#endif
+#ifndef CAN_RX_PIN
 #define CAN_RX_PIN   19
+#endif
+#ifndef CAN_TERM_PIN
 #define CAN_TERM_PIN 22
+#endif
+#ifndef RS485_TX_PIN
 #define RS485_TX_PIN 12
+#endif
+#ifndef RS485_RX_PIN
 #define RS485_RX_PIN 13
+#endif
+#ifndef RS485_DE_PIN
 #define RS485_DE_PIN 14
+#endif
 
 /* I3C PIO Assignment on RP2350 */
 #if NUM_PIOS >= 3
