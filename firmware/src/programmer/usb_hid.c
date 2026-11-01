@@ -20,6 +20,7 @@ static const char* string_desc_arr[] = {
     "CMSIS-DAP v1 Interface",        /* 4: HID interface */
     "AgentLA CDC Serial",            /* 5: CDC0 CLI interface */
     "AgentLA Debug Log",             /* 6: CDC1 debug interface */
+    "0202846A9600",                  /* 7: MAC address (ECM) */
 };
 static uint16_t _desc_str[32];
 
@@ -88,34 +89,22 @@ static const tusb_desc_device_t desc_device = {
 };
 
 /* Configuration descriptor — CDC0 + CDC1 + HID composite */
-/* NET IAD uses TUD_RNDIS */
+/* NET interface (ECM) using TUD_CDC_ECM_DESCRIPTOR macro */
 static const uint8_t desc_config[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0,
-        TUD_CONFIG_DESC_LEN + 240 + TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN,
+        TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN + TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN,
         0x00, 500),
 
-    /* NET interface (RNDIS) */
-    /* Interface association */
-    8, TUSB_DESC_INTERFACE_ASSOCIATION, 0, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0xFF, 0,
-    /* Communication IF 0 */
-    9, TUSB_DESC_INTERFACE, ITF_NET, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0xFF, 0,
-    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, 0x10, 0x01,
-    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_CALL_MANAGEMENT, 0x00, 1,
-    4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 0x02,
-    5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, ITF_NET, 1,
-    7, TUSB_DESC_ENDPOINT, EDPT_NET_NOTIF, 0x03, 8, 0, 4,
-    /* ACM Data Interface 1 */
-    9, TUSB_DESC_INTERFACE, ITF_NET_DATA, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
-    7, TUSB_DESC_ENDPOINT, EDPT_NET_OUT,   0x02, 64, 0,
-    7, TUSB_DESC_ENDPOINT, EDPT_NET_IN,    0x02, 64, 0,
+    /* ECM Network Interface (ITF 0,1) */
+    TUD_CDC_ECM_DESCRIPTOR(ITF_NET, 5, 7, EDPT_NET_NOTIF, 64, EDPT_NET_OUT, EDPT_NET_IN, 64, CFG_TUD_NET_MTU),
 
-    /* CDC0 CLI Interface (ITF 2,3) */
+    /* CDC0 CLI Interface */
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC0, 5, EDPT_CDC0_NOTIF, 8, EDPT_CDC0_OUT, EDPT_CDC0_IN, 64),
 
-    /* CDC1 Debug Interface (ITF 4,5) */
+    /* CDC1 Debug Interface */
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC1, 6, EDPT_CDC1_NOTIF, 8, EDPT_CDC1_OUT, EDPT_CDC1_IN, 64),
 
-    /* HID CMSIS-DAP Interface (ITF 6) */
+    /* HID CMSIS-DAP Interface */
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE,
         sizeof(hid_report_desc), EDPT_HID_OUT, EDPT_HID_IN, 64, 1),
 };

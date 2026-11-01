@@ -1,4 +1,6 @@
 #include "webui_command_bridge.h"
+extern void network_cancel_job(uint32_t handle);
+extern const char *webui_job_status(uint32_t handle);
 
 #include "pico/stdlib.h"
 
@@ -67,13 +69,21 @@ static void json_escape(char *dst, size_t cap, const char *src) {
 }
 
 static int webui_command_is_long(const char *command) {
-    char first[32];
     if (command == NULL || command[0] == '\0') return 0;
+    if (strncmp(command, "FLASH WRITE", 11) == 0 ||
+        strncmp(command, "FLASH VERIFY", 12) == 0 ||
+        strncmp(command, "FLASH READ", 10) == 0) {
+        return 0;
+    }
+    if (strncmp(command, "FLASH ERASE", 11) == 0 ||
+        strncmp(command, "MASSERASE", 9) == 0) {
+        return 1;
+    }
+    char first[32];
     snprintf(first, sizeof(first), "%s", command);
     char *space = strchr(first, ' ');
     if (space != NULL) *space = '\0';
-    return strcmp(first, "FLASH") == 0 || strcmp(first, "CAPTURE") == 0 ||
-           strcmp(first, "MASSERASE") == 0 || strcmp(first, "SWD") == 0;
+    return strcmp(first, "CAPTURE") == 0 || strcmp(first, "SWD") == 0;
 }
 
 static int web_command_allowed(const char *name) {
@@ -174,7 +184,7 @@ void webui_dispatch_mcp(char **pcParam, char **pcValue, int iNumParams,
             extracted_id = atoi(ip + 1);
         }
     }
-    if (method[0] == '\0' || strcmp(method, "list") == 0) {
+    if (method[0] == '\0') {
         snprintf(method, sizeof(method), "cmd");
     }
 
@@ -199,7 +209,22 @@ void webui_dispatch_mcp(char **pcParam, char **pcValue, int iNumParams,
         snprintf(command + strlen(command), sizeof(command) - strlen(command), "%s", arg_tokens);
     }
 
-    if (strcmp(method, "list") == 0 && name[0] == '\0' && args[0] == '\0' && request[0] == '\0') {
+    if (strcmp(method, "cancel") == 0 && name[0] != '\0') {
+        uint32_t hid = (uint32_t)strtoul(name, NULL, 10);
+        network_cancel_job(hid);
+        snprintf(response, response_capacity, "{\"jsonrpc\":\"2.0\",\"result\":{\"cancelled\":true,\"job\":%lu},\"id\":%d}", (unsigned long)hid, extracted_id);
+        return;
+    }
+    if (strcmp(method, "job_status") == 0 && name[0] != '\0') {
+        uint32_t hid = (uint32_t)strtoul(name, NULL, 10);
+        const char *st = webui_job_status(hid);
+        char esc[1024];
+        json_escape(esc, sizeof(esc), st);
+        snprintf(response, response_capacity, "{\"jsonrpc\":\"2.0\",\"result\":{\"status\":\"%s\"},\"id\":%d}", esc, extracted_id);
+        return;
+    }
+
+    if (strcmp(method, "list") == 0) {
         snprintf(response, response_capacity,
                  "{\"tools\":[\"cmd\",\"IDENTIFY\",\"VERSION\",\"STATUS\",\"CONFIGURE\",\"CAPTURE\",\"ADC\",\"MEASURE\",\"I2C_READ\",\"I2C_WRITE\",\"UART_READ\",\"UART_WRITE\",\"FLASH\",\"DEBUG\",\"SWD\",\"PINCLAIM\",\"PINRELEASE\",\"SAFEDISCOVER\",\"MASSERASE\",\"PROG\",\"CH32\",\"RVSWD\",\"SWIO\"]}");
         return;

@@ -27,6 +27,11 @@
 #define RVSWD_PIO_CLK_DIV 30.0f
 #define RVSWD_TIMEOUT_US 1000
 
+/* Runtime-tunable PIO clock divider (CH32 SPEED <div>). Defaults to the
+ * vendored 4.17 MHz; slower rates (up to ~260 kHz at div=480) tolerate long
+ * jumper wiring on breadboarded targets. */
+static float g_rvswd_clkdiv = RVSWD_PIO_CLK_DIV;
+
 static rvswd_transport_handle_t g_rvswd = {
     .pio = RVSWD_PIO_INSTANCE,
     .sm = RVSWD_PIO_SM,
@@ -170,7 +175,7 @@ rvswd_result_t rvswd_transport_init(void) {
     sm_config_set_set_pins(&c, RVSWD_SWDIO_PIN, 1);
     sm_config_set_in_pins(&c, RVSWD_SWDIO_PIN);
     sm_config_set_sideset_pins(&c, RVSWD_SWCLK_PIN);
-    sm_config_set_clkdiv(&c, RVSWD_PIO_CLK_DIV);
+    sm_config_set_clkdiv(&c, g_rvswd_clkdiv);
     sm_config_set_out_shift(&c, false, false, 32);  /* MSB-first */
     sm_config_set_in_shift(&c, false, false, 32);
 
@@ -215,6 +220,16 @@ void rvswd_transport_deinit(void) {
 
 bool rvswd_transport_is_initialized(void) {
     return g_rvswd.initialized;
+}
+
+void rvswd_transport_set_clkdiv(float div) {
+    if (div < 1.0f) div = 1.0f;
+    if (div > 65536.0f) div = 65536.0f;
+    g_rvswd_clkdiv = div;
+}
+
+float rvswd_transport_get_clkdiv(void) {
+    return g_rvswd_clkdiv;
 }
 
 rvswd_result_t rvswd_transport_reset(void) {

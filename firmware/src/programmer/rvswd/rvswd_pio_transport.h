@@ -37,6 +37,11 @@ void rvswd_transport_deinit(void);
 /* Check if RVSWD transport is active. */
 bool rvswd_transport_is_initialized(void);
 
+/* Set/get the PIO clock divider (default 30.0 = 4.17 MHz SWCLK). Takes
+ * effect on the next rvswd_transport_init(). */
+void rvswd_transport_set_clkdiv(float div);
+float rvswd_transport_get_clkdiv(void);
+
 /* Send line reset (300 cycles of SWDIO=H). */
 rvswd_result_t rvswd_transport_reset(void);
 

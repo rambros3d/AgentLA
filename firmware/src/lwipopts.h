@@ -105,3 +105,5 @@ void hw_debug_print(const char *format, ...);
 
 #define LWIP_HTTPD_CGI              1
 #define LWIP_HTTPD_SUPPORT_POST     0
+
+#define LWIP_HTTPD_MAX_TAG_INSERT_LEN 1024

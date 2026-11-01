@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AgentLA Web UI</title>
@@ -24,7 +25,7 @@
             align-items: center;
             transition: opacity 0.5s ease, visibility 0.5s ease;
         }
-        #loading-screen.fade-out { opacity: 0; visibility: hidden; }
+        #loading-screen.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
         .loader-content { text-align: center; color: #ffffff; }
         .loader-content h2 { margin: 20px 0 5px 0; font-size: 24px; letter-spacing: 1px; font-weight: 600; }
         .loader-content p { margin: 0; color: #a0a0ab; font-size: 13px; }
@@ -85,7 +86,7 @@
         </div>
     </div>
 
-    <div id="start-menu" class="hidden">
+    <div id="start-menu">
         <div class="start-apps-grid">
             <div class="app-icon launcher" data-app="flasher">
                 <div class="icon-box"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
@@ -283,16 +284,37 @@ Success/failure is returned as JSON.</pre>
 
         async function callMcp(method, name, args) {
             try {
-                if (name) {
-                    let url = '/mcp?method=cmd&name=' + encodeURIComponent(name);
-                    if (args) url += '&args=' + encodeURIComponent(args);
-                    const r = await fetch(url);
-                    return await r.text();
+                if (name && (name.includes('FLASH ERASE') || name.includes('MASSERASE'))) {
+                    if (!confirm('Destructive operation: ' + name + '?')) {
+                        return { ok: false, error: 'Cancelled', stdout: 'Cancelled', raw: null };
+                    }
                 }
-                const r = await fetch('/mcp?method=' + encodeURIComponent(method));
-                return await r.text();
+                let url;
+                if (name) {
+                    url = '/mcp?method=cmd&name=' + encodeURIComponent(name);
+                    if (args) url += '&args=' + encodeURIComponent(args);
+                } else {
+                    url = '/mcp?method=' + encodeURIComponent(method);
+                }
+                const r = await fetch(url);
+                const text = await r.text();
+                try {
+                    const data = JSON.parse(text);
+                    if (data.error) {
+                        const errMsg = data.error.message || JSON.stringify(data.error);
+                        return { ok: false, error: errMsg, stdout: errMsg, result: null, raw: data };
+                    }
+                    if (data.result) {
+                        const stdout = (data.result.stdout !== undefined) ? data.result.stdout : (data.result.queued ? ('QUEUED JOB ' + data.result.job_id) : JSON.stringify(data.result));
+                        const ok = (data.result.status === undefined || data.result.status === 0);
+                        return { ok: ok, stdout: stdout, result: data.result, error: ok ? null : ('Exit ' + data.result.status), raw: data };
+                    }
+                    return { ok: true, stdout: text, result: data, error: null, raw: data };
+                } catch (parseErr) {
+                    return { ok: true, stdout: text, result: text, error: null, raw: text };
+                }
             } catch (e) {
-                return 'ERROR: ' + e;
+                return { ok: false, error: String(e), stdout: 'ERROR: ' + e, result: null, raw: null };
             }
         }
 
@@ -341,8 +363,25 @@ Success/failure is returned as JSON.</pre>
                 }
 
                 let res = await callMcp('cmd', 'FLASH ERASE', baseText + ' ' + total);
-                logTo(out, out.textContent + '\nErase: ' + res);
-                if (!/^OK FLASH ERASE\b/i.test(res)) {
+                logTo(out, out.textContent + '\nErase: ' + res.stdout);
+                if (res.result && res.result.queued) {
+                    const jobId = res.result.job_id;
+                    let jobDone = false;
+                    for (let attempts = 0; attempts < 40; attempts++) {
+                        await new Promise(r => setTimeout(r, 200));
+                        const poll = await callMcp('job_status', String(jobId));
+                        if (poll.stdout && poll.stdout.includes('STATE=done')) {
+                            jobDone = true;
+                            logTo(out, out.textContent + '\nErase completed.');
+                            break;
+                        }
+                    }
+                    if (!jobDone) {
+                        logTo(out, out.textContent + '\nErase timeout.');
+                        progress.style.width = '0%';
+                        return;
+                    }
+                } else if (!res.ok || !/^OK FLASH ERASE\b/i.test(res.stdout)) {
                     progress.style.width = '0%';
                     return;
                 }
@@ -353,16 +392,16 @@ Success/failure is returned as JSON.</pre>
                     const hex = hexFromBytes(offset, n);
                     progress.style.width = Math.round(((offset + n) / total) * 92 + 4) + '%';
                     res = await callMcp('cmd', 'FLASH WRITE', chunkAddr.toString(16) + ' ' + hex);
-                    if (!/^OK FLASH WROTE/i.test(res)) {
-                        logTo(out, out.textContent + '\nFailed at offset ' + offset + ': ' + res);
+                    if (!res.ok || !/^OK FLASH WROTE/i.test(res.stdout)) {
+                        logTo(out, out.textContent + '\nFailed at offset ' + offset + ': ' + (res.stdout || res.error));
                         progress.style.width = '0%';
                         return;
                     }
-                    logTo(out, out.textContent + '\nWrite: ' + res);
+                    logTo(out, out.textContent + '\nWrite: ' + res.stdout);
                     if (verifyEnabled) {
                         res = await callMcp('cmd', 'FLASH VERIFY', chunkAddr.toString(16) + ' ' + hex);
-                        if (!/^OK FLASH VERIFY PASS/i.test(res)) {
-                            logTo(out, out.textContent + '\nVerify failed at offset ' + offset + ': ' + res);
+                        if (!res.ok || !/^OK FLASH VERIFY PASS/i.test(res.stdout)) {
+                            logTo(out, out.textContent + '\nVerify failed at offset ' + offset + ': ' + (res.stdout || res.error));
                             progress.style.width = '0%';
                             return;
                         }
@@ -373,8 +412,8 @@ Success/failure is returned as JSON.</pre>
                 logTo(out, out.textContent + '\nComplete: ' + total + ' bytes programmed and verified.');
             });
             if (clear) clear.addEventListener('click', function() { progress.style.width = '0%'; logTo(out, 'Ready.'); });
+        }
 
- 
         function initCommand(win) {
             const nameEl = $(win, '#cmd-name');
             const argsEl = $(win, '#cmd-args');
@@ -386,7 +425,7 @@ Success/failure is returned as JSON.</pre>
                 const args = argsEl.value.trim();
                 logTo(out, 'Running ' + name + ' ' + args + '...');
                 const res = await callMcp('cmd', name, args);
-                logTo(out, out.textContent + '\n' + res);
+                logTo(out, out.textContent + '\n' + res.stdout);
             });
             if (clear) clear.addEventListener('click', function() { logTo(out, 'Idle.'); });
         }
@@ -395,7 +434,7 @@ Success/failure is returned as JSON.</pre>
         async function ensureI2cClaim() {
             if (adapterI2cHandle) return adapterI2cHandle;
             const res = await callMcp('cmd', 'PINCLAIM', 'pins=10,11 func=2');
-            const match = res.match(/HANDLE=(\d+)/);
+            const match = (res.stdout || '').match(/HANDLE=(\d+)/);
             if (match) adapterI2cHandle = match[1];
             return adapterI2cHandle;
         }
@@ -404,7 +443,8 @@ Success/failure is returned as JSON.</pre>
             const out = $(win, '#dbg-log');
             const run = async function(command, label) {
                 logTo(out, (label || command) + '...');
-                logTo(out, out.textContent + '\n' + await callMcp('cmd', command));
+                const res = await callMcp('cmd', command);
+                logTo(out, out.textContent + '\n' + res.stdout);
             };
             const h = $(win, '#dbg-halt'); if (h) h.addEventListener('click', function() { run('DEBUG HALT', 'Halt'); });
             const s = $(win, '#dbg-step'); if (s) s.addEventListener('click', function() { run('DEBUG STEP', 'Step'); });
@@ -412,9 +452,9 @@ Success/failure is returned as JSON.</pre>
             const st = $(win, '#dbg-status'); if (st) st.addEventListener('click', function() { run('STATUS', 'Status'); });
             const rm = $(win, '#dbg-readmem'); if (rm) rm.addEventListener('click', async function() {
                 const addr = $(win, '#dbg-addr').value.trim();
-                const len = $(win, '#dbg-len').value.trim();
-                logTo(out, 'Read memory ' + addr + ' len ' + len + '...');
-                logTo(out, out.textContent + '\n' + await callMcp('cmd', 'FLASH READ', addr + ' ' + len));
+                logTo(out, 'Read memory ' + addr + '...');
+                const res = await callMcp('cmd', 'DEBUG READ', addr);
+                logTo(out, out.textContent + '\n' + res.stdout);
             });
         }
 
@@ -428,13 +468,16 @@ Success/failure is returned as JSON.</pre>
                     d.className = 'gpio-pin';
                     d.textContent = 'GP' + i;
                     d.addEventListener('click', async function() {
-                        logTo(out, 'GP' + i + ': ' + await callMcp('cmd', 'SAFEDISCOVER', ''));
+                        logTo(out, 'Querying GP' + i + '...');
+                        const res = await callMcp('cmd', 'SAFEDISCOVER', '');
+                        logTo(out, 'GP' + i + ': ' + res.stdout);
                     });
                     grid.appendChild(d);
                 }
             }
             const readAll = $(win, '#gpio-readall'); if (readAll) readAll.addEventListener('click', async function() {
-                logTo(out, out.textContent + '\n' + await callMcp('cmd', 'STATUS', ''));
+                const res = await callMcp('cmd', 'STATUS', '');
+                logTo(out, out.textContent + '\n' + res.stdout);
             });
             const clear = $(win, '#gpio-clear'); if (clear) clear.addEventListener('click', function() { logTo(out, 'Idle.'); });
         }
@@ -464,23 +507,25 @@ Success/failure is returned as JSON.</pre>
                 const dec = $(win, '#la-decoder').value;
                 logTo(out, 'Configured: ' + rate + ' Hz, ' + samples + ' samples, decoder=' + dec);
                 let res = await callMcp('cmd', 'CONFIGURE', 'channels=20,21,22,23,24,25,26,27,28,29 rate=' + rate);
-                logTo(out, out.textContent + '\nConfigure: ' + res);
+                logTo(out, out.textContent + '\nConfigure: ' + res.stdout);
                 res = await callMcp('cmd', 'CAPTURE', 'samples=' + samples + ' mode=R');
-                logTo(out, out.textContent + '\nCapture: ' + res);
+                logTo(out, out.textContent + '\nCapture: ' + res.stdout);
             });
             if (decBtn) decBtn.addEventListener('click', async function() {
                 const dec = $(win, '#la-decoder').value;
                 const samples = $(win, '#la-samples').value;
                 const resp = await callMcp('cmd', 'CAPTURE', 'samples=' + samples + ' mode=D protocol=' + dec.toUpperCase() + ' sda=21 scl=20');
-                logTo(out, dec + ':\n' + resp);
+                logTo(out, dec + ':\n' + resp.stdout);
             });
         }
 
         function initI2c(win) {
             const out = $(win, '#i2c-log');
-            const run = async function(label, commandText) {
+            const run = async function(label, command, args) {
                 logTo(out, label + '...');
-                logTo(out, out.textContent + '\n' + await callMcp('cmd', commandText));
+                const res = await callMcp('cmd', command, args);
+                logTo(out, out.textContent + '\n' + res.stdout);
+                return res;
             };
             const scan = $(win, '#i2c-scan'); if (scan) scan.addEventListener('click', function() { run('Status', 'STATUS'); });
             const w = $(win, '#i2c-write'); if (w) w.addEventListener('click', async function() {
@@ -491,24 +536,33 @@ Success/failure is returned as JSON.</pre>
                 for (let i = 0; i + 1 < tx.length; i += 2) pairs.push(parseInt(tx.slice(i, i + 2), 16));
                 const target = tx.length > 0 ? pairs.join(',') : '00';
                 await ensureI2cClaim();
-                run('Write', 'I2C_WRITE handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=' + reg + ' data=' + target);
+                run('Write', 'I2C_WRITE', 'handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=' + reg + ' data=' + target);
             });
             const r = $(win, '#i2c-read'); if (r) r.addEventListener('click', async function() {
                 const addr = $(win, '#i2c-addr').value;
                 const rx = $(win, '#i2c-rx').value;
                 await ensureI2cClaim();
-                run('Read', 'I2C_READ handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=0x00 len=' + rx);
+                run('Read', 'I2C_READ', 'handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=0x00 len=' + rx);
             });
             const wr = $(win, '#i2c-wr'); if (wr) wr.addEventListener('click', async function() {
                 const addr = $(win, '#i2c-addr').value;
-                const tx = $(win, '#i2c-tx').value;
+                let tx = $(win, '#i2c-tx').value.trim().replace(/\s+/g, '');
+                let pairs = [];
+                for (let i = 0; i + 1 < tx.length; i += 2) pairs.push(parseInt(tx.slice(i, i + 2), 16));
+                const target = tx.length > 0 ? pairs.join(',') : '00';
                 const rx = $(win, '#i2c-rx').value;
                 await ensureI2cClaim();
-                run('Write then Read', 'I2C_WRITE addr=' + addr + ' reg=0x00 data=' + tx + ' then I2C_READ addr=' + addr + ' reg=0x00 len=' + rx);
+                logTo(out, 'Write then Read...');
+                const wRes = await callMcp('cmd', 'I2C_WRITE', 'handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=0x00 data=' + target);
+                logTo(out, out.textContent + '\nWrite: ' + wRes.stdout);
+                if (wRes.ok) {
+                    const rRes = await callMcp('cmd', 'I2C_READ', 'handle=' + adapterI2cHandle + ' addr=' + addr + ' reg=0x00 len=' + rx);
+                    logTo(out, out.textContent + '\nRead: ' + rRes.stdout);
+                }
             });
             const clear = $(win, '#i2c-clear'); if (clear) clear.addEventListener('click', async function() {
                 await ensureI2cClaim();
-                run('Clear bus', 'I2C_CLEAR handle=' + adapterI2cHandle);
+                run('Clear bus', 'I2C_CLEAR', 'handle=' + adapterI2cHandle);
             });
         }
 
@@ -539,31 +593,42 @@ Success/failure is returned as JSON.</pre>
             const startMenu = document.getElementById('start-menu');
             const statusDot = document.querySelector('#connection-status .status-dot');
             const statusText = document.querySelector('#connection-status .status-text');
-            if (startBtn && startMenu) startBtn.addEventListener('click', function() { startMenu.classList.toggle('hidden'); });
+            if (startBtn && startMenu) startBtn.addEventListener('click', function() { startMenu.classList.toggle('show'); });
 
             document.querySelectorAll('.launcher').forEach(function(el) {
                 el.addEventListener('click', function() {
                     const app = el.getAttribute('data-app');
                     openApp(app);
-                    if (startMenu) startMenu.classList.add('hidden');
+                    if (startMenu) startMenu.classList.remove('show');
                 });
             });
 
             document.addEventListener('click', function(e) {
-                if (startMenu && !startMenu.contains(e.target) && !startBtn.contains(e.target)) startMenu.classList.add('hidden');
+                if (startMenu && !startMenu.contains(e.target) && !startBtn.contains(e.target)) startMenu.classList.remove('show');
             });
 
             async function updateStatus() {
-                const res = await callMcp('identify');
-                if (statusText) statusText.textContent = 'Connected';
-                if (statusDot) statusDot.classList.add('connected');
+                const res = await callMcp('cmd', 'STATUS');
+                const indicator = document.getElementById('connection-status');
+                if (res.ok) {
+                    if (statusText) statusText.textContent = 'Connected';
+                    if (statusDot) statusDot.classList.add('green');
+                    if (indicator) indicator.classList.add('connected');
+                } else {
+                    if (statusText) statusText.textContent = 'Disconnected';
+                    if (statusDot) statusDot.classList.remove('green');
+                    if (indicator) indicator.classList.remove('connected');
+                }
+            }
+
+            const ls = document.getElementById('loading-screen');
+            if (ls) {
+                ls.classList.add('fade-out');
+                setTimeout(function() { ls.style.display = 'none'; }, 550);
             }
             updateStatus();
-            connectSSE();
-            setTimeout(function() {
-                const ls = document.getElementById('loading-screen');
-                if (ls) ls.classList.add('fade-out');
-            }, 600);
+            setInterval(updateStatus, 5000);
+            console.log('WEBUI BOOT OK');
         });
     </script>
 </body>

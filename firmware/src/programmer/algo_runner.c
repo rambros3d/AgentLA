@@ -112,7 +112,56 @@ swd_result_t algo_exec(uint32_t entry, uint32_t a0, uint32_t a1,
     }
     if (algo_core_read_reg(0, result) != SWD_OK) return SWD_ERR_NO_TARGET;
     return SWD_OK;
-}swd_result_t algo_invoke(const algo_blob_header_t *hdr, uint32_t code_base,
+swd_result_t algo_runner_init(const algo_blob_header_t *hdr, uint32_t code_base,
+                              uint32_t flash_base, uint32_t clk, uint32_t *result) {
+    if (!hdr || !result) return SWD_ERR_NO_TARGET;
+    uint32_t r = 0;
+    swd_result_t rc = algo_invoke(hdr, code_base, hdr->init_offset, flash_base, clk, 0, 0, &r);
+    *result = r;
+    return rc;
+}
+
+swd_result_t algo_runner_erase_sector(const algo_blob_header_t *hdr, uint32_t code_base,
+                                      uint32_t sector_addr, uint32_t *result) {
+    if (!hdr || !result) return SWD_ERR_NO_TARGET;
+    uint32_t r = 0;
+    swd_result_t rc = algo_invoke(hdr, code_base, hdr->erase_offset, sector_addr, 0, 0, 0, &r);
+    *result = r;
+    return rc;
+}
+
+swd_result_t algo_runner_program_page(const algo_blob_header_t *hdr, uint32_t code_base,
+                                      uint32_t page_addr, uint32_t size,
+                                      uint32_t src_addr, uint32_t *result) {
+    if (!hdr || !result) return SWD_ERR_NO_TARGET;
+    uint32_t r = 0;
+    swd_result_t rc = algo_invoke(hdr, code_base, hdr->program_offset, page_addr, size, src_addr, 0, &r);
+    *result = r;
+    return rc;
+}
+
+swd_result_t algo_runner_verify(const algo_blob_header_t *hdr, uint32_t code_base,
+                               uint32_t addr, uint32_t size, uint32_t src_addr,
+                               uint32_t *result) {
+    if (!hdr || !result) return SWD_ERR_NO_TARGET;
+    if (hdr->verify_offset == 0) { *result = 0; return SWD_OK; }
+    uint32_t r = 0;
+    swd_result_t rc = algo_invoke(hdr, code_base, hdr->verify_offset, addr, size, src_addr, 0, &r);
+    *result = r;
+    return rc;
+}
+
+swd_result_t algo_runner_uninit(const algo_blob_header_t *hdr, uint32_t code_base,
+                               uint32_t flags, uint32_t *result) {
+    if (!hdr || !result) return SWD_ERR_NO_TARGET;
+    uint32_t r = 0;
+    swd_result_t rc = algo_invoke(hdr, code_base, hdr->uninit_offset, flags, 0, 0, 0, &r);
+    *result = r;
+    return rc;
+}
+
+
+swd_result_t algo_invoke(const algo_blob_header_t *hdr, uint32_t code_base,
                          uint32_t entry_offset, uint32_t r0, uint32_t r1,
                          uint32_t r2, uint32_t r3, uint32_t *result) {
     if (!hdr || !result) return SWD_ERR_NO_TARGET;
@@ -120,3 +169,4 @@ swd_result_t algo_exec(uint32_t entry, uint32_t a0, uint32_t a1,
     return algo_exec(entry, r0, r1, r2, r3, result);
 }
 
+}

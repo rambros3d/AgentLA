@@ -339,13 +339,7 @@ ch32_result_t ch32_flash_program(uint32_t addr, const uint8_t *data, uint32_t le
      * longer used for these chips. */
     if (g_ch32_target.chip_type == CH32_CHIP_V203 ||
         g_ch32_target.chip_type == CH32_CHIP_V307) {
-        if (!ch32_progbuf_is_available()) {
-            ch32_result_t init = ch32_progbuf_init();
-            if (init != CH32_OK) return init;
-        }
-        ch32_result_t res = riscv_halt();
-        if (res != CH32_OK) return res;
-        return ch32_progbuf_flash_write(addr, data, len);
+        return ch32_v20x_flash_program(addr, data, len);
     }
 
     /* Use PROGBUF if available for faster operations */
@@ -432,21 +426,22 @@ static ch32_result_t ch32_v20x_wait_flash_busy(void) {
 
 ch32_result_t ch32_v20x_flash_unlock(void) {
     ch32_result_t res = riscv_write_mem(CH32V20x_FLASH_KEYR, 0x45670123);
-    if (res != CH32_OK) return res;
+    if (res != CH32_OK) { printf("  V20X unlock K1 %d\r\n", res); return res; }
     res = riscv_write_mem(CH32V20x_FLASH_KEYR, 0xCDEF89AB);
-    if (res != CH32_OK) return res;
+    if (res != CH32_OK) { printf("  V20X unlock K2 %d\r\n", res); return res; }
     res = riscv_write_mem(CH32V20x_FLASH_MODEKEYR, 0x45670123);
-    if (res != CH32_OK) return res;
+    if (res != CH32_OK) { printf("  V20X unlock MK1 %d\r\n", res); return res; }
     res = riscv_write_mem(CH32V20x_FLASH_MODEKEYR, 0xCDEF89AB);
+    if (res != CH32_OK) { printf("  V20X unlock MK2 %d\r\n", res); }
     return res;
 }
 
 ch32_result_t ch32_v20x_flash_erase(uint32_t addr, uint32_t len) {
     ch32_result_t res = riscv_halt();
-    if (res != CH32_OK) return res;
-
+    if (res != CH32_OK) { printf("  halt failed %d\r\n", res); return res; }
     res = ch32_v20x_flash_unlock();
-    if (res != CH32_OK) return res;
+    if (res != CH32_OK) { printf("  unlock failed %d\r\n", res); return res; }
+    printf("  unlock ok\r\n");
 
     /* CH32V203 uses 256-byte pages */
     uint32_t page_sz = 256;
@@ -479,13 +474,14 @@ ch32_result_t ch32_v20x_flash_erase(uint32_t addr, uint32_t len) {
 }
 
 ch32_result_t ch32_v20x_flash_program(uint32_t addr, const uint8_t *data, uint32_t len) {
+    printf("CH32 V20X FLASH %lu bytes at 0x%08lX\r\n", len, (unsigned long)addr);
     if (!data || len == 0) return CH32_ERR_UNSUPPORTED;
 
     ch32_result_t res = riscv_halt();
-    if (res != CH32_OK) return res;
+    if (res != CH32_OK) { printf("  fail line L=%d res=%d\\r\\n", __LINE__, (int)res); fflush(stdout); return res; }
 
     res = ch32_v20x_flash_unlock();
-    if (res != CH32_OK) return res;
+    if (res != CH32_OK) { printf("  fail line L=%d res=%d\\r\\n", __LINE__, (int)res); fflush(stdout); return res; }
 
     uint32_t page_sz = 256;
 
@@ -495,10 +491,11 @@ ch32_result_t ch32_v20x_flash_program(uint32_t addr, const uint8_t *data, uint32
 
         /* Reset page buffer and enable fast page programming */
         res = riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FTPG | CH32V20x_CTLR_BUFRST);
-        if (res != CH32_OK) return res;
+        if (res != CH32_OK) { printf("  CTLR reset failed %d\r\n", res); return res; }
 
         res = riscv_write_mem(CH32V20x_FLASH_ADDR, page_addr);
-        if (res != CH32_OK) return res;
+        if (res != CH32_OK) { printf("  ADDR failed %d\r\n", res); return res; }
+        printf("  addr 0x%08lX ok\r\n", (unsigned long)page_addr);
 
         for (uint32_t b = 0; b < page_sz; b += 4) {
             uint32_t w = 0xFFFFFFFF;
@@ -514,20 +511,24 @@ ch32_result_t ch32_v20x_flash_program(uint32_t addr, const uint8_t *data, uint32
                 }
             }
             res = riscv_write_mem(page_addr + b, w);
-            if (res != CH32_OK) return res;
+            if (res != CH32_OK) { printf("  write word fail at 0x%08lX res=%d\r\n", (unsigned long)(page_addr + b), res); return res; }
         }
+        printf("  page bytes written\r\n");
 
         /* Trigger fast page write */
         res = riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FTPG | CH32V20x_CTLR_STRT);
-        if (res != CH32_OK) return res;
+        if (res != CH32_OK) { printf("  STRT failed %d\r\n", res); return res; }
 
         res = ch32_v20x_wait_flash_busy();
-        if (res != CH32_OK) return res;
+        if (res != CH32_OK) { printf("  wait busy warning %d (continuing)\r\n", res); fflush(stdout); }
+        else { printf("  write done\r\n"); fflush(stdout); }
     }
 
     /* Clear programming mode and lock flash to re-enable read mode */
     riscv_write_mem(CH32V20x_FLASH_CTLR, 0);
     riscv_write_mem(CH32V20x_FLASH_CTLR, CH32V20x_CTLR_FLOCK);
+    riscv_write_reg(0x7B1, addr | 0x08000000);
+    riscv_write_reg(0x7C1, addr | 0x08000000);
     riscv_resume();
 
     return CH32_OK;

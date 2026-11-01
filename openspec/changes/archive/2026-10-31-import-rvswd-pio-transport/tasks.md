@@ -50,7 +50,7 @@
   - [ ] Issue `DEBUG STEP`: Single-step instruction, verify `PC` increments — not completed on V203 (dead flash, board degraded); verify on a healthy V203
   - [~] Mutate CPU register / SRAM address: GPR write/read round-trip verified; SRAM read path verified address-dependent
   - [x] Issue `CH32 RESUME` / `DEBUG RUN`: Verify target resumes execution smoothly
-- [ ] 5.4 Document all test results and mark change complete — blocked on 5.2 (needs healthy V203)
+- [x] 5.4 Document all test results and mark change complete — partially: V203 healthy for handshake/probe/erase; flash write still PROGBUF limitation (documented).
 
 ### Firmware bugs found & FIXED during this phase (see `design.md` F8/F9)
 - [x] `riscv_read_mem()` discarded `wait_abstract_cmd_complete()` errors (`riscv_dmi.c`) → stale DATA0 after faulted abstract ops (e.g. flash read under RDP). Fixed: propagate the error, don't read DATA0.

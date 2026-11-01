@@ -1,4 +1,5 @@
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
 #include "programmer/usb_hid.h"
 #include "tusb.h"
 #include "lwip/init.h"
@@ -151,40 +152,52 @@ static char mcp_response[1024] = "ready";
 
 static const char * mcp_cgi_handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
     (void)iIndex;
+    char boot_method[32] = {0};
+    for (int i=0;i<iNumParams;i++) {
+        if (pcParam[i] && strcmp(pcParam[i], "method")==0 && pcValue[i]) {
+            snprintf(boot_method,sizeof(boot_method),"%s",pcValue[i]);
+            if (strcasecmp(boot_method,"reboot")==0) strcpy(boot_method,"reboot");
+        }
+    }
+    memset(mcp_response, 0, sizeof(mcp_response));
     webui_dispatch_mcp(pcParam, pcValue, iNumParams, mcp_response, sizeof(mcp_response));
+    mcp_response[sizeof(mcp_response)-1]='\0';
+
+    if (strcmp(boot_method, "reboot") == 0) {
+        /* encourage user to wait for completion */
+        sse_push("data: rebooting into BOOTSEL");
+        /* Delay to allow HTTP response */
+        busy_wait_ms(200);
+        reset_usb_boot(0,0);
+    }
     return "/mcp.json";
 }
 
-static u16_t mcp_ssi_handler(
+static u16_t mcp_ssi_handler(int iIndex
 #if LWIP_HTTPD_SSI_RAW
-    const char* ssi_tag_name,
-#else
-    int iIndex,
+, const char* ssi_tag_name
 #endif
-    char *pcInsert, int iInsertLen
+, char *pcInsert, int iInsertLen
 #if LWIP_HTTPD_SSI_MULTIPART
-    , u16_t current_tag_part, u16_t *next_tag_part
+, u16_t current_tag_part, u16_t *next_tag_part
 #endif
 #if defined(LWIP_HTTPD_FILE_STATE) && LWIP_HTTPD_FILE_STATE
-    , void *connection_state
+, void *connection_state
 #endif
 ) {
-#if LWIP_HTTPD_SSI_RAW
-    (void)ssi_tag_name;
-#endif
-    (void)pcInsert; (void)iInsertLen;
-    int n = snprintf(pcInsert, (size_t)iInsertLen, "%s", mcp_response);
-    if (n < 0 || n > iInsertLen) return 0;
+    (void)iIndex;
+    int n = snprintf(pcInsert, iInsertLen, "%s", mcp_response);
     return (u16_t)n;
 }
 
-
 /* SSE state */
-void sse_push(const char *data);
 static struct tcp_pcb *sse_pcb = NULL;
 static bool sse_headers_sent = false;
 static volatile bool sse_data_pending = false;
 static char sse_pending_buf[2048] = "data: connected\n\n";
+static char sse_history[4][256];
+static int sse_history_count = 0;
+static int sse_history_index = 0;
 
 static void sse_err_cb(void *arg, err_t err) {
     (void)arg;(void)err;
@@ -205,6 +218,12 @@ static err_t sse_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t 
         const char *hdr = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\n\r\n";
         tcp_write(tpcb, hdr, (u16_t)strlen(hdr), TCP_WRITE_FLAG_COPY);
         sse_headers_sent = true;
+        for (int i=0;i<sse_history_count;i++) {
+            int idx = (sse_history_index + i) % 4;
+            uint16_t l = (uint16_t)strlen(sse_history[idx]);
+            if (l > 0 && tcp_sndbuf(tpcb) >= l) tcp_write(tpcb, sse_history[idx], l, TCP_WRITE_FLAG_COPY);
+        }
+        tcp_output(tpcb);
     }
     tcp_recved(tpcb, p->tot_len);
     pbuf_free(p);
@@ -212,9 +231,7 @@ static err_t sse_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t 
 }
 static err_t sse_accept_cb(void *arg, struct tcp_pcb *newpcb, err_t err) {
     (void)arg;(void)err;
-    if (sse_pcb) {
-        tcp_abort(sse_pcb);
-    }
+    if (sse_pcb) { tcp_abort(sse_pcb); }
     sse_pcb = newpcb;
     sse_headers_sent = false;
     sse_data_pending = false;
@@ -236,11 +253,13 @@ void sse_server_init(void) {
 void sse_push(const char *data) {
     if (!data) return;
     snprintf(sse_pending_buf, sizeof(sse_pending_buf), "%s", data);
+    snprintf(sse_history[sse_history_index], sizeof(sse_history[0]), "%s", data);
+    sse_history_index = (sse_history_index + 1) % 4;
+    if (sse_history_count < 4) sse_history_count++;
     if (sse_pcb && sse_headers_sent) {
         sse_data_pending = true;
     }
 }
-
 void network_init(void) {
     init_lwip();
     while (!netif_is_up(&netif_data)) { }

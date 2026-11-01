@@ -31,6 +31,7 @@ extern void network_task(void);
 #include "programmer/ch32_progbuf.h"
 #include "programmer/swio.h"
 #include "programmer/rvswd.h"
+#include "programmer/rvswd/rvswd_pio_transport.h"
 #include "programmer/riscv_dmi.h"
 #include "tusb.h"
 #include "lwip/init.h"
@@ -1532,6 +1533,9 @@ static void cmd_flash_write(char* args) {
 
 static void cmd_ch32_read(char* args);
 static void cmd_ch32_readm(char* args);
+static void cmd_ch32_reset(char* args);
+static void cmd_ch32_speed(char* args);
+static void cmd_pin_scan(char* args);
 
 static void cmd_flash_read(char* args) {
     if (g_ch32_target.probed && !swd_initialized) {
@@ -1948,6 +1952,87 @@ static void cmd_ch32_flash(char* args) {
     send_response(msg);
 }
 
+static void cmd_ch32_flash_sram(char* args) {
+    if (args == NULL) { send_response("ERR usage: CH32 FLASH <addr> <hex_data>"); return; }
+    while (*args == ' ') args++;
+    char *space = strchr(args, ' ');
+    if (!space) { send_response("ERR usage: CH32 FLASH <addr> <hex_data>"); return; }
+    *space = 0;
+    uint32_t addr = (uint32_t)strtol(args, NULL, 0);
+    char *data_str = space + 1;
+
+    size_t data_len = strlen(data_str);
+    if (data_len % 2 != 0 || data_len == 0 || data_len > 512) {
+        send_response("ERR hex data must be even length, max 256 bytes");
+        return;
+    }
+
+    uint8_t data[256];
+    for (size_t i = 0; i < data_len / 2; i++) {
+        int hi = (data_str[i*2] >= '0' && data_str[i*2] <= '9') ? data_str[i*2] - '0' :
+                 (data_str[i*2] >= 'a' && data_str[i*2] <= 'f') ? data_str[i*2] - 'a' + 10 :
+                 (data_str[i*2] >= 'A' && data_str[i*2] <= 'F') ? data_str[i*2] - 'A' + 10 : -1;
+        int lo = (data_str[i*2+1] >= '0' && data_str[i*2+1] <= '9') ? data_str[i*2+1] - '0' :
+                 (data_str[i*2+1] >= 'a' && data_str[i*2+1] <= 'f') ? data_str[i*2+1] - 'a' + 10 :
+                 (data_str[i*2+1] >= 'A' && data_str[i*2+1] <= 'F') ? data_str[i*2+1] - 'A' + 10 : -1;
+        if (hi < 0 || lo < 0) { send_response("ERR invalid hex data"); return; }
+        data[i] = (uint8_t)((hi << 4) | lo);
+    }
+    data_len /= 2;
+
+    ch32_result_t res = ch32_sram_flash_write(addr, data, data_len);
+    if (res != CH32_OK) {
+        char diag[64];
+        sprintf(diag, "ERR CH32 FLASH program failed res=%d", (int)res);
+        send_response(diag);
+        return;
+    }
+    char msg[64];
+    sprintf(msg, "OK CH32 FLASH WROTE %lu bytes at 0x%08lX", (unsigned long)data_len, (unsigned long)addr);
+    send_response(msg);
+}
+
+
+static void cmd_ch32_flash_direct(char* args) {
+    if (args == NULL) { send_response("ERR usage: CH32 FLASH <addr> <hex_data>"); return; }
+    while (*args == ' ') args++;
+    char *space = strchr(args, ' ');
+    if (!space) { send_response("ERR usage: CH32 FLASH <addr> <hex_data>"); return; }
+    *space = 0;
+    uint32_t addr = (uint32_t)strtol(args, NULL, 0);
+    char *data_str = space + 1;
+
+    size_t data_len = strlen(data_str);
+    if (data_len % 2 != 0 || data_len == 0 || data_len > 512) {
+        send_response("ERR hex data must be even length, max 256 bytes");
+        return;
+    }
+
+    uint8_t data[256];
+    for (size_t i = 0; i < data_len / 2; i++) {
+        int hi = (data_str[i*2] >= '0' && data_str[i*2] <= '9') ? data_str[i*2] - '0' :
+                 (data_str[i*2] >= 'a' && data_str[i*2] <= 'f') ? data_str[i*2] - 'a' + 10 :
+                 (data_str[i*2] >= 'A' && data_str[i*2] <= 'F') ? data_str[i*2] - 'A' + 10 : -1;
+        int lo = (data_str[i*2+1] >= '0' && data_str[i*2+1] <= '9') ? data_str[i*2+1] - '0' :
+                 (data_str[i*2+1] >= 'a' && data_str[i*2+1] <= 'f') ? data_str[i*2+1] - 'a' + 10 :
+                 (data_str[i*2+1] >= 'A' && data_str[i*2+1] <= 'F') ? data_str[i*2+1] - 'A' + 10 : -1;
+        if (hi < 0 || lo < 0) { send_response("ERR invalid hex data"); return; }
+        data[i] = (uint8_t)((hi << 4) | lo);
+    }
+    data_len /= 2;
+
+    ch32_result_t res = ch32_v20x_flash_program(addr, data, data_len);
+    if (res != CH32_OK) {
+        char diag[64];
+        sprintf(diag, "ERR CH32 FLASH program failed res=%d", (int)res);
+        send_response(diag);
+        return;
+    }
+    char msg[64];
+    sprintf(msg, "OK CH32 FLASH WROTE %lu bytes at 0x%08lX", (unsigned long)data_len, (unsigned long)addr);
+    send_response(msg);
+}
+
 static void cmd_ch32_erase(char* args) {
     if (args == NULL) { send_response("ERR usage: CH32 ERASE <addr> <len>"); return; }
     while (*args == ' ') args++;
@@ -1987,11 +2072,36 @@ static void cmd_ch32_read(char* args) {
     if (len > 256) len = 256;
 
     uint8_t data[256];
-    ch32_result_t res = ch32_progbuf_flash_read(addr, data, len);
+    /* V203 reads only succeed while halted */
+    riscv_halt();
+    ch32_result_t res;
+    uint32_t aligned_addr = addr & ~3U;
+    uint32_t offset = addr - aligned_addr;
+    uint32_t bytes = len + offset;
+    uint32_t aligned_len = (bytes + 3) & ~3U;
+    if (aligned_len > 256) aligned_len = 256;
+    uint32_t nwords = aligned_len / 4;
+    uint8_t buf[256];
+    for (uint32_t w = 0; w < nwords; w++) {
+        uint32_t v = 0xffffffff;
+        res = riscv_read_mem(aligned_addr + w * 4, &v);
+        if (res != CH32_OK) {
+            break;
+        }
+        for (int b = 0; b < 4; b++) buf[w * 4 + b] = (uint8_t)((v >> (b * 8)) & 0xFF);
+    }
     if (res != CH32_OK) {
         send_response("ERR CH32 READ failed");
         return;
     }
+    if (nwords == 0) {
+        send_response("ERR CH32 READ failed");
+        return;
+    }
+    uint32_t copy = len;
+    if (offset + copy > aligned_len) copy = aligned_len - offset;
+    memcpy(data, buf + offset, copy);
+
 
     char hex_data[768];
     hex_data[0] = '\0';
@@ -2005,6 +2115,7 @@ static void cmd_ch32_read(char* args) {
     sprintf(response, "FLASH DATA %s", hex_data);
     send_response(response);
 
+    riscv_resume();
     char msg[64];
     sprintf(msg, "OK CH32 READ %lu bytes at 0x%08lX", (unsigned long)len, (unsigned long)addr);
     send_response(msg);
@@ -2034,6 +2145,99 @@ static void cmd_ch32_readm(char* args) {
         sprintf(msg, "OK CH32 READM 0x%08lX = 0x%08lX", (unsigned long)addr, (unsigned long)val);
     }
     send_response(msg);
+}
+
+static void cmd_ch32_reset(char* args) {
+    (void)args;
+    if (g_ch32_target.probed && g_ch32_target.mode == CH32_MODE_RVSWD) {
+        ch32v20x_reset_microprocessor_and_run();
+    }
+    /* Hard-reset the RISC-V target by pulsing its NRST line (GPIO6, shared
+     * with the ARM SWD nRESET). Open-drain style: drive low 20 ms, then
+     * float and let the pull-up release it. Recovers targets whose debug
+     * module is wedged from a prior session without a manual power cycle. */
+    gpio_init(SWD_nRESET_PIN);
+    gpio_set_dir(SWD_nRESET_PIN, GPIO_OUT);
+    gpio_put(SWD_nRESET_PIN, 0);
+    sleep_ms(20);
+    gpio_init(SWD_nRESET_PIN);
+    gpio_set_dir(SWD_nRESET_PIN, GPIO_IN);
+    sleep_ms(50);
+    send_response("OK CH32 RESET done");
+}
+
+static void cmd_ch32_resume(char* args) {
+    (void)args;
+    ch32_result_t res = riscv_resume();
+    if (res != CH32_OK) {
+        send_response("ERR CH32 RESUME failed");
+    } else {
+        send_response("OK CH32 RESUME");
+    }
+}
+
+static void cmd_ch32_halt(char* args) {
+    (void)args;
+    ch32_result_t res = riscv_halt();
+    if (res != CH32_OK) {
+        send_response("ERR CH32 HALT failed");
+    } else {
+        send_response("OK CH32 HALT");
+    }
+}
+
+static void cmd_ch32_speed(char* args) {
+    /* CH32 SPEED [div|fast|slow] — set the RVSWD PIO clock divider.
+     * Default 30.0 (~4.17 MHz SWCLK). Takes effect on the next CH32 DETECT. */
+    if (!args || !*args) {
+        char msg[96];
+        float div = rvswd_transport_get_clkdiv();
+        sprintf(msg, "OK CH32 SPEED div=%lu khz=%lu", (unsigned long)div,
+                (unsigned long)(125000 / div));
+        send_response(msg);
+        return;
+    }
+    float div;
+    if (strcmp(args, "fast") == 0) div = 30.0f;
+    else if (strcmp(args, "slow") == 0) div = 240.0f;
+    else div = strtof(args, NULL);
+    if (div < 1.0f || div > 65536.0f) {
+        send_response("ERR CH32 SPEED div range is 1..65536");
+        return;
+    }
+    rvswd_transport_set_clkdiv(div);
+    char msg[96];
+    sprintf(msg, "OK CH32 SPEED div=%lu khz=%lu (applies on next DETECT)",
+            (unsigned long)div, (unsigned long)(125000 / div));
+    send_response(msg);
+}
+
+static void cmd_pin_scan(char* args) {
+    (void)args;
+    /* Dump raw levels of GPIO0..29 (active-low for readability: 'L'=0,'H'=1).
+     * Two passes: with pull-ups, then pull-downs. A pin driven by an external
+     * source reads the SAME value in both passes; a floating pin follows the
+     * pull. Used to discover which pins the target is wired to. */
+    char up[32], dn[32];
+    for (int pass = 0; pass < 2; pass++) {
+        for (int p = 0; p < 30; p++) {
+            gpio_init(p);
+            gpio_set_dir(p, GPIO_IN);
+            gpio_disable_pulls(p);
+            gpio_set_pulls(p, pass == 0, pass == 1);
+        }
+        sleep_ms(5);
+        char *dst = pass == 0 ? up : dn;
+        for (int p = 0; p < 30; p++) dst[p] = gpio_get(p) ? 'H' : 'L';
+        dst[30] = 0;
+    }
+    for (int p = 0; p < 30; p++) gpio_disable_pulls(p);
+    char msg[96];
+    sprintf(msg, "PINSCAN UP  %s", up);
+    send_response(msg);
+    sprintf(msg, "PINSCAN DN  %s", dn);
+    send_response(msg);
+    send_response("OK PINSCAN (same letter in both rows = externally driven)");
 }
 
 static bool algo_consent = false;
@@ -2102,6 +2306,7 @@ static void cmd_boot0(char *args) {
 }
 static void cmd_algo_test(char *args) {
     (void)args;
+    if (!algo_consent) { send_response("ERR CONSENT REQUIRED"); return; }
     if (!swd_is_initialized()) {
         swd_result_t r = swd_init();
         if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
@@ -2421,7 +2626,7 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "UART_READ") == 0) cmd_uart_read(args ? args : "");
     else if(strcmp(cmd, "I2C_CLEAR") == 0) cmd_i2c_clear(args ? args : "");
     else if(strcmp(cmd, "REBOOT") == 0) cmd_reboot(args ? args : "");
-    else if(strcmp(cmd, "BOOTSEL") == 0) cmd_bootsel(args ? args : "");
+    else if(strcmp(cmd, "BOOTSEL") == 0 || strcmp(cmd, "BOOT") == 0 || strcmp(cmd, "RESET") == 0 || strcmp(cmd, "BOOTMODE") == 0) cmd_bootsel(args ? args : "");
     else if(strcmp(cmd, "SELFTEST") == 0) cmd_selftest(args ? args : "");
     else if(strcmp(cmd, "PIO0TEST") == 0) cmd_selftest_pio0(args ? args : "");
     else if(strcmp(cmd, "DIAG") == 0) {
@@ -2833,11 +3038,19 @@ static void process_command(char* cmd) {
     }
     else if(strcmp(cmd, "CH32") == 0) {
         if(args && strncmp(args, "DETECT", 6) == 0) cmd_ch32_detect(args + 6);
+        else if(args && strncmp(args, "FLASHSRAM ", 10) == 0) cmd_ch32_flash_sram(args + 10);
+        else if(args && strncmp(args, "FLASHSRAM ", 10) == 0) cmd_ch32_flash_sram(args + 10);
+        else if(args && strncmp(args, "FLASHDIRECT ", 12) == 0) cmd_ch32_flash_direct(args + 12);
         else if(args && strncmp(args, "FLASH ", 6) == 0) cmd_ch32_flash(args + 6);
         else if(args && strncmp(args, "ERASE ", 6) == 0) cmd_ch32_erase(args + 6);
         else if(args && strncmp(args, "READ ", 5) == 0) cmd_ch32_read(args + 5);
         else if(args && strncmp(args, "READM ", 6) == 0) cmd_ch32_readm(args + 6);
-        else { send_response("ERR unknown CH32 subcommand: DETECT|FLASH|ERASE|READ|READM"); }
+        else if(args && strncmp(args, "RESET", 5) == 0) cmd_ch32_reset(args + 5);
+        else if(args && (strncmp(args, "RESUME", 6) == 0 || strncmp(args, "RUN", 3) == 0)) cmd_ch32_resume(args + (args[1] == 'E' ? 6 : 3));
+        else if(args && strncmp(args, "HALT", 4) == 0) cmd_ch32_halt(args + 4);
+        else if(args && strncmp(args, "SPEED ", 6) == 0) cmd_ch32_speed(args + 6);
+        else if(args && strcmp(args, "SPEED") == 0) cmd_ch32_speed(NULL);
+        else { send_response("ERR unknown CH32 subcommand: DETECT|FLASH|ERASE|READ|READM|RESET|RESUME|RUN|HALT|SPEED"); }
     }
     else if(strcmp(cmd, "PROGBUF") == 0) {
         if(args && strncmp(args, "STATUS", 6) == 0) {

@@ -361,7 +361,7 @@ ch32_result_t ch32_progbuf_flash_write(uint32_t addr, const uint8_t *data, uint3
             res = riscv_dmi_write(DMI_DATA0, word);
             if (res != CH32_OK) return res;
             res = run_progbuf();
-            if (res != CH32_OK) return res;
+            if (res != CH32_OK) { printf("CH32: run_progbuf failed res=%d\r\n", (int)res); return res; }
         }
 
         /* End of page - wait for the page write (START) to complete */

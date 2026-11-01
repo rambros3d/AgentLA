@@ -74,6 +74,12 @@ if(NOT DEBUG_BUILD)
     # pico_set_binary_type(AgentLA copy_to_ram)  # Disabled: firmware too large for RAM (561KB > 512KB SRAM)
 endif()
 
+target_compile_definitions(AgentLA PRIVATE
+    PICO_ENABLE_USB_RESET_VIA_VENDOR_INTERFACE=1
+    PICO_USB_RESET_SUPPORT_MS_OS_20_DESCRIPTOR=0
+    PICO_USB_RESET_INCLUDE_DEFAULT_APP_DRIVER_CB=1
+)
+
 target_link_libraries(AgentLA
     pico_stdlib
     tinyusb_device
@@ -123,3 +129,4 @@ target_compile_definitions(AgentLA PUBLIC
     USBD_VID=0x1209
     USBD_PID=0x414C
 )
+

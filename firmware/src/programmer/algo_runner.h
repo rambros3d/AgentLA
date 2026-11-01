@@ -37,4 +37,18 @@ swd_result_t algo_invoke(const algo_blob_header_t *hdr, uint32_t code_base,
                          uint32_t entry_offset, uint32_t r0, uint32_t r1,
                          uint32_t r2, uint32_t r3, uint32_t *result);
 
+/* High-level orchestration over a loaded blob. */
+swd_result_t algo_runner_init(const algo_blob_header_t *hdr, uint32_t code_base,
+                              uint32_t flash_base, uint32_t clk, uint32_t *result);
+swd_result_t algo_runner_erase_sector(const algo_blob_header_t *hdr, uint32_t code_base,
+                                      uint32_t sector_addr, uint32_t *result);
+swd_result_t algo_runner_program_page(const algo_blob_header_t *hdr, uint32_t code_base,
+                                      uint32_t page_addr, uint32_t size,
+                                      uint32_t src_addr, uint32_t *result);
+swd_result_t algo_runner_verify(const algo_blob_header_t *hdr, uint32_t code_base,
+                               uint32_t addr, uint32_t size, uint32_t src_addr,
+                               uint32_t *result);
+swd_result_t algo_runner_uninit(const algo_blob_header_t *hdr, uint32_t code_base,
+                               uint32_t flags, uint32_t *result);
+
 #endif /* AGENTLA_ALGO_RUNNER_H */
