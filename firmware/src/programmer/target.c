@@ -32,6 +32,11 @@ static bool nrf52_flash_read(uint32_t addr, uint8_t *data, uint32_t len);
 static bool ch32_flash_erase(uint32_t addr, uint32_t size);
 static bool ch32_flash_write(uint32_t addr, const uint8_t *data, uint32_t len);
 static bool ch32_flash_read(uint32_t addr, uint8_t *data, uint32_t len);
+static bool stm32h5_flash_erase(uint32_t addr, uint32_t size);
+static bool stm32h5_flash_write(uint32_t addr, const uint8_t *data, uint32_t len);
+static bool stm32h5_flash_read(uint32_t addr, uint8_t *data, uint32_t len);
+static bool stm32h5_unlock_flash(void);
+static bool stm32h5_wait_flash_bsy(void);
 
 /* Flash algorithm table */
 static const flash_algorithm_t flash_algorithms[] = {
@@ -41,6 +46,14 @@ static const flash_algorithm_t flash_algorithms[] = {
         .flash_erase = stm32f1_flash_erase,
         .flash_write = stm32f1_flash_write,
         .flash_read = stm32f1_flash_read,
+        .flash_verify = NULL
+    },
+    {
+        .name = "STM32H5",
+        .family = TARGET_FAMILY_STM32H5,
+        .flash_erase = stm32h5_flash_erase,
+        .flash_write = stm32h5_flash_write,
+        .flash_read = stm32h5_flash_read,
         .flash_verify = NULL
     },
     {
@@ -84,6 +97,45 @@ static const flash_algorithm_t flash_algorithms[] = {
 
 #define STM32_DBGMCU_IDCODE  0x40015800
 
+/* STM32H5 Flash & DBGMCU Constants */
+#define STM32H5_DBGMCU_IDCODE       0xE0044000U  /* AP0 Debug APB */
+#define STM32H5_DBGMCU_IDCODE_ALIAS 0x44024000U  /* CPU/AXI memory map */
+#define STM32H5_DBGMCU_CR           0xE0044004U
+#define STM32H5_FLASH_SIZE_REG      0x08FFF80CU
+
+#define STM32H5_FLASH_BASE          0x40022000U
+#define STM32H5_FLASH_ACR           (STM32H5_FLASH_BASE + 0x00U)
+#define STM32H5_FLASH_KEYR          (STM32H5_FLASH_BASE + 0x04U)
+#define STM32H5_FLASH_OPTKEYR       (STM32H5_FLASH_BASE + 0x0CU)
+#define STM32H5_FLASH_SR            (STM32H5_FLASH_BASE + 0x20U)
+#define STM32H5_FLASH_CR            (STM32H5_FLASH_BASE + 0x28U)
+#define STM32H5_FLASH_CCR           (STM32H5_FLASH_BASE + 0x30U)
+
+#define STM32H5_FLASH_KEY1          0x45670123U
+#define STM32H5_FLASH_KEY2          0xCDEF89ABU
+
+#define STM32H5_FLASH_CR_LOCK       (1U << 0)
+#define STM32H5_FLASH_CR_PG         (1U << 1)
+#define STM32H5_FLASH_CR_SER        (1U << 2)
+#define STM32H5_FLASH_CR_BER        (1U << 3)
+#define STM32H5_FLASH_CR_FW         (1U << 4)
+#define STM32H5_FLASH_CR_STRT       (1U << 5)
+#define STM32H5_FLASH_CR_SNB(x)     (((x) & 0x7FU) << 6)
+#define STM32H5_FLASH_CR_MER        (1U << 15)
+#define STM32H5_FLASH_CR_BKSEL      (1U << 31)
+
+#define STM32H5_FLASH_SR_BSY        (1U << 0)
+#define STM32H5_FLASH_SR_WBNE       (1U << 1)
+#define STM32H5_FLASH_SR_DBNE       (1U << 3)
+#define STM32H5_FLASH_SR_EOP        (1U << 16)
+#define STM32H5_FLASH_SR_WRPERR     (1U << 17)
+#define STM32H5_FLASH_SR_PGSERR     (1U << 18)
+#define STM32H5_FLASH_SR_STRBERR    (1U << 19)
+#define STM32H5_FLASH_SR_INCERR     (1U << 20)
+#define STM32H5_FLASH_SR_ERRORS     (0x00FC0000U)
+
+#define STM32H5_SECTOR_SIZE         8192U  /* 8 KB */
+
 swd_result_t target_detect(void) {
     uint32_t idcode = 0;
     swd_result_t result;
@@ -109,6 +161,7 @@ swd_result_t target_detect(void) {
      * The SWD DPIDR identifies the debug port, not the chip itself.
      * For STM32, we must read DBGMCU_IDCODE via AP to get the chip ID.
      * The ARM Cortex-M3 DPIDR is 0x1BA01477 (DESIGNER=0x3B, MIN=0x01).
+     * The ARM Cortex-M33 DPIDR is 0x0BE12477 / 0x6BA02477.
      */
 
     /* Try to read DBGMCU_IDCODE via AP for chip-specific identification */
@@ -123,10 +176,31 @@ swd_result_t target_detect(void) {
         ap_result = swd_read_ap(AP_DRW, &dbg_id);
     }
 
+    /* If standard DBGMCU read failed or returned 0, try STM32H5/U5 DBGMCU addresses */
+    if (ap_result != SWD_OK || (dbg_id & 0xFFF) == 0) {
+        ap_result = swd_write_ap(AP_CSW, 0x23000012);
+        if (ap_result == SWD_OK)
+            ap_result = swd_write_ap(AP_TAR, STM32H5_DBGMCU_IDCODE);
+        if (ap_result == SWD_OK)
+            ap_result = swd_read_ap(AP_DRW, &dbg_id);
+    }
+    if (ap_result != SWD_OK || (dbg_id & 0xFFF) == 0) {
+        ap_result = swd_write_ap(AP_CSW, 0x23000012);
+        if (ap_result == SWD_OK)
+            ap_result = swd_write_ap(AP_TAR, STM32H5_DBGMCU_IDCODE_ALIAS);
+        if (ap_result == SWD_OK)
+            ap_result = swd_read_ap(AP_DRW, &dbg_id);
+    }
+
     /* If DBGMCU read succeeded, use it for chip identification */
     if (ap_result == SWD_OK && (dbg_id & 0xFFF) != 0) {
         current_target.part_id = dbg_id & 0xFFF;
         current_target.designer_id = (dbg_id >> 12) & 0xFFF;
+        if (current_target.part_id == TARGET_PART_STM32H503 ||
+            current_target.part_id == TARGET_PART_STM32H5_HD ||
+            current_target.part_id == TARGET_PART_STM32H5_MD) {
+            current_target.designer_id = TARGET_DESIGNER_ST;
+        }
     }
 
     /* Identify target family based on DPIDR + part_id */
@@ -184,6 +258,30 @@ swd_result_t target_detect(void) {
                 current_target.flash_size = 32 * 1024;
                 current_target.ram_size = 8 * 1024;
                 break;
+            case TARGET_PART_STM32H503:
+                current_target.family = TARGET_FAMILY_STM32H5;
+                current_target.name = "STM32H503";
+                current_target.flash_base = 0x08000000;
+                current_target.flash_size = 128 * 1024;
+                current_target.ram_base = 0x20000000;
+                current_target.ram_size = 32 * 1024;
+                break;
+            case TARGET_PART_STM32H5_HD:
+                current_target.family = TARGET_FAMILY_STM32H5;
+                current_target.name = "STM32H56x/H57x";
+                current_target.flash_base = 0x08000000;
+                current_target.flash_size = 2048 * 1024;
+                current_target.ram_base = 0x20000000;
+                current_target.ram_size = 640 * 1024;
+                break;
+            case TARGET_PART_STM32H5_MD:
+                current_target.family = TARGET_FAMILY_STM32H5;
+                current_target.name = "STM32H52x/H53x";
+                current_target.flash_base = 0x08000000;
+                current_target.flash_size = 512 * 1024;
+                current_target.ram_base = 0x20000000;
+                current_target.ram_size = 272 * 1024;
+                break;
             default:
                 /* ARM Cortex detected but unknown chip — default to STM32F1 */
                 current_target.family = TARGET_FAMILY_STM32F1;
@@ -204,6 +302,20 @@ swd_result_t target_detect(void) {
                     current_target.flash_size = kb * 1024u;
                 }
             }
+        } else if (current_target.family == TARGET_FAMILY_STM32H5) {
+            /* Read factory-reported flash size for STM32H5 (half-word at 0x08FFF80C, in KiB). */
+            uint32_t fs_kb = 0;
+            if (swd_write_ap(AP_CSW, 0x23000012) == SWD_OK &&
+                swd_write_ap(AP_TAR, STM32H5_FLASH_SIZE_REG) == SWD_OK &&
+                swd_read_ap(AP_DRW, &fs_kb) == SWD_OK) {
+                uint32_t kb = fs_kb & 0xFFFFu;
+                if (kb != 0 && kb <= 4096u) {
+                    current_target.flash_size = kb * 1024u;
+                }
+            }
+            /* Enable DBGMCU stop/standby debug */
+            swd_write_ap(AP_TAR, STM32H5_DBGMCU_CR);
+            swd_write_ap(AP_DRW, 0x00000006);  /* DBG_STOP | DBG_STANDBY */
         }
     } else if (current_target.part_id == TARGET_PART_NRF52840) {
         current_target.family = TARGET_FAMILY_NRF52;
@@ -246,6 +358,7 @@ const char *target_family_name(target_family_t family) {
         case TARGET_FAMILY_STM32F4: return "STM32F4";
         case TARGET_FAMILY_STM32G0: return "STM32G0";
         case TARGET_FAMILY_STM32L4: return "STM32L4";
+        case TARGET_FAMILY_STM32H5: return "STM32H5";
         case TARGET_FAMILY_RP2040:  return "RP2040";
         case TARGET_FAMILY_RP2350:  return "RP2350";
         case TARGET_FAMILY_NRF52:   return "nRF52";
@@ -434,7 +547,8 @@ bool target_unlock_rdp(void) {
 
 bool target_mass_erase(void) {
     if (!target_is_connected()) return false;
-    if (current_target.family == TARGET_FAMILY_STM32F1) {
+    if (current_target.family == TARGET_FAMILY_STM32F1 ||
+        current_target.family == TARGET_FAMILY_STM32H5) {
         return target_flash_erase(current_target.flash_base, current_target.flash_size);
     }
     if (current_target.family == TARGET_FAMILY_NRF52) {
@@ -837,4 +951,221 @@ static bool ch32_flash_read(uint32_t addr, uint8_t *data, uint32_t len) {
     }
     return true;
 }
+
+/* ============================================================================
+ * STM32H5 Flash Algorithm
+ * ============================================================================ */
+
+static bool stm32h5_unlock_flash(void) {
+    uint32_t cr_val = 0;
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+    if (swd_read_ap(AP_DRW, &cr_val) != SWD_OK) return false;
+
+    if (cr_val & STM32H5_FLASH_CR_LOCK) {
+        swd_write_ap(AP_TAR, STM32H5_FLASH_KEYR);
+        swd_write_ap(AP_DRW, STM32H5_FLASH_KEY1);
+        swd_write_ap(AP_TAR, STM32H5_FLASH_KEYR);
+        swd_write_ap(AP_DRW, STM32H5_FLASH_KEY2);
+
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        if (swd_read_ap(AP_DRW, &cr_val) != SWD_OK) return false;
+        if (cr_val & STM32H5_FLASH_CR_LOCK) return false;
+    }
+    return true;
+}
+
+static bool stm32h5_wait_flash_bsy(void) {
+    uint32_t sr = 0;
+    /* Poll up to 5 seconds */
+    for (int i = 0; i < 50000; i++) {
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+        swd_write_ap(AP_TAR, STM32H5_FLASH_SR);
+        if (swd_read_ap(AP_DRW, &sr) != SWD_OK) return false;
+
+        if (!(sr & STM32H5_FLASH_SR_BSY)) {
+            if (sr & STM32H5_FLASH_SR_ERRORS) {
+                swd_write_ap(AP_TAR, STM32H5_FLASH_CCR);
+                swd_write_ap(AP_DRW, sr & (STM32H5_FLASH_SR_ERRORS | STM32H5_FLASH_SR_EOP));
+                return false;
+            }
+            if (sr & STM32H5_FLASH_SR_EOP) {
+                swd_write_ap(AP_TAR, STM32H5_FLASH_CCR);
+                swd_write_ap(AP_DRW, STM32H5_FLASH_SR_EOP);
+            }
+            return true;
+        }
+        sleep_us(100);
+    }
+    return false;
+}
+
+static bool stm32h5_flash_erase(uint32_t addr, uint32_t size) {
+    if (!stm32h5_unlock_flash()) {
+        return false;
+    }
+
+    /* Check if full chip Mass Erase requested */
+    bool is_mass_erase = (addr == current_target.flash_base &&
+                         (size >= current_target.flash_size || size == 0));
+
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+
+    if (is_mass_erase) {
+        /* Clear any prior errors or EOP */
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CCR);
+        swd_write_ap(AP_DRW, STM32H5_FLASH_SR_ERRORS | STM32H5_FLASH_SR_EOP);
+
+        /* Trigger mass erase: MER=1, then MER=1|STRT=1 */
+        uint32_t ctrl = STM32H5_FLASH_CR_MER;
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, ctrl);
+
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, ctrl | STM32H5_FLASH_CR_STRT);
+
+        if (!stm32h5_wait_flash_bsy()) {
+            swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+            swd_write_ap(AP_DRW, 0);
+            return false;
+        }
+
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, 0);
+        return true;
+    }
+
+    /* Sector Erase path (8 KB sectors) */
+    uint32_t bank_size = current_target.flash_size > 0 ? (current_target.flash_size / 2) : (64 * 1024);
+    uint32_t curr_addr = addr & ~(STM32H5_SECTOR_SIZE - 1);
+    uint32_t end_addr = addr + size;
+
+    while (curr_addr < end_addr) {
+        uint32_t bank = (curr_addr < (current_target.flash_base + bank_size)) ?
+                        0 : STM32H5_FLASH_CR_BKSEL;
+        uint32_t bank_base = (bank == 0) ?
+                             current_target.flash_base : (current_target.flash_base + bank_size);
+        uint32_t sector = (curr_addr - bank_base) / STM32H5_SECTOR_SIZE;
+
+        /* Clear flags */
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CCR);
+        swd_write_ap(AP_DRW, STM32H5_FLASH_SR_ERRORS | STM32H5_FLASH_SR_EOP);
+
+        uint32_t ctrl = bank | STM32H5_FLASH_CR_SER | STM32H5_FLASH_CR_SNB(sector);
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, ctrl);
+
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, ctrl | STM32H5_FLASH_CR_STRT);
+
+        if (!stm32h5_wait_flash_bsy()) {
+            swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+            swd_write_ap(AP_DRW, 0);
+            return false;
+        }
+
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, 0);
+
+        curr_addr += STM32H5_SECTOR_SIZE;
+    }
+
+    return true;
+}
+
+static bool stm32h5_flash_read(uint32_t addr, uint8_t *data, uint32_t len) {
+    if (len == 0) return true;
+    swd_result_t r = swd_write_ap(AP_CSW, 0x23000012);  /* Auto-inc single | 32-bit */
+    if (r != SWD_OK) return false;
+
+    uint32_t aligned_addr = addr & ~3U;
+    uint32_t intra = addr & 3U;
+    r = swd_write_ap(AP_TAR, aligned_addr);
+    if (r != SWD_OK) return false;
+
+    uint32_t offset = 0;
+    while (offset < len) {
+        uint32_t val = 0;
+        r = swd_read_ap(AP_DRW, &val);
+        if (r != SWD_OK) return false;
+
+        uint8_t bytes[4];
+        memcpy(bytes, &val, 4);
+        for (uint32_t b = intra; b < 4 && offset < len; b++) {
+            data[offset++] = bytes[b];
+        }
+        intra = 0;
+    }
+    return true;
+}
+
+static bool stm32h5_flash_write(uint32_t addr, const uint8_t *data, uint32_t len) {
+    if (!stm32h5_unlock_flash()) return false;
+
+    uint32_t offset = 0;
+    while (offset < len) {
+        uint32_t current_addr = addr + offset;
+        uint32_t aligned_addr = current_addr & ~0x0FU;
+        uint32_t intra_offset = current_addr & 0x0FU;
+
+        uint8_t qword[16];
+        memset(qword, 0xFF, sizeof(qword));
+
+        if (intra_offset != 0) {
+            stm32h5_flash_read(aligned_addr, qword, 16);
+        }
+
+        uint32_t bytes_to_copy = 16 - intra_offset;
+        if (bytes_to_copy > (len - offset)) {
+            bytes_to_copy = len - offset;
+            if (intra_offset + bytes_to_copy < 16) {
+                uint8_t existing[16];
+                if (stm32h5_flash_read(aligned_addr, existing, 16)) {
+                    memcpy(qword + intra_offset + bytes_to_copy,
+                           existing + intra_offset + bytes_to_copy,
+                           16 - (intra_offset + bytes_to_copy));
+                }
+            }
+        }
+        memcpy(qword + intra_offset, data + offset, bytes_to_copy);
+
+        uint32_t words[4];
+        for (int w = 0; w < 4; w++) {
+            words[w] = (uint32_t)qword[w * 4 + 0] |
+                       ((uint32_t)qword[w * 4 + 1] << 8) |
+                       ((uint32_t)qword[w * 4 + 2] << 16) |
+                       ((uint32_t)qword[w * 4 + 3] << 24);
+        }
+
+        /* 1. Clear status/errors */
+        swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CCR);
+        swd_write_ap(AP_DRW, STM32H5_FLASH_SR_ERRORS | STM32H5_FLASH_SR_EOP);
+
+        /* 2. Set PG=1 */
+        swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+        swd_write_ap(AP_DRW, STM32H5_FLASH_CR_PG);
+
+        /* 3. Program four 32-bit words (128 bits) consecutively */
+        for (int w = 0; w < 4; w++) {
+            swd_write_ap(AP_TAR, aligned_addr + w * 4);
+            swd_write_ap(AP_DRW, words[w]);
+        }
+
+        /* 4. Wait for BSY to clear and check for errors */
+        if (!stm32h5_wait_flash_bsy()) {
+            swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+            swd_write_ap(AP_DRW, 0);
+            return false;
+        }
+
+        offset += bytes_to_copy;
+    }
+
+    swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+    swd_write_ap(AP_TAR, STM32H5_FLASH_CR);
+    swd_write_ap(AP_DRW, 0);
+    return true;
+}
+
 

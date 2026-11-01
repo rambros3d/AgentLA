@@ -85,6 +85,7 @@ FLASH VERIFY <addr> <hex>     # Verify flash contents
 | Target      | IDCODE Range     | Flash Algorithm | Status      |
 |-------------|------------------|-----------------|-------------|
 | STM32F1xx   | 0x0BA00477       | Functional      | ✅ Ready    |
+| STM32H5xx   | 0x0BE12477       | Functional (8KB sector, 128-bit write) | ✅ Ready    |
 | STM32F4xx   | 0x0BA00477       | Stub            | ⚠️ Planned  |
 | RP2040      | 0x0BC12477       | Read only       | ⚠️ Planned  |
 | RP2350      | 0x0BC12477       | Read only       | ⚠️ Planned  |

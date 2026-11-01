@@ -161,6 +161,22 @@ FLASH ERASE 0x08000000 0x4000
 FLASH WRITE 0x08000000 <hex_data>
 ```
 
+#### STM32H5xx (STM32H503, STM32H56x/H57x)
+
+```bash
+SWD TEST
+# Expected: OK SWD TEST PASS idcode=0x0BE12477 target=STM32H503
+
+# Erase (8 KB sector erase or full chip mass erase)
+FLASH ERASE 0x08000000 0x4000
+
+# Write (128-bit quad-word programming with automatic alignment/padding)
+FLASH WRITE 0x08000000 <hex_data>
+
+# Verify
+FLASH VERIFY 0x08000000 <hex_data>
+```
+
 #### RP2040/RP2350
 
 ```bash

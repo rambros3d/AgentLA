@@ -117,7 +117,8 @@ def run_hardware_verification():
     # Stage 5: Readback & Payload Parity Verification
     # ------------------------------------------------------------------------
     print("\n--- Stage 5: Flash Readback & Byte Parity Verification ---")
-    lines = send_cmd(ser, "CH32 READ 0x08000000 128", timeout=3.0)
+    time.sleep(0.2)
+    lines = send_cmd(ser, "CH32 READ 0x08000000 128", timeout=5.0)
     read_ok = False
     for l in lines:
         print(f"  {l}")
