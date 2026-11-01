@@ -4,33 +4,63 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   1. Theme Variables & Color Tokens
+   1. Theme Variables & Color Tokens (DaisyUI v5 "black" & "emerald" Palettes)
    -------------------------------------------------------------------------- */
 :root, [data-theme="dark"] {
-    --bg-primary: #08111d;
-    --bg-surface: #0e1826;
-    --bg-card: #132032;
-    --bg-card-hover: #1a2a40;
-    --bg-elevated: #18283d;
-    
-    --text-primary: #f0f4fc;
-    --text-secondary: #9cb0c9;
-    --text-muted: #5e7491;
+    /* DaisyUI v5 "black" Design Tokens */
+    --color-base-100: oklch(0% 0 0);
+    --color-base-200: oklch(19% 0 0);
+    --color-base-300: oklch(22% 0 0);
+    --color-base-content: oklch(87.609% 0 0);
+    --color-primary: oklch(35% 0 0);
+    --color-primary-content: oklch(100% 0 0);
+    --color-secondary: oklch(35% 0 0);
+    --color-secondary-content: oklch(100% 0 0);
+    --color-accent: oklch(35% 0 0);
+    --color-accent-content: oklch(100% 0 0);
+    --color-neutral: oklch(35% 0 0);
+    --color-neutral-content: oklch(100% 0 0);
+    --color-info: oklch(45.201% 0.313 264.052);
+    --color-info-content: oklch(89.04% 0.062 264.052);
+    --color-success: oklch(51.975% 0.176 142.495);
+    --color-success-content: oklch(90.395% 0.035 142.495);
+    --color-warning: oklch(96.798% 0.211 109.769);
+    --color-warning-content: oklch(19.359% 0.042 109.769);
+    --color-error: oklch(62.795% 0.257 29.233);
+    --color-error-content: oklch(12.559% 0.051 29.233);
 
-    --border-color: rgba(255, 255, 255, 0.10);
-    --border-subtle: rgba(255, 255, 255, 0.05);
-    --border-focus: #00e5ff;
+    /* Semantic Component Variable Mappings */
+    --bg-page: var(--color-base-100);
+    --bg-primary: var(--color-base-100);
+    --bg-surface: var(--color-base-200);
+    --bg-card: var(--color-base-200);
+    --bg-card-hover: var(--color-base-300);
+    --bg-elevated: var(--color-base-300);
 
-    --accent-cyan: #00e5ff;
-    --accent-blue: #0d84fa;
-    --accent-green: #34c759;
-    --accent-amber: #ff9f0a;
-    --accent-red: #ff453a;
-    --accent-purple: #af52de;
+    --text-primary: var(--color-base-content);
+    --text-secondary: oklch(72% 0 0);
+    --text-muted: oklch(52% 0 0);
+
+    --border-color: rgba(255, 255, 255, 0.12);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-focus: var(--color-info);
+
+    --accent-cyan: var(--color-info);
+    --accent-blue: oklch(60% 0.20 260);
+    --accent-green: var(--color-success);
+    --accent-amber: var(--color-warning);
+    --accent-red: var(--color-error);
+    --accent-purple: oklch(62% 0.20 310);
 
     --panel-backdrop-filter: blur(16px);
-    --panel-bg: rgba(14, 24, 38, 0.85);
-    --window-bg: rgba(19, 32, 50, 0.85);
+    --panel-bg: rgba(18, 18, 18, 0.88);
+    --window-bg: rgba(24, 24, 24, 0.90);
+
+    /* Bento & Technical Drafting Grid Tokens */
+    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --grid-line: rgba(255, 255, 255, 0.04);
+    --pin-claimed-bg: oklch(45.201% 0.313 264.052 / 0.12);
+    --pin-claimed-border: var(--color-info);
 
     /* Signal & Scope colors */
     --color-a0: #ffcc00; 
@@ -49,10 +79,10 @@
     --color-d7: #ff8a65; 
 
     /* Terminal & Console */
-    --term-panel-color: #0b1522; 
-    --term-accent-color: #00e5ff;
-    --term-text-tx: #34c759; 
-    --term-text-rx: #f0f4fc;
+    --term-panel-color: oklch(12% 0 0); 
+    --term-accent-color: var(--color-info);
+    --term-text-tx: var(--color-success); 
+    --term-text-rx: var(--color-base-content);
 
     --header-height: 44px;
     --rail-width: 68px;
@@ -60,30 +90,60 @@
 }
 
 [data-theme="light"] {
-    --bg-primary: #f4f6fa;
-    --bg-surface: #ffffff;
-    --bg-card: #ffffff;
-    --bg-card-hover: #f1f4f9;
-    --bg-elevated: #e9eef6;
+    /* DaisyUI v5 "emerald" Design Tokens */
+    --color-base-100: oklch(100% 0 0);
+    --color-base-200: oklch(93% 0 0);
+    --color-base-300: oklch(86% 0 0);
+    --color-base-content: oklch(35.519% 0.032 262.988);
+    --color-primary: oklch(76.662% 0.135 153.45);
+    --color-primary-content: oklch(33.387% 0.04 162.24);
+    --color-secondary: oklch(61.302% 0.202 261.294);
+    --color-secondary-content: oklch(100% 0 0);
+    --color-accent: oklch(72.772% 0.149 33.2);
+    --color-accent-content: oklch(0% 0 0);
+    --color-neutral: oklch(35.519% 0.032 262.988);
+    --color-neutral-content: oklch(98.462% 0.001 247.838);
+    --color-info: oklch(72.06% 0.191 231.6);
+    --color-info-content: oklch(0% 0 0);
+    --color-success: oklch(64.8% 0.15 160);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklch(84.71% 0.199 83.87);
+    --color-warning-content: oklch(0% 0 0);
+    --color-error: oklch(71.76% 0.221 22.18);
+    --color-error-content: oklch(0% 0 0);
 
-    --text-primary: #121926;
-    --text-secondary: #475467;
-    --text-muted: #8592a6;
+    /* Semantic Component Variable Mappings */
+    --bg-page: var(--color-base-100);
+    --bg-primary: var(--color-base-100);
+    --bg-surface: var(--color-base-200);
+    --bg-card: var(--color-base-100);
+    --bg-card-hover: var(--color-base-200);
+    --bg-elevated: var(--color-base-200);
+
+    --text-primary: var(--color-base-content);
+    --text-secondary: oklch(48% 0.02 262.988);
+    --text-muted: oklch(62% 0.015 262.988);
 
     --border-color: rgba(0, 0, 0, 0.12);
     --border-subtle: rgba(0, 0, 0, 0.06);
-    --border-focus: #0284c7;
+    --border-focus: var(--color-primary);
 
-    --accent-cyan: #0284c7;
-    --accent-blue: #2563eb;
-    --accent-green: #16a34a;
-    --accent-amber: #d97706;
-    --accent-red: #dc2626;
-    --accent-purple: #9333ea;
+    --accent-cyan: var(--color-info);
+    --accent-blue: var(--color-secondary);
+    --accent-green: var(--color-primary);
+    --accent-amber: var(--color-warning);
+    --accent-red: var(--color-error);
+    --accent-purple: oklch(60% 0.20 310);
 
     --panel-backdrop-filter: blur(16px);
     --panel-bg: rgba(255, 255, 255, 0.90);
-    --window-bg: rgba(255, 255, 255, 0.92);
+    --window-bg: rgba(255, 255, 255, 0.94);
+
+    /* Bento & Technical Drafting Grid Tokens */
+    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    --grid-line: rgba(0, 0, 0, 0.05);
+    --pin-claimed-bg: oklch(76.662% 0.135 153.45 / 0.15);
+    --pin-claimed-border: var(--color-primary);
 
     /* Signal & Scope colors */
     --color-a0: #d97706; 
@@ -102,10 +162,10 @@
     --color-d7: #c2410c; 
 
     /* Terminal & Console */
-    --term-panel-color: #1e293b; 
-    --term-accent-color: #0284c7;
-    --term-text-tx: #4ade80; 
-    --term-text-rx: #f8fafc;
+    --term-panel-color: oklch(24% 0.02 262.988); 
+    --term-accent-color: var(--color-info);
+    --term-text-tx: var(--color-success); 
+    --term-text-rx: oklch(95% 0 0);
 }
 
 /* --------------------------------------------------------------------------
@@ -135,6 +195,11 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
+    background-image: 
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: -1px -1px;
 }
 
 body::before {
@@ -146,11 +211,11 @@ body::before {
     filter: hue-rotate(var(--wallpaper-hue, 0deg)) saturate(1.1) contrast(1.03);
     z-index: -2;
     pointer-events: none;
-    opacity: 0.35;
+    opacity: 0.15;
 }
 
 [data-theme="light"] body::before {
-    opacity: 0.12;
+    opacity: 0.06;
 }
 
 body.no-transparency {
@@ -222,6 +287,7 @@ body.no-transparency {
     border-radius: 6px;
     padding: 2px;
     gap: 2px;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .segmented-control.mode-segment .sub-btn {
@@ -246,7 +312,7 @@ body.no-transparency {
 .segmented-control.mode-segment .sub-btn.active {
     background: var(--bg-card);
     color: var(--accent-cyan);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--card-rim-highlight), 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .quick-presets {
@@ -267,6 +333,7 @@ body.no-transparency {
     display: flex;
     align-items: center;
     gap: 5px;
+    box-shadow: var(--card-rim-highlight);
     transition: all 0.15s ease;
 }
 
@@ -413,13 +480,18 @@ body.no-transparency {
 }
 
 /* Main Workspace */
-.main-workspace {
+.main-workspace, #main-workspace {
     flex: 1;
     min-width: 0;
     height: 100%;
     position: relative;
     overflow: hidden;
-    background: var(--bg-primary);
+    background-color: var(--bg-primary);
+    background-image: 
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: -1px -1px;
 }
 
 .workspace-view {
@@ -529,7 +601,7 @@ body.no-transparency {
 }
 
 .dashboard-hero-card {
-    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%);
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 20px 24px;
@@ -538,7 +610,20 @@ body.no-transparency {
     align-items: center;
     gap: 20px;
     flex-wrap: wrap;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--card-rim-highlight), 0 4px 20px rgba(0, 0, 0, 0.15);
+    position: relative;
+}
+
+.dashboard-hero-card::after {
+    content: '+';
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: var(--text-muted);
+    opacity: 0.45;
+    pointer-events: none;
 }
 
 .hero-chip-badge {
@@ -580,6 +665,9 @@ body.no-transparency {
     display: flex;
     flex-direction: column;
     min-width: 110px;
+    box-shadow: var(--card-rim-highlight);
+    position: relative;
+    transition: all 0.15s ease;
 }
 
 .telem-label {
@@ -647,13 +735,15 @@ body.no-transparency {
     cursor: pointer;
     transition: all 0.18s ease;
     user-select: none;
+    box-shadow: var(--card-rim-highlight);
+    position: relative;
 }
 
 .dash-tile:hover {
     background: var(--bg-card-hover);
     border-color: var(--accent-cyan);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--card-rim-highlight), 0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
 .dash-tile:active {
@@ -711,6 +801,20 @@ body.no-transparency {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    box-shadow: var(--card-rim-highlight);
+    position: relative;
+}
+
+.dash-pin-domains-card::after {
+    content: '+';
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: var(--text-muted);
+    opacity: 0.45;
+    pointer-events: none;
 }
 
 .domain-group {
@@ -761,6 +865,7 @@ body.no-transparency {
     align-items: center;
     gap: 6px;
     color: var(--text-secondary);
+    box-shadow: var(--card-rim-highlight);
 }
 
 .flex-pool-divider {
@@ -907,6 +1012,7 @@ body.no-transparency {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .dash-pin-chip:hover {
@@ -915,8 +1021,8 @@ body.no-transparency {
 }
 
 .dash-pin-chip.claimed {
-    border-color: var(--accent-cyan);
-    background: rgba(0, 229, 255, 0.08);
+    border-color: var(--pin-claimed-border);
+    background: var(--pin-claimed-bg);
 }
 
 .dash-pin-chip-top {
@@ -939,9 +1045,13 @@ body.no-transparency {
     color: var(--text-secondary);
 }
 
+[data-theme="light"] .dash-pin-role-tag {
+    background: rgba(0, 0, 0, 0.06);
+}
+
 .dash-pin-chip.claimed .dash-pin-role-tag {
-    background: var(--accent-cyan);
-    color: #000;
+    background: var(--pin-claimed-border);
+    color: var(--color-base-100);
     font-weight: 600;
 }
 
@@ -1009,7 +1119,7 @@ body.no-transparency {
     position: relative;
     min-height: 0;
     min-width: 0;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--card-rim-highlight), 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .instrument-slot.active-slot {
@@ -1213,6 +1323,7 @@ body.no-transparency {
     color: var(--text-primary);
     cursor: pointer;
     touch-action: manipulation;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .more-tool-btn:active {
@@ -1270,6 +1381,7 @@ body.no-transparency {
     cursor: pointer;
     transition: all 0.15s ease;
     touch-action: manipulation;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .pin-select-btn:hover {
@@ -1531,6 +1643,7 @@ body.no-transparency {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 10px 12px;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .pin-group-header {
@@ -1558,6 +1671,7 @@ body.no-transparency {
     padding: 6px 8px;
     cursor: pointer;
     transition: all 0.15s ease;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .pin-chip:hover {
@@ -1566,8 +1680,8 @@ body.no-transparency {
 }
 
 .pin-chip.claimed {
-    border-color: var(--accent-cyan);
-    background: rgba(0, 229, 255, 0.08);
+    border-color: var(--pin-claimed-border);
+    background: var(--pin-claimed-bg);
 }
 
 .pin-chip-name {
@@ -1700,6 +1814,7 @@ body.no-transparency {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
+    box-shadow: var(--card-rim-highlight);
 }
 
 .chip-btn:hover {
