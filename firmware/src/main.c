@@ -23,6 +23,7 @@
 #include "analyzer/capture.h"
 #include "pin_owner.h"
 #include "analyzer/decode.h"
+#include "rle_util.h"
 #include "programmer/swd.h"
 #include "programmer/programmer.h"
 #include "programmer/target.h"
@@ -950,6 +951,100 @@ static void cmd_configure(char* args) {
     send_response(msg);
 }
 
+static void cmd_capturemode(char* args) {
+    if (!args || strlen(args) == 0) {
+        char msg[64];
+        sprintf(msg, "OK CAPTUREMODE MODE=%s", capture_get_engine_mode_name());
+        send_response(msg);
+        return;
+    }
+    char *token = strtok(args, " ");
+    if (!token) {
+        char msg[64];
+        sprintf(msg, "OK CAPTUREMODE MODE=%s", capture_get_engine_mode_name());
+        send_response(msg);
+        return;
+    }
+
+    if (strcasecmp(token, "STREAM") == 0) {
+        capture_set_engine_mode(CAPTURE_ENGINE_STREAM);
+        send_response("OK CAPTUREMODE STREAM");
+    } else if (strcasecmp(token, "TURBO") == 0) {
+        capture_set_engine_mode(CAPTURE_ENGINE_TURBO);
+        send_response("OK CAPTUREMODE TURBO");
+    } else if (strcasecmp(token, "SCOPE") == 0) {
+        capture_set_engine_mode(CAPTURE_ENGINE_SCOPE);
+        uint32_t pre = 64 * 1024;
+        uint32_t post = 384 * 1024;
+        char *sub = strtok(NULL, " ");
+        while (sub) {
+            if (strncasecmp(sub, "pre=", 4) == 0) {
+                if (strstr(sub + 4, "k") || strstr(sub + 4, "K")) pre = atoi(sub + 4) * 1024;
+                else pre = atoi(sub + 4);
+            } else if (strncasecmp(sub, "post=", 5) == 0) {
+                if (strstr(sub + 5, "k") || strstr(sub + 5, "K")) post = atoi(sub + 5) * 1024;
+                else post = atoi(sub + 5);
+            }
+            sub = strtok(NULL, " ");
+        }
+        trigger_config_t cfg = *capture_get_trigger_config();
+        cfg.pre_size = pre;
+        cfg.post_size = post;
+        capture_set_trigger_config(&cfg);
+        char msg[96];
+        sprintf(msg, "OK CAPTUREMODE SCOPE pre=%lu post=%lu", (unsigned long)pre, (unsigned long)post);
+        send_response(msg);
+    } else if (strcasecmp(token, "RAW") == 0 || strcasecmp(token, "LINEAR") == 0) {
+        capture_set_engine_mode(CAPTURE_ENGINE_RAW);
+        send_response("OK CAPTUREMODE RAW");
+    } else {
+        send_response("ERR unknown mode (use STREAM|TURBO|SCOPE|RAW)");
+    }
+}
+
+static void cmd_rlethreshold(char* args) {
+    if (!args || strlen(args) == 0) {
+        char msg[64];
+        sprintf(msg, "OK RLETHRESHOLD %lu", (unsigned long)capture_get_rle_threshold());
+        send_response(msg);
+        return;
+    }
+    uint32_t ticks = (uint32_t)strtoul(args, NULL, 0);
+    capture_set_rle_threshold(ticks);
+    char msg[64];
+    sprintf(msg, "OK RLETHRESHOLD %lu", (unsigned long)capture_get_rle_threshold());
+    send_response(msg);
+}
+
+static void cmd_triggerconfig(char* args) {
+    if (!args || strlen(args) == 0) {
+        const trigger_config_t *cfg = capture_get_trigger_config();
+        char msg[128];
+        sprintf(msg, "OK TRIGGERCONFIG mask=0x%04lX match=0x%04lX type=%u pre_pct=%u pre_size=%lu post_size=%lu",
+                (unsigned long)cfg->mask, (unsigned long)cfg->match,
+                cfg->type, cfg->pre_pct,
+                (unsigned long)cfg->pre_size, (unsigned long)cfg->post_size);
+        send_response(msg);
+        return;
+    }
+    trigger_config_t cfg = *capture_get_trigger_config();
+    char *token = strtok(args, " ,");
+    int field = 0;
+    while (token) {
+        if (field == 0) cfg.mask = (uint32_t)strtoul(token, NULL, 0);
+        else if (field == 1) cfg.match = (uint32_t)strtoul(token, NULL, 0);
+        else if (field == 2) cfg.type = (uint8_t)atoi(token);
+        else if (field == 3) cfg.pre_pct = (uint8_t)atoi(token);
+        field++;
+        token = strtok(NULL, " ,");
+    }
+    capture_set_trigger_config(&cfg);
+    char msg[128];
+    sprintf(msg, "OK TRIGGERCONFIG mask=0x%04lX match=0x%04lX type=%u pre_pct=%u",
+            (unsigned long)cfg.mask, (unsigned long)cfg.match, cfg.type, cfg.pre_pct);
+    send_response(msg);
+}
+
 static void cmd_capture(char* args) {
     char* token = strtok(args, " ");
     char mode = 'R';
@@ -1001,6 +1096,54 @@ static void cmd_capture(char* args) {
     }
 
     bool started = false;
+    capture_engine_mode_t engine_mode = capture_get_engine_mode();
+    if (engine_mode == CAPTURE_ENGINE_STREAM) {
+        started = StartCaptureRle(capture_config.frequency, capture_config.channels, capture_config.channel_count);
+        if (!started) { send_response("ERR RLE capture configuration error"); return; }
+        device_state = DEVICE_CAPTURING;
+        send_response("CAPTURING RLE STREAM...");
+        uint32_t wait_count = 0;
+        while (IsCapturing() && wait_count < 200000) { tight_loop_contents(); wait_count++; }
+        uint32_t packet_count = 0;
+        capture_get_rle_buffer(&packet_count);
+        char msg[64];
+        sprintf(msg, "OK CAPTURE RLE PACKETS=%lu", (unsigned long)packet_count);
+        send_response(msg);
+        return;
+    } else if (engine_mode == CAPTURE_ENGINE_TURBO) {
+        started = StartCaptureTurbo(capture_config.frequency, samples, capture_config.channels, capture_config.channel_count, ch_mode);
+        if (!started) { send_response("ERR TURBO capture configuration error"); return; }
+        device_state = DEVICE_CAPTURING;
+        send_response("CAPTURING TURBO...");
+        uint32_t wait_count = 0;
+        while (IsCapturing() && wait_count < 200000) { tight_loop_contents(); wait_count++; }
+        uint32_t comp_size = 0;
+        capture_get_turbo_buffer(&comp_size);
+        compression_pipeline_stats_t cstats;
+        compression_pipeline_get_stats(&cstats);
+        char msg[96];
+        sprintf(msg, "OK CAPTURE TURBO in=%lu out=%lu backpressure=%u",
+                (unsigned long)cstats.total_in_bytes, (unsigned long)cstats.total_out_bytes, cstats.backpressure_flag ? 1 : 0);
+        send_response(msg);
+        return;
+    } else if (engine_mode == CAPTURE_ENGINE_SCOPE) {
+        const trigger_config_t *tcfg = capture_get_trigger_config();
+        started = StartCaptureScope(capture_config.frequency, tcfg->pre_size, tcfg->post_size,
+                                    capture_config.channels, capture_config.channel_count,
+                                    capture_config.trigger_pin, tcfg->type, ch_mode);
+        if (!started) { send_response("ERR SCOPE capture configuration error"); return; }
+        device_state = DEVICE_CAPTURING;
+        send_response("CAPTURING SCOPE...");
+        uint32_t wait_count = 0;
+        while (IsCapturing() && wait_count < 200000) { tight_loop_contents(); wait_count++; }
+        uint32_t total = 0, pre = 0, post = 0;
+        capture_get_scope_unified_buffer(&total, &pre, &post);
+        char msg[96];
+        sprintf(msg, "OK CAPTURE SCOPE total=%lu pre=%lu post=%lu", (unsigned long)total, (unsigned long)pre, (unsigned long)post);
+        send_response(msg);
+        return;
+    }
+
     if(capture_config.trigger_type == TRIGGER_RISING)
         started = StartCaptureSimple(capture_config.frequency, preSamples, postSamples, capture_config.channels, capture_config.channel_count, capture_config.trigger_pin, false, ch_mode);
     else if(capture_config.trigger_type == TRIGGER_FALLING)
@@ -1872,9 +2015,8 @@ static void cmd_swd_wralign(char* args) {
     send_response("OK SWD WRALIGN");
 }
 
-/* Shared capture buffer for the SWD scope diagnostics (32KB — fits the RAM
- * budget; the two scope commands reuse it). */
-static uint32_t swd_scope_buf[8000];
+/* Shared capture buffer for the SWD scope diagnostics (reuses captureBuffer). */
+#define swd_scope_buf ((uint32_t*)captureBuffer)
 
 /* Debug: sample GPIO4 (SWCLK) + GPIO5 (SWDIO) on PIO0 while the bitbang
  * driver runs the failing write sequence, then dump the raw waveform.
@@ -3269,6 +3411,9 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "CONFIRM") == 0) cmd_confirm();
     else if(strcmp(cmd, "CRASHINFO") == 0) cmd_crashinfo();
     else if(strcmp(cmd, "CONFIGURE") == 0) cmd_configure(args ? args : "");
+    else if(strcmp(cmd, "CAPTUREMODE") == 0) cmd_capturemode(args ? args : "");
+    else if(strcmp(cmd, "RLETHRESHOLD") == 0) cmd_rlethreshold(args ? args : "");
+    else if(strcmp(cmd, "TRIGGERCONFIG") == 0) cmd_triggerconfig(args ? args : "");
     else if(strcmp(cmd, "CAPTURE") == 0) cmd_capture(args ? args : "");
     else if(strcmp(cmd, "PINSCAN") == 0) cmd_pin_scan(args ? args : "");
     else if(strcmp(cmd, "MEASURE") == 0) cmd_measure(args ? args : "");

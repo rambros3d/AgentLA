@@ -355,9 +355,9 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
 
 #endif /* LWIP_HTTPD_SUPPORT_POST */
 
-#define NETWORK_JOB_COUNT 8
-#define NETWORK_JOB_COMMAND_CAPACITY 768
-#define NETWORK_JOB_OUTPUT_CAPACITY 1024
+#define NETWORK_JOB_COUNT 3
+#define NETWORK_JOB_COMMAND_CAPACITY 512
+#define NETWORK_JOB_OUTPUT_CAPACITY 512
 
 typedef struct {
     uint32_t id;

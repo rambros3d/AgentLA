@@ -7,7 +7,7 @@ devices for automated electronics debugging.
 
 from .connection import Connection
 from .device import Device, DeviceInfo, Status
-from .capture import RawCapture, CapturedEvent
+from .capture import RawCapture, CapturedEvent, unpack_rle_packets, export_vcd
 from .protocols import I2CEvent, SPIEvent, UARTEvent, PWMResult, ADCResult
 from .adapter import I2CDevice, UARTDevice
 from .sigrok import export_sigrok, SigrokDecoder, SigrokDecoderError
@@ -45,6 +45,8 @@ __all__ = [
     "DeviceInfo",
     "Status",
     "RawCapture",
+    "unpack_rle_packets",
+    "export_vcd",
     "CapturedEvent",
     "I2CEvent",
     "SPIEvent",

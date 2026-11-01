@@ -424,21 +424,21 @@ const PIN_MAP = [
     { pin: 9, name: 'GP9', fn: 'UART0 RX', group: 'prog', role: 'UART', fixed: true },
 
     // Domain 2: Flexible Adapter Interface (GP10 - GP19)
-    { pin: 10, name: 'GP10', fn: 'A_SCL (I2C1)', group: 'adapt', role: 'I2C', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 11, name: 'GP11', fn: 'A_SDA (I2C1)', group: 'adapt', role: 'I2C', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 12, name: 'GP12', fn: 'A_TX (UART1)', group: 'adapt', role: 'UART', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 13, name: 'GP13', fn: 'A_RX (UART1)', group: 'adapt', role: 'UART', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 14, name: 'GP14', fn: 'A_SCK (SPI1)', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 10, name: 'GP10', fn: 'A_SDA (I2C1)', group: 'adapt', role: 'I2C', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 11, name: 'GP11', fn: 'A_SCL (I2C1)', group: 'adapt', role: 'I2C', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 12, name: 'GP12', fn: 'RS-485 TX', group: 'adapt', role: 'RS485', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 13, name: 'GP13', fn: 'RS-485 RX', group: 'adapt', role: 'RS485', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 14, name: 'GP14', fn: 'RS-485 DE', group: 'adapt', role: 'RS485', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 15, name: 'GP15', fn: 'A_MOSI', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 16, name: 'GP16', fn: 'A_MISO', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 17, name: 'GP17', fn: 'A_CS', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 18, name: 'GP18', fn: 'CAN_TX / I3C', group: 'adapt', role: 'CAN/I3C', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 19, name: 'GP19', fn: 'CAN_RX / I3C', group: 'adapt', role: 'CAN/I3C', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 18, name: 'GP18', fn: 'CAN_TX', group: 'adapt', role: 'CAN', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 19, name: 'GP19', fn: 'CAN_RX', group: 'adapt', role: 'CAN', fixed: false, driver: 0, observers: 0, handle: null },
 
     // Domain 3: Flexible Logic Analyzer & ADC (GP20 - GP29)
     { pin: 20, name: 'GP20', fn: 'LA CH0 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 21, name: 'GP21', fn: 'LA CH1 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 22, name: 'GP22', fn: 'LA CH2 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
+    { pin: 22, name: 'GP22', fn: 'LA CH2 / 120Ω TERM', group: 'la', role: 'TERM/CAP', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 23, name: 'GP23', fn: 'LA CH3 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 24, name: 'GP24', fn: 'LA CH4 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
     { pin: 25, name: 'GP25', fn: 'LA CH5 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
@@ -1225,6 +1225,117 @@ function initLogicAnalyzer(container) {
         });
     }
 
+    let currentCaptureEngineMode = 'STREAM';
+    const captureModeControl = document.getElementById('capture-mode-control');
+    const scopeDepthCtrl = document.getElementById('scope-depth-ctrl');
+    const scopePreDepthSelect = document.getElementById('scope-pre-depth');
+    const btnExportVcd = document.getElementById('btn-export-vcd');
+
+    if (captureModeControl) {
+        const modeButtons = captureModeControl.querySelectorAll('button[data-mode]');
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                modeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentCaptureEngineMode = btn.getAttribute('data-mode') || 'STREAM';
+
+                if (scopeDepthCtrl) {
+                    scopeDepthCtrl.style.display = (currentCaptureEngineMode === 'SCOPE') ? 'flex' : 'none';
+                }
+
+                if (currentCaptureEngineMode === 'SCOPE') {
+                    const preVal = scopePreDepthSelect ? scopePreDepthSelect.value : '65536';
+                    await callMcp('cmd', 'CAPTUREMODE', `SCOPE pre=${preVal} post=393216`);
+                } else {
+                    await callMcp('cmd', 'CAPTUREMODE', currentCaptureEngineMode);
+                }
+            });
+        });
+    }
+
+    if (scopePreDepthSelect) {
+        scopePreDepthSelect.addEventListener('change', async () => {
+            if (currentCaptureEngineMode === 'SCOPE') {
+                const preVal = scopePreDepthSelect.value;
+                await callMcp('cmd', 'CAPTUREMODE', `SCOPE pre=${preVal} post=393216`);
+            }
+        });
+    }
+
+    function unpackRlePacketsJs(rleBytes, numChannels) {
+        if (!rleBytes || rleBytes.length < 4) return new Uint8Array(0);
+        const dv = new DataView(rleBytes.buffer, rleBytes.byteOffset, rleBytes.byteLength);
+        const numWords = Math.floor(rleBytes.length / 4);
+        let totalSamples = 0;
+        for (let i = 0; i < numWords; i++) {
+            totalSamples += dv.getUint16(i * 4 + 2, true);
+        }
+        const samples = new Uint8Array(totalSamples);
+        let ptr = 0;
+        for (let i = 0; i < numWords; i++) {
+            const pinState = dv.getUint16(i * 4, true);
+            const runLen = dv.getUint16(i * 4 + 2, true);
+            samples.fill(pinState & 0xFF, ptr, ptr + runLen);
+            ptr += runLen;
+        }
+        return samples;
+    }
+
+    function exportTraceToVcd(samples, channels, rate) {
+        if (!samples || samples.length === 0) {
+            alert('No waveform data available to export.');
+            return;
+        }
+        const dt_ns = Math.max(1, Math.round(1e9 / (rate || 10000000)));
+        const symbols = '!#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lines = [
+            '$date 2026-11-02 $end',
+            '$version AgentLA WebUI Decoupled Capture Engine $end',
+            '$timescale 1ns $end',
+            '$scope module logic $end'
+        ];
+        const activeCh = (channels && channels.length > 0) ? channels : [0, 1, 2, 3];
+        for (let ch = 0; ch < activeCh.length; ch++) {
+            lines.push(`$var wire 1 ${symbols[ch]} D${activeCh[ch]} $end`);
+        }
+        lines.push('$upscope $end');
+        lines.push('$enddefinitions $end');
+        lines.push('#0');
+        lines.push('$dumpvars');
+        let prevVal = null;
+        for (let i = 0; i < samples.length; i++) {
+            const val = samples[i];
+            if (i === 0) {
+                for (let ch = 0; ch < activeCh.length; ch++) {
+                    lines.push(`${(val >> ch) & 1}${symbols[ch]}`);
+                }
+                lines.push('$end');
+                prevVal = val;
+            } else if (val !== prevVal) {
+                lines.push(`#${i * dt_ns}`);
+                for (let ch = 0; ch < activeCh.length; ch++) {
+                    const pb = (prevVal >> ch) & 1;
+                    const cb = (val >> ch) & 1;
+                    if (cb !== pb) lines.push(`${cb}${symbols[ch]}`);
+                }
+                prevVal = val;
+            }
+        }
+        const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `agentla_trace_${Date.now()}.vcd`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    if (btnExportVcd) {
+        btnExportVcd.addEventListener('click', () => {
+            exportTraceToVcd(rawLogicData, activeChannels, displayedSampleRate);
+        });
+    }
+
     // Dynamic Span Capture Bank Acquisition & Run
     if (btnRunStop) {
         btnRunStop.addEventListener('click', async () => {
@@ -1256,6 +1367,7 @@ function initLogicAnalyzer(container) {
 
             // Configure sample rate & trigger
             await callMcp('cmd', 'CONFIGURE', `channels=${physicalPins.join(',')} rate=${rate}`);
+            await callMcp('cmd', 'CAPTUREMODE', currentCaptureEngineMode);
             btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Capturing...';
             await callMcp('cmd', 'CAPTURE', `samples=${numSamples} mode=R`);
 
@@ -1655,6 +1767,14 @@ function initGpio(container) {
             if (val === 'i2c') {
                 pinsInput.value = '10,11';
                 funcSelect.value = '3';
+                observerCheck.checked = false;
+            } else if (val === 'rs485') {
+                pinsInput.value = '12,13,14';
+                funcSelect.value = '5';
+                observerCheck.checked = false;
+            } else if (val === 'can') {
+                pinsInput.value = '18,19,22';
+                funcSelect.value = '5';
                 observerCheck.checked = false;
             } else if (val === 'spi') {
                 pinsInput.value = '14,15,16,17';

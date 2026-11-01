@@ -56,9 +56,9 @@
 #define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
 
 #define TCP_MSS 1460
-#define TCP_WND (12 * TCP_MSS)       // Increase window to ~17KB
-#define TCP_SND_BUF (12 * TCP_MSS)   // Increase send buffer to ~17KB
-#define TCP_SND_QUEUELEN 32          // Massively increase segment queue (default is too low)
+#define TCP_WND (6 * TCP_MSS)
+#define TCP_SND_BUF (6 * TCP_MSS)
+#define TCP_SND_QUEUELEN 16
 #define MEMP_NUM_PBUF 16             // Give lwIP more PBUF structures to track the segments
 #define MEMP_NUM_TCP_PCB 4          // Allow more simultaneous HTTP connections so fetch() doesn't bottleneck
 #define MEMP_NUM_TCP_SEG 32
@@ -87,7 +87,7 @@
 #define LWIP_HTTPD_LIMIT_SENDING_TO_2MSS 0
 #define LWIP_HTTPD_TCP_NODELAY          1
 #define LWIP_TCP_INITIAL_CWND           (10 * TCP_MSS)
-#define PBUF_POOL_SIZE                  16
+#define PBUF_POOL_SIZE                  8
 #define MEMP_NUM_TCP_PCB_LISTEN         2
 
 void hw_debug_print(const char *format, ...);

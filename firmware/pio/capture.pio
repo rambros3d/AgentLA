@@ -171,3 +171,68 @@ BITLOOP:
     set pins, 1                ;stop bit (high)
     nop [21]                   ;hold stop bit
 .wrap
+
+;--------------------------------------------------------------------------------------------
+; PIO_RLE_CAPTURE - Mode A: In-Hardware Run-Length Encoding
+; Samples 16 pins, detects transitions against previous state (X),
+; tracks run duration in counter register (Y), and pushes packed 32-bit
+; [RunLength:16 | PinState:16] words to the FIFO.
+; Emits saturation keepalive at 65,535 ticks if idle.
+;--------------------------------------------------------------------------------------------
+.program pio_rle_capture
+
+    in pins, 16
+    mov x, isr
+    mov isr, null
+    mov osr, !null
+    out y, 16
+
+.wrap_target
+sample_loop:
+    jmp y--, count_ok
+    ; Saturation keepalive: 65,535 ticks elapsed without change
+    mov osr, !null
+    in osr, 16          ; ISR[15:0] = 0xFFFF (RunLength = 65535)
+    in x, 16            ; ISR[31:16] = 0xFFFF, ISR[15:0] = PinState
+    push noblock
+    mov osr, !null
+    out y, 16           ; reload Y = 0xFFFF
+    jmp sample_loop
+
+count_ok:
+    mov osr, y          ; preserve countdown counter in OSR
+    mov isr, null
+    in pins, 16         ; sample 16 pins into ISR
+    mov y, isr          ; Y = new pin sample
+    jmp x!=y, transition
+    mov y, osr          ; restore counter
+    jmp sample_loop
+
+transition:
+    mov osr, !osr       ; OSR = ~counter = run duration N (1..65535)
+    mov isr, null
+    in osr, 16          ; ISR[15:0] = N
+    in x, 16            ; ISR[31:16] = N, ISR[15:0] = old pin state
+    push noblock
+    mov x, y            ; update reference state to new pin state
+    mov osr, !null      ; reload counter
+    out y, 16
+.wrap
+
+;--------------------------------------------------------------------------------------------
+; PIO_TRIGGER_QUALIFIER - Fast trigger qualifier for circular oscilloscope mode
+; Evaluates pattern / edge conditions and asserts hardware IRQ 1 to fire post-trigger DMA
+;--------------------------------------------------------------------------------------------
+.program pio_trigger_qualifier
+; X: trigger pattern / bit value
+    pull block
+    out x, 32
+TRIG_LOOP:
+    mov isr, null
+    in pins, 16
+    mov y, isr
+    jmp x!=y, TRIG_LOOP
+    irq 1               ; fire hardware IRQ 1 for post-trigger DMA
+HALT_LOOP:
+    jmp HALT_LOOP
+

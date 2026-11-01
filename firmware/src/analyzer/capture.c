@@ -11,6 +11,8 @@
 #include "hardware/structs/systick.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "capture.pio.h"
+#include "rle_util.h"
+#include "pico/multicore.h"
 
 static PIO capturePIO;
 static PIO triggerPIO;
@@ -53,13 +55,16 @@ uint8_t gpio_to_pindex(uint8_t gpio) {
     return 0xFF;
 }
 
-static uint8_t captureBuffer[CAPTURE_BUFFER_SIZE] __attribute__((aligned(4)));
+uint8_t captureBuffer[SCOPE_TOTAL_SIZE] __attribute__((aligned(4)));
 
 #define CAPTURE_TYPE_SIMPLE 0
 #define CAPTURE_TYPE_COMPLEX 1
 #define CAPTURE_TYPE_FAST 2
 #define CAPTURE_TYPE_BLAST 3
 #define CAPTURE_TYPE_NO_TRIGGER 4
+#define CAPTURE_TYPE_RLE 10
+#define CAPTURE_TYPE_TURBO 11
+#define CAPTURE_TYPE_SCOPE 12
 
 #ifdef SUPPORTS_COMPLEX_TRIGGER
 
@@ -304,6 +309,10 @@ void configureCaptureDMAs(CHANNEL_MODE channelMode) {
     dma_channel_configure(dmaPingPong0, &dmaPingPong0Config, captureBuffer, &capturePIO->rxf[sm_Capture], transferCount, true);
 }
 
+static void rle_capture_completed(void);
+static void turbo_capture_completed(void);
+static void scope_capture_completed(void);
+
 void StopCapture() {
     if(!captureFinished) {
         hw_clear_bits(&dma_hw->ch[dmaPingPong0].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
@@ -316,6 +325,9 @@ void StopCapture() {
         else if(lastCaptureType == CAPTURE_TYPE_COMPLEX) complex_capture_completed();
         else if(lastCaptureType == CAPTURE_TYPE_FAST) fast_capture_completed();
         #endif
+        else if(lastCaptureType == CAPTURE_TYPE_RLE) rle_capture_completed();
+        else if(lastCaptureType == CAPTURE_TYPE_TURBO) turbo_capture_completed();
+        else if(lastCaptureType == CAPTURE_TYPE_SCOPE) scope_capture_completed();
         restore_interrupts(int_status);
     }
 }
@@ -745,7 +757,7 @@ uint8_t* GetBuffer(uint32_t* bufferSize, uint32_t* firstSample, CHANNEL_MODE* ca
 #define ADC_MAX_SAMPLES 32768
 #define ADC_BUF_SIZE ADC_MAX_SAMPLES
 
-static uint16_t adcBuffer[ADC_BUF_SIZE];
+#define adcBuffer ((uint16_t*)captureBuffer)
 static volatile uint32_t adc_sample_index = 0;
 static volatile uint32_t adc_total_samples = 0;
 static volatile bool adc_capturing = false;
@@ -875,3 +887,410 @@ bool capture_release_bank(uint32_t claim_handle, pin_owner_result_t* result) {
 uint32_t capture_active_bank_handle(void) {
     return capture_active_bank_claim;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * DECOUPLED HIGH-SPEED CAPTURE ENGINE: MODES A, B, C
+ * ═══════════════════════════════════════════════════════════════════ */
+
+static capture_engine_mode_t g_capture_engine_mode = CAPTURE_ENGINE_RAW;
+static trigger_config_t g_trigger_config = {
+    .mask = 0xFFFF,
+    .match = 0x0001,
+    .type = 1,
+    .pre_pct = 50,
+    .pre_size = SCOPE_PRE_SIZE,
+    .post_size = SCOPE_POST_SIZE
+};
+static uint32_t g_rle_threshold = 65535;
+
+void capture_set_engine_mode(capture_engine_mode_t mode) {
+    g_capture_engine_mode = mode;
+}
+
+capture_engine_mode_t capture_get_engine_mode(void) {
+    return g_capture_engine_mode;
+}
+
+const char* capture_get_engine_mode_name(void) {
+    switch (g_capture_engine_mode) {
+        case CAPTURE_ENGINE_STREAM: return "STREAM";
+        case CAPTURE_ENGINE_TURBO:  return "TURBO";
+        case CAPTURE_ENGINE_SCOPE:  return "SCOPE";
+        case CAPTURE_ENGINE_RAW:
+        default: return "RAW";
+    }
+}
+
+void capture_set_rle_threshold(uint32_t ticks) {
+    if (ticks == 0 || ticks > 65535) ticks = 65535;
+    g_rle_threshold = ticks;
+}
+
+uint32_t capture_get_rle_threshold(void) {
+    return g_rle_threshold;
+}
+
+void capture_set_trigger_config(const trigger_config_t *cfg) {
+    if (!cfg) return;
+    g_trigger_config = *cfg;
+    if (g_trigger_config.pre_size == 0) g_trigger_config.pre_size = SCOPE_PRE_SIZE;
+    if (g_trigger_config.post_size == 0) g_trigger_config.post_size = SCOPE_POST_SIZE;
+}
+
+const trigger_config_t* capture_get_trigger_config(void) {
+    return &g_trigger_config;
+}
+
+/* ─── Mode A: In-Hardware PIO RLE Streaming ───────────────────────── */
+static uint32_t g_rle_packet_count = 0;
+static bool g_rle_capturing = false;
+
+static void rle_capture_completed(void) {
+    hw_clear_bits(&dma_hw->ch[dmaPingPong0].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+    pio_sm_set_enabled(capturePIO, sm_Capture, false);
+    pio_remove_program(capturePIO, &pio_rle_capture_program, captureOffset);
+    dma_channel_unclaim(dmaPingPong0);
+    pio_sm_unclaim(capturePIO, sm_Capture);
+    g_rle_capturing = false;
+    captureFinished = true;
+}
+
+static void rle_dma_handler(void) {
+    if (dma_channel_get_irq0_status(dmaPingPong0)) {
+        dma_channel_acknowledge_irq0(dmaPingPong0);
+        g_rle_packet_count = SCOPE_TOTAL_SIZE / 4;
+        rle_capture_completed();
+    }
+}
+
+bool StartCaptureRle(uint32_t freq, const uint8_t* capturePins, uint8_t capturePinCount) {
+    if (capturePinCount < 1 || capturePinCount > MAX_CHANNELS) return false;
+    if (freq > MAX_FREQ) freq = MAX_FREQ;
+
+    memset(captureBuffer, 0, SCOPE_TOTAL_SIZE);
+    g_rle_packet_count = 0;
+    captureFinished = false;
+    captureProcessed = false;
+
+    float clockDiv = (float)clock_get_hz(clk_sys) / (float)freq;
+    capturePIO = pio1;
+    pio_clear_instruction_memory(capturePIO);
+    sm_Capture = pio_claim_unused_sm(capturePIO, true);
+    pio_sm_clear_fifos(capturePIO, sm_Capture);
+    pio_sm_restart(capturePIO, sm_Capture);
+
+    captureOffset = pio_add_program(capturePIO, &pio_rle_capture_program);
+
+    for (int i = 0; i < PIN_MAP_SIZE; i++) {
+        gpio_disable_pulls(pinMap[i]);
+        pio_sm_set_consecutive_pindirs(capturePIO, sm_Capture, pinMap[i], 1, false);
+        pio_gpio_init(capturePIO, pinMap[i]);
+    }
+
+    pio_sm_config smConfig = pio_rle_capture_program_get_default_config(captureOffset);
+    sm_config_set_in_pins(&smConfig, INPUT_PIN_BASE);
+    sm_config_set_clkdiv(&smConfig, clockDiv);
+    sm_config_set_in_shift(&smConfig, false, false, 32);
+
+    pio_sm_set_enabled(capturePIO, sm_Capture, false);
+    pio_sm_init(capturePIO, sm_Capture, captureOffset, &smConfig);
+
+    dmaPingPong0 = dma_claim_unused_channel(true);
+    dma_channel_config dmaConfig = dma_channel_get_default_config(dmaPingPong0);
+    channel_config_set_read_increment(&dmaConfig, false);
+    channel_config_set_write_increment(&dmaConfig, true);
+    channel_config_set_transfer_data_size(&dmaConfig, DMA_SIZE_32);
+    channel_config_set_dreq(&dmaConfig, pio_get_dreq(capturePIO, sm_Capture, false));
+    channel_config_set_enable(&dmaConfig, true);
+
+    dma_channel_set_irq0_enabled(dmaPingPong0, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, rle_dma_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
+    irq_set_priority(DMA_IRQ_0, 0);
+
+    uint32_t totalWords = SCOPE_TOTAL_SIZE / 4;
+    dma_channel_configure(dmaPingPong0, &dmaConfig, captureBuffer, &capturePIO->rxf[sm_Capture], totalWords, true);
+
+    pio_sm_set_enabled(capturePIO, sm_Capture, true);
+    g_rle_capturing = true;
+    lastCaptureType = CAPTURE_TYPE_RLE;
+    return true;
+}
+
+uint32_t* capture_get_rle_buffer(uint32_t *packet_count) {
+    if (packet_count) {
+        if (g_rle_capturing) {
+            uint32_t transferred = (SCOPE_TOTAL_SIZE / 4) - dma_channel_hw_addr(dmaPingPong0)->transfer_count;
+            *packet_count = transferred;
+        } else {
+            *packet_count = g_rle_packet_count;
+        }
+    }
+    return (uint32_t*)captureBuffer;
+}
+
+/* ─── Mode B: Dual-Core Compression Pipeline ──────────────────────── */
+#define TURBO_PINGPONG_SIZE (64 * 1024)
+static volatile bool g_core1_running = false;
+static volatile bool g_turbo_capturing = false;
+static uint32_t g_turbo_compressed_size = 0;
+
+#define SIO_CMD_PROCESS_BUF0 0x01
+#define SIO_CMD_PROCESS_BUF1 0x02
+#define SIO_CMD_STOP         0xFF
+
+static void core1_worker_task(void) {
+    while (1) {
+        uint32_t cmd = multicore_fifo_pop_blocking();
+        if (cmd == SIO_CMD_STOP) {
+            break;
+        }
+
+        uint8_t *src_buf = (cmd == SIO_CMD_PROCESS_BUF0) ? captureBuffer : (captureBuffer + TURBO_PINGPONG_SIZE);
+        uint8_t *dst_buf = captureBuffer + (2 * TURBO_PINGPONG_SIZE);
+        size_t dst_cap = SCOPE_TOTAL_SIZE - (2 * TURBO_PINGPONG_SIZE);
+
+        size_t comp_bytes = bit_delta_compress_block((const uint32_t*)src_buf, TURBO_PINGPONG_SIZE / 4, dst_buf, dst_cap);
+        bool overflow = (comp_bytes == 0 || comp_bytes > dst_cap);
+        compression_pipeline_record_buffer(TURBO_PINGPONG_SIZE, comp_bytes, overflow);
+
+        g_turbo_compressed_size = (uint32_t)comp_bytes;
+        multicore_fifo_push_blocking((uint32_t)comp_bytes);
+    }
+}
+
+static void turbo_capture_completed(void) {
+    hw_clear_bits(&dma_hw->ch[dmaPingPong0].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+    hw_clear_bits(&dma_hw->ch[dmaPingPong1].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+    pio_sm_set_enabled(capturePIO, sm_Capture, false);
+    pio_remove_program(capturePIO, &NO_TRIGGER_CAPTURE_program, captureOffset);
+    dma_channel_unclaim(dmaPingPong0);
+    dma_channel_unclaim(dmaPingPong1);
+    pio_sm_unclaim(capturePIO, sm_Capture);
+    g_turbo_capturing = false;
+    captureFinished = true;
+}
+
+static void turbo_dma_handler(void) {
+    if (dma_channel_get_irq0_status(dmaPingPong0)) {
+        dma_channel_acknowledge_irq0(dmaPingPong0);
+        multicore_fifo_push_blocking(SIO_CMD_PROCESS_BUF0);
+    } else if (dma_channel_get_irq0_status(dmaPingPong1)) {
+        dma_channel_acknowledge_irq0(dmaPingPong1);
+        multicore_fifo_push_blocking(SIO_CMD_PROCESS_BUF1);
+    }
+}
+
+bool StartCaptureTurbo(uint32_t freq, uint32_t length, const uint8_t* capturePins, uint8_t capturePinCount, CHANNEL_MODE captureMode) {
+    if (capturePinCount < 1 || capturePinCount > MAX_CHANNELS) return false;
+    compression_pipeline_reset_stats();
+    g_turbo_compressed_size = 0;
+    captureFinished = false;
+
+    if (!g_core1_running) {
+        multicore_launch_core1(core1_worker_task);
+        g_core1_running = true;
+    }
+
+    enum dma_channel_transfer_size transferSize = (captureMode == MODE_16_CHANNEL) ? DMA_SIZE_16 : DMA_SIZE_8;
+    uint32_t transferCount = (captureMode == MODE_16_CHANNEL) ? (TURBO_PINGPONG_SIZE / 2) : TURBO_PINGPONG_SIZE;
+
+    float clockDiv = (float)clock_get_hz(clk_sys) / (float)freq;
+    capturePIO = pio1;
+    pio_clear_instruction_memory(capturePIO);
+    sm_Capture = pio_claim_unused_sm(capturePIO, true);
+    pio_sm_clear_fifos(capturePIO, sm_Capture);
+    pio_sm_restart(capturePIO, sm_Capture);
+    captureOffset = pio_add_program(capturePIO, &NO_TRIGGER_CAPTURE_program);
+
+    for (int i = 0; i < PIN_MAP_SIZE; i++) {
+        gpio_disable_pulls(pinMap[i]);
+        pio_sm_set_consecutive_pindirs(capturePIO, sm_Capture, pinMap[i], 1, false);
+        pio_gpio_init(capturePIO, pinMap[i]);
+    }
+
+    pio_sm_config smConfig = NO_TRIGGER_CAPTURE_program_get_default_config(captureOffset);
+    sm_config_set_in_pins(&smConfig, INPUT_PIN_BASE);
+    sm_config_set_clkdiv(&smConfig, clockDiv);
+    sm_config_set_in_shift(&smConfig, true, true, (captureMode == MODE_16_CHANNEL) ? 16 : 8);
+
+    pio_sm_set_enabled(capturePIO, sm_Capture, false);
+    pio_sm_init(capturePIO, sm_Capture, captureOffset, &smConfig);
+
+    dmaPingPong0 = dma_claim_unused_channel(true);
+    dmaPingPong1 = dma_claim_unused_channel(true);
+
+    dma_channel_config cfg0 = dma_channel_get_default_config(dmaPingPong0);
+    channel_config_set_read_increment(&cfg0, false);
+    channel_config_set_write_increment(&cfg0, true);
+    channel_config_set_transfer_data_size(&cfg0, transferSize);
+    channel_config_set_chain_to(&cfg0, dmaPingPong1);
+    channel_config_set_dreq(&cfg0, pio_get_dreq(capturePIO, sm_Capture, false));
+    channel_config_set_enable(&cfg0, true);
+    dma_channel_set_irq0_enabled(dmaPingPong0, true);
+
+    dma_channel_config cfg1 = dma_channel_get_default_config(dmaPingPong1);
+    channel_config_set_read_increment(&cfg1, false);
+    channel_config_set_write_increment(&cfg1, true);
+    channel_config_set_transfer_data_size(&cfg1, transferSize);
+    channel_config_set_chain_to(&cfg1, dmaPingPong0);
+    channel_config_set_dreq(&cfg1, pio_get_dreq(capturePIO, sm_Capture, false));
+    channel_config_set_enable(&cfg1, true);
+    dma_channel_set_irq0_enabled(dmaPingPong1, true);
+
+    irq_set_exclusive_handler(DMA_IRQ_0, turbo_dma_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
+    irq_set_priority(DMA_IRQ_0, 0);
+
+    dma_channel_configure(dmaPingPong1, &cfg1, captureBuffer + TURBO_PINGPONG_SIZE, &capturePIO->rxf[sm_Capture], transferCount, false);
+    dma_channel_configure(dmaPingPong0, &cfg0, captureBuffer, &capturePIO->rxf[sm_Capture], transferCount, true);
+
+    pio_sm_set_enabled(capturePIO, sm_Capture, true);
+    g_turbo_capturing = true;
+    lastCaptureType = CAPTURE_TYPE_TURBO;
+    return true;
+}
+
+uint8_t* capture_get_turbo_buffer(uint32_t *compressed_size) {
+    if (compressed_size) *compressed_size = g_turbo_compressed_size;
+    return captureBuffer + (2 * TURBO_PINGPONG_SIZE);
+}
+
+/* ─── Mode C: Circular Oscilloscope Pre/Post-Trigger ──────────────── */
+static uint32_t g_scope_pre_bytes = SCOPE_PRE_SIZE;
+static uint32_t g_scope_post_bytes = SCOPE_POST_SIZE;
+static uint32_t g_scope_trigger_write_addr = 0;
+static uint8_t* g_scope_pre_ring_ptr = NULL;
+static uint8_t* g_scope_post_buf_ptr = NULL;
+static bool g_scope_triggered = false;
+static bool g_scope_capturing = false;
+
+static void scope_capture_completed(void) {
+    hw_clear_bits(&dma_hw->ch[dmaPingPong0].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+    hw_clear_bits(&dma_hw->ch[dmaPingPong1].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+    pio_sm_set_enabled(capturePIO, sm_Capture, false);
+    pio_sm_set_enabled(capturePIO, sm_Trigger, false);
+    pio_remove_program(capturePIO, &NO_TRIGGER_CAPTURE_program, captureOffset);
+    pio_remove_program(capturePIO, &pio_trigger_qualifier_program, triggerOffset);
+    dma_channel_unclaim(dmaPingPong0);
+    dma_channel_unclaim(dmaPingPong1);
+    pio_sm_unclaim(capturePIO, sm_Capture);
+    pio_sm_unclaim(capturePIO, sm_Trigger);
+    g_scope_capturing = false;
+    captureFinished = true;
+}
+
+static void scope_dma_post_completed(void) {
+    dma_channel_acknowledge_irq0(dmaPingPong1);
+    g_scope_trigger_write_addr = dma_hw->ch[dmaPingPong0].write_addr;
+    scope_capture_completed();
+}
+
+static void pio_trigger_irq_handler(void) {
+    if (pio_interrupt_get(capturePIO, 1)) {
+        pio_interrupt_clear(capturePIO, 1);
+        g_scope_triggered = true;
+        dma_channel_start(dmaPingPong1);
+    }
+}
+
+bool StartCaptureScope(uint32_t freq, uint32_t preBytes, uint32_t postBytes, const uint8_t* capturePins, uint8_t capturePinCount, uint8_t triggerPin, uint8_t triggerType, CHANNEL_MODE captureMode) {
+    if (capturePinCount < 1 || capturePinCount > MAX_CHANNELS) return false;
+
+    g_scope_pre_ring_ptr = (uint8_t*)(((uintptr_t)captureBuffer + 0xFFFF) & ~0xFFFF);
+    g_scope_post_buf_ptr = g_scope_pre_ring_ptr + SCOPE_PRE_SIZE;
+
+    g_scope_pre_bytes = SCOPE_PRE_SIZE;
+    uint32_t maxPost = (uint32_t)((captureBuffer + SCOPE_TOTAL_SIZE) - g_scope_post_buf_ptr);
+    g_scope_post_bytes = (postBytes > maxPost) ? maxPost : (postBytes > 0 ? postBytes : SCOPE_POST_SIZE);
+
+    g_scope_triggered = false;
+    g_scope_capturing = false;
+    captureFinished = false;
+
+    float clockDiv = (float)clock_get_hz(clk_sys) / (float)freq;
+    capturePIO = pio1;
+    pio_clear_instruction_memory(capturePIO);
+
+    sm_Capture = pio_claim_unused_sm(capturePIO, true);
+    pio_sm_clear_fifos(capturePIO, sm_Capture);
+    pio_sm_restart(capturePIO, sm_Capture);
+
+    captureOffset = pio_add_program(capturePIO, &NO_TRIGGER_CAPTURE_program);
+
+    for (int i = 0; i < PIN_MAP_SIZE; i++) {
+        gpio_disable_pulls(pinMap[i]);
+        pio_sm_set_consecutive_pindirs(capturePIO, sm_Capture, pinMap[i], 1, false);
+        pio_gpio_init(capturePIO, pinMap[i]);
+    }
+
+    enum dma_channel_transfer_size transferSize = (captureMode == MODE_16_CHANNEL) ? DMA_SIZE_16 : DMA_SIZE_8;
+    pio_sm_config smConfig = NO_TRIGGER_CAPTURE_program_get_default_config(captureOffset);
+    sm_config_set_in_pins(&smConfig, INPUT_PIN_BASE);
+    sm_config_set_clkdiv(&smConfig, clockDiv);
+    sm_config_set_in_shift(&smConfig, true, true, (captureMode == MODE_16_CHANNEL) ? 16 : 8);
+
+    pio_sm_set_enabled(capturePIO, sm_Capture, false);
+    pio_sm_init(capturePIO, sm_Capture, captureOffset, &smConfig);
+
+    dmaPingPong0 = dma_claim_unused_channel(true);
+    dma_channel_config cfg0 = dma_channel_get_default_config(dmaPingPong0);
+    channel_config_set_read_increment(&cfg0, false);
+    channel_config_set_write_increment(&cfg0, true);
+    channel_config_set_transfer_data_size(&cfg0, transferSize);
+    channel_config_set_ring(&cfg0, true, 16);
+    channel_config_set_dreq(&cfg0, pio_get_dreq(capturePIO, sm_Capture, false));
+    channel_config_set_enable(&cfg0, true);
+
+    dmaPingPong1 = dma_claim_unused_channel(true);
+    dma_channel_config cfg1 = dma_channel_get_default_config(dmaPingPong1);
+    channel_config_set_read_increment(&cfg1, false);
+    channel_config_set_write_increment(&cfg1, true);
+    channel_config_set_transfer_data_size(&cfg1, transferSize);
+    channel_config_set_dreq(&cfg1, pio_get_dreq(capturePIO, sm_Capture, false));
+    channel_config_set_enable(&cfg1, true);
+    dma_channel_set_irq0_enabled(dmaPingPong1, true);
+
+    irq_set_exclusive_handler(DMA_IRQ_0, scope_dma_post_completed);
+    irq_set_enabled(DMA_IRQ_0, true);
+    irq_set_priority(DMA_IRQ_0, 0);
+
+    uint32_t postTransfers = (captureMode == MODE_16_CHANNEL) ? (g_scope_post_bytes / 2) : g_scope_post_bytes;
+    dma_channel_configure(dmaPingPong1, &cfg1, g_scope_post_buf_ptr, &capturePIO->rxf[sm_Capture], postTransfers, false);
+    dma_channel_configure(dmaPingPong0, &cfg0, g_scope_pre_ring_ptr, &capturePIO->rxf[sm_Capture], 0xFFFFFFFF, true);
+
+    sm_Trigger = pio_claim_unused_sm(capturePIO, true);
+    triggerOffset = pio_add_program(capturePIO, &pio_trigger_qualifier_program);
+    pio_sm_config trigConfig = pio_trigger_qualifier_program_get_default_config(triggerOffset);
+    sm_config_set_in_pins(&trigConfig, INPUT_PIN_BASE);
+    sm_config_set_clkdiv(&trigConfig, clockDiv);
+
+    pio_sm_set_enabled(capturePIO, sm_Trigger, false);
+    pio_sm_init(capturePIO, sm_Trigger, triggerOffset, &trigConfig);
+
+    uint32_t matchPattern = (g_trigger_config.match & 0xFFFF);
+    pio_sm_put_blocking(capturePIO, sm_Trigger, matchPattern);
+
+    pio_set_irq0_source_enabled(capturePIO, pis_interrupt1, true);
+    irq_set_exclusive_handler(PIO1_IRQ_0, pio_trigger_irq_handler);
+    irq_set_enabled(PIO1_IRQ_0, true);
+
+    pio_sm_set_enabled(capturePIO, sm_Capture, true);
+    pio_sm_set_enabled(capturePIO, sm_Trigger, true);
+
+    g_scope_capturing = true;
+    lastCaptureType = CAPTURE_TYPE_SCOPE;
+    return true;
+}
+
+uint8_t* capture_get_scope_unified_buffer(uint32_t *total_bytes, uint32_t *pre_bytes, uint32_t *post_bytes) {
+    if (!g_scope_pre_ring_ptr) g_scope_pre_ring_ptr = captureBuffer;
+    if (!g_scope_post_buf_ptr) g_scope_post_buf_ptr = captureBuffer + SCOPE_PRE_SIZE;
+
+    if (pre_bytes) *pre_bytes = g_scope_pre_bytes;
+    if (post_bytes) *post_bytes = g_scope_post_bytes;
+    if (total_bytes) *total_bytes = g_scope_pre_bytes + g_scope_post_bytes;
+
+    return g_scope_pre_ring_ptr;
+}
+

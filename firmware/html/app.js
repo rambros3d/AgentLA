@@ -1225,6 +1225,117 @@ function initLogicAnalyzer(container) {
         });
     }
 
+    let currentCaptureEngineMode = 'STREAM';
+    const captureModeControl = document.getElementById('capture-mode-control');
+    const scopeDepthCtrl = document.getElementById('scope-depth-ctrl');
+    const scopePreDepthSelect = document.getElementById('scope-pre-depth');
+    const btnExportVcd = document.getElementById('btn-export-vcd');
+
+    if (captureModeControl) {
+        const modeButtons = captureModeControl.querySelectorAll('button[data-mode]');
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                modeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentCaptureEngineMode = btn.getAttribute('data-mode') || 'STREAM';
+
+                if (scopeDepthCtrl) {
+                    scopeDepthCtrl.style.display = (currentCaptureEngineMode === 'SCOPE') ? 'flex' : 'none';
+                }
+
+                if (currentCaptureEngineMode === 'SCOPE') {
+                    const preVal = scopePreDepthSelect ? scopePreDepthSelect.value : '65536';
+                    await callMcp('cmd', 'CAPTUREMODE', `SCOPE pre=${preVal} post=393216`);
+                } else {
+                    await callMcp('cmd', 'CAPTUREMODE', currentCaptureEngineMode);
+                }
+            });
+        });
+    }
+
+    if (scopePreDepthSelect) {
+        scopePreDepthSelect.addEventListener('change', async () => {
+            if (currentCaptureEngineMode === 'SCOPE') {
+                const preVal = scopePreDepthSelect.value;
+                await callMcp('cmd', 'CAPTUREMODE', `SCOPE pre=${preVal} post=393216`);
+            }
+        });
+    }
+
+    function unpackRlePacketsJs(rleBytes, numChannels) {
+        if (!rleBytes || rleBytes.length < 4) return new Uint8Array(0);
+        const dv = new DataView(rleBytes.buffer, rleBytes.byteOffset, rleBytes.byteLength);
+        const numWords = Math.floor(rleBytes.length / 4);
+        let totalSamples = 0;
+        for (let i = 0; i < numWords; i++) {
+            totalSamples += dv.getUint16(i * 4 + 2, true);
+        }
+        const samples = new Uint8Array(totalSamples);
+        let ptr = 0;
+        for (let i = 0; i < numWords; i++) {
+            const pinState = dv.getUint16(i * 4, true);
+            const runLen = dv.getUint16(i * 4 + 2, true);
+            samples.fill(pinState & 0xFF, ptr, ptr + runLen);
+            ptr += runLen;
+        }
+        return samples;
+    }
+
+    function exportTraceToVcd(samples, channels, rate) {
+        if (!samples || samples.length === 0) {
+            alert('No waveform data available to export.');
+            return;
+        }
+        const dt_ns = Math.max(1, Math.round(1e9 / (rate || 10000000)));
+        const symbols = '!#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lines = [
+            '$date 2026-11-02 $end',
+            '$version AgentLA WebUI Decoupled Capture Engine $end',
+            '$timescale 1ns $end',
+            '$scope module logic $end'
+        ];
+        const activeCh = (channels && channels.length > 0) ? channels : [0, 1, 2, 3];
+        for (let ch = 0; ch < activeCh.length; ch++) {
+            lines.push(`$var wire 1 ${symbols[ch]} D${activeCh[ch]} $end`);
+        }
+        lines.push('$upscope $end');
+        lines.push('$enddefinitions $end');
+        lines.push('#0');
+        lines.push('$dumpvars');
+        let prevVal = null;
+        for (let i = 0; i < samples.length; i++) {
+            const val = samples[i];
+            if (i === 0) {
+                for (let ch = 0; ch < activeCh.length; ch++) {
+                    lines.push(`${(val >> ch) & 1}${symbols[ch]}`);
+                }
+                lines.push('$end');
+                prevVal = val;
+            } else if (val !== prevVal) {
+                lines.push(`#${i * dt_ns}`);
+                for (let ch = 0; ch < activeCh.length; ch++) {
+                    const pb = (prevVal >> ch) & 1;
+                    const cb = (val >> ch) & 1;
+                    if (cb !== pb) lines.push(`${cb}${symbols[ch]}`);
+                }
+                prevVal = val;
+            }
+        }
+        const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `agentla_trace_${Date.now()}.vcd`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    if (btnExportVcd) {
+        btnExportVcd.addEventListener('click', () => {
+            exportTraceToVcd(rawLogicData, activeChannels, displayedSampleRate);
+        });
+    }
+
     // Dynamic Span Capture Bank Acquisition & Run
     if (btnRunStop) {
         btnRunStop.addEventListener('click', async () => {
@@ -1256,6 +1367,7 @@ function initLogicAnalyzer(container) {
 
             // Configure sample rate & trigger
             await callMcp('cmd', 'CONFIGURE', `channels=${physicalPins.join(',')} rate=${rate}`);
+            await callMcp('cmd', 'CAPTUREMODE', currentCaptureEngineMode);
             btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Capturing...';
             await callMcp('cmd', 'CAPTURE', `samples=${numSamples} mode=R`);
 
