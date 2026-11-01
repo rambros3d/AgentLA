@@ -17,6 +17,14 @@
 #define ADAPTER_UART_TX_PIN 12  /* UART TX */
 #define ADAPTER_UART_RX_PIN 13  /* UART RX */
 
+/* Dedicated Transceiver Pin Blocks */
+#define CAN_TX_PIN   18
+#define CAN_RX_PIN   19
+#define CAN_TERM_PIN 22
+#define RS485_TX_PIN 12
+#define RS485_RX_PIN 13
+#define RS485_DE_PIN 14
+
 /* I3C PIO Assignment on RP2350 */
 #if NUM_PIOS >= 3
 #define I3C_PIO_INSTANCE    pio2

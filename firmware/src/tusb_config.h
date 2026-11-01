@@ -55,8 +55,22 @@
 #define CFG_TUD_CDC_TX_BUFSIZE  1024
 
 /* Vendor Endpoint Buffer Size */
-#define CFG_TUD_VENDOR_RX_BUFSIZE  64
-#define CFG_TUD_VENDOR_TX_BUFSIZE  64
+#define CFG_TUD_VENDOR_RX_BUFSIZE  256
+#define CFG_TUD_VENDOR_TX_BUFSIZE  256
+
+/* SocketCAN gs_usb bulk endpoints */
+#ifndef EDPT_CAN_OUT
+#define EDPT_CAN_OUT 0x04
+#endif
+#ifndef EDPT_CAN_IN
+#define EDPT_CAN_IN  0x88
+#endif
+#ifndef ITF_NUM_HID
+#define ITF_NUM_HID  6
+#endif
+#ifndef ITF_NUM_CAN
+#define ITF_NUM_CAN  (ITF_NUM_HID + 1)
+#endif
 
 #ifdef __cplusplus
  }

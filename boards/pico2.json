@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "board_id": "pico2",
+  "name": "Raspberry Pi Pico 2",
+  "vendor": "Raspberry Pi",
+  "mcu": {
+    "chip": "RP2350A",
+    "package": "QFN-60",
+    "cores": "Dual ARM Cortex-M33 / Hazard3 RISC-V",
+    "clock_max_mhz": 150,
+    "sram_bytes": 532480,
+    "flash_bytes": 4194304
+  },
+  "features": {
+    "onboard_led": 25,
+    "vref_volts": 3.3,
+    "has_hardware_can": false,
+    "has_hardware_rs485": false,
+    "target_current_sense": false
+  },
+  "zones": {
+    "fixed_programmer": {
+      "gpio_range": [0, 9],
+      "swclk": 4,
+      "swdio": 5,
+      "nrst": 6,
+      "boot0": 2,
+      "sdi": 7,
+      "uart_tx": 8,
+      "uart_rx": 9
+    },
+    "flexible_pool": {
+      "gpio_range": [10, 25],
+      "channels_count": 16,
+      "default_i2c": [10, 11],
+      "default_spi": [14, 15, 16, 17]
+    },
+    "analog_scope": {
+      "gpio_range": [26, 29],
+      "adc_channels": [0, 1, 2, 3],
+      "attenuation": "1x",
+      "dual_personality": true,
+      "shared_with_digital": true
+    }
+  }
+}

@@ -42,10 +42,83 @@ void adapter_init_i2c_only(void) {
 }
 
 void adapter_i2c_init(void) {
-    /* Flexible roles no longer assume fixed pins until a claim handle is bound. */
-    adapter_i2c_active_handle = 0;
+    adapter_i2c_standby();
+}
+
+void adapter_i2c_standby(void) {
+    if (adapter_i2c_active_handle != 0) {
+        pin_owner_result_t res = PIN_OWNER_OK;
+        pin_owner_release_claim(adapter_i2c_active_handle, &res);
+        adapter_i2c_active_handle = 0;
+    }
     adapter_i2c_pinned = false;
     adapter_i2c_ready = false;
+
+    /* Tri-state default I2C pins into High-Z standby */
+    gpio_init(10);
+    gpio_set_dir(10, GPIO_IN);
+    gpio_disable_pulls(10);
+    gpio_init(11);
+    gpio_set_dir(11, GPIO_IN);
+    gpio_disable_pulls(11);
+}
+
+bool adapter_i2c_is_pinned(void) {
+    return adapter_i2c_pinned;
+}
+
+bool adapter_i2c_auto_claim(void) {
+    if (adapter_i2c_pinned && adapter_i2c_ready) return true;
+    if (adapter_i2c_pinned) {
+        i2c_init(i2c1, I2C_ADAPTER_FREQ_HZ);
+        gpio_set_function(adapter_i2c_scl_pin, GPIO_FUNC_I2C);
+        gpio_set_function(adapter_i2c_sda_pin, GPIO_FUNC_I2C);
+        gpio_pull_up(adapter_i2c_scl_pin);
+        gpio_pull_up(adapter_i2c_sda_pin);
+        adapter_i2c_ready = true;
+        return true;
+    }
+    /* Auto-claim default flexible pins GP10 (SDA) and GP11 (SCL) */
+    const uint8_t pins[2] = { 10, 11 };
+    uint32_t handle = 0;
+    if (!pin_owner_claim_pins(pins, 2, GPIO_FUNC_I2C, 0, &handle)) {
+        return false;
+    }
+    return adapter_i2c_bind_claim(handle);
+}
+
+int adapter_i2c_raw_read(uint8_t addr, uint8_t *data, size_t len, bool nostop, uint32_t timeout_us) {
+    if (!adapter_i2c_auto_claim()) return -1;
+    if (!adapter_i2c_ready) {
+        i2c_init(i2c1, I2C_ADAPTER_FREQ_HZ);
+        gpio_set_function(adapter_i2c_scl_pin, GPIO_FUNC_I2C);
+        gpio_set_function(adapter_i2c_sda_pin, GPIO_FUNC_I2C);
+        gpio_pull_up(adapter_i2c_scl_pin);
+        gpio_pull_up(adapter_i2c_sda_pin);
+        adapter_i2c_ready = true;
+    }
+    if (len == 0) {
+        uint8_t dummy = 0;
+        return i2c_read_timeout_us(i2c1, addr, &dummy, 1, false, timeout_us);
+    }
+    return i2c_read_timeout_us(i2c1, addr, data, len, nostop, timeout_us);
+}
+
+int adapter_i2c_raw_write(uint8_t addr, const uint8_t *data, size_t len, bool nostop, uint32_t timeout_us) {
+    if (!adapter_i2c_auto_claim()) return -1;
+    if (!adapter_i2c_ready) {
+        i2c_init(i2c1, I2C_ADAPTER_FREQ_HZ);
+        gpio_set_function(adapter_i2c_scl_pin, GPIO_FUNC_I2C);
+        gpio_set_function(adapter_i2c_sda_pin, GPIO_FUNC_I2C);
+        gpio_pull_up(adapter_i2c_scl_pin);
+        gpio_pull_up(adapter_i2c_sda_pin);
+        adapter_i2c_ready = true;
+    }
+    if (len == 0) {
+        uint8_t dummy = 0;
+        return i2c_read_timeout_us(i2c1, addr, &dummy, 1, false, timeout_us);
+    }
+    return i2c_write_timeout_us(i2c1, addr, data, len, nostop, timeout_us);
 }
 
 bool adapter_i2c_bind_claim(uint32_t handle) {

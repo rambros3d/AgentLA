@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "board_id": "agentprobe",
+  "name": "AgentProbe",
+  "vendor": "AgentLA",
+  "mcu": {
+    "chip": "RP2350B",
+    "package": "QFN-80",
+    "cores": "Dual ARM Cortex-M33 / Hazard3 RISC-V",
+    "clock_max_mhz": 150,
+    "sram_bytes": 532480,
+    "flash_bytes": 16777216,
+    "psram_bytes": 8388608
+  },
+  "features": {
+    "onboard_led": null,
+    "vref_volts": 3.0,
+    "vref_precision_ic": "REF3030",
+    "has_hardware_can": true,
+    "has_hardware_rs485": true,
+    "target_current_sense": true,
+    "target_power_control": true
+  },
+  "zones": {
+    "zone1_programmer": {
+      "name": "Target Programmer Header",
+      "gpio_range": [0, 9],
+      "connector": "2x5 1.27mm / 2.54mm ARM Debug",
+      "pins": {
+        "trst": 0,
+        "tdo": 1,
+        "boot0": 2,
+        "tdi": 3,
+        "swclk": 4,
+        "swdio": 5,
+        "nrst": 6,
+        "sdi": 7,
+        "uart_tx": 8,
+        "uart_rx": 9
+      }
+    },
+    "zone2_transceivers": {
+      "name": "Industrial Differential Transceivers",
+      "gpio_range": [10, 15],
+      "can_fd": {
+        "chip": "TCAN334",
+        "tx_pin": 10,
+        "rx_pin": 11,
+        "term_120ohm_relay_pin": 12,
+        "connector": "3-Pin Screw Terminal (CAN_H, CAN_L, GND)"
+      },
+      "rs485": {
+        "chip": "SN65HVD3082",
+        "tx_pin": 13,
+        "rx_pin": 14,
+        "de_re_pin": 15,
+        "connector": "3-Pin Screw Terminal (A, B, GND)"
+      }
+    },
+    "zone3_bus_masters": {
+      "name": "Dedicated Bus Master Pod",
+      "gpio_range": [16, 23],
+      "connector": "2x5 2.54mm Shrouded Header",
+      "i2c_i3c": {
+        "sda_pin": 16,
+        "scl_pin": 17
+      },
+      "spi": {
+        "sck_pin": 18,
+        "mosi_pin": 19,
+        "miso_pin": 20,
+        "cs_pin": 21
+      },
+      "aux_uart": {
+        "tx_pin": 22,
+        "rx_pin": 23
+      }
+    },
+    "zone4_logic_analyzer": {
+      "name": "16-Channel Logic Analyzer & Pattern Generator",
+      "gpio_range": [24, 39],
+      "channels_count": 16,
+      "base_pin": 24,
+      "max_sample_rate_hz": 150000000,
+      "connector": "2x10 2.54mm Header with Alternating GND",
+      "pwm_pattern_generator": true
+    },
+    "zone5_analog_scope": {
+      "name": "8-Channel Analog Oscilloscope Front-End",
+      "gpio_range": [40, 47],
+      "adc_channels": [0, 1, 2, 3, 4, 5, 6, 7],
+      "vref_volts": 3.0,
+      "channels": {
+        "scope_ch1": { "pin": 40, "adc": 0, "connector": "BNC / SMA", "attenuator": "1x/10x" },
+        "scope_ch2": { "pin": 41, "adc": 1, "connector": "BNC / SMA", "attenuator": "1x/10x" },
+        "scope_ch3": { "pin": 42, "adc": 2, "connector": "SMA / Header", "attenuator": "1x" },
+        "scope_ch4": { "pin": 43, "adc": 3, "connector": "SMA / Header", "attenuator": "1x" },
+        "aux_ch5": { "pin": 44, "adc": 4, "connector": "Pin Header", "attenuator": "1x" },
+        "aux_ch6": { "pin": 45, "adc": 5, "connector": "Pin Header", "attenuator": "1x" },
+        "current_sense": { "pin": 46, "adc": 6, "ic": "INA180", "target": "Target Current Draw" },
+        "vtarget_sense": { "pin": 47, "adc": 7, "divider": "10x", "target": "Target VCC (1.2V-5.0V)" }
+      }
+    }
+  }
+}

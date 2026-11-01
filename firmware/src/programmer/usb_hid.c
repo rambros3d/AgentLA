@@ -4,6 +4,8 @@
  */
 #include "usb_hid.h"
 #include "cmsis_dap.h"
+#include "adapter/adapter_can.h"
+#include "adapter/adapter_i2c_usb.h"
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
 #include "pico/bootrom.h"
@@ -21,6 +23,7 @@ static const char* string_desc_arr[] = {
     "AgentLA CDC Serial",            /* 5: CDC0 CLI interface */
     "AgentLA Debug Log",             /* 6: CDC1 debug interface */
     "0202846A9600",                  /* 7: MAC address (ECM) */
+    "AgentLA SocketCAN gs_usb",      /* 8: CAN interface */
 };
 static uint16_t _desc_str[32];
 
@@ -35,40 +38,38 @@ static uint16_t dap_response_len = 0;
 static bool dap_response_pending = false;
 
 /* ═══════════════════════════════════════════════════════════════════
- * USB Descriptors — Composite Device (CDC + HID)
+ * USB Descriptors — Composite Device (CDC + HID + CAN)
  * ═══════════════════════════════════════════════════════════════════ */
 
 /* Interface numbers */
-/* Interface numbers */
 #define ITF_NET          0
 #define ITF_NET_DATA     1
-enum {
-    ITF_NUM_CDC0     = ITF_NET_DATA + 1,   /* CDC0 CLI */
-    ITF_NUM_CDC0_DATA,                      /* CDC0 data */
-    ITF_NUM_CDC1,                           /* CDC1 debug */
-    ITF_NUM_CDC1_DATA,                      /* CDC1 data */
-    ITF_NUM_HID,                            /* HID DAP */
-    ITF_NUM_TOTAL
-};
-/* NUM interfaces jump: NET 2 */
-
+#define ITF_NUM_CDC0     (ITF_NET_DATA + 1)      /* 2: CDC0 CLI */
+#define ITF_NUM_CDC0_DATA (ITF_NUM_CDC0 + 1)     /* 3: CDC0 data */
+#define ITF_NUM_CDC1     (ITF_NUM_CDC0_DATA + 1) /* 4: CDC1 debug */
+#define ITF_NUM_CDC1_DATA (ITF_NUM_CDC1 + 1)     /* 5: CDC1 data */
+#undef ITF_NUM_HID
+#define ITF_NUM_HID      (ITF_NUM_CDC1_DATA + 1) /* 6: HID DAP */
+#undef ITF_NUM_CAN
+#define ITF_NUM_CAN      (ITF_NUM_HID + 1)       /* 7: CAN gs_usb */
+#define ITF_NUM_TOTAL    (ITF_NUM_CAN + 1)       /* 8: Total interfaces */
 
 /* Endpoint numbers */
-/* Endpoint numbers */
-enum {
-    EDPT_NET_NOTIF = 0x81,
-    EDPT_NET_OUT   = 0x02, /* net data OUT */
-    EDPT_NET_IN    = 0x82, /* net data IN */
-    EDPT_CDC0_NOTIF = 0x83,
-    EDPT_CDC0_OUT   = 0x03,
-    EDPT_CDC0_IN    = 0x84,
-    EDPT_CDC1_NOTIF = 0x85,
-    EDPT_CDC1_OUT   = 0x05,
-    EDPT_CDC1_IN    = 0x86,
-    EDPT_HID_OUT    = 0x01,
-    EDPT_HID_IN     = 0x87,
-};
-
+#define EDPT_NET_NOTIF  0x81
+#define EDPT_NET_OUT    0x02 /* net data OUT */
+#define EDPT_NET_IN     0x82 /* net data IN */
+#define EDPT_CDC0_NOTIF 0x83
+#define EDPT_CDC0_OUT   0x03
+#define EDPT_CDC0_IN    0x84
+#define EDPT_CDC1_NOTIF 0x85
+#define EDPT_CDC1_OUT   0x05
+#define EDPT_CDC1_IN    0x86
+#define EDPT_HID_OUT    0x01
+#define EDPT_HID_IN     0x87
+#undef EDPT_CAN_OUT
+#define EDPT_CAN_OUT    0x04
+#undef EDPT_CAN_IN
+#define EDPT_CAN_IN     0x88
 
 /* Device descriptor — composite with IAD */
 static const tusb_desc_device_t desc_device = {
@@ -88,11 +89,10 @@ static const tusb_desc_device_t desc_device = {
     .bNumConfigurations = 0x01
 };
 
-/* Configuration descriptor — CDC0 + CDC1 + HID composite */
-/* NET interface (ECM) using TUD_CDC_ECM_DESCRIPTOR macro */
+/* Configuration descriptor — ECM + CDC0 + CDC1 + HID + gs_usb Vendor composite */
 static const uint8_t desc_config[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0,
-        TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN + TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN,
+        TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN + TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN + TUD_VENDOR_DESC_LEN,
         0x00, 500),
 
     /* ECM Network Interface (ITF 0,1) */
@@ -107,6 +107,9 @@ static const uint8_t desc_config[] = {
     /* HID CMSIS-DAP Interface */
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE,
         sizeof(hid_report_desc), EDPT_HID_OUT, EDPT_HID_IN, 64, 1),
+
+    /* SocketCAN gs_usb Vendor Interface */
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_CAN, 8, EDPT_CAN_OUT, EDPT_CAN_IN, 64),
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -201,6 +204,8 @@ void usb_hid_init(void) {
     tusb_init();
     /* Register CDC0 as stdio output so printf goes through USB CDC0 (CLI) */
     stdio_set_driver_enabled(&stdio_cdc, true);
+    adapter_can_init();
+    adapter_i2c_usb_init();
 }
 
 /* Debug printf — writes to CDC1 (debug log) instead of CDC0 (CLI).
@@ -318,6 +323,9 @@ void usb_hid_task(void) {
 
     g_cdc_rx_ring_head_snap = cdc_rx_head;
     g_cdc_rx_ring_tail_snap = cdc_rx_tail;
+
+    /* Process SocketCAN gs_usb bulk frames */
+    adapter_can_task();
 }
 
 #include "pico/bootrom.h"
@@ -421,22 +429,29 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
  * ═══════════════════════════════════════════════════════════════════ */
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
-    if (stage != CONTROL_STAGE_SETUP) return true;
-    switch (request->bmRequestType_bit.type) {
-        case TUSB_REQ_TYPE_VENDOR:
-            switch (request->bRequest) {
-                case 0: /* Reboot into BOOTSEL */
-                    tud_control_status(rhport, request);
-                    busy_wait_ms(100);
-                    reset_usb_boot(0, 0);
-                    return true;
-                default:
-                    break;
-            }
-            break;
-        default:
-            break;
+    if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_VENDOR) {
+        return false;
     }
+
+    /* 1. Picotool BOOTSEL reset */
+    if (stage == CONTROL_STAGE_SETUP && request->bRequest == 0 &&
+        request->wLength == 0 && request->wIndex == 0 && request->wValue == 0) {
+        tud_control_status(rhport, request);
+        busy_wait_ms(100);
+        reset_usb_boot(0, 0);
+        return true;
+    }
+
+    /* 2. SocketCAN gs_usb requests */
+    if (adapter_can_control_xfer(rhport, stage, request)) {
+        return true;
+    }
+
+    /* 3. i2c-tiny-usb requests */
+    if (adapter_i2c_usb_control_xfer(rhport, stage, request)) {
+        return true;
+    }
+
     return false;
 }
 

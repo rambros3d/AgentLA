@@ -446,8 +446,8 @@
                         <!-- Domain 2: Adapter Interface (GP10 - GP19) -->
                         <div class="domain-group">
                             <div class="domain-group-header">
-                                <span class="domain-badge domain-adapt">DOMAIN 2: ADAPTER BUS INTERFACE</span>
-                                <span class="domain-range">GP10 – GP19 (I2C1 / SPI1 / UART1 / CAN / I3C — Dynamic ownership)</span>
+                                <span class="domain-badge domain-adapt">DOMAIN 2: ADAPTER BUS &amp; TRANSCEIVER INTERFACE</span>
+                                <span class="domain-range">GP10 – GP19 (I2C1 / RS-485 Transceiver GP12–14 / SPI1 / CAN Transceiver GP18–19 with 120Ω Term on GP22 — Dynamic ownership)</span>
                             </div>
                             <div class="domain-pins-row" id="dash-pins-adapt"></div>
                         </div>
@@ -456,7 +456,7 @@
                         <div class="domain-group">
                             <div class="domain-group-header">
                                 <span class="domain-badge domain-la">DOMAIN 3: LOGIC ANALYZER &amp; ADC</span>
-                                <span class="domain-range">GP20 – GP29 (Span-based Capture Bank / GP26–GP29: Analog Capable ADC0–3)</span>
+                                <span class="domain-range">GP20 – GP29 (Span-based Capture Bank / GP22: CAN 120Ω Termination / GP26–GP29: Analog Capable ADC0–3)</span>
                             </div>
                             <div class="domain-pins-row" id="dash-pins-la"></div>
                         </div>
@@ -950,6 +950,8 @@
                             <label>Role Preset</label>
                             <select class="compact-select" id="gpio-claim-preset">
                                 <option value="i2c" selected>I2C1 Adapter (GP10, GP11)</option>
+                                <option value="rs485">RS-485 Transceiver (GP12, GP13, GP14)</option>
+                                <option value="can">CAN Transceiver (GP18, GP19, GP22 Term)</option>
                                 <option value="spi">SPI1 Adapter (GP14, GP15, GP16, GP17)</option>
                                 <option value="uart">UART1 Adapter (GP12, GP13)</option>
                                 <option value="capture">PIO0 Capture Bank (GP20–GP27)</option>
@@ -1006,8 +1008,8 @@
                 <!-- Domain 2: Flexible Adapter -->
                 <div class="pin-group">
                     <div class="pin-group-header">
-                        <span>⚡ Flexible Adapter Interface (GP10 - GP19)</span>
-                        <span style="font-size: 10px; color: var(--text-secondary);">I2C1 / UART1 / SPI1 / CAN / I3C (Dynamic Claims)</span>
+                        <span>⚡ Flexible Adapter &amp; Transceiver Interface (GP10 - GP19)</span>
+                        <span style="font-size: 10px; color: var(--text-secondary);">I2C1 / RS-485 (GP12–14) / SPI1 / CAN (GP18–19) / 120Ω Term (GP22)</span>
                     </div>
                     <div class="pin-matrix-grid" id="gpio-grid-adapt"></div>
                 </div>

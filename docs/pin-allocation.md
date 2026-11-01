@@ -103,24 +103,39 @@ Connect AgentLA to your target board:
 
 ---
 
-## ADAPTER (GPIO 10-19)
+## ADAPTER (GPIO 10-19) & DEDICATED TRANSCEIVER BLOCKS
 
-Active bus master: I2C, UART, SPI, CAN.
+Active bus master: I2C, UART, SPI, CAN, and RS-485 transceivers.
 
-**Note:** In the current code, adapter I2C uses GPIO 0/1 (shared with programmer I2C) and adapter UART uses GPIO 4/5 (shared with SWD). GPIO 10-19 are reserved for the custom PCB adapter interface.
+| GPIO | Name           | Function         | Direction | Notes                                               |
+|------|----------------|------------------|-----------|-----------------------------------------------------|
+| 10   | A_SDA / I2C1   | I2C1 SDA (F2)    | BI        | I2C data (master) / i2c-tiny-usb native default     |
+| 11   | A_SCL / I2C1   | I2C1 SCL (F2)    | BI        | I2C clock (master) / i2c-tiny-usb native default    |
+| 12   | RS485_TX       | UART0 TX (F1)    | OUT       | Dedicated RS-485 Transceiver DI (driver input)      |
+| 13   | RS485_RX       | UART0 RX (F1)    | IN        | Dedicated RS-485 Transceiver RO (receiver output)   |
+| 14   | RS485_DE       | GPIO (SIO)       | OUT       | Dedicated RS-485 Transceiver DE / ~RE driver enable |
+| 15   | A_MOSI         | SPI1 TX (F0)     | OUT       | SPI master out                                      |
+| 16   | A_MISO         | SPI1 RX (F0)     | IN        | SPI master in                                       |
+| 17   | A_CS           | SPI1 CSn (F0)    | OUT       | SPI chip select                                     |
+| 18   | CAN_TX         | SIO / PIO        | OUT       | Dedicated CAN Transceiver TXD (SocketCAN gs_usb)    |
+| 19   | CAN_RX         | SIO / PIO        | IN        | Dedicated CAN Transceiver RXD (SocketCAN gs_usb)    |
 
-| GPIO | Name      | Function         | Direction | Notes                     |
-|------|-----------|------------------|-----------|---------------------------|
-| 10   | A_SCL     | I2C1 SCL (F2)    | BI        | I2C clock (master)        |
-| 11   | A_SDA     | I2C1 SDA (F2)    | BI        | I2C data (master)         |
-| 12   | A_TX      | UART1 TX (F1)    | OUT       | UART to target            |
-| 13   | A_RX      | UART1 RX (F1)    | IN        | UART from target          |
-| 14   | A_SCK     | SPI1 SCK (F0)    | OUT       | SPI clock                 |
-| 15   | A_MOSI    | SPI1 TX (F0)     | OUT       | SPI master out            |
-| 16   | A_MISO    | SPI1 RX (F0)     | IN        | SPI master in             |
-| 17   | A_CS      | SPI1 CSn (F0)    | OUT       | SPI chip select           |
-| 18   | A_CAN_TX  | PIO1 (F7)        | OUT       | CAN TX → transceiver TXD  |
-| 19   | A_CAN_RX  | PIO1 (F7)        | IN        | CAN RX ← transceiver RXD  |
+### Dedicated Transceiver Blocks
+
+1. **CAN Transceiver (`gs_usb` SocketCAN `can0`)**:
+   - `CAN_TX_PIN` (GPIO 18): Dedicated transmit line to differential CAN transceiver TXD.
+   - `CAN_RX_PIN` (GPIO 19): Dedicated receive line from differential CAN transceiver RXD.
+   - `CAN_TERM_PIN` (GPIO 22): Dedicated switchable $120\,\Omega$ bus termination control line.
+   - **Standby Lifecycle**: Pins remain in high-impedance (tri-state, Hi-Z) mode until `can0` is brought up by the host OS (`ip link set can0 up`) or claimed via WebUI.
+
+2. **RS-485 Transceiver (`RS485_TX_PIN`, `RS485_RX_PIN`, `RS485_DE_PIN`)**:
+   - `RS485_TX_PIN` (GPIO 12): Transmit output to RS-485 driver input (DI).
+   - `RS485_RX_PIN` (GPIO 13): Receive input from RS-485 receiver output (RO).
+   - `RS485_DE_PIN` (GPIO 14): Driver Enable / Receiver Enable (`DE`/`~RE`) control line. Default low (receive mode / Hi-Z driver) during standby.
+
+3. **Driverless Native USB Endpoints**:
+   - **SocketCAN `gs_usb`**: Pre-enumerated bulk endpoints `EDPT_CAN_OUT (0x04)` and `EDPT_CAN_IN (0x88)` providing zero-driver `can0` support in Linux.
+   - **`i2c-tiny-usb`**: Pre-enumerated control transfer dispatcher on Endpoint 0 supporting driverless `/dev/i2c-X` integration with auto-claim on first access (GP10/11).
 
 ---
 
@@ -128,18 +143,18 @@ Active bus master: I2C, UART, SPI, CAN.
 
 Passive capture, 10 channels, contiguous. PIO0 IN base = GPIO20, `in pins 10`.
 
-| GPIO | Name      | Function         | Direction | Notes                     |
-|------|-----------|------------------|-----------|---------------------------|
-| 20   | L_CH0     | PIO0 (F6)        | IN        | Capture channel 0         |
-| 21   | L_CH1     | PIO0 (F6)        | IN        | Capture channel 1         |
-| 22   | L_CH2     | PIO0 (F6)        | IN        | Capture channel 2         |
-| 23   | L_CH3     | PIO0 (F6)        | IN        | Capture channel 3         |
-| 24   | L_CH4     | PIO0 (F6)        | IN        | Capture channel 4         |
-| 25   | L_CH5     | PIO0 (F6)        | IN        | Capture channel 5         |
-| 26   | L_CH6     | PIO0 (F6)        | IN        | Capture ch6 (ADC capable) |
-| 27   | L_CH7     | PIO0 (F6)        | IN        | Capture ch7 (ADC capable) |
-| 28   | L_CH8     | PIO0 (F6)        | IN        | Capture ch8 (ADC capable) |
-| 29   | L_CH9     | PIO0 (F6)        | IN        | Capture ch9 (ADC capable) |
+| GPIO | Name           | Function         | Direction | Notes                                          |
+|------|----------------|------------------|-----------|------------------------------------------------|
+| 20   | L_CH0          | PIO0 (F6)        | IN        | Capture channel 0                              |
+| 21   | L_CH1          | PIO0 (F6)        | IN        | Capture channel 1                              |
+| 22   | L_CH2/CAN_TERM | PIO0 (F6) / SIO  | IN/OUT    | Capture channel 2 / CAN 120Ω termination toggle|
+| 23   | L_CH3          | PIO0 (F6)        | IN        | Capture channel 3                              |
+| 24   | L_CH4          | PIO0 (F6)        | IN        | Capture channel 4                              |
+| 25   | L_CH5          | PIO0 (F6)        | IN        | Capture channel 5                              |
+| 26   | L_CH6          | PIO0 (F6)        | IN        | Capture ch6 (ADC capable)                      |
+| 27   | L_CH7          | PIO0 (F6)        | IN        | Capture ch7 (ADC capable)                      |
+| 28   | L_CH8          | PIO0 (F6)        | IN        | Capture ch8 (ADC capable)                      |
+| 29   | L_CH9          | PIO0 (F6)        | IN        | Capture ch9 (ADC capable)                      |
 
 ---
 
