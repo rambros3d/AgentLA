@@ -36,5 +36,10 @@ Thumbs.db
 # Embedded git repos / submodules
 references/
 
+# PlatformIO
+.pio/
+**/.pio/
+
 # Agents
+.agent/
 .*/
