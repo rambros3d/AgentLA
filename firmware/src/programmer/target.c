@@ -88,6 +88,14 @@ static const flash_algorithm_t flash_algorithms[] = {
         .flash_read = ch32_flash_read,
         .flash_verify = NULL
     },
+    {
+        .name = "PY32F0",
+        .family = TARGET_FAMILY_PY32F0,
+        .flash_erase = NULL,
+        .flash_write = NULL,
+        .flash_read = stm32f1_flash_read,
+        .flash_verify = NULL
+    },
     { NULL, TARGET_FAMILY_UNKNOWN, NULL, NULL, NULL, NULL }
 };
 
@@ -176,15 +184,17 @@ swd_result_t target_detect(void) {
         ap_result = swd_read_ap(AP_DRW, &dbg_id);
     }
 
-    /* If standard DBGMCU read failed or returned 0, try STM32H5/U5 DBGMCU addresses */
-    if (ap_result != SWD_OK || (dbg_id & 0xFFF) == 0) {
+    /* If standard DBGMCU read failed or returned 0, try STM32H5/U5 DBGMCU addresses.
+     * Note: Puya PY32 returns 0x60001000 / 0x60000000 at 0x40015800 (upper half is 0x6000),
+     * so do not probe STM32H5 if Puya's signature is already present. */
+    if ((ap_result != SWD_OK || dbg_id == 0) && ((dbg_id >> 16) != 0x6000)) {
         ap_result = swd_write_ap(AP_CSW, 0x23000012);
         if (ap_result == SWD_OK)
             ap_result = swd_write_ap(AP_TAR, STM32H5_DBGMCU_IDCODE);
         if (ap_result == SWD_OK)
             ap_result = swd_read_ap(AP_DRW, &dbg_id);
     }
-    if (ap_result != SWD_OK || (dbg_id & 0xFFF) == 0) {
+    if ((ap_result != SWD_OK || dbg_id == 0) && ((dbg_id >> 16) != 0x6000)) {
         ap_result = swd_write_ap(AP_CSW, 0x23000012);
         if (ap_result == SWD_OK)
             ap_result = swd_write_ap(AP_TAR, STM32H5_DBGMCU_IDCODE_ALIAS);
@@ -193,13 +203,18 @@ swd_result_t target_detect(void) {
     }
 
     /* If DBGMCU read succeeded, use it for chip identification */
-    if (ap_result == SWD_OK && (dbg_id & 0xFFF) != 0) {
-        current_target.part_id = dbg_id & 0xFFF;
-        current_target.designer_id = (dbg_id >> 12) & 0xFFF;
-        if (current_target.part_id == TARGET_PART_STM32H503 ||
-            current_target.part_id == TARGET_PART_STM32H5_HD ||
-            current_target.part_id == TARGET_PART_STM32H5_MD) {
-            current_target.designer_id = TARGET_DESIGNER_ST;
+    if (ap_result == SWD_OK && dbg_id != 0) {
+        if ((dbg_id >> 16) == 0x6000 || dbg_id == 0x60001000) {
+            current_target.designer_id = TARGET_DESIGNER_PUYA;
+            current_target.part_id = TARGET_PART_PY32F030;
+        } else {
+            current_target.part_id = dbg_id & 0xFFF;
+            current_target.designer_id = (dbg_id >> 12) & 0xFFF;
+            if (current_target.part_id == TARGET_PART_STM32H503 ||
+                current_target.part_id == TARGET_PART_STM32H5_HD ||
+                current_target.part_id == TARGET_PART_STM32H5_MD) {
+                current_target.designer_id = TARGET_DESIGNER_ST;
+            }
         }
     }
 
@@ -213,7 +228,59 @@ swd_result_t target_detect(void) {
     bool is_arm_cortex = (dpidr_identity == 0x3B);
     bool is_st_device = (current_target.designer_id == TARGET_DESIGNER_ST);
 
-    if (is_arm_cortex || is_st_device) {
+    /* Check ARM CPUID at 0xE000ED00 */
+    uint32_t cpuid = 0;
+    if (swd_write_ap(AP_CSW, 0x23000012) == SWD_OK &&
+        swd_write_ap(AP_TAR, 0xE000ED00) == SWD_OK) {
+        swd_read_ap(AP_DRW, &cpuid);
+    }
+    uint32_t core_part = (cpuid >> 4) & 0xFFF;
+    bool is_cortex_m0p = (core_part == 0xC60) || (idcode == 0x0BC11477) || (idcode == 0x0BB11477);
+
+    uint16_t rev_id = (dbg_id >> 16) & 0xFFFF;
+    uint16_t dev_id = dbg_id & 0xFFF;
+
+    /* Check for Puya PY32:
+     * - Cortex-M0+ core
+     * - DBGMCU_IDCODE at 0x40015800 has rev 0x6000 (0x60001000 / 0x60000000) or dev 0x030 / 0x003 / 0x002
+     * - Or factory info area at 0x1FFF0FFC / 0x1FFF0E00
+     */
+    bool is_puya = false;
+    if (rev_id == 0x6000 || dbg_id == 0x60001000 || current_target.designer_id == TARGET_DESIGNER_PUYA ||
+        dev_id == TARGET_PART_PY32F030 || dev_id == TARGET_PART_PY32F003 || dev_id == TARGET_PART_PY32F002A) {
+        is_puya = true;
+    } else if (is_cortex_m0p && dev_id != TARGET_PART_STM32G0) {
+        is_puya = true;
+    }
+
+    if (is_puya) {
+        current_target.family = TARGET_FAMILY_PY32F0;
+        current_target.designer_id = TARGET_DESIGNER_PUYA;
+        current_target.part_id = TARGET_PART_PY32F030;
+        current_target.flash_base = 0x08000000;
+        current_target.ram_base = 0x20000000;
+
+        uint32_t puya_fsize = 0;
+        uint32_t fsize_bytes = 64 * 1024;
+        if (swd_write_ap(AP_CSW, 0x23000012) == SWD_OK &&
+            swd_write_ap(AP_TAR, PUYA_FLASH_SIZE_REG) == SWD_OK &&
+            swd_read_ap(AP_DRW, &puya_fsize) == SWD_OK) {
+            uint32_t sz_idx = puya_fsize & 0x7;
+            fsize_bytes = (sz_idx + 1) * 8 * 1024;
+        }
+        current_target.flash_size = fsize_bytes;
+
+        if (fsize_bytes >= 64 * 1024) {
+            current_target.name = "Puya PY32F030 (64K Flash/8K RAM)";
+            current_target.ram_size = 8 * 1024;
+        } else if (fsize_bytes >= 32 * 1024) {
+            current_target.name = "Puya PY32F030/003 (32K Flash/4K RAM)";
+            current_target.ram_size = 4 * 1024;
+        } else {
+            current_target.name = "Puya PY32F002A (20K Flash/3K RAM)";
+            current_target.ram_size = 3 * 1024;
+        }
+    } else if (is_arm_cortex || is_st_device) {
         /* STM32 family — identified by DBGMCU part_id */
         switch (current_target.part_id) {
             case TARGET_PART_STM32F1_MD:
@@ -363,6 +430,7 @@ const char *target_family_name(target_family_t family) {
         case TARGET_FAMILY_RP2350:  return "RP2350";
         case TARGET_FAMILY_NRF52:   return "nRF52";
         case TARGET_FAMILY_CH32:    return "CH32";
+        case TARGET_FAMILY_PY32F0:  return "PY32F0";
         default:                    return "Unknown";
     }
 }

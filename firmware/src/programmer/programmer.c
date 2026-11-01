@@ -1,4 +1,5 @@
 #include "programmer.h"
+#include <stdio.h>
 #include "board_settings.h"
 #include "swd.h"
 #include "pico/stdlib.h"
@@ -261,6 +262,111 @@ bool prog_ch32_sync(void) {
     prog_uart_write_byte(0x7F);
     prog_uart_write_byte(0x7F);
     return prog_wait_ack(1000);
+}
+
+static bool try_isp_handshake(uart_inst_t *u, uint tx_pin, uint rx_pin, uint32_t baud) {
+    uart_init(u, baud);
+    gpio_set_function(tx_pin, GPIO_FUNC_UART);
+    gpio_set_function(rx_pin, GPIO_FUNC_UART);
+
+    while (uart_is_readable(u)) (void)uart_getc(u);
+
+    /* Detect packet */
+    static const uint8_t detect_pkt[] = {
+        0x57, 0xAB, 0xA1, 0x12, 0x00, 0x52, 0x11,
+        'M', 'C', 'U', ' ', 'I', 'S', 'P', ' ', '&', ' ', 'W', 'C', 'H', '.', 'C', 'N',
+        0x0E
+    };
+    for (size_t i = 0; i < sizeof(detect_pkt); i++) {
+        uart_putc(u, detect_pkt[i]);
+    }
+
+    /* Wait up to 100ms for reply */
+    uint8_t resp[64];
+    uint32_t n = 0;
+    absolute_time_t deadline = make_timeout_time_ms(100);
+    while (!time_reached(deadline) && n < sizeof(resp)) {
+        if (uart_is_readable(u)) {
+            resp[n++] = uart_getc(u);
+        } else {
+            tight_loop_contents();
+        }
+    }
+
+    if (n >= 4 && resp[0] == 0x55 && resp[1] == 0xAA) {
+        return true;
+    }
+    return false;
+}
+
+bool prog_ch592_unlock(char *err_msg, size_t err_size) {
+    prog_enter_mode();
+
+    static const uint32_t bauds[] = { 115200, 57600, 9600, 460800 };
+    bool found = false;
+    uint tx = PROG_UART_TX_PIN, rx = PROG_UART_RX_PIN;
+    uint32_t matched_baud = 0;
+
+    /* Pass 1: standard pin mapping (GPIO 8 TX, GPIO 9 RX) */
+    for (size_t b = 0; b < sizeof(bauds)/sizeof(bauds[0]); b++) {
+        if (try_isp_handshake(prog_uart, PROG_UART_TX_PIN, PROG_UART_RX_PIN, bauds[b])) {
+            found = true;
+            tx = PROG_UART_TX_PIN;
+            rx = PROG_UART_RX_PIN;
+            matched_baud = bauds[b];
+            break;
+        }
+        sleep_ms(10);
+    }
+
+    /* Pass 2: swapped pin mapping (GPIO 9 TX, GPIO 8 RX) */
+    if (!found) {
+        for (size_t b = 0; b < sizeof(bauds)/sizeof(bauds[0]); b++) {
+            if (try_isp_handshake(prog_uart, PROG_UART_RX_PIN, PROG_UART_TX_PIN, bauds[b])) {
+                found = true;
+                tx = PROG_UART_RX_PIN;
+                rx = PROG_UART_TX_PIN;
+                matched_baud = bauds[b];
+                break;
+            }
+            sleep_ms(10);
+        }
+    }
+
+    if (!found) {
+        if (err_msg && err_size > 0) {
+            snprintf(err_msg, err_size, "no ISP reply on PB4/PB7 at any baud or pin polarity - try PA8/PA9 or hold BOOT while resetting");
+        }
+        prog_exit_mode();
+        return false;
+    }
+
+    /* Setup with matched configuration */
+    uart_init(prog_uart, matched_baud);
+    gpio_set_function(tx, GPIO_FUNC_UART);
+    gpio_set_function(rx, GPIO_FUNC_UART);
+    while (uart_is_readable(prog_uart)) (void)uart_getc(prog_uart);
+
+    /* Write Config (enables CFG_DEBUG_EN = 1) */
+    static const uint8_t write_cfg[] = {
+        0x57, 0xAB, 0xA8, 0x0E, 0x00, 0x07, 0x00,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xD5, 0x0F, 0xFF, 0x4F, 0xE7
+    };
+    for (size_t i = 0; i < sizeof(write_cfg); i++) {
+        uart_putc(prog_uart, write_cfg[i]);
+    }
+    sleep_ms(20);
+
+    /* Reboot */
+    static const uint8_t reboot_pkt[] = { 0x57, 0xAB, 0xA2, 0x01, 0x00, 0x01, 0xA4 };
+    for (size_t i = 0; i < sizeof(reboot_pkt); i++) {
+        uart_putc(prog_uart, reboot_pkt[i]);
+    }
+    sleep_ms(50);
+
+    prog_exit_mode();
+    return true;
 }
 
 void prog_raw_passthrough_on(void) {

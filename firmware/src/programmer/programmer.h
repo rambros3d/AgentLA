@@ -37,6 +37,7 @@ bool prog_rp2350_load(uint32_t addr, const uint8_t *data, uint32_t len);
 bool prog_nrf_sync(void);
 
 bool prog_ch32_sync(void);
+bool prog_ch592_unlock(char *err_msg, size_t err_size);
 
 void prog_raw_passthrough_on(void);
 void prog_raw_passthrough_off(void);

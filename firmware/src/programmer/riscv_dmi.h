@@ -91,6 +91,9 @@
 #define RISCV_REG_X0           0x1000
 #define RISCV_REG_X1_RA        0x1001
 #define RISCV_REG_X2_SP        0x1002
+#define RISCV_REG_X10_A0       0x100A
+#define RISCV_REG_X11_A1       0x100B
+#define RISCV_REG_X12_A2       0x100C
 #define RISCV_REG_PC           0x7B1
 
 /* DMI Transfer functions */

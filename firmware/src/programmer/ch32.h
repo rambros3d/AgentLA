@@ -40,6 +40,7 @@ typedef enum {
     CH32_CHIP_V003,           /* QingKe V2A core, 1-wire SWIO */
     CH32_CHIP_V203,           /* QingKe V4A core, 2-wire RVSWD */
     CH32_CHIP_V307,           /* QingKe V4A core, 2-wire RVSWD */
+    CH32_CHIP_CH592,          /* QingKe V4C core, 2-wire RVSWD (CH592 BLE) */
     CH32_CHIP_F103,           /* ARM Cortex-M3 (Blue Pill compatible) */
 } ch32_chip_t;
 

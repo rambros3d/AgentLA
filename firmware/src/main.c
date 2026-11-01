@@ -1010,6 +1010,37 @@ static void cmd_swd_test(char* args) {
     } else { send_response("ERR SWD TEST FAIL - no target"); }
 }
 
+static void cmd_swd_detect(char* args) {
+    (void)args;
+    if (!swd_is_initialized()) {
+        swd_result_t r = swd_init();
+        if (r != SWD_OK) { char msg[64]; sprintf(msg, "ERR SWD init failed: %d", r); send_response(msg); return; }
+        swd_initialized = true;
+    }
+    uint32_t idcode = 0;
+    swd_result_t result = swd_get_idcode_with_fallback(&idcode);
+    if (result == SWD_OK && idcode != 0) {
+        result = target_detect();
+        if (result == SWD_OK && target_is_connected()) {
+            const target_info_t *info = target_get_info();
+            char msg[192];
+            sprintf(msg, "OK TARGET DETECT name='%s' family='%s' idcode=0x%08lX flash_size=%lu ram_size=%lu",
+                    info->name ? info->name : "unknown",
+                    target_family_name(info->family),
+                    (unsigned long)idcode,
+                    (unsigned long)info->flash_size,
+                    (unsigned long)info->ram_size);
+            send_response(msg);
+        } else {
+            char msg[96];
+            sprintf(msg, "OK TARGET DETECT idcode=0x%08lX (unknown target)", (unsigned long)idcode);
+            send_response(msg);
+        }
+    } else {
+        send_response("ERR TARGET DETECT failed: no SWD target");
+    }
+}
+
 static void cmd_stm32_test(char* args) {
     (void)args;
     if (!swd_is_initialized()) {
@@ -1797,6 +1828,7 @@ static void cmd_debug(char* args) {
  * standard SWD target path instead of the CH32 RISC-V programmer). */
 static bool is_arm_mcu(const char *name) {
     return strncmp(name, "stm32", 5) == 0 ||
+           strncmp(name, "py32", 4) == 0 ||
            strncmp(name, "ch32f", 5) == 0 ||
            strcmp(name, "bluepill") == 0 ||
            strcmp(name, "nrf52") == 0 ||
@@ -1871,7 +1903,7 @@ static void cmd_ch32_detect(char* args) {
         const ch32_mcu_info_t *mcu = ch32_lookup_mcu(mcu_name);
         if (!mcu) {
             char msg[128];
-            sprintf(msg, "ERR CH32 DETECT unknown mcu=%s (ch32v003|ch32v203|ch32v307|stm32f103)", mcu_name);
+            sprintf(msg, "ERR CH32 DETECT unknown mcu=%s (ch32v003|ch32v203|ch32v307|ch592|stm32f103)", mcu_name);
             send_response(msg);
             return;
         }
@@ -1910,6 +1942,18 @@ static void cmd_ch32_detect(char* args) {
             (unsigned long)g_ch32_target.page_size,
             mode_str);
     send_response(msg);
+}
+
+static void cmd_ch32_unlock(char* args) {
+    (void)args;
+    char err[128] = {0};
+    if (!prog_ch592_unlock(err, sizeof(err))) {
+        char msg[160];
+        snprintf(msg, sizeof(msg), "ERR CH32 UNLOCK failed: %s", err);
+        send_response(msg);
+        return;
+    }
+    send_response("OK CH32 UNLOCKED (CFG_DEBUG_EN=1 written, chip rebooted)");
 }
 
 static void cmd_ch32_flash(char* args) {
@@ -2617,6 +2661,7 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "CRASHINFO") == 0) cmd_crashinfo();
     else if(strcmp(cmd, "CONFIGURE") == 0) cmd_configure(args ? args : "");
     else if(strcmp(cmd, "CAPTURE") == 0) cmd_capture(args ? args : "");
+    else if(strcmp(cmd, "PINSCAN") == 0) cmd_pin_scan(args ? args : "");
     else if(strcmp(cmd, "MEASURE") == 0) cmd_measure(args ? args : "");
     else if(strcmp(cmd, "ADC") == 0) cmd_adc(args ? args : "");
     else if(strcmp(cmd, "STATUS") == 0) cmd_status();
@@ -2851,10 +2896,13 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "ALGOCONSENT") == 0) cmd_algo_consent(args ? args : "");
     else if(strcmp(cmd, "UARTLOOP") == 0) cmd_uartloop(args ? args : "");
     else if(strcmp(cmd, "BOOT0") == 0) cmd_boot0(args ? args : "");
+    else if(strcmp(cmd, "TARGET") == 0) cmd_swd_detect(NULL);
+    else if(strcmp(cmd, "PY32") == 0) cmd_swd_detect(NULL);
     else if(strcmp(cmd, "SWD") == 0) {
         if(args && strcmp(args, "IDCODE") == 0) cmd_swd_idcode(NULL);
         else if(args && strcmp(args, "RESET") == 0) cmd_swd_reset(NULL);
         else if(args && strcmp(args, "TEST") == 0) cmd_swd_test(NULL);
+        else if(args && strcmp(args, "DETECT") == 0) cmd_swd_detect(NULL);
         else if(args && strcmp(args, "PINS") == 0) cmd_swd_pins(NULL);
         else if(args && strcmp(args, "DEINIT") == 0) {
             swd_deinit();
@@ -3038,6 +3086,7 @@ static void process_command(char* cmd) {
     }
     else if(strcmp(cmd, "CH32") == 0) {
         if(args && strncmp(args, "DETECT", 6) == 0) cmd_ch32_detect(args + 6);
+        else if(args && strncmp(args, "UNLOCK", 6) == 0) cmd_ch32_unlock(args + 6);
         else if(args && strncmp(args, "FLASHSRAM ", 10) == 0) cmd_ch32_flash_sram(args + 10);
         else if(args && strncmp(args, "FLASHSRAM ", 10) == 0) cmd_ch32_flash_sram(args + 10);
         else if(args && strncmp(args, "FLASHDIRECT ", 12) == 0) cmd_ch32_flash_direct(args + 12);

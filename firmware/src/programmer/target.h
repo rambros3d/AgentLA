@@ -20,6 +20,7 @@
 #define TARGET_DESIGNER_ATMEL    0x010   /* Atmel/Microchip */
 #define TARGET_DESIGNER_NORDIC   0x244   /* Nordic Semiconductor */
 #define TARGET_DESIGNER_WCH      0x01A   /* WCH (WinChipHead) */
+#define TARGET_DESIGNER_PUYA     0x0B8   /* Puya Semiconductor */
 
 /* STM32 Part IDs (bits [11:1]) - extracted from DBGMCU_IDCODE */
 #define TARGET_PART_STM32F1_MD   0x410   /* STM32F103 Medium Density (Blue Pill C8T6: 64K Flash/20K RAM) */
@@ -34,6 +35,17 @@
 #define TARGET_PART_STM32H503    0x474   /* STM32H503 (Cortex-M33, 128K Flash / 32K RAM) */
 #define TARGET_PART_STM32H5_HD   0x484   /* STM32H562/H563/H573 (Cortex-M33, up to 2MB Flash / 640K RAM) */
 #define TARGET_PART_STM32H5_MD   0x478   /* STM32H523/H533 (Cortex-M33, up to 512K Flash / 272K RAM) */
+
+/* Puya Part IDs */
+#define TARGET_PART_PY32F030     0x030   /* PY32F030 (Cortex-M0+, up to 64K Flash/8K RAM) */
+#define TARGET_PART_PY32F003     0x003   /* PY32F003 (Cortex-M0+, up to 64K Flash/8K RAM) */
+#define TARGET_PART_PY32F002A    0x002   /* PY32F002A (Cortex-M0+, 20K Flash/3K RAM) */
+
+/* Puya PY32 Register Addresses */
+#define PUYA_DBGMCU_IDCODE       0x40015800U
+#define PUYA_FLASH_BASE          0x40022000U
+#define PUYA_UID_BASE            0x1FFF0E00U
+#define PUYA_FLASH_SIZE_REG      0x1FFF0FFCU
 
 /* RP2040/RP2350 Part IDs */
 #define TARGET_PART_RP2040       0x00C   /* RP2040 */
@@ -54,7 +66,8 @@ typedef enum {
     TARGET_FAMILY_RP2040,
     TARGET_FAMILY_RP2350,
     TARGET_FAMILY_NRF52,
-    TARGET_FAMILY_CH32
+    TARGET_FAMILY_CH32,
+    TARGET_FAMILY_PY32F0
 } target_family_t;
 
 /* Target Info Structure */

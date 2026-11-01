@@ -102,6 +102,9 @@ uint32_t ch32_sdi_read_word(void) {
 }
 
 #include "riscv_dmi.h"
+#include "ch592_flashloader.h"
+
+static bool g_ch592_loader_loaded = false;
 
 #define FLASH_KEYR_ADDR       0x40022004
 #define FLASH_MODEKEYR_ADDR   0x40022024
@@ -139,6 +142,12 @@ static const ch32_mcu_info_t ch32_mcu_table[] = {
         .chip = CH32_CHIP_V307, .mode = CH32_MODE_RVSWD,
         .flash_size = 256 * 1024, .page_size = 256,
         .esig_addr = CH32V203_ESIG_ADDR, .chip_id = 0x30705040,
+    },
+    {
+        .name = "ch592", .label = "CH592",
+        .chip = CH32_CHIP_CH592, .mode = CH32_MODE_RVSWD,
+        .flash_size = 448 * 1024, .page_size = 256,
+        .esig_addr = 0x40001040, .chip_id = 0x92000000,
     },
 };
 #define CH32_MCU_TABLE_SIZE (sizeof(ch32_mcu_table) / sizeof(ch32_mcu_table[0]))
@@ -234,6 +243,7 @@ ch32_result_t ch32_probe_target(ch32_mode_t mode) {
     }
 
     g_ch32_target.probed = true;
+    g_ch592_loader_loaded = false;
 
     /* Try to initialize PROGBUF for faster flash operations */
     ch32_progbuf_init();
@@ -289,7 +299,102 @@ static ch32_result_t wait_flash_busy(void) {
     return CH32_ERR_TIMEOUT;
 }
 
+/* ============================================================================
+ * CH592 RAM Flashloader Support (1326-byte WCH flasher at SRAM 0x20000000)
+ * ============================================================================
+ */
+static ch32_result_t ch592_run_ramcode(uint32_t a0_val, uint32_t a1_val, uint32_t a2_val) {
+    ch32_result_t res = riscv_halt();
+    if (res != CH32_OK) return res;
+
+    riscv_write_reg(RISCV_REG_X2_SP, 0x20003800);
+    riscv_write_reg(RISCV_REG_X10_A0, a0_val);
+    riscv_write_reg(RISCV_REG_X11_A1, a1_val);
+    riscv_write_reg(RISCV_REG_X12_A2, a2_val);
+    riscv_write_reg(RISCV_REG_PC, 0x20000000);
+
+    res = riscv_resume();
+    if (res != CH32_OK) return res;
+
+    /* Wait for ebreak to halt the core */
+    bool halted = false;
+    for (int i = 0; i < 2000; i++) {
+        sleep_us(500);
+        res = riscv_is_halted(&halted);
+        if (res == CH32_OK && halted) break;
+    }
+    if (!halted) return CH32_ERR_TIMEOUT;
+
+    uint32_t ret_a0 = 0xFFFFFFFF;
+    res = riscv_read_reg(RISCV_REG_X10_A0, &ret_a0);
+    if (res != CH32_OK || ret_a0 != 0) {
+        printf("CH592: ramcode error ret=0x%08lX\r\n", (unsigned long)ret_a0);
+        return CH32_ERR_FLASH;
+    }
+    return CH32_OK;
+}
+
+static ch32_result_t ch592_ensure_loader(void) {
+    if (g_ch592_loader_loaded) return CH32_OK;
+    ch32_result_t res = riscv_halt();
+    if (res != CH32_OK) return res;
+
+    for (uint32_t i = 0; i < sizeof(ch592_flashloader); i += 4) {
+        uint32_t w = 0;
+        for (int k = 0; k < 4 && (i + k) < sizeof(ch592_flashloader); k++) {
+            w |= ((uint32_t)ch592_flashloader[i + k] << (k * 8));
+        }
+        res = riscv_write_mem(0x20000000 + i, w);
+        if (res != CH32_OK) return res;
+    }
+
+    res = ch592_run_ramcode(1, 0, 0);
+    if (res != CH32_OK) return res;
+
+    g_ch592_loader_loaded = true;
+    return CH32_OK;
+}
+
+ch32_result_t ch592_flash_erase(uint32_t addr, uint32_t len) {
+    ch32_result_t res = ch592_ensure_loader();
+    if (res != CH32_OK) return res;
+    return ch592_run_ramcode(2, addr, len);
+}
+
+ch32_result_t ch592_flash_program(uint32_t addr, const uint8_t *data, uint32_t len) {
+    ch32_result_t res = ch592_ensure_loader();
+    if (res != CH32_OK) return res;
+
+    const uint32_t chunk_max = 256;
+    for (uint32_t offset = 0; offset < len; offset += chunk_max) {
+        uint32_t chunk_len = (len - offset < chunk_max) ? (len - offset) : chunk_max;
+        for (uint32_t b = 0; b < chunk_len; b += 4) {
+            uint32_t w = 0xFFFFFFFF;
+            if (b + 4 <= chunk_len) {
+                w = (uint32_t)data[offset + b] |
+                    ((uint32_t)data[offset + b + 1] << 8) |
+                    ((uint32_t)data[offset + b + 2] << 16) |
+                    ((uint32_t)data[offset + b + 3] << 24);
+            } else {
+                for (uint32_t k = 0; b + k < chunk_len; k++) {
+                    w &= ~(0xFFU << (k * 8));
+                    w |= ((uint32_t)data[offset + b + k] << (k * 8));
+                }
+            }
+            res = riscv_write_mem(0x20005000 + b, w);
+            if (res != CH32_OK) return res;
+        }
+
+        res = ch592_run_ramcode(8, addr + offset, chunk_len);
+        if (res != CH32_OK) return res;
+    }
+    return CH32_OK;
+}
+
 ch32_result_t ch32_flash_erase(uint32_t addr, uint32_t len) {
+    if (g_ch32_target.chip_type == CH32_CHIP_CH592) {
+        return ch592_flash_erase(addr, len);
+    }
     /* CH32V20x/V30x have a different flash controller (256-byte pages,
      * FTER-based fast erase). Route by the user-selected MCU model. */
     if (g_ch32_target.chip_type == CH32_CHIP_V203 ||
@@ -330,6 +435,10 @@ ch32_result_t ch32_flash_erase(uint32_t addr, uint32_t len) {
 
 ch32_result_t ch32_flash_program(uint32_t addr, const uint8_t *data, uint32_t len) {
     if (!data || len == 0) return CH32_ERR_UNSUPPORTED;
+
+    if (g_ch32_target.chip_type == CH32_CHIP_CH592) {
+        return ch592_flash_program(addr, data, len);
+    }
 
     /* CH32V20x/V30x: PROGBUF execution is the proven path (PicoRVD uses it
      * on V203 hardware). The core stays halted; each word is fed via an
