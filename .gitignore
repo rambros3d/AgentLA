@@ -34,6 +34,7 @@ __pycache__/
 Thumbs.db
 
 # Embedded git repos / submodules
+ref/
 references/
 
 # PlatformIO
