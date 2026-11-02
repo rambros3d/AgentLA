@@ -550,31 +550,66 @@ body.no-transparency {
     color: var(--accent-cyan);
 }
 
-/* Responsive Breakpoints */
-@media (max-width: 899.98px) {
-    .left-nav-rail {
-        display: none !important;
+/* Responsive Breakpoints & Portrait Bottom Navigation */
+@media (orientation: portrait), (max-width: 899.98px) {
+    .primary-mode-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: var(--bottom-nav-height, 56px);
+        background: var(--bg-surface);
+        border-top: 1px solid var(--border-color);
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 0;
+        padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)) 8px;
+        margin: 0;
+        gap: 6px;
+        z-index: 9999;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        box-sizing: border-box;
     }
-    .bottom-nav-bar {
-        display: flex !important;
+
+    .primary-mode-nav .sub-btn {
+        flex: 1;
+        justify-content: center;
+        flex-direction: column;
+        padding: 4px 6px;
+        gap: 2px;
+        font-size: 11px;
+        border-radius: 6px;
+        height: 44px;
     }
+
+    .primary-mode-nav .solar-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 0;
+    }
+
+    .primary-mode-nav .btn-label-desktop {
+        display: inline !important;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+    }
+
     .main-workspace {
-        padding-bottom: var(--bottom-nav-height);
+        padding-bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px)) !important;
     }
-    .btn-label-desktop {
-        display: none;
-    }
+
     .quick-presets {
         display: none;
     }
-}
 
-@media (min-width: 900px) {
-    .left-nav-rail {
-        display: flex;
-    }
-    .bottom-nav-bar {
-        display: none !important;
+    .auto-sniff-pill span {
+        display: none;
     }
 }
 
@@ -2487,7 +2522,7 @@ body.no-transparency {
     color: var(--accent-cyan);
 }
 
-/* Target Station Surface */
+/* Debugger Surface */
 .target-station-container {
     display: grid;
     grid-template-columns: 340px minmax(0, 1fr);
@@ -2551,22 +2586,36 @@ body.no-transparency {
     border-color: var(--accent-cyan);
 }
 
-.vtarget-btn.active-3v3 {
-    background: rgba(0, 229, 255, 0.15);
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-}
-
-.vtarget-btn.active-5v {
-    background: rgba(255, 149, 0, 0.15);
-    border-color: var(--accent-amber);
-    color: var(--accent-amber);
+.vtarget-btn.active-on {
+    background: color-mix(in oklch, var(--color-success) 18%, transparent);
+    border-color: var(--color-success);
+    color: var(--color-success);
+    font-weight: 700;
 }
 
 .vtarget-btn.active-off {
-    background: rgba(255, 42, 109, 0.15);
-    border-color: var(--accent-red);
-    color: var(--accent-red);
+    background: color-mix(in oklch, var(--color-error) 18%, transparent);
+    border-color: var(--color-error);
+    color: var(--color-error);
+    font-weight: 700;
+}
+
+.vtarget-hw-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: color-mix(in oklch, var(--color-base-content) 6%, transparent);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 7px 10px;
+    line-height: 1.4;
+}
+
+.vtarget-hw-notice .solar-icon {
+    flex-shrink: 0;
+    color: var(--accent-amber);
 }
 
 .vtarget-telemetry-grid {

@@ -2,6 +2,7 @@
 #include "board_settings.h"
 #include "pin_owner.h"
 #include "programmer/swd.h"
+#include "tusb.h"
 #include <string.h>
 
 static ADAPTER_STATE adapter_state;
@@ -147,6 +148,16 @@ void adapter_uart_init(void) {
     adapter_uart_init_lazy();
 }
 
+static inline uart_inst_t* get_uart_for_pin(uint8_t pin) {
+    if (pin == 12 || pin == 13 || pin == 14 || pin == 15 ||
+        pin == 16 || pin == 17 || pin == 18 || pin == 19 ||
+        pin == 28 || pin == 29 || pin == 0  || pin == 1  ||
+        pin == 2  || pin == 3) {
+        return uart0;
+    }
+    return uart1;
+}
+
 bool adapter_uart_bind_claim(uint32_t handle) {
     const pin_owner_claim_t *claim = pin_owner_get_claim(handle);
     if (claim == NULL || claim->observer_only != 0 || claim->pin_count != 2) {
@@ -155,7 +166,7 @@ bool adapter_uart_bind_claim(uint32_t handle) {
     if (!pin_owner_is_flexible(claim->pins[0]) || !pin_owner_is_flexible(claim->pins[1])) {
         return false;
     }
-    if (claim->function != GPIO_FUNC_UART && claim->function != GPIO_FUNC_SIO) {
+    if (claim->function != GPIO_FUNC_UART && claim->function != GPIO_FUNC_SIO && claim->function != 1) {
         return false;
     }
 
@@ -178,10 +189,10 @@ void adapter_uart_init_lazy(void) {
         return;
     }
     adapter_uart_bind_claim(adapter_uart_active_handle);
-    uart_adapter = uart1;
+    uart_adapter = get_uart_for_pin(adapter_uart_tx_pin);
     uart_init(uart_adapter, 115200);
-    gpio_set_function(adapter_uart_tx_pin, GPIO_FUNC_UART);
-    gpio_set_function(adapter_uart_rx_pin, GPIO_FUNC_UART);
+    gpio_set_function(adapter_uart_tx_pin, UART_FUNCSEL_NUM(uart_adapter, adapter_uart_tx_pin));
+    gpio_set_function(adapter_uart_rx_pin, UART_FUNCSEL_NUM(uart_adapter, adapter_uart_rx_pin));
     uart_initialized = true;
 }
 
@@ -304,15 +315,16 @@ int adapter_uart_read(uint8_t *data, uint8_t max_len, uint32_t baud, uint32_t ti
     }
 
     int count = 0;
-    int32_t start_time = make_timeout_time_ms(timeout_ms);
+    absolute_time_t timeout_time = make_timeout_time_ms(timeout_ms);
 
     while (count < max_len) {
         if (uart_is_readable(uart_adapter)) {
             data[count++] = uart_getc(uart_adapter);
         } else {
-            if (time_reached(start_time)) {
+            if (time_reached(timeout_time)) {
                 break;
             }
+            tud_task();
             tight_loop_contents();
         }
     }

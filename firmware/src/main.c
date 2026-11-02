@@ -1734,6 +1734,27 @@ static void cmd_out_release(char* args) {
     send_response(msg);
 }
 
+static bool s_target_power_enabled = true;
+
+static void cmd_target_power(const char* args) {
+    if (!args || strlen(args) == 0) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "OK POWER %s (Hardware Slide Switch: 1.8V / 3.3V / 5.0V)",
+                 s_target_power_enabled ? "ON" : "OFF");
+        send_response(msg);
+        return;
+    }
+    if (strcasecmp(args, "ON") == 0 || strcmp(args, "1") == 0) {
+        s_target_power_enabled = true;
+        send_response("OK POWER ON (Hardware Slide Switch controls voltage: 1.8V / 3.3V / 5.0V)");
+    } else if (strcasecmp(args, "OFF") == 0 || strcmp(args, "0") == 0) {
+        s_target_power_enabled = false;
+        send_response("OK POWER OFF");
+    } else {
+        send_response("ERR POWER invalid argument. Voltage is set by hardware switch. Use 'POWER ON' or 'POWER OFF'.");
+    }
+}
+
 static void cmd_adc_scope_read(void) {
     adc_init();
     for (uint pin = 26; pin <= 29; pin++) {
@@ -3521,6 +3542,7 @@ static void process_command(char* cmd) {
     else if(strcmp(cmd, "MEASURE") == 0) cmd_measure(args ? args : "");
     else if(strcmp(cmd, "ADC") == 0) cmd_adc(args ? args : "");
     else if(strcmp(cmd, "STATUS") == 0) cmd_status();
+    else if(strcmp(cmd, "POWER") == 0 || strcmp(cmd, "VTARGET") == 0) cmd_target_power(args ? args : "");
     else if(strcmp(cmd, "I2C_READ") == 0) cmd_i2c_read(args ? args : "");
     else if(strcmp(cmd, "I2C_WRITE") == 0) cmd_i2c_write(args ? args : "");
     else if(strcmp(cmd, "UART_WRITE") == 0) cmd_uart_write(args ? args : "");

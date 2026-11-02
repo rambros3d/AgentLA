@@ -1,6 +1,6 @@
 /**
  * AgentLA Web UI Controller
- * Unified Active Bench & Target Station Workspace for RP2350
+ * Unified Active Bench & Debugger Workspace for RP2350
  * Zero third-party DOM dependencies
  * Fully compliant with Dynamic Pin Ownership Architecture (GPIO 0-9 Fixed, GPIO 10-29 Flexible)
  */
@@ -10,7 +10,7 @@ const host = window.location.hostname || "192.168.7.1";
 
 const APP_TITLES = Object.freeze({
     bench: "Active Bench",
-    target: "Target Station",
+    target: "Debugger",
     logic: "Logic Analyzer",
     generator: "Signal Generator",
     scope: "Analog Scope",
@@ -192,7 +192,7 @@ if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', closeInspector);
 if (inspectorOverlay) inspectorOverlay.addEventListener('click', closeInspector);
 
 // --------------------------------------------------------------------------
-// Primary Mode Navigation: Active Bench vs Target Station
+// Primary Mode Navigation: Active Bench vs Debugger vs Pin Matrix
 // --------------------------------------------------------------------------
 let primaryMode = 'bench';
 
@@ -1071,7 +1071,7 @@ function initLogicAnalyzer(container) {
     function renderTimingBar(measurements) {
         if (!timingBar) return;
         if (!measurements || measurements.length === 0) {
-            timingBar.innerHTML = '<span>Digital Scope: Capture waveform to calculate frequency, duty cycle, and pulse timing.</span>';
+            timingBar.innerHTML = '';
             return;
         }
         timingBar.innerHTML = measurements.map(m => {
@@ -1473,51 +1473,40 @@ function initDebugger(container) {
 }
 
 // --------------------------------------------------------------------------
-// Target Station Surface Controller
+// Debugger Surface Controller
 // --------------------------------------------------------------------------
 function initTargetStation() {
-    const btn3v3 = document.getElementById('btn-vtarget-3v3');
-    const btn5v = document.getElementById('btn-vtarget-5v');
+    const btnOn = document.getElementById('btn-vtarget-on');
     const btnOff = document.getElementById('btn-vtarget-off');
     const vVal = document.getElementById('vtarget-voltage-val');
     const iVal = document.getElementById('vtarget-current-val');
     const badge = document.getElementById('vtarget-status-badge');
 
-    async function setVTarget(mode) {
-        if (btn3v3) btn3v3.classList.toggle('active-3v3', mode === '3v3');
-        if (btn5v) btn5v.classList.toggle('active-5v', mode === '5v');
-        if (btnOff) btnOff.classList.toggle('active-off', mode === 'off');
+    async function setVTarget(enabled) {
+        if (btnOn) btnOn.classList.toggle('active-on', enabled);
+        if (btnOff) btnOff.classList.toggle('active-off', !enabled);
 
-        if (mode === '3v3') {
-            await callMcp('cmd', 'VTARGET', '3.3V');
+        if (enabled) {
+            await callMcp('cmd', 'POWER', 'ON');
             if (vVal) vVal.textContent = '3.31 V';
             if (iVal) iVal.textContent = '14 mA';
             if (badge) {
                 badge.className = 'dynamic-registry-pill';
-                badge.innerHTML = '<span class="status-dot green"></span> 3.3V ACTIVE';
+                badge.innerHTML = '<span class="status-dot green"></span> RAIL ENABLED';
             }
-        } else if (mode === '5v') {
-            await callMcp('cmd', 'VTARGET', '5.0V');
-            if (vVal) vVal.textContent = '5.03 V';
-            if (iVal) iVal.textContent = '22 mA';
-            if (badge) {
-                badge.className = 'dynamic-registry-pill';
-                badge.innerHTML = '<span class="status-dot green"></span> 5.0V ACTIVE';
-            }
-        } else if (mode === 'off') {
-            await callMcp('cmd', 'VTARGET', 'OFF');
-            if (vVal) vVal.textContent = '0.02 V';
+        } else {
+            await callMcp('cmd', 'POWER', 'OFF');
+            if (vVal) vVal.textContent = '0.00 V';
             if (iVal) iVal.textContent = '0 mA';
             if (badge) {
                 badge.className = 'dynamic-registry-pill';
-                badge.innerHTML = '<span class="status-dot"></span> POWER OFF';
+                badge.innerHTML = '<span class="status-dot"></span> RAIL DISABLED';
             }
         }
     }
 
-    if (btn3v3) btn3v3.addEventListener('click', () => setVTarget('3v3'));
-    if (btn5v) btn5v.addEventListener('click', () => setVTarget('5v'));
-    if (btnOff) btnOff.addEventListener('click', () => setVTarget('off'));
+    if (btnOn) btnOn.addEventListener('click', () => setVTarget(true));
+    if (btnOff) btnOff.addEventListener('click', () => setVTarget(false));
 }
 
 // --------------------------------------------------------------------------
@@ -2245,5 +2234,5 @@ document.addEventListener('DOMContentLoaded', () => {
     syncPinRegistry();
     setInterval(syncPinRegistry, 4000);
 
-    console.log('AgentLA Unified Active Bench & Target Station initialized.');
+    console.log('AgentLA Unified Active Bench & Debugger initialized.');
 });

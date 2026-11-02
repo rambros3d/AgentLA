@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>AgentLA - Unified Active Bench &amp; Target Station</title>
+    <title>AgentLA - Unified Active Bench &amp; Debugger</title>
     <script>
         // Restore theme immediately to avoid flash of wrong palette
         (function() {
@@ -82,7 +82,7 @@
 </svg>
                     <span class="btn-label-desktop">Active Bench</span>
                 </button>
-                <button class="sub-btn" id="nav-mode-target" data-mode="target" title="Target Station (Hotkey: 2)">
+                <button class="sub-btn" id="nav-mode-target" data-mode="target" title="Debugger (Hotkey: 2)">
                     <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path opacity="0.5" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" fill="currentColor"/>
 <path d="M12 18.25C12.4142 18.25 12.75 18.5858 12.75 19V21.9727C12.5024 21.991 12.2523 22 12 22C11.7477 22 11.4976 21.991 11.25 21.9727V19C11.25 18.5858 11.5858 18.25 12 18.25Z" fill="currentColor"/>
@@ -91,7 +91,7 @@
 <path d="M21.9727 11.25C21.991 11.4976 22 11.7477 22 12C22 12.2523 21.991 12.5024 21.9727 12.75H19C18.5858 12.75 18.25 12.4142 18.25 12C18.25 11.5858 18.5858 11.25 19 11.25H21.9727Z" fill="currentColor"/>
 <path d="M12 2C12.2523 2 12.5024 2.00899 12.75 2.02734V5C12.75 5.41421 12.4142 5.75 12 5.75C11.5858 5.75 11.25 5.41421 11.25 5V2.02734C11.4976 2.00899 11.7477 2 12 2Z" fill="currentColor"/>
 </svg>
-                    <span class="btn-label-desktop">Target Station</span>
+                    <span class="btn-label-desktop">Debugger</span>
                 </button>
                 <button class="sub-btn" id="nav-mode-pins" data-mode="pins" title="Hardware Pin Routing Matrix (Hotkey: 3 or P)">
                     <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -196,9 +196,7 @@
                     </div>
 
                     <!-- Timing Measurement Bar -->
-                    <div class="logic-timing-bar" id="logic-timing-bar">
-                        <span>Digital Scope: Capture waveform to calculate frequency, duty cycle, and pulse timing.</span>
-                    </div>
+                    <div class="logic-timing-bar" id="logic-timing-bar"></div>
 
                     <!-- Observation Controls Toolbar -->
                     <div class="logic-controls control-bar">
@@ -377,18 +375,6 @@
 <path opacity="0.5" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z" fill="currentColor"/>
 <path d="M2.00781 14.2498C2.0443 17.5054 2.25442 19.3251 3.46461 20.5353C4.92908 21.9998 7.2861 21.9998 12.0001 21.9998C16.7142 21.9998 19.0712 21.9998 20.5357 20.5353C21.7459 19.3251 21.956 17.5054 21.9925 14.2498H19.0757C18.3381 14.2498 18.1984 14.2341 18.0852 14.1828C17.972 14.1314 17.8682 14.0366 17.3824 13.4814L15.5786 11.4199C15.4115 11.2288 15.2372 11.0294 15.07 10.8861C14.8788 10.7221 14.5884 10.5344 14.1939 10.5525C13.7994 10.5706 13.5274 10.7842 13.352 10.965C13.1987 11.1231 13.0434 11.3376 12.8945 11.5433L9.24075 16.5865C9.14847 16.7139 8.96574 16.7262 8.85727 16.6123L7.71566 15.4136L7.64145 15.3355C7.27927 14.954 6.95775 14.6153 6.52932 14.4317C6.1009 14.2481 5.63391 14.2488 5.10787 14.2497L5.00015 14.2498H2.00781Z" fill="currentColor"/>
 </svg> <span>Pattern Gen</span>
-                            </button>
-                            <button class="stimulus-tab" data-tab="pin-toggler" id="tab-pin-toggler" role="tab" aria-selected="false">
-                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M9.25 14C10.9069 14 12.25 15.3431 12.25 17C12.25 18.6569 10.9069 20 9.25 20C7.59315 20 6.25 18.6569 6.25 17C6.25 15.3431 7.59315 14 9.25 14Z" fill="currentColor"/>
-<path d="M14.25 4C12.5931 4 11.25 5.34315 11.25 7C11.25 8.65685 12.5931 10 14.25 10C15.9069 10 17.25 8.65685 17.25 7C17.25 5.34315 15.9069 4 14.25 4Z" fill="currentColor"/>
-<g opacity="0.5">
-<path d="M17.1658 7.7085C17.2208 7.48132 17.25 7.24405 17.25 6.99997C17.25 6.72602 17.2133 6.46064 17.1445 6.2085H21.75C22.1642 6.2085 22.5 6.54428 22.5 6.9585C22.5 7.37271 22.1642 7.7085 21.75 7.7085L17.1658 7.7085Z" fill="currentColor"/>
-<path d="M11.3555 6.2085C11.2867 6.46064 11.25 6.72602 11.25 6.99997C11.25 7.24405 11.2791 7.48132 11.3342 7.7085L1.75 7.7085C1.33579 7.7085 1 7.37271 1 6.9585C1 6.54428 1.33579 6.2085 1.75 6.2085H11.3555Z" fill="currentColor"/>
-<path d="M6.35551 16.2085H1.75C1.33579 16.2085 1 16.5443 1 16.9585C1 17.3727 1.33579 17.7085 1.75 17.7085H6.33416C6.27915 17.4813 6.25 17.2441 6.25 17C6.25 16.726 6.28672 16.4606 6.35551 16.2085Z" fill="currentColor"/>
-<path d="M12.1658 17.7085H21.75C22.1642 17.7085 22.5 17.3727 22.5 16.9585C22.5 16.5443 22.1642 16.2085 21.75 16.2085H12.1445C12.2133 16.4606 12.25 16.726 12.25 17C12.25 17.2441 12.2209 17.4813 12.1658 17.7085Z" fill="currentColor"/>
-</g>
-</svg> <span>Pin Toggler</span>
                             </button>
                         </div>
                         <button class="btn-collapse-stimulus" id="btn-collapse-stimulus" title="Collapse / Expand Stimulus Deck" aria-label="Toggle Deck Height">
@@ -650,14 +636,6 @@
                                 <canvas id="gen-preview-canvas" style="width: 100%; height: 100%; flex: 1; display: block; border-radius: 4px;"></canvas>
                             </div>
                         </div>
-
-                        <!-- Tab 4: Pin Toggler -->
-                        <div class="stimulus-pane" id="pane-pin-toggler">
-                            <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">Instant GPIO 10–29 Pin State Toggler</div>
-                            <div class="pin-toggler-grid" id="pin-toggler-grid">
-                                <!-- Populated dynamically by app.js (GP10 through GP29) -->
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -665,7 +643,7 @@
         </section>
 
         <!-- ================================================================= -->
-        <!-- VIEW 2: TARGET STATION (#view-target-station)                    -->
+        <!-- VIEW 2: DEBUGGER (#view-target-station)                          -->
         <!-- ================================================================= -->
         <section id="view-target-station" class="workspace-view">
             <div class="target-station-container">
@@ -681,13 +659,25 @@
 <path d="M12.75 2.75C12.75 2.33579 12.4142 2 12 2C11.5858 2 11.25 2.33579 11.25 2.75V6.75C11.25 7.16421 11.5858 7.5 12 7.5C12.4142 7.5 12.75 7.16421 12.75 6.75V2.75Z" fill="currentColor"/>
 </svg><span>Target Power Rail (VTarget)</span></div>
                             <span class="dynamic-registry-pill" id="vtarget-status-badge">
-                                <span class="status-dot green"></span> 3.3V ACTIVE
+                                <span class="status-dot green"></span> RAIL ENABLED
                             </span>
                         </div>
                         <div class="vtarget-rail-controls">
-                            <button class="vtarget-btn active-3v3" id="btn-vtarget-3v3">3.3V Rail</button>
-                            <button class="vtarget-btn" id="btn-vtarget-5v">5.0V Rail</button>
-                            <button class="vtarget-btn" id="btn-vtarget-off">Power OFF</button>
+                            <button class="vtarget-btn active-on" id="btn-vtarget-on">
+                                <svg class="solar-icon solar-icon-sm" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path opacity="0.5" d="M8.7919 5.14712C9.17345 4.98591 9.35208 4.54591 9.19087 4.16435C9.02966 3.7828 8.58966 3.60417 8.2081 3.76538C4.70832 5.24406 2.25 8.70925 2.25 12.7503C2.25 18.1351 6.61522 22.5003 12 22.5003C17.3848 22.5003 21.75 18.1351 21.75 12.7503C21.75 8.70925 19.2917 5.24406 15.7919 3.76538C15.4103 3.60417 14.9703 3.7828 14.8091 4.16435C14.6479 4.54591 14.8265 4.98591 15.2081 5.14712C18.1722 6.39947 20.25 9.33312 20.25 12.7503C20.25 17.3067 16.5563 21.0003 12 21.0003C7.44365 21.0003 3.75 17.3067 3.75 12.7503C3.75 9.33312 5.82779 6.39947 8.7919 5.14712Z" fill="currentColor"/>
+                                    <path d="M12.75 2.75C12.75 2.33579 12.4142 2 12 2C11.5858 2 11.25 2.33579 11.25 2.75V6.75C11.25 7.16421 11.5858 7.5 12 7.5C12.4142 7.5 12.75 7.16421 12.75 6.75V2.75Z" fill="currentColor"/>
+                                </svg>
+                                Power Rail ON
+                            </button>
+                            <button class="vtarget-btn" id="btn-vtarget-off">Power Rail OFF</button>
+                        </div>
+                        <div class="vtarget-hw-notice">
+                            <svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path opacity="0.5" d="M2 16C2 13.1716 2 11.7574 2.87868 10.8787C3.75736 10 5.17157 10 8 10H16C18.8284 10 20.2426 10 21.1213 10.8787C22 11.7574 22 13.1716 22 16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H8C5.17157 22 3.75736 22 2.87868 21.1213C2 20.2426 2 18.8284 2 16Z" fill="currentColor"/>
+                                <path d="M12 1.25C15.7279 1.25 18.75 4.27208 18.75 8V10.0547C18.3135 10.0221 17.8174 10.0092 17.25 10.0039V8C17.25 5.10051 14.8995 2.75 12 2.75C9.10051 2.75 6.75 5.10051 6.75 8V10.0039C6.18264 10.0092 5.68651 10.0221 5.25 10.0547V8C5.25 4.27208 8.27208 1.25 12 1.25Z" fill="currentColor"/>
+                            </svg>
+                            <span>Voltage set by onboard hardware slide switch (1.8V / 3.3V / 5.0V) for target safety. UI switches power state only.</span>
                         </div>
                         <div class="vtarget-telemetry-grid">
                             <div class="vtarget-telem-item">
@@ -993,6 +983,29 @@
                             <div class="pin-matrix-grid" id="gpio-grid-prog"></div>
                         </div>
                     </div>
+
+                    <!-- Instant GPIO Pin Control Bento Card -->
+                    <div class="bento-card" style="margin-top: 14px;">
+                        <div class="domain-header">
+                            <div class="domain-header-left">
+                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M9.25 14C10.9069 14 12.25 15.3431 12.25 17C12.25 18.6569 10.9069 20 9.25 20C7.59315 20 6.25 18.6569 6.25 17C6.25 15.3431 7.59315 14 9.25 14Z" fill="currentColor"/>
+<path d="M14.25 4C12.5931 4 11.25 5.34315 11.25 7C11.25 8.65685 12.5931 10 14.25 10C15.9069 10 17.25 8.65685 17.25 7C17.25 5.34315 15.9069 4 14.25 4Z" fill="currentColor"/>
+<g opacity="0.5">
+<path d="M17.1658 7.7085C17.2208 7.48132 17.25 7.24405 17.25 6.99997C17.25 6.72602 17.2133 6.46064 17.1445 6.2085H21.75C22.1642 6.2085 22.5 6.54428 22.5 6.9585C22.5 7.37271 22.1642 7.7085 21.75 7.7085L17.1658 7.7085Z" fill="currentColor"/>
+<path d="M11.3555 6.2085C11.2867 6.46064 11.25 6.72602 11.25 6.99997C11.25 7.24405 11.2791 7.48132 11.3342 7.7085L1.75 7.7085C1.33579 7.7085 1 7.37271 1 6.9585C1 6.54428 1.33579 6.2085 1.75 6.2085H11.3555Z" fill="currentColor"/>
+<path d="M6.35551 16.2085H1.75C1.33579 16.2085 1 16.5443 1 16.9585C1 17.3727 1.33579 17.7085 1.75 17.7085H6.33416C6.27915 17.4813 6.25 17.2441 6.25 17C6.25 16.726 6.28672 16.4606 6.35551 16.2085Z" fill="currentColor"/>
+<path d="M12.1658 17.7085H21.75C22.1642 17.7085 22.5 17.3727 22.5 16.9585C22.5 16.5443 22.1642 16.2085 21.75 16.2085H12.1445C12.2133 16.4606 12.25 16.726 12.25 17C12.25 17.2441 12.2209 17.4813 12.1658 17.7085Z" fill="currentColor"/>
+</g>
+</svg>
+                                <h4>Instant GPIO Pin Control (GP10–GP29)</h4>
+                            </div>
+                            <span class="domain-tag">SIO High / Low / Pull / Hi-Z</span>
+                        </div>
+                        <div class="pin-toggler-grid" id="pin-toggler-grid">
+                            <!-- Populated dynamically by app.js (GP10 through GP29) -->
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1082,7 +1095,7 @@
                          window.location.search.includes('demo=1') ||
                          (window.location.hostname === 'localhost' && window.location.port !== '80');
             if (isDemo) {
-                document.title = "AgentLA - Interactive Online Demo (Active Bench & Target Station)";
+                document.title = "AgentLA - Interactive Online Demo (Active Bench & Debugger)";
                 var s = document.createElement('script');
                 s.src = 'mock-bridge.js';
                 s.onload = function() {

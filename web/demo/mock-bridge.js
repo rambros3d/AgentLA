@@ -310,13 +310,13 @@
             };
         }
         else if (cleanName.includes('VTARGET') || cleanName.includes('POWER')) {
-            const v = cleanArgs.includes('5') ? '5.0V' : (cleanArgs.includes('OFF') ? 'OFF' : '3.3V');
-            const meas = v === 'OFF' ? '0.02V' : (v === '5.0V' ? '5.03V' : '3.31V');
-            const curr = v === 'OFF' ? '0mA' : '14mA';
+            const isOn = !cleanArgs.includes('OFF') && !cleanArgs.includes('0');
+            const meas = isOn ? '3.31V' : '0.00V';
+            const curr = isOn ? '14mA' : '0mA';
             responsePayload = {
                 ok: true,
                 result: {
-                    stdout: `OK VTARGET SET ${v} (MEASURED: ${meas}, ${curr})`,
+                    stdout: `OK POWER ${isOn ? 'ON' : 'OFF'} (MEASURED: ${meas}, CURRENT: ${curr}, SWITCH: HARDWARE SLIDE 1.8V/3.3V/5.0V)`,
                     status: 0
                 }
             };
