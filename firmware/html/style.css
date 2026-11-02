@@ -98,7 +98,7 @@
 
     --header-height: 44px;
     --rail-width: 68px;
-    --bottom-nav-height: 60px;
+    --bottom-nav-height: 66px;
 }
 
 [data-theme="light"] {
@@ -637,16 +637,16 @@ body.no-transparency {
         left: 0;
         right: 0;
         width: 100%;
-        height: var(--bottom-nav-height, 56px);
+        height: var(--bottom-nav-height, 66px);
         background: var(--bg-surface);
         border-top: 1px solid var(--border-color);
         border-left: none;
         border-right: none;
         border-bottom: none;
         border-radius: 0;
-        padding: 2px 2px calc(2px + env(safe-area-inset-bottom, 0px)) 2px;
+        padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px)) 6px;
         margin: 0;
-        gap: 2px;
+        gap: 4px;
         z-index: 9999;
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
         display: flex !important;
@@ -660,12 +660,12 @@ body.no-transparency {
         justify-content: center;
         align-items: center;
         flex-direction: row;
-        padding: 2px;
-        gap: 4px;
+        padding: 4px 8px;
+        gap: 6px;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         height: calc(100% - 4px);
-        max-height: 50px;
+        max-height: 56px;
         min-width: 0;
         background: transparent;
         color: var(--text-secondary);
@@ -679,8 +679,8 @@ body.no-transparency {
     }
 
     .primary-mode-nav .solar-icon {
-        width: 22px;
-        height: 22px;
+        width: 28px !important;
+        height: 28px !important;
         flex-shrink: 0;
         margin-right: 0;
     }
@@ -691,8 +691,8 @@ body.no-transparency {
 
     .primary-mode-nav .sub-btn.active .btn-label-desktop {
         display: inline !important;
-        font-size: 12px;
-        font-weight: 600;
+        font-size: 17px;
+        font-weight: 700;
         letter-spacing: -0.15px;
         white-space: nowrap;
         overflow: hidden;
@@ -701,20 +701,20 @@ body.no-transparency {
 
     @media (max-width: 480px) {
         .primary-mode-nav .sub-btn {
-            gap: 3px;
-            padding: 1px;
+            gap: 4px;
+            padding: 2px 4px;
         }
         .primary-mode-nav .solar-icon {
-            width: 20px;
-            height: 20px;
+            width: 25px !important;
+            height: 25px !important;
         }
         .primary-mode-nav .sub-btn.active .btn-label-desktop {
-            font-size: 11px;
+            font-size: 15px;
         }
     }
 
     .main-workspace {
-        padding-bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px)) !important;
+        padding-bottom: calc(var(--bottom-nav-height, 66px) + env(safe-area-inset-bottom, 0px)) !important;
     }
 
     .quick-presets {
@@ -3708,9 +3708,9 @@ body.no-transparency {
 }
 
 .primary-mode-nav .solar-icon {
-    width: 18px;
-    height: 18px;
-    margin-right: 4px;
+    width: 28px;
+    height: 28px;
+    margin-right: 6px;
 }
 
 .stimulus-tab .solar-icon {
