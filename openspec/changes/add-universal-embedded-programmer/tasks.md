@@ -2,7 +2,7 @@
 
 - [ ] 1.1 Spike A: implement a Cortex-M algorithm execution helper (DCRSR/DCRDR) and reproduce the STM32F1 5/5 tier suite (test_stm32f1_hardware_suite.py) via RAM-resident algorithm instead of direct registers.
 - [ ] 1.2 Spike B: select a dedicated BOOT0 GPIO, wire it on a Pico + Blue Pill bench, and complete one AN3155 flash + verify + boot cycle.
-- [ ] 1.3 Spike C: verify optimistic mass-erase behavior on a locked F1 part and confirm post-erase re-identification reports protection=none.
+- [x] 1.3 Spike C: verify optimistic mass-erase behavior on a locked F1 part and confirm post-erase re-identification reports protection=none.
 - [x] 1.5 Research task: investigate recovery options for targets with permanently removed ROM bootloaders ( Level-2 / option-byte locks) and record findings; keep out of v1 scope.
 - [x] 1.4 Document spike results (timing, reliability, failures) in design.md "Findings" before proceeding.
 
@@ -10,7 +10,7 @@
 
 - [x] 2.1 Refactor target_detect() to remove hardcoded density defaults and query factory info (STM32F1 option bytes, F4+ factory row) for flash/RAM sizes.
 - [x] 2.2 Add protection-level detection for STM32, Nordic, and WCH targets.
-- [ ] 2.3 Implement universal-target-detection spec scenarios with hardware tests on Blue Pill and a locked F1 part.
+- [x] 2.3 Implement universal-target-detection spec scenarios with hardware tests on Blue Pill and a locked F1 part.
 - [ ] 2.4 Provide an emulator/mock target path if available for CI checks.
 
 ## 3. Generic Cortex-M algorithm runner
@@ -28,7 +28,7 @@
 - [x] 4.1 Implement family-specific mass-erase (STM32, Nordic, WCH) through ADIv5 AP writes. (STM32 first)
 - [x] 4.2 Add TARGET MASS ERASE command with pre-erase identity and confirmation.
 - [x] 4.3 Implement post-erase re-identification and protection=none verification.
-- [ ] 4.4 Add hardware tests on RDP Level 1 parts.
+- [x] 4.4 Add hardware tests on RDP Level 1 parts.
 
 ## 5. Bootloader recovery (ST + WCH)
 
@@ -42,7 +42,7 @@
 ## 6. Safety and UX
 
 - [x] 6.1 Enforce pre-destructive identity/geometry checks in all entry points.
-- [ ] 6.2 Add confirmation tokens for mass erase and bootloader recovery.
+- [x] 6.2 Add confirmation tokens for mass erase and bootloader recovery.
 - [x] 6.3 Emit informative banners (part, bytes, protection level) before destructive operations.
 - [x] 6.4 Add range checks and clear error codes; document CLI responses.
 
