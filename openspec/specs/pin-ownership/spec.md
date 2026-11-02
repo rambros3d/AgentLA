@@ -2,9 +2,7 @@
 
 ## Purpose
 Specifies dynamic pin ownership registry, reserving fixed programmer pins (GPIO0-9), arbitrating flexible pin claims (GPIO10-29), atomic transactions, shared read-only observers, runtime capability inventories, and IRQ lifecycle resources.
-
 ## Requirements
-
 ### Requirement: Fixed programmer pin block
 The system SHALL reserve GPIO0 through GPIO9 as fixed programmatic resources and SHALL NOT allow any flexible role to claim them.
 
@@ -24,11 +22,11 @@ The system SHALL allow flexible roles to claim only GPIO10 through GPIO29.
 - **THEN** the claim SHALL fail because that pin is outside the flexible pool
 
 ### Requirement: Blank start
-The system SHALL initialize the flexible ownership registry without any Adapter, Capture, Scope, or ADC claims.
+The system SHALL initialize the flexible ownership registry without any Adapter, Capture, Scope, or ADC claims, ensuring all flexible and zone GPIO pins remain in safe High-Z input mode with pulls disabled until claimed.
 
 #### Scenario: Fresh boot state
 - **WHEN** firmware starts in any mode that does not include Programmer-only initialization
-- **THEN** no flexible role SHALL be marked as owned or active until explicitly claimed
+- **THEN** no flexible role SHALL be marked as owned or active, and all physical pins SHALL remain tri-stated inputs until explicitly claimed by a profile or instrument
 
 ### Requirement: Explicit claim handles
 The system SHALL provide an explicit ownership handle for each successful runtime claim, and all flexible-role operations SHALL require an active handle to that exact resource.
@@ -125,3 +123,11 @@ The system SHALL treat new flexible-role explicit claim handles as the only vali
 #### Scenario: Legacy assumption
 - **WHEN** a command depends only on historical fixed adapter or capture pins
 - **THEN** the command SHALL fail to operate until a valid claim handle is used
+
+### Requirement: Safe Atomic Handover Across Profile Transitions
+The pin ownership registry SHALL provide an atomic `pin_owner_quiesce_and_reset()` function that safely revokes all existing claims, releases drivers, tri-states all physical pins to SIO inputs, and waits for bus quiescence before granting claims for a newly loaded profile.
+
+#### Scenario: Switching active profiles
+- **WHEN** a new profile is applied over an active configuration
+- **THEN** all prior driver and observer claims SHALL be revoked, physical pins driven to High-Z inputs, and new claims established atomically
+

@@ -2,19 +2,13 @@
 
 ## Purpose
 Specifies the dedicated Target Station surface consolidating firmware flashing, chip auto-detection, interactive CMSIS-DAP/SWD debugging, and target power management.
-
 ## Requirements
-
 ### Requirement: Consolidated Target Station Surface
-The WebUI SHALL provide a dedicated Target Station view accessible from the top-level navigation that groups target programming, verification, and live debugging into a unified workspace.
+The WebUI SHALL provide a dedicated Target Station / Debugger view (`#view-target-station`) organized in an uncluttered two-column layout consisting of the Universal Target Flasher on the left and the Target SWD / CMSIS-DAP Debugger on the right, without hosting a dedicated power rail card.
 
 #### Scenario: Switching to Target Station
-- **WHEN** the user selects the `[ 🎯 Target Station ]` navigation tab
-- **THEN** the active bench view SHALL be hidden and the Target Station view SHALL become active
-
-#### Scenario: Target Power Control
-- **WHEN** the user toggles the VTarget power rail switch in Target Station
-- **THEN** the system SHALL send the power command to the probe and visually indicate the rail status and measured voltage
+- **WHEN** the user selects the Debugger navigation tab
+- **THEN** the active bench view SHALL be hidden and the Target Station view SHALL become active displaying the Flasher column and Debugger column side-by-side
 
 ### Requirement: Drag-and-Drop Flasher & Verification
 The Target Station SHALL allow drag-and-drop firmware flashing with automatic file type detection and real-time progress reporting.
@@ -29,3 +23,4 @@ The Target Station SHALL provide direct SWD/CMSIS-DAP inspection controls includ
 #### Scenario: Halting target CPU
 - **WHEN** the user clicks "Halt" in the debugger panel
 - **THEN** the probe SHALL halt the attached Cortex-M/RISC-V target core and populate the register table
+

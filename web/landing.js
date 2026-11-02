@@ -83,22 +83,22 @@ function initDeviceDiscovery() {
     checkBtn.addEventListener('click', () => {
         dot.className = 'status-indicator-dot checking';
         title.textContent = 'Probing Local Network...';
-        statusText.textContent = 'Testing connection to http://192.168.7.1...';
+        statusText.textContent = 'Testing connection to http://10.10.10.10 (agentla.local)...';
         checkBtn.disabled = true;
 
         // Non-blocking ping test
-        probeAgentLA('http://192.168.7.1', 2000)
+        probeAgentLA('http://10.10.10.10', 2000)
             .then(online => {
                 checkBtn.disabled = false;
                 if (online) {
                     dot.className = 'status-indicator-dot active';
                     title.textContent = 'AgentLA Probe Detected!';
-                    statusText.textContent = 'A physical AgentLA device is responding at 192.168.7.1. Click below to launch.';
+                    statusText.textContent = 'A physical AgentLA device is responding at 10.10.10.10. Click below to launch.';
                     openDirect.style.display = 'inline-flex';
                 } else {
                     dot.className = 'status-indicator-dot';
-                    title.textContent = 'Probe Not Detected on 192.168.7.1';
-                    statusText.textContent = 'Device did not respond. Ensure USB is connected and your host IP is 192.168.7.x, or explore the live web demo below.';
+                    title.textContent = 'Probe Not Detected on 10.10.10.10';
+                    statusText.textContent = 'Device did not respond. Ensure USB is connected and your host IP is 10.10.10.x, or explore the live web demo below.';
                     openDirect.style.display = 'none';
                 }
             });

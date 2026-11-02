@@ -17,3 +17,10 @@ The system SHALL return GPIO 26–29 to the flexible digital pool whenever the A
 - **WHEN** user stops the scope or selects a digital instrument
 - **THEN** system releases the ADC claim handle, allowing GP26–29 to be claimed by digital adapters or logic analyzer banks
 
+### Requirement: Multi-Channel ADC Scope Live Verification
+The system SHALL support automated validation of ADC channels (ADC0 on GPIO 26, ADC1 on GPIO 27, ADC2 on GPIO 28) with `ADCSCOPE pin=<pin> samples=<count>` command and verify that voltage metrics fall within calibrated 0.0V–3.3V bounds.
+
+#### Scenario: Live ADC Scope acquisition check
+- **WHEN** the host issues `ADCSCOPE pin=26 samples=100` while connected to the target reference signal
+- **THEN** the system returns valid voltage readings (CH0, CH1, CH2, CH3) with RAW sample conversions and non-zero peak-to-peak amplitude
+

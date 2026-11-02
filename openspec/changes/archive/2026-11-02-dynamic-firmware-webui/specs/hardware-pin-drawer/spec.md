@@ -1,3 +1,8 @@
+## RENAMED Requirements
+
+- FROM: `### Requirement: Slide-out Pin Matrix Drawer`
+- TO: `### Requirement: Full-Screen Hardware Pin Routing Matrix View`
+
 ## MODIFIED Requirements
 
 ### Requirement: Full-Screen Hardware Pin Routing Matrix View

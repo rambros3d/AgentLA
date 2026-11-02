@@ -6,7 +6,7 @@
  */
 
 // Host and API configuration
-const host = window.location.hostname || "192.168.7.1";
+const host = window.location.hostname || "10.10.10.10";
 
 const APP_TITLES = Object.freeze({
     bench: "Active Bench",
@@ -3145,10 +3145,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnCopyMcp) {
         btnCopyMcp.addEventListener('click', () => {
             const configSnippet = document.getElementById('mcp-config-snippet');
+            const currentOrigin = (window.location.protocol && window.location.host) ? window.location.origin : "http://agentla.local";
             const configText = configSnippet ? configSnippet.textContent.trim() : JSON.stringify({
                 "mcpServers": {
                     "agentla": {
-                        "url": "http://192.168.7.1/mcp"
+                        "url": `${currentOrigin}/mcp`
                     }
                 }
             }, null, 2);

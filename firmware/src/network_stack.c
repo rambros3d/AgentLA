@@ -42,20 +42,53 @@ static const struct pbuf *wait_ref = NULL;
 // TU_ARRAY_SIZE maybe defined by pico sdk's util? replicate
 #define MY_ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
+#if __has_include("generated/board_config.h")
+#include "generated/board_config.h"
+#endif
+
+#ifndef BOARD_NET_IP_A
+#define BOARD_NET_IP_A 10
+#define BOARD_NET_IP_B 10
+#define BOARD_NET_IP_C 10
+#define BOARD_NET_IP_D 10
+#endif
+
+#ifndef BOARD_NET_MASK_A
+#define BOARD_NET_MASK_A 255
+#define BOARD_NET_MASK_B 255
+#define BOARD_NET_MASK_C 255
+#define BOARD_NET_MASK_D 0
+#endif
+
+#ifndef BOARD_NET_GW_A
+#define BOARD_NET_GW_A 0
+#define BOARD_NET_GW_B 0
+#define BOARD_NET_GW_C 0
+#define BOARD_NET_GW_D 0
+#endif
+
+#ifndef BOARD_NET_DOMAIN
+#define BOARD_NET_DOMAIN "agentla.local"
+#endif
+
+#define BOARD_NET_DHCP_1 ((BOARD_NET_IP_D + 1) > 254 ? 2 : (BOARD_NET_IP_D + 1))
+#define BOARD_NET_DHCP_2 ((BOARD_NET_IP_D + 2) > 254 ? 3 : (BOARD_NET_IP_D + 2))
+#define BOARD_NET_DHCP_3 ((BOARD_NET_IP_D + 3) > 254 ? 4 : (BOARD_NET_IP_D + 3))
+
 uint8_t tud_network_mac_address[6] = {0x02, 0x02, 0x84, 0x6A, 0x96, 0x00};
-static const ip4_addr_t ipaddr  = INIT_IP4(192, 168, 7, 1);
-static const ip4_addr_t netmask = INIT_IP4(255, 255, 255, 0);
-static const ip4_addr_t gateway = INIT_IP4(0, 0, 0, 0);
+static const ip4_addr_t ipaddr  = INIT_IP4(BOARD_NET_IP_A, BOARD_NET_IP_B, BOARD_NET_IP_C, BOARD_NET_IP_D);
+static const ip4_addr_t netmask = INIT_IP4(BOARD_NET_MASK_A, BOARD_NET_MASK_B, BOARD_NET_MASK_C, BOARD_NET_MASK_D);
+static const ip4_addr_t gateway = INIT_IP4(BOARD_NET_GW_A, BOARD_NET_GW_B, BOARD_NET_GW_C, BOARD_NET_GW_D);
 
 static dhcp_entry_t entries[] = {
-    {{0}, INIT_IP4(192,168,7,2), 24*60*60},
-    {{0}, INIT_IP4(192,168,7,3), 24*60*60},
-    {{0}, INIT_IP4(192,168,7,4), 24*60*60},
+    {{0}, INIT_IP4(BOARD_NET_IP_A, BOARD_NET_IP_B, BOARD_NET_IP_C, BOARD_NET_DHCP_1), 24*60*60},
+    {{0}, INIT_IP4(BOARD_NET_IP_A, BOARD_NET_IP_B, BOARD_NET_IP_C, BOARD_NET_DHCP_2), 24*60*60},
+    {{0}, INIT_IP4(BOARD_NET_IP_A, BOARD_NET_IP_B, BOARD_NET_IP_C, BOARD_NET_DHCP_3), 24*60*60},
 };
 static const dhcp_config_t dhcp_config = {
     .router = INIT_IP4(0,0,0,0),
     .port = 67,
-    .dns = INIT_IP4(192,168,7,1),
+    .dns = INIT_IP4(BOARD_NET_IP_A, BOARD_NET_IP_B, BOARD_NET_IP_C, BOARD_NET_IP_D),
     .domain = "usb",
     .num_entry = MY_ARRAY_SIZE(entries),
     .entries = entries
@@ -65,7 +98,11 @@ static const dhcp_config_t dhcp_config = {
 // fix type: no further
 
 static bool dns_query_proc(const char *name, ip4_addr_t *addr) {
-    if (strcmp(name, "pico.lab") == 0 || strcmp(name, "www.pico.lab") == 0 || strcmp(name, "agentla.lab") == 0) {
+    if (strcmp(name, BOARD_NET_DOMAIN) == 0 ||
+        strcmp(name, "agentla.local") == 0 ||
+        strcmp(name, "agentla.lab") == 0 ||
+        strcmp(name, "pico.lab") == 0 ||
+        strcmp(name, "www.pico.lab") == 0) {
         *addr = ipaddr;
         return true;
     }

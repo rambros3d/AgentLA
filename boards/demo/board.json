@@ -9,6 +9,11 @@
     "favicon": "favicon.svg",
     "pinout": "pinout.svg"
   },
+  "network": {
+    "ip": "10.10.10.10",
+    "netmask": "255.255.255.0",
+    "domain": "agentla.local"
+  },
   "mcu": {
     "chip": "RP2350B",
     "package": "QFN-80",

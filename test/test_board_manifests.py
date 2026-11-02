@@ -138,6 +138,20 @@ def test_header_generation():
         assert '#define BOARD_HAS_CAN              0' in content_pico2
         assert '#define BOARD_HAS_RS485            0' in content_pico2
         assert '#define BOARD_TARGET_CURRENT_SENSE 0' in content_pico2
+        assert '#define BOARD_NET_IP_STR           "10.10.10.10"' in content_pico2
+        assert '#define BOARD_NET_DOMAIN           "agentla.local"' in content_pico2
+        assert '#define BOARD_NET_IP_A             10' in content_pico2
+
+        # Verify board custom network override
+        custom_board = dict(data_pico2)
+        custom_board["network"] = {"ip": "192.168.42.1", "domain": "custom.local"}
+        header_custom = tmp_path / "board_config_custom.h"
+        generate_header(custom_board, header_custom)
+        content_custom = header_custom.read_text(encoding="utf-8")
+        assert '#define BOARD_NET_IP_STR           "192.168.42.1"' in content_custom
+        assert '#define BOARD_NET_DOMAIN           "custom.local"' in content_custom
+        assert '#define BOARD_NET_IP_A             192' in content_custom
+        assert '#define BOARD_NET_IP_C             42' in content_custom
 
         assert header_baku.exists()
         content_baku = header_baku.read_text(encoding="utf-8")

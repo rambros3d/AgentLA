@@ -4,15 +4,15 @@
 TBD - created by archiving change adaptive-touch-desktop-webui. Update Purpose after archive.
 ## Requirements
 ### Requirement: Touch and Desktop Adaptive Navigation Shell
-The WebUI SHALL provide an adaptive viewport shell using dynamic viewport units (`100dvh`, `100dvw`) that automatically presents a thumb-friendly Bottom Navigation Bar with $\ge 48\text{px} \times 48\text{px}$ touch targets on viewports below 900px, and transitions to a compact Left Navigation Rail on viewports 900px and wider.
+The WebUI SHALL provide an adaptive viewport shell that presents navigation controls for the unified workspaces, with the primary observation instrument mode named **"Scope"** across desktop navigation (vertical sidebar with -90° rotated word label `SCOPE`), mobile navigation dock, workspace tab headers, and keyboard shortcut indicators (`Scope (Hotkey: 1)`).
 
-#### Scenario: Mobile and touch portrait layout
-- **WHEN** the WebUI is accessed on a viewport narrower than 900px or in touch portrait mode
-- **THEN** the navigation bar renders anchored at the bottom with touch-sized icon-and-label tabs, while the active instrument fills the remaining viewport height without window chrome.
+#### Scenario: Scope mode navigation label on desktop
+- **WHEN** viewing the desktop left vertical sidebar navigation
+- **THEN** the primary observation mode tab renders the label `SCOPE` in uppercase rotated -90° and navigates to the unified Scope workspace view
 
-#### Scenario: Desktop and landscape wide layout
-- **WHEN** the WebUI is accessed on a display 900px or wider
-- **THEN** the navigation renders as an icon rail on the left margin, maximizing horizontal and vertical canvas width for instrument displays.
+#### Scenario: Scope mode navigation label on mobile
+- **WHEN** viewing the mobile bottom navigation dock
+- **THEN** the primary observation tab displays the text `Scope` with the waveform icon and switches to the Scope view
 
 ### Requirement: Unified Dashboard Overview
 The WebUI SHALL display a Unified Dashboard as the default landing view upon loading, displaying probe health telemetry, an interactive 30-pin domain allocation map (`GPIO 0–29`), and 1-tap launcher tiles.

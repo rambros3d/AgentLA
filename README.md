@@ -2,7 +2,7 @@
 
 AgentLA is an open-source, all-in-one embedded hardware bring-up lab in a single probe. Powered by the Raspberry Pi RP2040 / RP2350, it combines a multi-target standalone programmer, driverless CMSIS-DAP debug adapter, 10-channel high-speed logic analyzer, signal scope, and multi-protocol bus bridge.
 
-Plug it in over USB, open a browser at `http://agentla.lab` (or `http://192.168.7.1`), and inspect, debug, or flash your target — no proprietary software, drivers, or host toolchain installations required.
+Plug it in over USB, open a browser at `http://agentla.local` (or `http://10.10.10.10`), and inspect, debug, or flash your target — no proprietary software, drivers, or host toolchain installations required.
 
 ---
 
@@ -98,7 +98,7 @@ For signal integrity troubleshooting and bus bring-up, AgentLA provides built-in
 AgentLA runs an embedded HTTP server and virtual network stack over USB, delivering a full graphical lab environment without software installation.
 
 * **Virtual Ethernet Interface**:
-  * Emulates an RNDIS / CDC-ECM network adapter with built-in DHCP server (`192.168.7.1` / `http://agentla.lab`).
+  * Emulates an RNDIS / CDC-ECM network adapter with built-in DHCP server (`10.10.10.10` / `http://agentla.local`).
 * **WinBox-Style Web Desktop**:
   * **Logic Analyzer Window**: Zoomable waveform viewer, protocol decoding tracks, trigger setup, and VCD export.
   * **Oscilloscope / Scope Window**: Signal transition graphs and bus timing analyzer.
@@ -108,7 +108,7 @@ AgentLA runs an embedded HTTP server and virtual network stack over USB, deliver
 ---
 
 ### 6. Model Context Protocol (MCP) Server & Agentic Hardware Bring-Up (`MCP`)
-AgentLA is purpose-built for the age of agentic engineering. It embeds a native **Model Context Protocol (MCP)** server over its USB virtual Ethernet interface (`http://192.168.7.1/mcp` or `http://agentla.lab/mcp`), enabling AI coding agents (such as Google Antigravity, Claude Desktop, Cursor, and Cline) to directly inspect, interact with, flash, and verify real physical circuits in an autonomous closed loop.
+AgentLA is purpose-built for the age of agentic engineering. It embeds a native **Model Context Protocol (MCP)** server over its USB virtual Ethernet interface (`http://10.10.10.10/mcp` or `http://agentla.local/mcp`), enabling AI coding agents (such as Google Antigravity, Claude Desktop, Cursor, and Cline) to directly inspect, interact with, flash, and verify real physical circuits in an autonomous closed loop.
 
 * **Native Embedded HTTP JSON-RPC 2.0**:
   * Direct tool execution via `POST /mcp` with standard JSON-RPC payloads, or query parameters via `GET /mcp?method=cmd&name=<cmd>&args=<args>`.
@@ -131,7 +131,7 @@ AgentLA is purpose-built for the age of agentic engineering. It embeds a native 
   {
     "mcpServers": {
       "agentla": {
-        "url": "http://192.168.7.1/mcp"
+        "url": "http://agentla.local/mcp"
       }
     }
   }

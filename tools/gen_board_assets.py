@@ -69,6 +69,52 @@ def generate_header(data: dict, output_header: Path) -> None:
         "",
     ]
 
+    # Network configuration (Defaults: 10.10.10.10 / agentla.local, overridable by board.json)
+    network = data.get("network", {})
+    ip_str = network.get("ip", "10.10.10.10")
+    domain_str = network.get("domain", "agentla.local")
+    netmask_str = network.get("netmask", "255.255.255.0")
+    gateway_str = network.get("gateway", "0.0.0.0")
+
+    try:
+        ip_parts = [int(p) for p in ip_str.split(".")]
+        if len(ip_parts) != 4:
+            raise ValueError()
+    except Exception:
+        ip_parts = [10, 10, 10, 10]
+        ip_str = "10.10.10.10"
+
+    try:
+        mask_parts = [int(p) for p in netmask_str.split(".")]
+        if len(mask_parts) != 4:
+            raise ValueError()
+    except Exception:
+        mask_parts = [255, 255, 255, 0]
+
+    try:
+        gw_parts = [int(p) for p in gateway_str.split(".")]
+        if len(gw_parts) != 4:
+            raise ValueError()
+    except Exception:
+        gw_parts = [0, 0, 0, 0]
+
+    header_lines.append("/* Network Configuration (USB RNDIS / CDC-ECM) */")
+    header_lines.append(f"#define BOARD_NET_IP_A             {ip_parts[0]}")
+    header_lines.append(f"#define BOARD_NET_IP_B             {ip_parts[1]}")
+    header_lines.append(f"#define BOARD_NET_IP_C             {ip_parts[2]}")
+    header_lines.append(f"#define BOARD_NET_IP_D             {ip_parts[3]}")
+    header_lines.append(f'#define BOARD_NET_IP_STR           "{ip_str}"')
+    header_lines.append(f"#define BOARD_NET_MASK_A           {mask_parts[0]}")
+    header_lines.append(f"#define BOARD_NET_MASK_B           {mask_parts[1]}")
+    header_lines.append(f"#define BOARD_NET_MASK_C           {mask_parts[2]}")
+    header_lines.append(f"#define BOARD_NET_MASK_D           {mask_parts[3]}")
+    header_lines.append(f"#define BOARD_NET_GW_A             {gw_parts[0]}")
+    header_lines.append(f"#define BOARD_NET_GW_B             {gw_parts[1]}")
+    header_lines.append(f"#define BOARD_NET_GW_C             {gw_parts[2]}")
+    header_lines.append(f"#define BOARD_NET_GW_D             {gw_parts[3]}")
+    header_lines.append(f'#define BOARD_NET_DOMAIN           "{domain_str}"')
+    header_lines.append("")
+
     # Pin defines from zones if available
     pin_defines = {}
     for zone_id, zone in zones.items():

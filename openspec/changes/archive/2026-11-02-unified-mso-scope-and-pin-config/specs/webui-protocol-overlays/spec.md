@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Integrated Protocol Decoder Controls
 The WebUI SHALL display protocol decoder configuration and state within an integrated decoder bar positioned directly above the digital scope lanes (`[ ☍ Decoder: I2C (SDA: D0, SCL: D1) ⚙ ▾ ] [ 📋 Packet Table ]`), providing immediate access to protocol selection, channel mapping, baud/clock settings, and a slide-out packet list drawer.

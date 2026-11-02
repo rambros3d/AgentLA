@@ -285,13 +285,18 @@
 
     const BAKUPROBE_DEMO_MANIFEST = {
         board_id: "demo",
-        name: "AgentLA Demo (All Options Enabled)",
+        name: "AgentLA Demo",
         vendor: "AgentLA",
         version: "1.0.0",
         assets: {
             logo: "logo.svg",
             favicon: "favicon.svg",
             pinout: "pinout.svg"
+        },
+        network: {
+            ip: "10.10.10.10",
+            netmask: "255.255.255.0",
+            domain: "agentla.local"
         },
         mcu: {
             chip: "RP2350B",
