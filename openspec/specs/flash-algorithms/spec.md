@@ -1,4 +1,9 @@
-## MODIFIED Requirements
+# flash-algorithms
+
+## Purpose
+Defines flash programming algorithms and interfaces, providing both direct register algorithms and generic RAM-resident CMSIS algorithms for embedded targets.
+
+## Requirements
 
 ### Requirement: STM32F1 Flash Algorithm
 The system SHALL support STM32F1 family flash programming using ADIv5 AP register access via SWD.
@@ -23,9 +28,13 @@ The system SHALL support STM32F1 family flash programming using ADIv5 AP registe
 - **WHEN** FLASH_SR is checked after erase or write
 - **THEN** error mask SHALL be 0x0C (WRPERR|PGERR) and clear mask SHALL be 0x0E (EOP|WRPERR|PGERR)
 
-### Requirement: Target Detection
-The system SHALL detect ARM Cortex-M targets via JEP106 identity in DPIDR.
+### Requirement: Generic algorithm as primary flash implementation
+The system SHALL support executing uploaded official flash algorithms in target RAM as the primary programming path, with direct register algorithms retained only as a transitional fallback.
 
-#### Scenario: Detect ARM Cortex-M3
-- **WHEN** target_detect() reads DPIDR
-- **THEN** dpidr_identity == 0x3B identifies ARM Cortex and target_is_connected() returns true
+#### Scenario: Generic path available
+- **WHEN** a valid algorithm blob and matching metadata are supplied for a connected target
+- **THEN** the system programs flash through the generic algorithm path and reports `OK FLASH DONE`
+
+#### Scenario: Fallback retained during transition
+- **WHEN** generic algorithm support is disabled or unavailable for a known family
+- **THEN** the system falls back to the existing direct register algorithm without changing observable results

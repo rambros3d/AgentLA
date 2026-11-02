@@ -50,3 +50,14 @@ The system SHALL support self-test verification of UART pins via loopback on GPI
 - **WHEN** agent sends `PROG UART TEST` command
 - **THEN** firmware connects GPIO8 to GPIO9 (via external loopback or internal mux), sends 0x55, verifies receive, and returns `OK UART TEST PASS` or `ERR UART TEST FAIL`
 
+### Requirement: Bootloader recovery orchestration
+The system SHALL define bootloader programming as an orchestrated sequence using BOOT0/nRST control and UART communication, rather than raw protocol commands only.
+
+#### Scenario: Orchestration sequence
+- **WHEN** bootloader programming is requested
+- **THEN** the system enters bootloader mode, performs sync/erase/program/verify, and returns to application mode
+
+#### Scenario: Orchestration failure cleanup
+- **WHEN** any step in the orchestrated sequence fails
+- **THEN** the system releases BOOT0, resets the target, and returns a descriptive error
+
