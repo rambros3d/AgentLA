@@ -9,6 +9,7 @@ build*/
 *.map
 *.dis
 *.d
+*.so
 .cache/
 
 # CMake

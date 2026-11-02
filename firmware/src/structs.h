@@ -34,7 +34,18 @@ typedef enum {
     DECODE_I2C,
     DECODE_SPI,
     DECODE_UART,
-    DECODE_PWM
+    DECODE_PWM,
+    DECODE_CAN,
+    DECODE_MODBUS,
+    DECODE_DMX,
+    DECODE_LED_1W,
+    DECODE_LED_2W,
+    DECODE_1WIRE,
+    DECODE_I3C,
+    DECODE_SWD,
+    DECODE_SWO,
+    DECODE_LIN,
+    DECODE_SPIFLASH
 } DECODE_PROTOCOL;
 
 typedef struct {

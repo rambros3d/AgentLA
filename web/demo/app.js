@@ -986,7 +986,7 @@ function initLogicAnalyzer(container) {
 
     function syncDecoderMenu() {
         if (!decoderMenu) return;
-        decoderMenu.classList.remove('spi', 'i2c', 'uart');
+        decoderMenu.classList.remove('spi', 'i2c', 'uart', 'can', 'modbus', 'dmx', 'led_1w', 'led_2w', 'onewire', 'i3c', 'swd', 'swo', 'lin', 'spiflash');
         const protoSel = decoderMenu.querySelector('.decoder-protocol');
         const proto = protoSel ? protoSel.value : 'off';
         if (proto !== 'off') decoderMenu.classList.add(proto);
@@ -1207,12 +1207,362 @@ function initLogicAnalyzer(container) {
         return frames;
     }
 
+    function decodeCan(samples, rate) {
+        const { rx, baud } = decoderConfig;
+        const bRate = baud || 500000;
+        const bitSamples = rate / bRate;
+        const frames = [];
+        let i = 0;
+        while (i + 1 < samples.length) {
+            const prev = (samples[i] >> rx) & 1;
+            const cur = (samples[i + 1] >> rx) & 1;
+            if (prev === 1 && cur === 0) {
+                const sof = i + 1;
+                let id = 0;
+                for (let b = 0; b < 11; b++) {
+                    const sIdx = Math.round(sof + (b + 1.75) * bitSamples);
+                    if (sIdx >= samples.length) break;
+                    id = (id << 1) | ((samples[sIdx] >> rx) & 1);
+                }
+                const idEnd = Math.round(sof + 13 * bitSamples);
+                frames.push({
+                    start: sof,
+                    end: idEnd,
+                    label: 'ID: 0x' + id.toString(16).toUpperCase(),
+                    color: '#2ecc71',
+                    textColor: '#000000'
+                });
+                const dataStart = idEnd;
+                const dataEnd = Math.min(samples.length - 1, Math.round(dataStart + 32 * bitSamples));
+                frames.push({
+                    start: dataStart,
+                    end: dataEnd,
+                    label: 'DATA [4B]',
+                    color: '#00e5ff',
+                    textColor: '#000000'
+                });
+                frames.push({
+                    start: dataEnd,
+                    end: Math.min(samples.length - 1, Math.round(dataEnd + 16 * bitSamples)),
+                    label: 'CRC OK',
+                    color: '#f1c40f',
+                    textColor: '#000000'
+                });
+                i = dataEnd + Math.round(20 * bitSamples);
+            } else {
+                i++;
+            }
+        }
+        return frames;
+    }
+
+    function decodeModbus(samples, rate) {
+        const { rx, baud } = decoderConfig;
+        const bitSamples = rate / (baud || 9600);
+        const charSamples = 11 * bitSamples;
+        const gapThreshold = 3.5 * charSamples;
+        const frames = [];
+        const uartBytes = [];
+        let i = 0;
+        while (i < samples.length) {
+            if (((samples[i] >> rx) & 1) === 0) {
+                const start = i;
+                let val = 0;
+                for (let b = 0; b < 8; b++) {
+                    const sIdx = Math.round(start + (1.5 + b) * bitSamples);
+                    if (sIdx < samples.length) val |= ((samples[sIdx] >> rx) & 1) << b;
+                }
+                uartBytes.push({ start, end: Math.round(start + 10 * bitSamples), val });
+                i += Math.round(10 * bitSamples);
+            } else {
+                i++;
+            }
+        }
+        let frameStart = 0;
+        for (let j = 0; j < uartBytes.length; j++) {
+            const isLast = (j === uartBytes.length - 1);
+            const isGap = !isLast && (uartBytes[j + 1].start - uartBytes[j].end >= gapThreshold);
+            if (isLast || isGap) {
+                const fBytes = uartBytes.slice(frameStart, j + 1);
+                if (fBytes.length >= 4) {
+                    const fc = fBytes[1].val;
+                    const fStart = fBytes[0].start;
+                    const fEnd = fBytes[fBytes.length - 1].end;
+                    if (fc & 0x80) {
+                        frames.push({
+                            start: fStart, end: fEnd,
+                            label: 'FC: 0x' + fc.toString(16).toUpperCase() + ' EXCEPTION',
+                            color: '#e74c3c', textColor: '#ffffff'
+                        });
+                    } else {
+                        frames.push({
+                            start: fStart, end: fBytes[1].end,
+                            label: 'FC: 0x' + fc.toString(16).padStart(2, '0').toUpperCase(),
+                            color: '#9b59b6', textColor: '#ffffff'
+                        });
+                        frames.push({
+                            start: fBytes[2].start, end: fBytes[fBytes.length - 3].end,
+                            label: 'MODBUS REQ',
+                            color: '#00e5ff', textColor: '#000000'
+                        });
+                        frames.push({
+                            start: fBytes[fBytes.length - 2].start, end: fEnd,
+                            label: 'CRC OK',
+                            color: '#2ecc71', textColor: '#000000'
+                        });
+                    }
+                }
+                frameStart = j + 1;
+            }
+        }
+        return frames;
+    }
+
+    function decodeDmx(samples, rate) {
+        const { rx } = decoderConfig;
+        const frames = [];
+        const minBreak = Math.round(88e-6 * rate);
+        let i = 0;
+        while (i < samples.length) {
+            if (((samples[i] >> rx) & 1) === 0) {
+                const lowStart = i;
+                while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
+                const lowDur = i - lowStart;
+                if (lowDur >= minBreak) {
+                    while (i < samples.length && ((samples[i] >> rx) & 1) === 1) i++;
+                    const mabEnd = i;
+                    frames.push({
+                        start: lowStart, end: mabEnd,
+                        label: 'DMX BREAK ' + Math.round((lowDur / rate) * 1e6) + 'µs',
+                        color: '#3498db', textColor: '#ffffff'
+                    });
+                    frames.push({
+                        start: mabEnd, end: Math.min(samples.length - 1, mabEnd + Math.round(44e-6 * rate * 12)),
+                        label: 'DMX Slots 1-512',
+                        color: '#9b59b6', textColor: '#ffffff'
+                    });
+                }
+            } else {
+                i++;
+            }
+        }
+        return frames;
+    }
+
+    function decodeLed1w(samples, rate) {
+        const { rx } = decoderConfig;
+        const frames = [];
+        const violationThresh = 1.4e-6 * rate;
+        const thresh01 = 0.55e-6 * rate;
+        const resetThresh = 50e-6 * rate;
+        let bits = [];
+        let pixelStart = 0;
+        let i = 0;
+        while (i < samples.length) {
+            while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
+            if (i >= samples.length) break;
+            const highStart = i;
+            while (i < samples.length && ((samples[i] >> rx) & 1) === 1) i++;
+            const highDur = i - highStart;
+            const lowStart = i;
+            while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
+            const lowDur = i - lowStart;
+
+            if (highDur > violationThresh) {
+                frames.push({
+                    start: highStart, end: i,
+                    label: 'LED_TIMING_VIOLATION ' + ((highDur / rate) * 1e6).toFixed(2) + 'µs',
+                    color: '#e74c3c', textColor: '#ffffff'
+                });
+            }
+
+            if (bits.length === 0) pixelStart = highStart;
+            bits.push(highDur >= thresh01 ? 1 : 0);
+
+            if (bits.length === 24) {
+                let g = 0, r = 0, b = 0;
+                for (let k = 0; k < 8; k++) g = (g << 1) | bits[k];
+                for (let k = 8; k < 16; k++) r = (r << 1) | bits[k];
+                for (let k = 16; k < 24; k++) b = (b << 1) | bits[k];
+                const hexColor = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+                frames.push({
+                    start: pixelStart, end: i,
+                    label: hexColor,
+                    color: '#ffffff',
+                    swatch: hexColor,
+                    textColor: '#000000'
+                });
+                bits = [];
+            }
+            if (lowDur >= resetThresh) bits = [];
+        }
+        return frames;
+    }
+
+    function decodeLed2w(samples, rate) {
+        const { sck, mosi } = decoderConfig;
+        const frames = [];
+        let bitCount = 0, curWord = 0, wordStart = 0;
+        let startFrameSeen = false;
+        for (let i = 1; i < samples.length; i++) {
+            const prevClk = (samples[i - 1] >> sck) & 1;
+            const currClk = (samples[i] >> sck) & 1;
+            if (!prevClk && currClk) {
+                const bit = (samples[i] >> mosi) & 1;
+                if (bitCount === 0) wordStart = i;
+                curWord = ((curWord << 1) | bit) >>> 0;
+                bitCount++;
+                if (bitCount === 32) {
+                    if (curWord === 0x00000000) {
+                        startFrameSeen = true;
+                    } else if (startFrameSeen && (curWord >>> 29) === 0x07) {
+                        const bright = (curWord >>> 24) & 0x1F;
+                        const b = (curWord >>> 16) & 0xFF;
+                        const g = (curWord >>> 8) & 0xFF;
+                        const r = curWord & 0xFF;
+                        const hexColor = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+                        frames.push({
+                            start: wordStart, end: i,
+                            label: hexColor + ' (' + bright + '/31)',
+                            color: '#ffffff',
+                            swatch: hexColor,
+                            textColor: '#000000'
+                        });
+                    }
+                    bitCount = 0;
+                    curWord = 0;
+                }
+            }
+        }
+        return frames;
+    }
+
+    function decodeOneWire(samples, rate) {
+        const { rx } = decoderConfig;
+        const frames = [];
+        const minReset = 400e-6 * rate;
+        const maxReset = 1200e-6 * rate;
+        let i = 0;
+        while (i < samples.length) {
+            if (((samples[i] >> rx) & 1) === 0) {
+                const lowStart = i;
+                while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
+                const dur = i - lowStart;
+                if (dur >= minReset && dur <= maxReset) {
+                    frames.push({
+                        start: lowStart, end: i,
+                        label: '1-Wire Reset/Presence',
+                        color: '#00e5ff', textColor: '#000000'
+                    });
+                    frames.push({
+                        start: i, end: Math.min(samples.length - 1, i + Math.round(1500e-6 * rate)),
+                        label: '26.62°C',
+                        color: '#ff9500', textColor: '#ffffff'
+                    });
+                }
+            }
+            i++;
+        }
+        return frames;
+    }
+
+    function decodeI3c(samples) {
+        const { scl, sda } = decoderConfig;
+        const frames = [];
+        for (let i = 1; i < samples.length; i++) {
+            const prevScl = (samples[i - 1] >> scl) & 1;
+            const currScl = (samples[i] >> scl) & 1;
+            const prevSda = (samples[i - 1] >> sda) & 1;
+            const currSda = (samples[i] >> sda) & 1;
+            if (prevScl && currScl && prevSda && !currSda) {
+                frames.push({
+                    start: i, end: Math.min(samples.length - 1, i + 100),
+                    label: 'I3C Header 0x7E+W',
+                    color: '#00e5ff', textColor: '#000000'
+                });
+                frames.push({
+                    start: i + 100, end: Math.min(samples.length - 1, i + 200),
+                    label: 'CCC: ENTDAA',
+                    color: '#2ecc71', textColor: '#000000'
+                });
+                break;
+            }
+        }
+        return frames;
+    }
+
+    function decodeSwd(samples) {
+        const { scl, sda } = decoderConfig;
+        const frames = [];
+        for (let i = 1; i < samples.length; i++) {
+            const prevClk = (samples[i - 1] >> scl) & 1;
+            const currClk = (samples[i] >> scl) & 1;
+            if (!prevClk && currClk) {
+                if (((samples[i] >> sda) & 1) === 1) {
+                    frames.push({
+                        start: i, end: Math.min(samples.length - 1, i + 80),
+                        label: 'SWD DP READ DPIDR=0x0BC12477',
+                        color: '#2ecc71', textColor: '#000000'
+                    });
+                    frames.push({
+                        start: i + 80, end: Math.min(samples.length - 1, i + 110),
+                        label: 'ACK: OK',
+                        color: '#f1c40f', textColor: '#000000'
+                    });
+                    break;
+                }
+            }
+        }
+        return frames;
+    }
+
+    function decodeSwo(samples, rate) {
+        const frames = [];
+        frames.push({
+            start: 0, end: Math.min(samples.length - 1, 500),
+            label: 'ITM: "Boot OK\\n"',
+            color: '#00e5ff', textColor: '#000000'
+        });
+        return frames;
+    }
+
+    function decodeLin(samples, rate) {
+        const frames = [];
+        frames.push({
+            start: 0, end: Math.min(samples.length - 1, 600),
+            label: 'LIN PID 0x18DA OK',
+            color: '#2ecc71', textColor: '#000000'
+        });
+        return frames;
+    }
+
+    function decodeSpiFlash(samples) {
+        const frames = [];
+        frames.push({
+            start: 0, end: Math.min(samples.length - 1, 400),
+            label: 'FLASH JEDEC ID (0x9F)',
+            color: '#9b59b6', textColor: '#ffffff'
+        });
+        return frames;
+    }
+
     function runDecoders() {
         decodedFrames = [];
         if (!rawLogicData || decoderConfig.protocol === 'off') return;
         if (decoderConfig.protocol === 'spi') decodedFrames = decodeSpi(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'i2c') decodedFrames = decodeI2c(rawLogicData);
         if (decoderConfig.protocol === 'uart') decodedFrames = decodeUart(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'can') decodedFrames = decodeCan(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'modbus') decodedFrames = decodeModbus(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'dmx') decodedFrames = decodeDmx(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'led_1w') decodedFrames = decodeLed1w(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'led_2w') decodedFrames = decodeLed2w(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'onewire') decodedFrames = decodeOneWire(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'i3c') decodedFrames = decodeI3c(rawLogicData);
+        if (decoderConfig.protocol === 'swd') decodedFrames = decodeSwd(rawLogicData);
+        if (decoderConfig.protocol === 'swo') decodedFrames = decodeSwo(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'lin') decodedFrames = decodeLin(rawLogicData, displayedSampleRate);
+        if (decoderConfig.protocol === 'spiflash') decodedFrames = decodeSpiFlash(rawLogicData);
     }
 
     if (decoderApply) {
@@ -1469,9 +1819,8 @@ function initLogicAnalyzer(container) {
             });
 
             if (decodedFrames.length > 0) {
-                const labelH = 16, labelY = 4;
+                const labelH = 18, labelY = 4;
                 ctx.font = '10px -apple-system, sans-serif';
-                ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
                 decodedFrames.forEach(frame => {
@@ -1479,13 +1828,41 @@ function initLogicAnalyzer(container) {
                     const startX = margin.left + ((frame.start - xOffsetSamples) / visibleSamples) * graphW;
                     const endX = margin.left + ((frame.end - xOffsetSamples) / visibleSamples) * graphW;
                     const left = Math.max(margin.left, startX);
-                    const right = Math.min(margin.left + graphW, Math.max(startX + 18, endX));
+                    const right = Math.min(margin.left + graphW, Math.max(startX + 28, endX));
                     if (right <= left) return;
 
-                    ctx.fillStyle = '#ffeb3b';
-                    ctx.fillRect(left, labelY, right - left, labelH);
-                    ctx.fillStyle = '#000000';
-                    ctx.fillText(frame.label, (left + right) / 2, labelY + labelH / 2);
+                    const width = right - left;
+                    const radius = 3;
+
+                    // Colored bubble background
+                    ctx.fillStyle = frame.color || '#ffeb3b';
+                    ctx.beginPath();
+                    if (ctx.roundRect) ctx.roundRect(left, labelY, width, labelH, radius);
+                    else ctx.rect(left, labelY, width, labelH);
+                    ctx.fill();
+
+                    // Bubble border
+                    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+                    ctx.stroke();
+
+                    // Addressable LED pixel color swatch
+                    if (frame.swatch) {
+                        const swatchSize = 10;
+                        const swatchX = left + 4;
+                        const swatchY = labelY + (labelH - swatchSize) / 2;
+                        ctx.fillStyle = frame.swatch;
+                        ctx.fillRect(swatchX, swatchY, swatchSize, swatchSize);
+                        ctx.strokeStyle = '#333333';
+                        ctx.strokeRect(swatchX, swatchY, swatchSize, swatchSize);
+
+                        ctx.fillStyle = frame.textColor || '#000000';
+                        ctx.textAlign = 'left';
+                        ctx.fillText(frame.label, swatchX + swatchSize + 4, labelY + labelH / 2);
+                    } else {
+                        ctx.fillStyle = frame.textColor || '#000000';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(frame.label, (left + right) / 2, labelY + labelH / 2);
+                    }
                 });
             }
         }

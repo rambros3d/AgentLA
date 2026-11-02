@@ -2026,9 +2026,9 @@ body.no-transparency {
 }
 
 .decoder-spi-options, .decoder-i2c-options, .decoder-uart-options { display: none !important; }
-.decoder-menu.spi .decoder-spi-options { display: flex !important; flex-direction: column; gap: 6px; }
-.decoder-menu.i2c .decoder-i2c-options { display: flex !important; flex-direction: column; gap: 6px; }
-.decoder-menu.uart .decoder-uart-options { display: flex !important; flex-direction: column; gap: 6px; }
+.decoder-menu.spi .decoder-spi-options, .decoder-menu.led_2w .decoder-spi-options, .decoder-menu.spiflash .decoder-spi-options { display: flex !important; flex-direction: column; gap: 6px; }
+.decoder-menu.i2c .decoder-i2c-options, .decoder-menu.i3c .decoder-i2c-options, .decoder-menu.swd .decoder-i2c-options { display: flex !important; flex-direction: column; gap: 6px; }
+.decoder-menu.uart .decoder-uart-options, .decoder-menu.can .decoder-uart-options, .decoder-menu.modbus .decoder-uart-options, .decoder-menu.dmx .decoder-uart-options, .decoder-menu.led_1w .decoder-uart-options, .decoder-menu.onewire .decoder-uart-options, .decoder-menu.swo .decoder-uart-options, .decoder-menu.lin .decoder-uart-options { display: flex !important; flex-direction: column; gap: 6px; }
 
 /* Settings Range Slider */
 .settings-range {

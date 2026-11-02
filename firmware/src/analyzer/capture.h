@@ -6,8 +6,8 @@
 #include "structs.h"
 
 #define SCOPE_PRE_SIZE   (64 * 1024)
-#define SCOPE_POST_SIZE  (384 * 1024)
-#define SCOPE_TOTAL_SIZE (SCOPE_PRE_SIZE + SCOPE_POST_SIZE) /* 448 KB unified acquisition */
+#define SCOPE_POST_SIZE  (352 * 1024)
+#define SCOPE_TOTAL_SIZE (SCOPE_PRE_SIZE + SCOPE_POST_SIZE) /* 416 KB unified acquisition */
 
 extern uint8_t captureBuffer[];
 

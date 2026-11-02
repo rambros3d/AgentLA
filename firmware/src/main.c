@@ -23,6 +23,17 @@
 #include "analyzer/capture.h"
 #include "pin_owner.h"
 #include "analyzer/decode.h"
+#include "analyzer/decode_can.h"
+#include "analyzer/decode_modbus.h"
+#include "analyzer/decode_dmx.h"
+#include "analyzer/decode_led.h"
+#include "analyzer/decode_1wire.h"
+#include "analyzer/decode_lin.h"
+#include "analyzer/decode_i3c.h"
+#include "analyzer/decode_swd.h"
+#include "analyzer/decode_swo.h"
+#include "analyzer/decode_spiflash.h"
+extern void sse_push(const char *data);
 #include "rle_util.h"
 #include "programmer/swd.h"
 #include "programmer/programmer.h"
@@ -1053,6 +1064,10 @@ static void cmd_capture(char* args) {
     DECODE_PROTOCOL protocol = DECODE_NONE;
     uint8_t pin_a = 0, pin_b = 1;
     uint32_t baud = 115200;
+    uint32_t data_baud = 0;
+    uint8_t sample_point = 75;
+    uint8_t led_order = 0;
+    uint8_t led_rgbw = 0;
     /* SPI has 4 separate pins that must not overwrite each other */
     uint8_t spi_cs = 0, spi_sclk = 0, spi_mosi = 0, spi_miso = 0;
 
@@ -1065,21 +1080,51 @@ static void cmd_capture(char* args) {
             else if(strcmp(token + 9, "SPI") == 0) protocol = DECODE_SPI;
             else if(strcmp(token + 9, "UART") == 0) protocol = DECODE_UART;
             else if(strcmp(token + 9, "PWM") == 0) protocol = DECODE_PWM;
+            else if(strcmp(token + 9, "CAN") == 0) protocol = DECODE_CAN;
+            else if(strcmp(token + 9, "MODBUS") == 0) protocol = DECODE_MODBUS;
+            else if(strcmp(token + 9, "DMX") == 0) protocol = DECODE_DMX;
+            else if(strcmp(token + 9, "LED_1W") == 0) protocol = DECODE_LED_1W;
+            else if(strcmp(token + 9, "LED_2W") == 0) protocol = DECODE_LED_2W;
+            else if(strcmp(token + 9, "1WIRE") == 0) protocol = DECODE_1WIRE;
+            else if(strcmp(token + 9, "I3C") == 0) protocol = DECODE_I3C;
+            else if(strcmp(token + 9, "SWD") == 0) protocol = DECODE_SWD;
+            else if(strcmp(token + 9, "SWO") == 0) protocol = DECODE_SWO;
+            else if(strcmp(token + 9, "LIN") == 0) protocol = DECODE_LIN;
+            else if(strcmp(token + 9, "SPIFLASH") == 0) protocol = DECODE_SPIFLASH;
             else { send_response("ERR unknown protocol"); return; }
         }
         else if(strncmp(token, "sda=", 4) == 0) pin_a = atoi(token + 4);
         else if(strncmp(token, "scl=", 4) == 0) pin_b = atoi(token + 4);
         else if(strncmp(token, "cs=", 3) == 0) spi_cs = atoi(token + 3);
         else if(strncmp(token, "sclk=", 5) == 0) spi_sclk = atoi(token + 5);
+        else if(strncmp(token, "clk=", 4) == 0) { spi_sclk = atoi(token + 4); pin_b = atoi(token + 4); }
         else if(strncmp(token, "mosi=", 5) == 0) spi_mosi = atoi(token + 5);
         else if(strncmp(token, "miso=", 5) == 0) spi_miso = atoi(token + 5);
         else if(strncmp(token, "rx=", 3) == 0) pin_a = atoi(token + 3);
+        else if(strncmp(token, "tx=", 3) == 0) pin_b = atoi(token + 3);
+        else if(strncmp(token, "dio=", 4) == 0) pin_a = atoi(token + 4);
+        else if(strncmp(token, "data=", 5) == 0) { pin_a = atoi(token + 5); spi_mosi = atoi(token + 5); }
+        else if(strncmp(token, "pin=", 4) == 0) pin_a = atoi(token + 4);
+        else if(strncmp(token, "swo=", 4) == 0) pin_a = atoi(token + 4);
         else if(strncmp(token, "baud=", 5) == 0) baud = atoi(token + 5);
+        else if(strncmp(token, "rate=", 5) == 0) baud = atoi(token + 5);
+        else if(strncmp(token, "nominal=", 8) == 0) baud = atoi(token + 8);
+        else if(strncmp(token, "data_baud=", 10) == 0) data_baud = atoi(token + 10);
+        else if(strncmp(token, "data_rate=", 10) == 0) data_baud = atoi(token + 10);
+        else if(strncmp(token, "sample_point=", 13) == 0) sample_point = atoi(token + 13);
+        else if(strncmp(token, "order=", 6) == 0) {
+            if(strcmp(token + 6, "GRB") == 0) led_order = 0;
+            else if(strcmp(token + 6, "RGB") == 0) led_order = 1;
+            else if(strcmp(token + 6, "BGR") == 0) led_order = 2;
+            else if(strcmp(token + 6, "RGBW") == 0) { led_order = 3; led_rgbw = 1; }
+            else if(strcmp(token + 6, "GRBW") == 0) { led_order = 4; led_rgbw = 1; }
+        }
+        else if(strncmp(token, "rgbw=", 5) == 0) led_rgbw = atoi(token + 5);
         token = strtok(NULL, " ");
     }
 
     if(mode == 'D' && protocol == DECODE_NONE) {
-        send_response("ERR DECODED mode requires protocol=I2C|SPI|UART|PWM");
+        send_response("ERR DECODED mode requires protocol=<protocol>");
         return;
     }
 
@@ -1171,44 +1216,101 @@ static void cmd_capture(char* args) {
             printf("RAW %02X\r\n", buffer[idx]);
         }
     } else {
-        DECODE_RESULT result;
         uint8_t sda_bit = 0, scl_bit = 0;
-        /* SPI needs separate channel indices for cs, sclk, mosi, miso */
         uint8_t spi_cs_bit = 0, spi_sclk_bit = 0, spi_mosi_bit = 0, spi_miso_bit = 0;
         for(uint8_t i = 0; i < capture_config.channel_count; i++) {
-            /* Use channel index (i), not pindex, because GetBuffer() re-maps
-               pins to sequential bit positions: channel 0 = bit 0, etc. */
             if(capture_config.channels[i] == gpio_to_pindex(pin_a)) sda_bit = i;
             if(capture_config.channels[i] == gpio_to_pindex(pin_b)) scl_bit = i;
-            /* Map SPI pins to channel indices */
             if(capture_config.channels[i] == gpio_to_pindex(spi_cs)) spi_cs_bit = i;
             if(capture_config.channels[i] == gpio_to_pindex(spi_sclk)) spi_sclk_bit = i;
             if(capture_config.channels[i] == gpio_to_pindex(spi_mosi)) spi_mosi_bit = i;
             if(capture_config.channels[i] == gpio_to_pindex(spi_miso)) spi_miso_bit = i;
         }
 
-        switch(protocol) {
-            case DECODE_I2C:
-                i2c_decode(buffer, length, capture_config.frequency,
-                           sda_bit, scl_bit, 0, first, &result);
-                break;
-            case DECODE_SPI:
-                spi_decode(buffer, length, capture_config.frequency,
-                           spi_cs_bit, spi_sclk_bit, spi_mosi_bit, spi_miso_bit,
-                           0, first, &result);
-                break;
-            case DECODE_UART:
-                uart_decode(buffer, length, capture_config.frequency,
-                            sda_bit, baud, 0, first, &result);
-                break;
-            case DECODE_PWM:
-                pwm_decode(buffer, length, capture_config.frequency,
-                           sda_bit, 0, first, &result);
-                break;
-            default: result.count = 0; break;
-        }
-        for(uint16_t i = 0; i < result.count; i++) {
-            send_event(result.events[i].text);
+        if(protocol == DECODE_I2C || protocol == DECODE_SPI ||
+           protocol == DECODE_UART || protocol == DECODE_PWM) {
+            DECODE_RESULT result;
+            switch(protocol) {
+                case DECODE_I2C:
+                    i2c_decode(buffer, length, capture_config.frequency,
+                               sda_bit, scl_bit, 0, first, &result);
+                    break;
+                case DECODE_SPI:
+                    spi_decode(buffer, length, capture_config.frequency,
+                               spi_cs_bit, spi_sclk_bit, spi_mosi_bit, spi_miso_bit,
+                               0, first, &result);
+                    break;
+                case DECODE_UART:
+                    uart_decode(buffer, length, capture_config.frequency,
+                                sda_bit, baud, 0, first, &result);
+                    break;
+                case DECODE_PWM:
+                    pwm_decode(buffer, length, capture_config.frequency,
+                               sda_bit, 0, first, &result);
+                    break;
+                default: result.count = 0; break;
+            }
+            for(uint16_t i = 0; i < result.count; i++) {
+                send_event(result.events[i].text);
+                sse_push(result.events[i].text);
+            }
+        } else {
+            static DECODER_EVENT_ARENA arena;
+            decoder_arena_init(&arena);
+            switch(protocol) {
+                case DECODE_CAN:
+                    can_decode(buffer, length, capture_config.frequency,
+                               sda_bit, baud, data_baud, sample_point, 0, first, &arena);
+                    break;
+                case DECODE_MODBUS:
+                    modbus_decode(buffer, length, capture_config.frequency,
+                                  sda_bit, baud, 0, first, &arena);
+                    break;
+                case DECODE_DMX:
+                    dmx_decode(buffer, length, capture_config.frequency,
+                               sda_bit, 0, first, &arena);
+                    break;
+                case DECODE_LED_1W:
+                    led_decode_1w(buffer, length, capture_config.frequency,
+                                  sda_bit, led_order, led_rgbw, 0, first, &arena);
+                    break;
+                case DECODE_LED_2W:
+                    led_decode_2w(buffer, length, capture_config.frequency,
+                                  spi_sclk_bit, spi_mosi_bit, 0, first, &arena);
+                    break;
+                case DECODE_1WIRE:
+                    onewire_decode(buffer, length, capture_config.frequency,
+                                   sda_bit, 0, first, &arena);
+                    break;
+                case DECODE_I3C:
+                    i3c_decode(buffer, length, capture_config.frequency,
+                               sda_bit, scl_bit, 0, first, &arena);
+                    break;
+                case DECODE_SWD:
+                    swd_decode(buffer, length, capture_config.frequency,
+                               scl_bit, sda_bit, 0, first, &arena);
+                    break;
+                case DECODE_SWO:
+                    swo_decode(buffer, length, capture_config.frequency,
+                               sda_bit, baud, 0, first, &arena);
+                    break;
+                case DECODE_LIN:
+                    lin_decode(buffer, length, capture_config.frequency,
+                               sda_bit, baud, 0, first, &arena);
+                    break;
+                case DECODE_SPIFLASH:
+                    spiflash_decode(buffer, length, capture_config.frequency,
+                                    spi_cs_bit, spi_sclk_bit, spi_mosi_bit, spi_miso_bit,
+                                    0, first, &arena);
+                    break;
+                default: break;
+            }
+            for(uint16_t i = 0; i < arena.count; i++) {
+                char ev_text[128];
+                decoder_event_format(&arena.events[i], ev_text, sizeof(ev_text));
+                send_event(ev_text);
+                sse_push(ev_text);
+            }
         }
     }
 
