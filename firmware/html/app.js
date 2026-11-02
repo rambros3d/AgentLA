@@ -373,6 +373,13 @@ const FeatureRegistry = {
         if (pinoutBoardLabel) {
             pinoutBoardLabel.textContent = `${this.manifest.mcu?.chip || 'RP2350'} • ${name}`;
         }
+
+        const pinoutImg = document.getElementById('hardware-pinout-img');
+        if (pinoutImg) {
+            const pinoutSrc = this.manifest.assets?.pinout || 'pinout.svg';
+            pinoutImg.src = `${pinoutSrc}?v=${Date.now()}`;
+            pinoutImg.alt = `${name} Pinout Diagram`;
+        }
     },
 
     applyTransceiverBadges() {
@@ -603,60 +610,9 @@ function renderAllZonePins() {
                 </div>
             `;
             chip.addEventListener('click', () => inspectPin(pin.pin));
-            chip.addEventListener('pointerenter', () => highlightPinInSvg(pin.pin, true));
-            chip.addEventListener('pointerleave', () => highlightPinInSvg(pin.pin, false));
             grid.appendChild(chip);
         });
     });
-}
-
-function highlightPinInSvg(pinNum, active) {
-    const svgPin = document.getElementById(`pin-gp${pinNum}`);
-    if (svgPin) {
-        if (active) {
-            svgPin.classList.add('highlighted');
-        } else {
-            svgPin.classList.remove('highlighted');
-        }
-    }
-}
-
-async function mountInteractivePinout() {
-    const canvas = document.getElementById('hardware-pinout-canvas');
-    if (!canvas) return;
-
-    try {
-        const res = await fetch(`pinout.svg?v=${Date.now()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const svgText = await res.text();
-        canvas.innerHTML = svgText;
-
-        const boardPins = canvas.querySelectorAll('.board-pin');
-        boardPins.forEach(pinEl => {
-            const pinId = pinEl.id || '';
-            const m = pinId.match(/pin-gp(\d+)/i);
-            if (!m) return;
-            const pinNum = parseInt(m[1], 10);
-
-            pinEl.addEventListener('pointerenter', () => {
-                pinEl.classList.add('highlighted');
-                const chip = document.querySelector(`.pin-chip[data-pin="${pinNum}"]`);
-                if (chip) chip.classList.add('highlighted');
-            });
-
-            pinEl.addEventListener('pointerleave', () => {
-                pinEl.classList.remove('highlighted');
-                const chip = document.querySelector(`.pin-chip[data-pin="${pinNum}"]`);
-                if (chip) chip.classList.remove('highlighted');
-            });
-
-            pinEl.addEventListener('click', () => {
-                inspectPin(pinNum);
-            });
-        });
-    } catch (err) {
-        canvas.innerHTML = `<div style="color: var(--text-secondary); padding: 20px; font-size: 13px;">Pinout vector graphic preview offline (${err.message})</div>`;
-    }
 }
 
 function inspectPin(pinNum) {
@@ -730,12 +686,9 @@ async function syncPinRegistry() {
         if (conflictPin !== null) {
             conflictBadge.className = 'pin-conflict-badge conflict';
             conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/><path d="M12 7.75C12.4142 7.75 12.75 8.08579 12.75 8.5V12.5C12.75 12.9142 12.4142 13.25 12 13.25C11.5858 13.25 11.25 12.9142 11.25 12.5V8.5C11.25 8.08579 11.5858 7.75 12 7.75Z" fill="currentColor"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg><span>Conflict on GP${conflictPin}: Multiple Drivers!</span>`;
-            const svgPin = document.getElementById(`pin-gp${conflictPin}`);
-            if (svgPin) svgPin.classList.add('conflict');
         } else {
             conflictBadge.className = 'pin-conflict-badge ok';
             conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M16.0303 10.0303C16.3232 9.73744 16.3232 9.26256 16.0303 8.96967C15.7374 8.67678 15.2626 8.67678 14.9697 8.96967L10.5 13.4393L9.03033 11.9697C8.73744 11.6768 8.26256 11.6768 7.96967 11.9697C7.67678 12.2626 7.67678 12.7374 7.96967 13.0303L9.96967 15.0303C10.2626 15.3232 10.7374 15.3232 11.0303 15.0303L16.0303 10.0303Z" fill="currentColor"/></svg><span>All Pins Conflict-Free</span>`;
-            document.querySelectorAll('.board-pin.conflict').forEach(el => el.classList.remove('conflict'));
         }
     }
 
@@ -2860,7 +2813,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 12. Initialize board manifest, capabilities, and instrumentation modules
     await fetchBoardManifest();
-    mountInteractivePinout();
     initLogicAnalyzer(document);
     initPinToggler();
     initCommand(document);

@@ -131,6 +131,34 @@
                 ← Portal
             </a>
 
+            <!-- Emergency Safe State Button -->
+            <button class="preset-pill emergency-safe-btn" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                SAFE STATE
+            </button>
+
+            <!-- Hardware Profile Selector -->
+            <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+                <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                    <span class="profile-dot safe" id="profile-status-dot"></span>
+                    <span class="profile-name-text" id="active-profile-name">Safe State</span>
+                    <span class="dropdown-arrow">▾</span>
+                </button>
+                <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+                    <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+                    <div class="profile-menu-slots" id="profile-menu-slots">
+                        <!-- Populated dynamically via /api/profiles -->
+                    </div>
+                    <div class="profile-menu-actions">
+                        <button class="profile-menu-btn" id="btn-profile-save-current">+ Save Current Setup</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="connection-status" class="status-indicator" title="Hardware Bridge Watchdog">
                 <div class="status-dot"></div>
                 <span class="status-text">Connecting...</span>
@@ -1043,12 +1071,12 @@
                                     <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
                                     <path d="M12 8V16M8 12H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                 </svg>
-                                <h4>Interactive Physical Pinout</h4>
+                                <h4>Hardware Pinout Diagram</h4>
                             </div>
                             <span class="domain-tag" id="pinout-board-label">RP2350</span>
                         </div>
                         <div id="hardware-pinout-canvas" class="pinout-canvas-container">
-                            <div class="spinner" style="width: 24px; height: 24px;"></div>
+                            <img id="hardware-pinout-img" src="pinout.svg" alt="Hardware Pinout Diagram" class="board-pinout-img" />
                         </div>
                     </div>
 
@@ -1243,6 +1271,59 @@
                         <div class="info-pill"><span class="info-label">BOARD PROFILE</span><span class="info-val">BakuProbe / Pico 2</span></div>
                         <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val">v2.0-Forest (Solar Duotone)</span></div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Save Hardware Profile -->
+    <div id="modal-save-profile" class="modal-backdrop" aria-hidden="true" style="display: none;">
+        <div class="modal-card" role="dialog" aria-modal="true" style="max-width: 480px;">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <h3 id="save-profile-modal-title">Save Hardware Profile</h3>
+                </div>
+                <button class="action-btn icon-btn" id="btn-close-save-profile" title="Cancel (Esc)">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 16px;">
+                <div style="margin-bottom: 14px;">
+                    <label class="settings-label" for="input-profile-name" style="margin-bottom: 6px; display: block;">Profile Name</label>
+                    <input type="text" id="input-profile-name" class="modal-input" placeholder="e.g. Drone Flight Controller v2" style="width: 100%; box-sizing: border-box;" maxlength="31" />
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label class="settings-label" for="select-profile-slot" style="margin-bottom: 6px; display: block;">Target Flash Slot (1 - 31)</label>
+                    <select id="select-profile-slot" class="modal-select" style="width: 100%; box-sizing: border-box;">
+                        <!-- Options populated dynamically -->
+                    </select>
+                </div>
+                <div style="margin-bottom: 18px; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="check-profile-boot" />
+                    <label for="check-profile-boot" class="settings-label" style="font-size: 13px; cursor: pointer;">
+                        Set as Boot Default (auto-applies on probe power-on)
+                    </label>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="action-btn outline btn-sm" id="btn-cancel-save-profile">Cancel</button>
+                    <button class="action-btn primary btn-sm" id="btn-confirm-save-profile">Save to Probe Flash</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Profile Compatibility Notice -->
+    <div id="modal-profile-compat" class="modal-backdrop" aria-hidden="true" style="display: none;">
+        <div class="modal-card" role="dialog" aria-modal="true" style="max-width: 500px;">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <h3 style="color: #f59e0b;">⚠️ Profile Compatibility Notice</h3>
+                </div>
+                <button class="action-btn icon-btn" id="btn-close-compat-modal">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 16px;">
+                <p id="compat-modal-summary" style="margin-bottom: 12px; color: var(--text-primary); font-size: 13px;"></p>
+                <div id="compat-modal-details" style="background: rgba(0,0,0,0.25); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 160px; overflow-y: auto; margin-bottom: 14px;"></div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button class="action-btn primary btn-sm" id="btn-ack-compat">Acknowledge</button>
                 </div>
             </div>
         </div>
