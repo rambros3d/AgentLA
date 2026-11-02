@@ -751,16 +751,53 @@ async function fetchBoardManifest() {
         PIN_MAP = generatePinMapFromManifest(BOARD_MANIFEST);
         renderDynamicPinMatrix(BOARD_MANIFEST);
     } catch (err) {
-        console.warn('Failed to load board manifest, using Pico 2 fallback:', err);
+        console.warn('Failed to load board manifest, using BakuProbe full-feature fallback:', err);
         const fallback = {
-            board_id: 'pico2',
-            name: 'Raspberry Pi Pico 2',
-            features: { has_hardware_can: false, has_hardware_rs485: false, target_current_sense: false },
-            gpio_range: [0, 29],
+            board_id: 'bakuprobe',
+            name: 'BakuProbe RP2350 Logic & Debug Probe',
+            mcu: { chip: 'RP2350B', cores: 'Dual ARM Cortex-M33 / Hazard3 RISC-V @ 150MHz' },
+            features: {
+                has_hardware_can: true,
+                has_hardware_rs485: true,
+                target_current_sense: true,
+                target_power_control: true,
+                qwiic_stemma_qt: true
+            },
+            power_architecture: {
+                target_power: {
+                    nominal_voltage: 3.3,
+                    current_sense_ic: 'INA180'
+                }
+            },
+            gpio_range: [0, 47],
             zones: {
-                fixed_programmer: { name: 'Fixed Programmer Zone', gpio_range: [0, 9] },
-                flexible_pool: { name: 'Flexible Multiplexed Pool', gpio_range: [10, 25] },
-                analog_scope: { name: 'Analog Oscilloscope Front-End', gpio_range: [26, 29] }
+                zone1_programmer: {
+                    name: 'Target Programmer Header',
+                    gpio_range: [0, 9],
+                    connector: '2x5 1.27mm / 2.54mm ARM Debug with 1.2V-5.0V Level Translation'
+                },
+                zone2_transceivers: {
+                    name: 'Industrial Differential Transceivers',
+                    gpio_range: [10, 15],
+                    can_fd: { chip: 'TCAN334', tx_pin: 10, rx_pin: 11, term_120ohm_relay_pin: 12 },
+                    rs485: { chip: 'SN65HVD3082', tx_pin: 13, rx_pin: 14, de_re_pin: 15 }
+                },
+                zone3_bus_masters: {
+                    name: 'Dedicated Bus Master Pod & Quick-Connect',
+                    gpio_range: [16, 23],
+                    connector: '2x5 2.54mm Shrouded Header with 1.2V-5.0V Level Translation'
+                },
+                zone4_logic_analyzer: {
+                    name: '16-Channel Logic Analyzer & Pattern Generator',
+                    gpio_range: [24, 39],
+                    base_pin: 24,
+                    connector: '2x10 2.54mm Header with Alternating GND'
+                },
+                zone5_analog_scope: {
+                    name: '8-Channel Analog Oscilloscope Front-End',
+                    gpio_range: [40, 47],
+                    adc_channels: [0, 1, 2, 3, 4, 5, 6, 7]
+                }
             }
         };
         BOARD_MANIFEST = fallback;

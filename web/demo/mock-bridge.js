@@ -82,9 +82,81 @@
         return buf;
     };
 
-    // Pre-seed some default dynamic claims in flexible pool
-    simState.activeClaims.set('HNDL_101', { pins: [14, 15], func: 3, observer: 0 }); // I2C1
-    simState.activeClaims.set('HNDL_102', { pins: [16, 17, 18, 19], func: 1, observer: 0 }); // SPI1
+    // Pre-seed default dynamic claims showcasing BakuProbe hardware zones
+    simState.activeClaims.set('HNDL_CAN', { pins: [10, 11], func: 2, observer: 0 }); // Onboard CAN-FD (TCAN334)
+    simState.activeClaims.set('HNDL_RS485', { pins: [13, 14, 15], func: 2, observer: 0 }); // Onboard RS-485 (SN65HVD3082)
+    simState.activeClaims.set('HNDL_I2C', { pins: [16, 17], func: 3, observer: 0 }); // Bus Master I2C / Qwiic
+    simState.activeClaims.set('HNDL_SPI', { pins: [18, 19, 20, 21], func: 1, observer: 0 }); // Bus Master SPI
+    simState.activeClaims.set('HNDL_LA', { pins: [24, 25, 26, 27], func: 6, observer: 1 }); // 100MS/s Logic Analyzer
+
+    // BakuProbe Flagship Manifest for Web Demo (All Hardware Options Enabled)
+    const BAKUPROBE_DEMO_MANIFEST = {
+        board_id: "bakuprobe",
+        name: "BakuProbe RP2350 Logic & Debug Probe",
+        vendor: "AgentLA",
+        version: "1.0.0",
+        assets: {
+            logo: "logo.svg",
+            favicon: "favicon.svg",
+            pinout: "pinout.svg"
+        },
+        mcu: {
+            chip: "RP2350B",
+            package: "QFN-80",
+            cores: "Dual ARM Cortex-M33 / Hazard3 RISC-V @ 150MHz",
+            clock_max_mhz: 150,
+            sram_bytes: 532480,
+            flash_bytes: 16777216
+        },
+        gpio_range: [0, 47],
+        power_architecture: {
+            target_power: {
+                voltage_range: "1.2V - 5.0V",
+                firmware_switchable: true,
+                current_sense_ic: "TI INA180",
+                voltage_sense_divider: "10:1"
+            }
+        },
+        features: {
+            has_hardware_can: true,
+            has_hardware_rs485: true,
+            target_current_sense: true,
+            target_power_control: true,
+            qwiic_stemma_qt: true
+        },
+        zones: {
+            zone1_programmer: {
+                name: "Target Programmer Header",
+                gpio_range: [0, 9],
+                connector: "2x5 1.27mm / 2.54mm ARM Debug with 1.2V-5.0V Level Translation",
+                pins: { trst: 0, tdo: 1, boot0: 2, tdi: 3, swclk: 4, swdio: 5, nrst: 6, sdi: 7, uart_tx: 8, uart_rx: 9 }
+            },
+            zone2_transceivers: {
+                name: "Industrial Differential Transceivers",
+                gpio_range: [10, 15],
+                can_fd: { chip: "TCAN334", tx_pin: 10, rx_pin: 11, term_120ohm_relay_pin: 12, connector: "3-Pin Screw Terminal" },
+                rs485: { chip: "SN65HVD3082", tx_pin: 13, rx_pin: 14, de_re_pin: 15, connector: "3-Pin Screw Terminal" }
+            },
+            zone3_bus_masters: {
+                name: "Dedicated Bus Master Pod & Quick-Connect",
+                gpio_range: [16, 23],
+                connector: "2x5 2.54mm Shrouded Header with 1.2V-5.0V Level Translation",
+                qwiic_stemma_qt: "4-pin JST-SH 1.0mm (SDA=GP16, SCL=GP17)"
+            },
+            zone4_logic_analyzer: {
+                name: "16-Channel Logic Analyzer & Pattern Generator",
+                gpio_range: [24, 39],
+                channels_count: 16,
+                base_pin: 24,
+                connector: "2x10 2.54mm Header with Alternating GND"
+            },
+            zone5_analog_scope: {
+                name: "8-Channel Analog Oscilloscope Front-End",
+                gpio_range: [40, 47],
+                adc_channels: [0, 1, 2, 3, 4, 5, 6, 7]
+            }
+        }
+    };
 
     // Intercept native fetch
     const originalFetch = window.fetch;
@@ -109,7 +181,19 @@
             });
         }
 
-        // 3. Fallback to normal fetch (for static local files)
+        // 3. Intercept board.json to guarantee all BakuProbe flagship options enabled in Web Demo
+        if (urlStr.includes('board.json')) {
+            try {
+                const res = await originalFetch.apply(this, arguments);
+                if (res.ok) return res;
+            } catch (e) {}
+            return new Response(JSON.stringify(BAKUPROBE_DEMO_MANIFEST), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 4. Fallback to normal fetch (for static local files)
         return originalFetch.apply(this, arguments);
     };
 
@@ -130,10 +214,9 @@
             };
         }
         else if (cleanName === 'SAFEDISCOVER') {
-            // Build dynamic pin discovery string
-            // Format: OK SAFEDISCOVER,10:d=X:o=Y,11:d=X:o=Y...
+            // Build dynamic pin discovery string across full 48-pin range (GP10-47)
             let pinParts = [];
-            for (let pin = 10; pin <= 29; pin++) {
+            for (let pin = 10; pin <= 47; pin++) {
                 let d = 0;
                 let o = 0;
                 for (const claim of simState.activeClaims.values()) {
