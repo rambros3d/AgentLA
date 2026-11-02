@@ -7,27 +7,27 @@
    1. Theme Variables & Color Tokens (DaisyUI v5 "black" & "emerald" Palettes)
    -------------------------------------------------------------------------- */
 :root, [data-theme="dark"] {
-    /* DaisyUI v5 "black" Design Tokens */
-    --color-base-100: oklch(0% 0 0);
-    --color-base-200: oklch(19% 0 0);
-    --color-base-300: oklch(22% 0 0);
-    --color-base-content: oklch(87.609% 0 0);
-    --color-primary: oklch(35% 0 0);
-    --color-primary-content: oklch(100% 0 0);
-    --color-secondary: oklch(35% 0 0);
-    --color-secondary-content: oklch(100% 0 0);
-    --color-accent: oklch(35% 0 0);
-    --color-accent-content: oklch(100% 0 0);
-    --color-neutral: oklch(35% 0 0);
-    --color-neutral-content: oklch(100% 0 0);
-    --color-info: oklch(45.201% 0.313 264.052);
-    --color-info-content: oklch(89.04% 0.062 264.052);
-    --color-success: oklch(51.975% 0.176 142.495);
-    --color-success-content: oklch(90.395% 0.035 142.495);
-    --color-warning: oklch(96.798% 0.211 109.769);
-    --color-warning-content: oklch(19.359% 0.042 109.769);
-    --color-error: oklch(62.795% 0.257 29.233);
-    --color-error-content: oklch(12.559% 0.051 29.233);
+    /* DaisyUI v5 "forest" Design Tokens */
+    --color-base-100: oklch(20% 0 0);
+    --color-base-200: oklch(18.522% 0.007 17.911);
+    --color-base-300: oklch(37% 0.01 67.558);
+    --color-base-content: oklch(86% 0.005 56.366);
+    --color-primary: oklch(68.628% 0.185 148.958);
+    --color-primary-content: oklch(0% 0 0);
+    --color-secondary: oklch(69.776% 0.135 168.327);
+    --color-secondary-content: oklch(13.955% 0.027 168.327);
+    --color-accent: oklch(70.628% 0.119 185.713);
+    --color-accent-content: oklch(14.125% 0.023 185.713);
+    --color-neutral: oklch(30.698% 0.039 171.364);
+    --color-neutral-content: oklch(86.139% 0.007 171.364);
+    --color-info: oklch(72.06% 0.191 231.6);
+    --color-info-content: oklch(0% 0 0);
+    --color-success: oklch(64.8% 0.15 160);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklch(84.71% 0.199 83.87);
+    --color-warning-content: oklch(0% 0 0);
+    --color-error: oklch(71.76% 0.221 22.18);
+    --color-error-content: oklch(0% 0 0);
 
     /* Semantic Component Variable Mappings */
     --bg-page: var(--color-base-100);
@@ -38,35 +38,35 @@
     --bg-elevated: var(--color-base-300);
 
     --text-primary: var(--color-base-content);
-    --text-secondary: oklch(72% 0 0);
-    --text-muted: oklch(52% 0 0);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 78%, transparent);
+    --text-muted: color-mix(in oklch, var(--color-base-content) 62%, transparent);
 
-    --border-color: rgba(255, 255, 255, 0.12);
-    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-color: var(--color-base-300);
+    --border-subtle: color-mix(in oklch, var(--color-base-300) 65%, transparent);
     --border-focus: var(--color-info);
 
     --accent-cyan: var(--color-info);
-    --accent-blue: oklch(60% 0.20 260);
+    --accent-blue: oklch(70% 0.19 250);
     --accent-green: var(--color-success);
     --accent-amber: var(--color-warning);
     --accent-red: var(--color-error);
-    --accent-purple: oklch(62% 0.20 310);
+    --accent-purple: oklch(72% 0.18 310);
 
     --panel-backdrop-filter: none;
-    --panel-bg: rgba(18, 18, 18, 0.88);
-    --window-bg: rgba(24, 24, 24, 0.90);
+    --panel-bg: var(--color-base-200);
+    --window-bg: var(--color-base-200);
 
     /* Bento & Technical Drafting Grid Tokens */
-    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    --grid-line: rgba(255, 255, 255, 0.04);
-    --pin-claimed-bg: oklch(45.201% 0.313 264.052 / 0.12);
+    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --grid-line: color-mix(in oklch, var(--color-base-300) 40%, transparent);
+    --pin-claimed-bg: color-mix(in oklch, var(--color-info) 14%, transparent);
     --pin-claimed-border: var(--color-info);
 
     /* Signal & Scope colors */
     --color-a0: #ffcc00; 
     --color-a1: #34c759; 
-    --color-a2: #007aff; 
-    --color-a3: #ff3b30; 
+    --color-a2: #00e5ff; 
+    --color-a3: #ff453a; 
 
     /* Digital / Logic Analyzer channel colors */
     --color-d0: #ff9500; 
@@ -79,7 +79,7 @@
     --color-d7: #ff8a65; 
 
     /* Terminal & Console */
-    --term-panel-color: oklch(12% 0 0); 
+    --term-panel-color: oklch(14% 0 0); 
     --term-accent-color: var(--color-info);
     --term-text-tx: var(--color-success); 
     --term-text-rx: var(--color-base-content);
@@ -94,23 +94,23 @@
     --color-base-100: oklch(100% 0 0);
     --color-base-200: oklch(93% 0 0);
     --color-base-300: oklch(86% 0 0);
-    --color-base-content: oklch(35.519% 0.032 262.988);
+    --color-base-content: oklch(25% 0.032 262.988);
     --color-primary: oklch(76.662% 0.135 153.45);
-    --color-primary-content: oklch(33.387% 0.04 162.24);
+    --color-primary-content: oklch(20% 0.04 162.24);
     --color-secondary: oklch(61.302% 0.202 261.294);
     --color-secondary-content: oklch(100% 0 0);
     --color-accent: oklch(72.772% 0.149 33.2);
     --color-accent-content: oklch(0% 0 0);
-    --color-neutral: oklch(35.519% 0.032 262.988);
+    --color-neutral: oklch(25% 0.032 262.988);
     --color-neutral-content: oklch(98.462% 0.001 247.838);
-    --color-info: oklch(72.06% 0.191 231.6);
-    --color-info-content: oklch(0% 0 0);
-    --color-success: oklch(64.8% 0.15 160);
-    --color-success-content: oklch(0% 0 0);
-    --color-warning: oklch(84.71% 0.199 83.87);
-    --color-warning-content: oklch(0% 0 0);
-    --color-error: oklch(71.76% 0.221 22.18);
-    --color-error-content: oklch(0% 0 0);
+    --color-info: oklch(62% 0.191 231.6);
+    --color-info-content: oklch(100% 0 0);
+    --color-success: oklch(55% 0.15 160);
+    --color-success-content: oklch(100% 0 0);
+    --color-warning: oklch(75% 0.199 83.87);
+    --color-warning-content: oklch(15% 0 0);
+    --color-error: oklch(60% 0.221 22.18);
+    --color-error-content: oklch(100% 0 0);
 
     /* Semantic Component Variable Mappings */
     --bg-page: var(--color-base-100);
@@ -121,11 +121,11 @@
     --bg-elevated: var(--color-base-200);
 
     --text-primary: var(--color-base-content);
-    --text-secondary: oklch(48% 0.02 262.988);
-    --text-muted: oklch(62% 0.015 262.988);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
+    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, transparent);
 
-    --border-color: rgba(0, 0, 0, 0.12);
-    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-color: rgba(0, 0, 0, 0.14);
+    --border-subtle: rgba(0, 0, 0, 0.08);
     --border-focus: var(--color-primary);
 
     --accent-cyan: var(--color-info);
@@ -136,8 +136,8 @@
     --accent-purple: oklch(60% 0.20 310);
 
     --panel-backdrop-filter: none;
-    --panel-bg: rgba(255, 255, 255, 0.90);
-    --window-bg: rgba(255, 255, 255, 0.94);
+    --panel-bg: var(--color-base-100);
+    --window-bg: var(--color-base-100);
 
     /* Bento & Technical Drafting Grid Tokens */
     --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
@@ -162,10 +162,10 @@
     --color-d7: #c2410c; 
 
     /* Terminal & Console */
-    --term-panel-color: oklch(24% 0.02 262.988); 
+    --term-panel-color: oklch(90% 0.02 262.988); 
     --term-accent-color: var(--color-info);
     --term-text-tx: var(--color-success); 
-    --term-text-rx: oklch(95% 0 0);
+    --term-text-rx: oklch(15% 0 0);
 }
 
 /* --------------------------------------------------------------------------
@@ -613,8 +613,8 @@ body.no-transparency {
     right: 14px;
     font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    color: var(--text-muted);
-    opacity: 0.45;
+    color: var(--text-secondary);
+    opacity: 0.6;
     pointer-events: none;
 }
 
@@ -663,10 +663,11 @@ body.no-transparency {
 }
 
 .telem-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-secondary);
     letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
 .telem-val {
@@ -804,8 +805,8 @@ body.no-transparency {
     right: 16px;
     font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    color: var(--text-muted);
-    opacity: 0.45;
+    color: var(--text-secondary);
+    opacity: 0.6;
     pointer-events: none;
 }
 
@@ -879,8 +880,9 @@ body.no-transparency {
 }
 
 .flex-pool-sub {
-    font-size: 10px;
-    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
 }
 
 .domain-fixed-block {
@@ -914,19 +916,19 @@ body.no-transparency {
 
 .dash-pin-chip.has-driver .dash-pin-role-tag {
     background: var(--accent-green) !important;
-    color: #000 !important;
+    color: var(--color-success-content) !important;
     font-weight: 700;
 }
 
 .dash-pin-chip.has-observer {
-    border-color: var(--accent-purple) !important;
-    background: rgba(175, 82, 222, 0.08) !important;
+    border-color: var(--accent-cyan) !important;
+    background: color-mix(in oklch, var(--color-info) 10%, transparent) !important;
 }
 
 .dash-pin-chip.has-observer .dash-pin-role-tag {
-    background: var(--accent-purple) !important;
-    color: #fff !important;
-    font-weight: 600;
+    background: var(--accent-cyan) !important;
+    color: var(--color-info-content) !important;
+    font-weight: 700;
 }
 
 .dash-pin-chip.is-analog {
@@ -1030,26 +1032,28 @@ body.no-transparency {
 }
 
 .dash-pin-role-tag {
-    font-size: 9px;
-    padding: 1px 4px;
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-secondary);
+    background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+    color: var(--text-primary);
 }
 
 [data-theme="light"] .dash-pin-role-tag {
-    background: rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.08);
 }
 
 .dash-pin-chip.claimed .dash-pin-role-tag {
     background: var(--pin-claimed-border);
-    color: var(--color-base-100);
-    font-weight: 600;
+    color: var(--color-info-content);
+    font-weight: 700;
 }
 
 .dash-pin-fn {
-    font-size: 9.5px;
-    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1139,8 +1143,8 @@ body.no-transparency {
 .slot-badge {
     font-size: 10px;
     font-weight: 700;
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    background: var(--color-base-300);
     padding: 2px 6px;
     border-radius: 4px;
 }
@@ -1608,8 +1612,9 @@ body.no-transparency {
     top: 0;
     padding: 6px 10px;
     text-align: left;
-    font-size: 10.5px;
-    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -1620,7 +1625,7 @@ body.no-transparency {
 
 .mem-addr { color: var(--accent-cyan); font-weight: 600; }
 .mem-hex { color: var(--text-primary); letter-spacing: 0.5px; }
-.mem-ascii { color: var(--text-muted); }
+.mem-ascii { color: var(--text-secondary); }
 
 /* GPIO Matrix & Claims */
 .pin-matrix-container {
@@ -1700,7 +1705,7 @@ body.no-transparency {
 }
 
 .pin-chip-state.high { background: rgba(52, 199, 89, 0.2); color: var(--accent-green); }
-.pin-chip-state.low { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); }
+.pin-chip-state.low { background: color-mix(in oklch, var(--color-base-content) 12%, transparent); color: var(--text-secondary); border: 1px solid var(--border-color); }
 
 /* Bus Masters (I2C & SPI) */
 .bus-layout {
@@ -1733,8 +1738,9 @@ body.no-transparency {
     top: 0;
     padding: 6px 10px;
     text-align: left;
-    font-size: 10.5px;
-    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -2446,8 +2452,9 @@ body.no-transparency {
 }
 
 .pin-toggle-state.low {
-    background: rgba(142, 142, 147, 0.15);
-    color: var(--text-muted);
+    background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
 }
 
 .pin-toggle-actions {
@@ -2572,8 +2579,8 @@ body.no-transparency {
 
 .vtarget-telem-label {
     font-size: 10px;
-    font-weight: 600;
-    color: var(--text-muted);
+    font-weight: 700;
+    color: var(--text-secondary);
     text-transform: uppercase;
 }
 
@@ -2606,9 +2613,9 @@ body.no-transparency {
 }
 
 .reg-name {
-    font-size: 9.5px;
-    font-weight: 600;
-    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-secondary);
 }
 
 .reg-val {
@@ -2830,7 +2837,7 @@ body.no-transparency {
 .matrix-subtitle {
     margin: 0;
     font-size: 13px;
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 .matrix-header-actions {
@@ -2983,8 +2990,9 @@ body.no-transparency {
 .info-label {
     font-size: 10px;
     font-weight: 700;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
 .info-val {
