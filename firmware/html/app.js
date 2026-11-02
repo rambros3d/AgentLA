@@ -76,12 +76,7 @@ function saveUiSettings() {
 
 function applyUiSettings() {
     // Solid state theme - no wallpaper hue or transparency effects
-}deg`);
-    if (UI_SETTINGS.transparency === 'solid') {
-        document.body.classList.add('no-transparency');
-    } else {
-        document.body.classList.remove('no-transparency');
-    }
+    document.body.classList.add('no-transparency');
 }
 
 // --------------------------------------------------------------------------
@@ -332,19 +327,19 @@ function inspectPin(pinNum) {
     const isConflict = pin.driver > 1;
     let badgeHtml = '';
     if (pin.fixed) {
-        badgeHtml = '<span class="status-badge" style="background: rgba(255, 69, 58, 0.2); color: #ff453a; border: 1px solid #ff453a;"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        badgeHtml = `<span class="status-badge" style="background: rgba(255, 69, 58, 0.2); color: #ff453a; border: 1px solid #ff453a;"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path opacity="0.5" d="M2 16C2 13.1716 2 11.7574 2.87868 10.8787C3.75736 10 5.17157 10 8 10H16C18.8284 10 20.2426 10 21.1213 10.8787C22 11.7574 22 13.1716 22 16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H8C5.17157 22 3.75736 22 2.87868 21.1213C2 20.2426 2 18.8284 2 16Z" fill="currentColor"/>
 <path d="M8 15C8.55228 15 9 15.4477 9 16C9 16.5523 8.55228 17 8 17C7.44772 17 7 16.5523 7 16C7 15.4477 7.44772 15 8 15Z" fill="currentColor"/>
 <path d="M12 15C12.5523 15 13 15.4477 13 16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16C11 15.4477 11.4477 15 12 15Z" fill="currentColor"/>
 <path d="M16 15C16.5523 15 17 15.4477 17 16C17 16.5523 16.5523 17 16 17C15.4477 17 15 16.5523 15 16C15 15.4477 15.4477 15 16 15Z" fill="currentColor"/>
 <path d="M12 1.25C15.7279 1.25 18.75 4.27208 18.75 8V10.0547C18.3135 10.0221 17.8174 10.0092 17.25 10.0039V8C17.25 5.10051 14.8995 2.75 12 2.75C9.10051 2.75 6.75 5.10051 6.75 8V10.0039C6.18264 10.0092 5.68651 10.0221 5.25 10.0547V8C5.25 4.27208 8.27208 1.25 12 1.25Z" fill="currentColor"/>
-</svg> FIXED PROGRAMMER BLOCK</span>';
+</svg> FIXED PROGRAMMER BLOCK</span>`;
     } else if (isConflict) {
-        badgeHtml = '<span class="status-badge" style="background: rgba(255, 149, 0, 0.25); color: #ff9500; border: 1px solid #ff9500;"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        badgeHtml = `<span class="status-badge" style="background: rgba(255, 149, 0, 0.25); color: #ff9500; border: 1px solid #ff9500;"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path opacity="0.5" d="M16.1569 3.80211L16.8431 4.20846C18.8718 5.40987 19.8862 6.01057 20.4431 7C21 7.98943 21 9.19084 21 11.5937V12.4063C21 14.8092 21 16.0106 20.4431 17C19.8862 17.9894 18.8718 18.5901 16.8431 19.7915L16.1569 20.1979C14.1282 21.3993 13.1138 22 12 22C10.8862 22 9.8718 21.3993 7.84308 20.1979L7.15692 19.7915C5.1282 18.5901 4.11384 17.9894 3.55692 17C3 16.0106 3 14.8092 3 12.4063V11.5937C3 9.19084 3 7.98943 3.55692 7C4.11384 6.01057 5.1282 5.40987 7.15692 4.20846L7.84308 3.80211C9.8718 2.6007 10.8862 2 12 2C13.1138 2 14.1282 2.6007 16.1569 3.80211Z" fill="currentColor"/>
 <path d="M12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25Z" fill="currentColor"/>
 <path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" fill="currentColor"/>
-</svg> ATOMIC CONFLICT (DRIVER COLLISION)</span>';
+</svg> ATOMIC CONFLICT (DRIVER COLLISION)</span>`;
     } else if (pin.driver === 1) {
         badgeHtml = '<span class="status-badge ok">EXCLUSIVE DRIVER ACTIVE</span>';
     } else if (pin.observers > 0) {
