@@ -193,31 +193,28 @@ void swd_jtag_to_swd(void) {
 }
 
 void swd_dormant_to_swd(void) {
-    /* 1. Initial line reset (no idle cycles before transition) */
-    swd_line_reset_ext(false);
+    /* Standard ARM ADIv5.2 / ADIv6 Dormant-to-SWD Sequence (OpenOCD swd_seq_dormant_to_swd).
+     * Total length: 199 bits.
+     * 1. At least 8 cycles with SWDIO HIGH (0xFF) to abort previous alerts.
+     * 2. 128-bit Selection Alert sequence in LSB-first bitstream:
+     *    0x92, 0xF3, 0x09, 0x62, 0x95, 0x2D, 0x85, 0x86,
+     *    0xE9, 0xAF, 0xDD, 0xE3, 0xA2, 0x0E, 0xBC, 0x19
+     * 3. 4 cycles with SWDIO LOW (0x0).
+     * 4. 8-bit SW-DP activation code (0x1A LSB-first framing: 0x10, 0xFA).
+     * 5. Line reset (50+ HIGH cycles) and idle tail.
+     *
+     * Transmitted in 32-bit chunks via probe_write_bits (LSB first):
+     */
+    swd_write_bits(32, 0x09F392FFU);
+    swd_write_bits(32, 0x852D9562U);
+    swd_write_bits(32, 0xDDAFE986U);
+    swd_write_bits(32, 0xBC0EA2E3U);
+    swd_write_bits(32, 0xFFFA1019U);
+    swd_write_bits(32, 0xFFFFFFFFU);
+    swd_write_bits(7,  0x0000003FU);
 
-    /* 2. Send 44-bit JTAG-to-Dormant transition sequence (BMP adiv5_swd.c L86-88)
-     * Required for targets powering up in JTAG mode (e.g. STM32F1 SWJ-DP) */
-    swd_write_bits(5, 0x1F);
-    swd_write_bits(31, 0x33BBBBBA);
-    swd_write_bits(8, 0xFF);
-
-    /* 3. Send 128-bit Selection Alert sequence (LSB-first word order) */
-    uint32_t alert_buf[4] = {
-        ADIV5_SELECTION_ALERT_SEQUENCE_3,  /* 0x19bc0ea2U */
-        ADIV5_SELECTION_ALERT_SEQUENCE_2,  /* 0xe3ddafe9U */
-        ADIV5_SELECTION_ALERT_SEQUENCE_1,  /* 0x86852d95U */
-        ADIV5_SELECTION_ALERT_SEQUENCE_0   /* 0x6209f392U */
-    };
-    for (int i = 0; i < 4; i++) {
-        swd_write_bits(32, alert_buf[i]);
-    }
-
-    /* 4. Send 4 LOW bits + 8-bit ARM SWD activation code (0x1A) */
-    swd_write_bits(12, (ADIV5_ACTIVATION_CODE_ARM_SWD_DP << 4));
-
-    /* 5. Line reset to bring interface to reset state */
-    swd_line_reset_ext(true);
+    /* Invalidate DP select cache */
+    swd_state.ap_select = 0xFF;
 }
 
 static uint8_t swd_pio_transfer_wire(uint8_t request, uint32_t *data);

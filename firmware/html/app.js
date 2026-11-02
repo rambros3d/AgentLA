@@ -98,6 +98,11 @@ function setTheme(theme) {
     document.querySelectorAll('.settings-theme-select').forEach(sel => {
         sel.value = validTheme;
     });
+
+    // Notify active scopes and canvases to immediately redraw with matching theme colors
+    window.activeLogicController?.forceRedraw();
+    if (window.redrawScope) window.redrawScope();
+    if (window.redrawGenPreview) window.redrawGenPreview();
 }
 
 function toggleTheme() {
@@ -884,9 +889,18 @@ function initLogicAnalyzer(container) {
         const graphH = canvas.height - margin.top - margin.bottom;
         if (graphW <= 0 || graphH <= 0 || activeChannels.length === 0) return;
 
+        const isDark = getCurrentTheme() === 'dark';
+        const colors = isDark ? [
+            '#ff9500', '#ff2a6d', '#af52de', '#00e5ff', 
+            '#cba6f7', '#5856d6', '#d1f534', '#ff8a65'
+        ] : [
+            '#ea580c', '#e11d48', '#9333ea', '#0284c7',
+            '#7c3aed', '#4f46e5', '#65a30d', '#c2410c'
+        ];
+
         const hDivs = 10;
         const dx = graphW / hDivs;
-        ctx.strokeStyle = getCurrentTheme() === 'dark' ? '#1c2838' : '#e2e8f0';
+        ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (let i = 0; i <= hDivs; i++) {
@@ -1186,12 +1200,17 @@ function initAnalogScope(container) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const maxHistory = 200;
-    const history = [[], [], [], []];
-    const chColors = ['#00e5ff', '#ffd60a', '#ff2a6d', '#34c759'];
+    let animId = null;
 
     function renderScope() {
-        if (!canvas.parentElement) return;
+        if (!canvas.parentElement || canvas.style.display === 'none') {
+            if (animId) {
+                cancelAnimationFrame(animId);
+                animId = null;
+            }
+            return;
+        }
+
         const parentW = canvas.parentElement.clientWidth;
         const parentH = canvas.parentElement.clientHeight;
         if (canvas.width !== parentW || canvas.height !== parentH) {
@@ -1200,26 +1219,54 @@ function initAnalogScope(container) {
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const pad = { left: 50, right: 20, top: 20, bottom: 25 };
+        const pad = { left: 55, right: 20, top: 28, bottom: 25 };
         const graphW = canvas.width - pad.left - pad.right;
         const graphH = canvas.height - pad.top - pad.bottom;
         if (graphW <= 0 || graphH <= 0) return;
 
+        const isDark = getCurrentTheme() === 'dark';
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+        const textColor = isDark ? 'rgba(255, 255, 255, 0.70)' : 'rgba(0, 0, 0, 0.65)';
+        const chColors = isDark 
+            ? ['#00e5ff', '#ffd60a', '#ff2a6d', '#34c759']
+            : ['#0284c7', '#d97706', '#dc2626', '#16a34a'];
+
         // Draw grid
-        ctx.strokeStyle = '#1c2838';
+        ctx.strokeStyle = gridColor;
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (let i = 0; i <= 8; i++) {
-            const y = pad.top + (i * graphH) / 8;
+            const y = Math.round(pad.top + (i * graphH) / 8) + 0.5;
             ctx.moveTo(pad.left, y);
             ctx.lineTo(pad.left + graphW, y);
         }
         for (let i = 0; i <= 10; i++) {
-            const x = pad.left + (i * graphW) / 10;
+            const x = Math.round(pad.left + (i * graphW) / 10) + 0.5;
             ctx.moveTo(x, pad.top);
             ctx.lineTo(x, pad.top + graphH);
         }
         ctx.stroke();
+
+        // Draw Voltage scale labels (0.00V, 1.65V, 3.30V)
+        ctx.fillStyle = textColor;
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('3.30V', pad.left - 6, pad.top);
+        ctx.fillText('1.65V', pad.left - 6, pad.top + graphH / 2);
+        ctx.fillText('0.00V', pad.left - 6, pad.top + graphH);
+
+        // Draw Channel Legend at top
+        const chLabels = ['CH0 (ADC0)', 'CH1 (ADC1)', 'CH2 (ADC2)', 'CH3 (ADC3)'];
+        let legendX = pad.left;
+        ctx.font = '600 10.5px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'left';
+        for (let ch = 0; ch < 4; ch++) {
+            ctx.fillStyle = chColors[ch];
+            ctx.fillRect(legendX, pad.top - 16, 9, 9);
+            ctx.fillText(chLabels[ch], legendX + 13, pad.top - 9);
+            legendX += 95;
+        }
 
         // Draw synthetic ADC traces
         const now = Date.now();
@@ -1236,7 +1283,16 @@ function initAnalogScope(container) {
             }
             ctx.stroke();
         }
+
+        if (canvas.style.display !== 'none') {
+            animId = requestAnimationFrame(renderScope);
+        }
     }
+
+    window.redrawScope = () => {
+        if (animId) cancelAnimationFrame(animId);
+        renderScope();
+    };
 
     renderScope();
 }

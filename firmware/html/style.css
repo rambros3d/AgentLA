@@ -55,6 +55,7 @@
     --panel-backdrop-filter: none;
     --panel-bg: var(--color-base-200);
     --window-bg: var(--color-base-200);
+    --canvas-bg: oklch(14% 0 0);
 
     /* Bento & Technical Drafting Grid Tokens */
     --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -138,6 +139,7 @@
     --panel-backdrop-filter: none;
     --panel-bg: var(--color-base-100);
     --window-bg: var(--color-base-100);
+    --canvas-bg: oklch(98.5% 0 0);
 
     /* Bento & Technical Drafting Grid Tokens */
     --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
@@ -1395,10 +1397,11 @@ body.no-transparency {
     flex: 1;
     min-height: 140px;
     position: relative;
-    background: var(--bg-surface);
+    background: var(--canvas-bg);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     overflow: hidden;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 #logic-canvas {
@@ -2257,14 +2260,18 @@ body.no-transparency {
     flex: 1;
     min-height: 160px;
     position: relative;
-    background: #060c14;
+    background: var(--canvas-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     overflow: hidden;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .logic-canvas-wrapper canvas {
     width: 100%;
     height: 100%;
     display: block;
+    cursor: crosshair;
 }
 
 /* Docked Stimulus Deck */

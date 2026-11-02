@@ -236,24 +236,23 @@ swd_result_t target_detect(void) {
     }
     uint32_t core_part = (cpuid >> 4) & 0xFFF;
     bool is_cortex_m0p = (core_part == 0xC60) || (idcode == 0x0BC11477) || (idcode == 0x0BB11477);
+    bool is_rp2350 = (idcode == 0x4C013477);
 
     uint16_t rev_id = (dbg_id >> 16) & 0xFFFF;
     uint16_t dev_id = dbg_id & 0xFFF;
 
-    /* Check for Puya PY32:
-     * - Cortex-M0+ core
-     * - DBGMCU_IDCODE at 0x40015800 has rev 0x6000 (0x60001000 / 0x60000000) or dev 0x030 / 0x003 / 0x002
-     * - Or factory info area at 0x1FFF0FFC / 0x1FFF0E00
-     */
-    bool is_puya = false;
-    if (rev_id == 0x6000 || dbg_id == 0x60001000 || current_target.designer_id == TARGET_DESIGNER_PUYA ||
-        dev_id == TARGET_PART_PY32F030 || dev_id == TARGET_PART_PY32F003 || dev_id == TARGET_PART_PY32F002A) {
-        is_puya = true;
-    } else if (is_cortex_m0p && dev_id != TARGET_PART_STM32G0) {
-        is_puya = true;
-    }
-
-    if (is_puya) {
+    if (is_rp2350) {
+        current_target.family = TARGET_FAMILY_RP2350;
+        current_target.designer_id = TARGET_DESIGNER_RPI;
+        current_target.part_id = TARGET_PART_RP2350;
+        current_target.name = "Raspberry Pi RP2350 (Cortex-M33)";
+        current_target.flash_base = 0x10000000;
+        current_target.flash_size = 2048 * 1024;
+        current_target.ram_base = 0x20000000;
+        current_target.ram_size = 520 * 1024;
+    } else if (rev_id == 0x6000 || dbg_id == 0x60001000 || current_target.designer_id == TARGET_DESIGNER_PUYA ||
+               dev_id == TARGET_PART_PY32F030 || dev_id == TARGET_PART_PY32F003 || dev_id == TARGET_PART_PY32F002A ||
+               (is_cortex_m0p && dev_id != TARGET_PART_STM32G0)) {
         current_target.family = TARGET_FAMILY_PY32F0;
         current_target.designer_id = TARGET_DESIGNER_PUYA;
         current_target.part_id = TARGET_PART_PY32F030;
