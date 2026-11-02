@@ -461,12 +461,13 @@ bool target_flash_read(uint32_t addr, uint8_t *data, uint32_t len) {
 
 bool target_is_rdp_protected(void) {
     if (current_target.family != TARGET_FAMILY_STM32F1) return false;
-    uint32_t v = 0;
-    if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) != SWD_OK) return false;
-    if (swd_write_ap(AP_TAR, 0x1FFFF800u) != SWD_OK) return false;
-    if (swd_read_ap(AP_DRW, &v) != SWD_OK) return false;
-    /* Level-0 (unprotected): RDP byte 0xA5 / complement 0x5A. */
-    return !((v & 0x00FFu) == 0xA5u && ((v >> 8) & 0xFFu) == 0x5Au);
+    uint32_t obr = 0;
+    if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) == SWD_OK &&
+        swd_write_ap(AP_TAR, 0x4002201Cu) == SWD_OK &&
+        swd_read_ap(AP_DRW, &obr) == SWD_OK) {
+        return (obr & 0x02u) != 0;
+    }
+    return false;
 }
 
 bool target_nordic_mass_erase(void) {
@@ -495,16 +496,18 @@ bool target_nordic_mass_erase(void) {
 
 bool target_lock_rdp_level1(void) {
     if (current_target.family != TARGET_FAMILY_STM32F1) return false;
-    uint8_t ob[32];
+    uint8_t ob[16];
+    memset(ob, 0xFF, sizeof(ob));
     uint32_t addr = 0x1FFFF800u;
-    /* Read current option bytes (16 halfwords). */
-    for (uint32_t i = 0; i < 32; i++) {
+    /* Read current option bytes (8 halfwords). */
+    for (uint32_t i = 0; i < 16; i += 2) {
         uint32_t v = 0;
-        if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT) != SWD_OK) return false;
+        if (swd_write_ap(AP_CSW, ADIV5_AP_CSW_16BIT) != SWD_OK) return false;
         if (swd_write_ap(AP_TAR, addr + i) != SWD_OK) return false;
         if (swd_read_ap(AP_DRW, &v) != SWD_OK) return false;
-        /* Halfword stream; bytes at (addr+i). */
-        ob[i] = (uint8_t)v;
+        uint32_t shift = 8U * ((addr + i) & 2U);
+        ob[i] = (uint8_t)(v >> shift);
+        ob[i + 1] = (uint8_t)((v >> shift) >> 8);
     }
 
     /* Modify RDP low byte at [1FFFF800] -> 0x00 (level 1), complement -> 0xFF. */
@@ -520,28 +523,27 @@ bool target_lock_rdp_level1(void) {
     swd_write_ap(AP_TAR, 0x40022008u);
     swd_write_ap(AP_DRW, 0xCDEF89ABu);
 
-    /* Erase option bytes. */
+    /* Erase option bytes: OPTER then OPTER|STRT in separate writes. */
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000020u); /* OPTER */
-    swd_write_ap(AP_TAR, 0x40022014u);
-    swd_write_ap(AP_DRW, 0x1FFFF800u);
+    swd_write_ap(AP_DRW, 0x00000220u); /* OPTWRE | OPTER */
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000060u); /* OPTER|STRT */
+    swd_write_ap(AP_DRW, 0x00000260u); /* OPTWRE | OPTER | STRT */
     if (!stm32f1_wait_flash_bsy()) {
         swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
         swd_write_ap(AP_TAR, 0x40022010u);
-        swd_write_ap(AP_DRW, 0x00000000u);
+        swd_write_ap(AP_DRW, 0x00000080u);
         return false;
     }
+    /* Clear OPTER while keeping OPTWRE active (0x200) */
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000000u);
+    swd_write_ap(AP_DRW, 0x00000200u);
 
-    /* Program option bytes in 16-bit accesses. */
+    /* Program option bytes in 16-bit accesses with OPTPG | OPTWRE (0x210). */
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000010u); /* OPTPG */
+    swd_write_ap(AP_DRW, 0x00000210u); /* OPTWRE | OPTPG */
     for (uint32_t i = 0; i < 16; i += 2) {
         uint16_t halfword = (uint16_t)(ob[i] | (ob[i + 1] << 8));
         /* Only bytes [0,1] were changed for RDP; all others are preserved. */
@@ -553,22 +555,27 @@ bool target_lock_rdp_level1(void) {
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
     swd_write_ap(AP_DRW, 0x00000080u); /* LOCK */
+
+    /* Pulse GPIO6 (nRST) to reload option bytes into FLASH_OBR and re-sync SWD */
+    swd_assert_reset();
+    sleep_ms(20);
+    swd_deassert_reset();
+    sleep_ms(50);
+    swd_jtag_to_swd();
+    target_detect();
+
     return true;
 }
 
 bool target_unlock_rdp(void) {
     if (current_target.family != TARGET_FAMILY_STM32F1) return false;
-    uint8_t ob[32];
-    uint32_t addr = 0x1FFFF800u;
-    for (uint32_t i = 0; i < 32; i++) {
-        uint32_t v = 0;
-        swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
-        swd_write_ap(AP_TAR, addr + i);
-        if (swd_read_ap(AP_DRW, &v) != SWD_OK) return false;
-        ob[i] = (uint8_t)v;
-    }
+    uint8_t ob[16];
+    memset(ob, 0xFF, sizeof(ob));
     ob[0] = 0xA5;
     ob[1] = 0x5A;
+
+    /* NOTE: Do NOT attempt to read option bytes at 0x1FFFF800 under RDP1;
+     * debug access to Flash/System Memory triggers an AP fault that latches STICKYERR. */
 
     if (stm32f1_unlock_flash() != true) return false;
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
@@ -577,26 +584,27 @@ bool target_unlock_rdp(void) {
     swd_write_ap(AP_TAR, 0x40022008u);
     swd_write_ap(AP_DRW, 0xCDEF89ABu);
 
+    /* Erase option bytes: OPTER then OPTER|STRT in separate writes. */
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000020u);
-    swd_write_ap(AP_TAR, 0x40022014u);
-    swd_write_ap(AP_DRW, 0x1FFFF800u);
+    swd_write_ap(AP_DRW, 0x00000220u); /* OPTWRE | OPTER */
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000060u);
+    swd_write_ap(AP_DRW, 0x00000260u); /* OPTWRE | OPTER | STRT */
     if (!stm32f1_wait_flash_bsy()) {
         swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
         swd_write_ap(AP_TAR, 0x40022010u);
-        swd_write_ap(AP_DRW, 0x00000000u);
+        swd_write_ap(AP_DRW, 0x00000080u);
         return false;
     }
+    /* Clear OPTER while keeping OPTWRE active (0x200) */
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000000u);
+    swd_write_ap(AP_DRW, 0x00000200u);
 
+    /* Program option bytes with OPTWRE | OPTPG (0x210) */
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
-    swd_write_ap(AP_DRW, 0x00000010u);
+    swd_write_ap(AP_DRW, 0x00000210u);
     for (uint32_t i = 0; i < 16; i += 2) {
         uint16_t halfword = (uint16_t)(ob[i] | (ob[i + 1] << 8));
         swd_write_ap(AP_CSW, ADIV5_AP_CSW_16BIT);
@@ -607,6 +615,15 @@ bool target_unlock_rdp(void) {
     swd_write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
     swd_write_ap(AP_TAR, 0x40022010u);
     swd_write_ap(AP_DRW, 0x00000080u);
+
+    /* Pulse GPIO6 (nRST) to reload option bytes into FLASH_OBR, mass-erase Flash, and re-sync SWD */
+    swd_assert_reset();
+    sleep_ms(20);
+    swd_deassert_reset();
+    sleep_ms(50);
+    swd_jtag_to_swd();
+    target_detect();
+
     return true;
 }
 
@@ -615,8 +632,13 @@ bool target_unlock_rdp(void) {
 
 bool target_mass_erase(void) {
     if (!target_is_connected()) return false;
-    if (current_target.family == TARGET_FAMILY_STM32F1 ||
-        current_target.family == TARGET_FAMILY_STM32H5) {
+    if (current_target.family == TARGET_FAMILY_STM32F1) {
+        if (target_is_rdp_protected()) {
+            return target_unlock_rdp();
+        }
+        return target_flash_erase(current_target.flash_base, current_target.flash_size);
+    }
+    if (current_target.family == TARGET_FAMILY_STM32H5) {
         return target_flash_erase(current_target.flash_base, current_target.flash_size);
     }
     if (current_target.family == TARGET_FAMILY_NRF52) {

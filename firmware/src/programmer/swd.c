@@ -300,11 +300,11 @@ swd_result_t swd_read_idcode(uint32_t *idcode) {
 
     /* 2. Pulse nRESET and retry if initial connection failed */
     swd_assert_reset();
-    sleep_ms(10);
+    sleep_ms(20);
     swd_deassert_reset();
-    sleep_ms(100);
+    sleep_ms(50);
 
-    swd_line_reset_ext(true);
+    swd_jtag_to_swd();
     result = swd_read_dpidr_retry(idcode);
     if (result == SWD_OK && *idcode != 0 && *idcode != 0xFFFFFFFF) {
         swd_write_dp_no_check(DP_ABORT, 0x0000001E);

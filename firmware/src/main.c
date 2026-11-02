@@ -2586,14 +2586,15 @@ static void cmd_debug(char* args) {
             swd_assert_reset();
             sleep_ms(20);
             swd_deassert_reset();
-            sleep_ms(10);
+            sleep_ms(50);
+            swd_jtag_to_swd();
         } else {
             /* VECTKEY | SYSRESETREQ asserts the system reset request; the
              * reset controller reboots the core. The DP survives it. */
             debug_mem_write32(CORTEXM_AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
             sleep_ms(50);
+            swd_line_reset();
         }
-        swd_line_reset();
         target_detect();   /* full link re-connect (ignores DBGMCU FAULT recovery) */
         sleep_ms(100);     /* let the freshly booted firmware reach main() */
         send_response("OK DEBUG RESET");
@@ -3164,17 +3165,16 @@ static void cmd_mass_erase(char *args) {
     if (r != SWD_OK || !target_is_connected()) { send_response("ERR TARGET NOT IDENTIFIED"); return; }
     const target_info_t *info = target_get_info();
     char banner[192];
-    sprintf(banner, "MASS ERASE: target=%s flash=%lu bytes protection=rdp1",
-            info->name, (unsigned long)info->flash_size);
+    sprintf(banner, "MASS ERASE: target=%s flash=%lu bytes protection=%s",
+            info->name, (unsigned long)info->flash_size, target_is_rdp_protected() ? "rdp1" : "none");
     send_response(banner);
 
     if (!target_mass_erase()) { send_response("ERR MASS ERASE FAILED"); return; }
 
     /* Re-identify to confirm recovery. */
     target_detect();
-    const target_info_t *after = target_get_info();
     char done[128];
-    sprintf(done, "OK MASS ERASE DONE protection=%s", after ? after->name : "unknown");
+    sprintf(done, "OK MASS ERASE DONE protection=%s", target_is_rdp_protected() ? "rdp1" : "none");
     send_response(done);
 }
 

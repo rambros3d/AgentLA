@@ -75,7 +75,8 @@ function saveUiSettings() {
 }
 
 function applyUiSettings() {
-    document.documentElement.style.setProperty('--wallpaper-hue', `${UI_SETTINGS.wallpaperHue}deg`);
+    // Solid state theme - no wallpaper hue or transparency effects
+}deg`);
     if (UI_SETTINGS.transparency === 'solid') {
         document.body.classList.add('no-transparency');
     } else {
@@ -195,18 +196,57 @@ if (inspectorOverlay) inspectorOverlay.addEventListener('click', closeInspector)
 // --------------------------------------------------------------------------
 let primaryMode = 'bench';
 
+
+// --------------------------------------------------------------------------
+// Centered Settings Modal Controller
+// --------------------------------------------------------------------------
+function openSettingsModal() {
+    const modal = document.getElementById('modal-settings');
+    if (modal) {
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        const selTheme = document.getElementById('settings-theme-select');
+        if (selTheme) selTheme.value = getCurrentTheme();
+    }
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('modal-settings');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
 function switchMode(mode) {
-    primaryMode = mode === 'target' ? 'target' : 'bench';
+    if (mode === 'target') {
+        primaryMode = 'target';
+    } else if (mode === 'pins' || mode === 'matrix') {
+        primaryMode = 'pins';
+    } else {
+        primaryMode = 'bench';
+    }
+
     const viewBench = document.getElementById('view-active-bench');
     const viewTarget = document.getElementById('view-target-station');
+    const viewPins = document.getElementById('view-pin-matrix');
+
     const btnBench = document.getElementById('nav-mode-bench');
     const btnTarget = document.getElementById('nav-mode-target');
+    const btnPins = document.getElementById('nav-mode-pins');
 
     if (viewBench) viewBench.classList.toggle('active', primaryMode === 'bench');
     if (viewTarget) viewTarget.classList.toggle('active', primaryMode === 'target');
+    if (viewPins) viewPins.classList.toggle('active', primaryMode === 'pins');
 
     if (btnBench) btnBench.classList.toggle('active', primaryMode === 'bench');
     if (btnTarget) btnTarget.classList.toggle('active', primaryMode === 'target');
+    if (btnPins) btnPins.classList.toggle('active', primaryMode === 'pins');
+
+    if (primaryMode === 'pins') {
+        updatePinMatrix();
+        pollSafeDiscover();
+    }
 
     window.dispatchEvent(new Event('resize'));
     if (primaryMode === 'bench' && window.activeLogicController) {
@@ -292,9 +332,19 @@ function inspectPin(pinNum) {
     const isConflict = pin.driver > 1;
     let badgeHtml = '';
     if (pin.fixed) {
-        badgeHtml = '<span class="status-badge" style="background: rgba(255, 69, 58, 0.2); color: #ff453a; border: 1px solid #ff453a;">🔒 FIXED PROGRAMMER BLOCK</span>';
+        badgeHtml = '<span class="status-badge" style="background: rgba(255, 69, 58, 0.2); color: #ff453a; border: 1px solid #ff453a;"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path opacity="0.5" d="M2 16C2 13.1716 2 11.7574 2.87868 10.8787C3.75736 10 5.17157 10 8 10H16C18.8284 10 20.2426 10 21.1213 10.8787C22 11.7574 22 13.1716 22 16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H8C5.17157 22 3.75736 22 2.87868 21.1213C2 20.2426 2 18.8284 2 16Z" fill="currentColor"/>
+<path d="M8 15C8.55228 15 9 15.4477 9 16C9 16.5523 8.55228 17 8 17C7.44772 17 7 16.5523 7 16C7 15.4477 7.44772 15 8 15Z" fill="currentColor"/>
+<path d="M12 15C12.5523 15 13 15.4477 13 16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16C11 15.4477 11.4477 15 12 15Z" fill="currentColor"/>
+<path d="M16 15C16.5523 15 17 15.4477 17 16C17 16.5523 16.5523 17 16 17C15.4477 17 15 16.5523 15 16C15 15.4477 15.4477 15 16 15Z" fill="currentColor"/>
+<path d="M12 1.25C15.7279 1.25 18.75 4.27208 18.75 8V10.0547C18.3135 10.0221 17.8174 10.0092 17.25 10.0039V8C17.25 5.10051 14.8995 2.75 12 2.75C9.10051 2.75 6.75 5.10051 6.75 8V10.0039C6.18264 10.0092 5.68651 10.0221 5.25 10.0547V8C5.25 4.27208 8.27208 1.25 12 1.25Z" fill="currentColor"/>
+</svg> FIXED PROGRAMMER BLOCK</span>';
     } else if (isConflict) {
-        badgeHtml = '<span class="status-badge" style="background: rgba(255, 149, 0, 0.25); color: #ff9500; border: 1px solid #ff9500;">⚠️ ATOMIC CONFLICT (DRIVER COLLISION)</span>';
+        badgeHtml = '<span class="status-badge" style="background: rgba(255, 149, 0, 0.25); color: #ff9500; border: 1px solid #ff9500;"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path opacity="0.5" d="M16.1569 3.80211L16.8431 4.20846C18.8718 5.40987 19.8862 6.01057 20.4431 7C21 7.98943 21 9.19084 21 11.5937V12.4063C21 14.8092 21 16.0106 20.4431 17C19.8862 17.9894 18.8718 18.5901 16.8431 19.7915L16.1569 20.1979C14.1282 21.3993 13.1138 22 12 22C10.8862 22 9.8718 21.3993 7.84308 20.1979L7.15692 19.7915C5.1282 18.5901 4.11384 17.9894 3.55692 17C3 16.0106 3 14.8092 3 12.4063V11.5937C3 9.19084 3 7.98943 3.55692 7C4.11384 6.01057 5.1282 5.40987 7.15692 4.20846L7.84308 3.80211C9.8718 2.6007 10.8862 2 12 2C13.1138 2 14.1282 2.6007 16.1569 3.80211Z" fill="currentColor"/>
+<path d="M12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25Z" fill="currentColor"/>
+<path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" fill="currentColor"/>
+</svg> ATOMIC CONFLICT (DRIVER COLLISION)</span>';
     } else if (pin.driver === 1) {
         badgeHtml = '<span class="status-badge ok">EXCLUSIVE DRIVER ACTIVE</span>';
     } else if (pin.observers > 0) {
@@ -347,14 +397,14 @@ async function syncPinRegistry() {
         }
     }
 
-    const conflictBadge = document.getElementById('pin-drawer-conflict-badge');
+    const conflictBadge = document.getElementById('pin-matrix-conflict-badge') || document.getElementById('pin-drawer-conflict-badge');
     if (conflictBadge) {
         if (conflictPin !== null) {
             conflictBadge.className = 'pin-conflict-badge conflict';
-            conflictBadge.textContent = `⚠️ Conflict on GP${conflictPin}: Multiple Drivers!`;
+            conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/><path d="M12 7.75C12.4142 7.75 12.75 8.08579 12.75 8.5V12.5C12.75 12.9142 12.4142 13.25 12 13.25C11.5858 13.25 11.25 12.9142 11.25 12.5V8.5C11.25 8.08579 11.5858 7.75 12 7.75Z" fill="currentColor"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg><span>Conflict on GP${conflictPin}: Multiple Drivers!</span>`;
         } else {
             conflictBadge.className = 'pin-conflict-badge ok';
-            conflictBadge.textContent = '✓ All Pins Conflict-Free';
+            conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M16.0303 10.0303C16.3232 9.73744 16.3232 9.26256 16.0303 8.96967C15.7374 8.67678 15.2626 8.67678 14.9697 8.96967L10.5 13.4393L9.03033 11.9697C8.73744 11.6768 8.26256 11.6768 7.96967 11.9697C7.67678 12.2626 7.67678 12.7374 7.96967 13.0303L9.96967 15.0303C10.2626 15.3232 10.7374 15.3232 11.0303 15.0303L16.0303 10.0303Z" fill="currentColor"/></svg><span>All Pins Conflict-Free</span>`;
         }
     }
 
@@ -1803,31 +1853,35 @@ document.addEventListener('DOMContentLoaded', () => {
         btnThemeToggle.addEventListener('click', toggleTheme);
     }
 
-    // 2. Primary Mode Segment buttons
+    // 2. Primary Mode Navigation (3 Full Screen Tabs)
     const btnBench = document.getElementById('nav-mode-bench');
     const btnTarget = document.getElementById('nav-mode-target');
+    const btnPins = document.getElementById('nav-mode-pins');
+
     if (btnBench) btnBench.addEventListener('click', () => switchMode('bench'));
     if (btnTarget) btnTarget.addEventListener('click', () => switchMode('target'));
+    if (btnPins) btnPins.addEventListener('click', () => switchMode('pins'));
 
-    // 3. Slide-Out Pin Matrix Drawer Toggle & Hotkey
-    const btnTogglePins = document.getElementById('btn-toggle-pins');
-    const btnClosePinDrawer = document.getElementById('btn-close-pin-drawer');
-    const pinMatrixBackdrop = document.getElementById('pin-matrix-backdrop');
-
-    if (btnTogglePins) btnTogglePins.addEventListener('click', () => togglePinDrawer());
-    if (btnClosePinDrawer) btnClosePinDrawer.addEventListener('click', () => togglePinDrawer(false));
-    if (pinMatrixBackdrop) pinMatrixBackdrop.addEventListener('click', () => togglePinDrawer(false));
+    const btnMatrixDiscover = document.getElementById('btn-matrix-safediscover');
+    if (btnMatrixDiscover) {
+        btnMatrixDiscover.addEventListener('click', () => pollSafeDiscover());
+    }
 
     document.addEventListener('keydown', (e) => {
         const targetTag = (document.activeElement?.tagName || '').toUpperCase();
         if (['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
 
-        if (e.key === 'p' || e.key === 'P') {
+        if (e.key === '1') {
             e.preventDefault();
-            togglePinDrawer();
+            switchMode('bench');
+        } else if (e.key === '2') {
+            e.preventDefault();
+            switchMode('target');
+        } else if (e.key === '3' || e.key === 'p' || e.key === 'P') {
+            e.preventDefault();
+            switchMode('pins');
         } else if (e.key === 'Escape') {
-            togglePinDrawer(false);
-            closeInspector();
+            closeSettingsModal();
         }
     });
 
@@ -2070,17 +2124,43 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 10. Header Settings
+    // 10. Header Settings (Centered Modal)
     const btnHeaderSettings = document.getElementById('btn-header-settings');
+    const btnCloseSettingsModal = document.getElementById('btn-close-settings-modal');
+    const modalSettings = document.getElementById('modal-settings');
+
     if (btnHeaderSettings) {
-        btnHeaderSettings.addEventListener('click', () => {
-            const template = document.getElementById('template-settings');
-            if (template) {
-                const clone = template.cloneNode(true);
-                clone.style.display = 'block';
-                clone.removeAttribute('id');
-                initSystemSettings(clone);
-                openInspector('System Settings', clone);
+        btnHeaderSettings.addEventListener('click', openSettingsModal);
+    }
+    if (btnCloseSettingsModal) {
+        btnCloseSettingsModal.addEventListener('click', closeSettingsModal);
+    }
+    if (modalSettings) {
+        modalSettings.addEventListener('click', (e) => {
+            if (e.target === modalSettings) closeSettingsModal();
+        });
+    }
+
+    const selTheme = document.getElementById('settings-theme-select');
+    if (selTheme) {
+        selTheme.value = getCurrentTheme();
+        selTheme.addEventListener('change', () => setTheme(selTheme.value));
+    }
+
+    const btnReboot = document.getElementById('btn-reboot');
+    if (btnReboot) {
+        btnReboot.addEventListener('click', async () => {
+            if (confirm('Reboot AgentLA hardware device now?')) {
+                await callMcp('cmd', 'REBOOT');
+            }
+        });
+    }
+
+    const btnBootsel = document.getElementById('btn-bootsel-mode');
+    if (btnBootsel) {
+        btnBootsel.addEventListener('click', async () => {
+            if (confirm('Reboot into USB BOOTSEL mode for UF2 drag-and-drop firmware upgrades?')) {
+                await callMcp('cmd', 'BOOTSEL');
             }
         });
     }
