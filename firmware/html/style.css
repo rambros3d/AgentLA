@@ -362,6 +362,23 @@ body.no-transparency {
     flex-shrink: 0;
 }
 
+/* Global suppression of circular status/power indicator dots */
+.power-status-dot,
+.status-dot,
+.adapter-status-dot,
+.profile-dot,
+.preset-dot,
+.pin-status-dot,
+.channel-status-dot,
+.badge-dot {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+}
+
 .status-indicator {
     display: flex;
     align-items: center;
@@ -2195,8 +2212,10 @@ body.no-transparency {
 
 /* Header Mode Segment & Primary Navigation */
 /* Primary Mode Navigation (Hidden on Desktop by default, active on mobile dock) */
-.primary-mode-nav {
-    display: none !important;
+@media (min-width: 900px) and (orientation: landscape) {
+    .primary-mode-nav {
+        display: none !important;
+    }
 }
 
 /* Header Pins Drawer Button */
@@ -2266,187 +2285,496 @@ body.no-transparency {
     color: var(--accent-cyan);
 }
 
-/* Active Bench Responsive Container */
-.active-bench-container {
+/* Active Bench / Scope Responsive Container */
+.active-bench-container, .scope-container {
     height: 100%;
     width: 100%;
     box-sizing: border-box;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
 }
 
-/* Desktop layout (>= 1200px): Side-by-side */
-@media (min-width: 1200px) {
-    .active-bench-container {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 420px;
-        gap: 12px;
-        padding: 12px;
-    }
+/* Top Probe Pins Bar (GP10-GP29) */
+.scope-pins-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: thin;
+    flex-shrink: 0;
 }
 
-/* Compact / Mobile layout (< 1200px): Split-deck stacked */
-@media (max-width: 1199.98px) {
-    .active-bench-container {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        padding: 8px;
-    }
-    .active-bench-container .observation-area {
-        flex: 1 1 60%;
-        min-height: 260px;
-    }
-    .active-bench-container .stimulus-deck {
-        flex: 0 0 auto;
-        max-height: 40%;
-        transition: max-height 0.25s ease;
-    }
-    .stimulus-deck.collapsed {
-        max-height: 44px !important;
-    }
-    .stimulus-deck.collapsed .stimulus-deck-body {
-        display: none !important;
-    }
-    .stimulus-deck.collapsed .chevron-icon {
-        transform: rotate(180deg);
-    }
+.scope-pins-bar::-webkit-scrollbar {
+    height: 4px;
+}
+
+.scope-pins-bar::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+}
+
+.scope-pin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.scope-pin-btn:hover {
+    background: var(--color-base-200);
+    color: var(--text-primary);
+    border-color: var(--color-primary);
+}
+
+.scope-pin-btn.unconfigured {
+    border-style: dashed;
+    color: var(--text-muted);
+    opacity: 0.75;
+}
+
+.scope-pin-btn.unconfigured:hover {
+    opacity: 1;
+    border-style: solid;
+}
+
+.scope-pin-btn.active-digital {
+    border-color: var(--pin-color, var(--color-primary));
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.scope-pin-btn.active-analog {
+    border-color: var(--pin-color, var(--accent-cyan));
+    color: var(--text-primary);
+    background: rgba(0, 229, 255, 0.05);
+}
+
+.pin-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.pin-status-dot.muted {
+    background: var(--text-muted);
+    opacity: 0.4;
+}
+
+.pin-adc-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--pin-color, var(--accent-cyan));
+}
+
+.pin-adc-diamond {
+    font-size: 10px;
+    line-height: 1;
+}
+
+.scope-pin-name {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.scope-pin-custom-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Waveform Observation Area */
 .observation-area {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
+    position: relative;
 }
 
-.logic-channels-bar {
+/* Integrated Protocol Decoder Bar */
+.scope-decoder-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 10px;
+    padding: 5px 10px;
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border-color);
+    gap: 10px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.decoder-bar-left {
+    display: flex;
+    align-items: center;
     gap: 8px;
     flex-wrap: wrap;
 }
 
-.observation-view-toggle {
-    display: inline-flex;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 2px;
-    gap: 2px;
+.decoder-bar-icon {
+    color: var(--color-primary);
+    font-size: 14px;
 }
 
-.observation-view-toggle .sub-btn {
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    padding: 2px 8px;
-    border-radius: 3px;
+.decoder-bar-label {
     font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.observation-view-toggle .sub-btn.active {
-    background: var(--bg-surface);
-    color: var(--accent-cyan);
+.decoder-mapping-pills {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
 }
 
-.logic-canvas-wrapper {
-    flex: 1;
-    min-height: 160px;
-    position: relative;
-    background: var(--canvas-bg);
+.decoder-mapping-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    background: var(--color-base-200);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    overflow: hidden;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    border-radius: 4px;
+    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: var(--text-primary);
 }
 
-.logic-canvas-wrapper canvas {
+.decoder-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Unified Mixed-Signal Scope (MSO) Container */
+.scope-mso-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--canvas-bg);
+}
+
+.scope-subwindow {
+    min-height: 60px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#scope-digital-subwindow {
+    flex: 1 1 55%;
+    min-height: 100px;
+}
+
+#scope-analog-subwindow {
+    flex: 1 1 45%;
+    min-height: 80px;
+    border-top: 1px solid var(--border-color);
+}
+
+.scope-subwindow canvas {
     width: 100%;
     height: 100%;
     display: block;
     cursor: crosshair;
 }
 
-/* Docked Stimulus Deck */
-.stimulus-deck {
+/* Draggable Horizontal Splitter */
+.scope-mso-splitter {
+    height: 9px;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    cursor: row-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    touch-action: none;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease;
+    z-index: 5;
+}
+
+.scope-mso-splitter:hover, .scope-mso-splitter.dragging {
+    background: var(--color-base-200);
+    border-color: var(--color-primary);
+}
+
+.splitter-grip {
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+}
+
+.scope-mso-splitter:hover .splitter-grip,
+.scope-mso-splitter.dragging .splitter-grip {
+    color: var(--color-primary);
+}
+
+/* Dynamic Visibility: Digital takes 100% when Analog is empty */
+.scope-mso-container.analog-hidden #scope-mso-splitter {
+    display: none !important;
+}
+
+.scope-mso-container.analog-hidden #scope-analog-subwindow {
+    display: none !important;
+}
+
+.scope-mso-container.analog-hidden #scope-digital-subwindow {
+    flex: 1 1 100% !important;
+    height: 100% !important;
+}
+
+/* Floating Zoom Controls Overlay */
+.floating-zoom-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 3px;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.floating-zoom-controls .action-btn {
+    padding: 2px 7px;
+    font-size: 11px;
+    min-width: 24px;
+    height: 24px;
+    line-height: 1;
+}
+
+/* In-Canvas Hover Tooltip */
+.scope-packet-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--bg-card);
+    border: 1px solid var(--color-primary);
+    border-radius: 6px;
+    padding: 6px 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    font-size: 11px;
+    color: var(--text-primary);
+    z-index: 50;
+    max-width: 280px;
+    line-height: 1.4;
+}
+
+/* Slide-Out Decoded Packet Table Drawer */
+.scope-packet-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 420px;
+    max-width: 90%;
+    height: 100%;
+    background: var(--bg-card);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
+    z-index: 40;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateX(0);
+}
+
+.scope-packet-drawer.collapsed {
+    transform: translateX(100%);
+    pointer-events: none;
+}
+
+.packet-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-surface);
+}
+
+.packet-drawer-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.packet-drawer-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.packet-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+}
+
+.packet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    text-align: left;
+}
+
+.packet-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.packet-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-color);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    white-space: nowrap;
+}
+
+.packet-table tr:hover {
+    background: var(--color-base-200);
+    cursor: pointer;
+}
+
+.empty-packet-row {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 16px !important;
+}
+
+/* Clustered Scope Toolbar */
+.scope-clustered-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.toolbar-cluster {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Collapsible Stimulus Deck (Signal Generator Drawer) */
+.stimulus-deck {
+    flex: 0 0 auto;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
+    transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 380px;
 }
 
-.stimulus-deck-header {
+.stimulus-deck.collapsed {
+    max-height: 38px !important;
+}
+
+.stimulus-deck.collapsed .stimulus-deck-body {
+    display: none !important;
+}
+
+.stimulus-drawer-handle {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 0 10px;
+    height: 36px;
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border-color);
-    padding: 0 8px;
-    height: 42px;
-    flex-shrink: 0;
-}
-
-.stimulus-tabs {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    overflow-x: auto;
-}
-
-.stimulus-tab {
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    color: var(--text-secondary);
-    padding: 10px 10px;
-    font-size: 12px;
-    font-weight: 500;
     cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease;
+}
+
+.stimulus-deck.collapsed .stimulus-drawer-handle {
+    border-bottom: none;
+}
+
+.stimulus-drawer-handle:hover {
+    background: var(--color-base-200);
+}
+
+.stimulus-handle-left {
     display: flex;
     align-items: center;
     gap: 6px;
-    white-space: nowrap;
-    transition: all 0.15s ease;
+    font-size: 11px;
 }
 
-.stimulus-tab:hover {
-    color: var(--text-primary);
-}
-
-.stimulus-tab.active {
+.stimulus-handle-icon {
     color: var(--accent-cyan);
-    border-bottom-color: var(--accent-cyan);
-    font-weight: 600;
+    font-size: 13px;
 }
 
-.btn-collapse-stimulus {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-}
-
-.btn-collapse-stimulus:hover {
+.stimulus-handle-title {
+    font-weight: 700;
     color: var(--text-primary);
+}
+
+.stimulus-handle-summary {
+    color: var(--text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+}
+
+.stimulus-deck.collapsed .chevron-icon {
+    transform: rotate(180deg);
 }
 
 .stimulus-deck-body {
@@ -2455,6 +2783,129 @@ body.no-transparency {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+/* Interactive Pin Configuration Modal Styles */
+.pin-config-modal-card {
+    max-width: 520px;
+    width: 95%;
+}
+
+.pin-config-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pin-config-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pin-mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pin-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: all 0.15s ease;
+}
+
+.pin-mode-option:hover {
+    background: var(--color-base-200);
+    border-color: var(--color-primary);
+}
+
+.pin-mode-option input[type="radio"] {
+    margin: 0;
+    accent-color: var(--color-primary);
+}
+
+.pin-mode-option.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+.pin-analog-notice {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+.color-swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.swatch-item {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.swatch-item:hover {
+    transform: scale(1.12);
+}
+
+.swatch-item.selected {
+    box-shadow: 0 0 0 2px var(--color-base-100), 0 0 0 4px var(--color-primary);
+    transform: scale(1.06);
+}
+
+.pin-color-preview-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+}
+
+.preview-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.pin-trigger-hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 10.5px;
+    color: var(--text-muted);
 }
 
 .stimulus-pane {

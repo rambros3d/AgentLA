@@ -9,7 +9,8 @@
 const host = window.location.hostname || "10.10.10.10";
 
 const APP_TITLES = Object.freeze({
-    bench: "Active Bench",
+    bench: "Scope",
+    scope: "Scope",
     adapters: "USB Protocol Adapters",
     target: "Debugger",
     logic: "Logic Analyzer",
@@ -199,9 +200,9 @@ if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', closeInspector);
 if (inspectorOverlay) inspectorOverlay.addEventListener('click', closeInspector);
 
 // --------------------------------------------------------------------------
-// Primary Mode Navigation: Active Bench vs Debugger vs Pin Matrix
+// Primary Mode Navigation: Scope vs Adapters vs Debugger vs Pin Matrix
 // --------------------------------------------------------------------------
-let primaryMode = 'bench';
+let primaryMode = 'scope';
 
 
 // --------------------------------------------------------------------------
@@ -253,39 +254,48 @@ function switchMode(mode) {
     } else if (mode === 'console' || mode === 'command' || mode === 'repl') {
         primaryMode = 'console';
     } else {
-        primaryMode = 'bench';
+        primaryMode = 'scope';
     }
 
-    const viewBench = document.getElementById('view-active-bench');
+    const viewScope = document.getElementById('view-scope') || document.getElementById('view-active-bench');
     const viewAdapters = document.getElementById('view-adapters');
     const viewTarget = document.getElementById('view-target-station');
     const viewPins = document.getElementById('view-pin-matrix');
     const viewConsole = document.getElementById('view-console');
 
-    const btnBench = document.getElementById('nav-mode-bench');
+    const btnScope = document.getElementById('nav-mode-scope') || document.getElementById('nav-mode-bench');
     const btnAdapters = document.getElementById('nav-mode-adapters');
     const btnTarget = document.getElementById('nav-mode-target');
     const btnPins = document.getElementById('nav-mode-pins');
     const btnConsole = document.getElementById('nav-mode-console');
 
-    if (viewBench) viewBench.classList.toggle('active', primaryMode === 'bench');
+    if (viewScope) viewScope.classList.toggle('active', primaryMode === 'scope');
     if (viewAdapters) viewAdapters.classList.toggle('active', primaryMode === 'adapters');
     if (viewTarget) viewTarget.classList.toggle('active', primaryMode === 'target');
     if (viewPins) viewPins.classList.toggle('active', primaryMode === 'pins');
     if (viewConsole) viewConsole.classList.toggle('active', primaryMode === 'console');
 
-    if (btnBench) btnBench.classList.toggle('active', primaryMode === 'bench');
+    if (btnScope) btnScope.classList.toggle('active', primaryMode === 'scope');
     if (btnAdapters) btnAdapters.classList.toggle('active', primaryMode === 'adapters');
     if (btnTarget) btnTarget.classList.toggle('active', primaryMode === 'target');
     if (btnPins) btnPins.classList.toggle('active', primaryMode === 'pins');
     if (btnConsole) btnConsole.classList.toggle('active', primaryMode === 'console');
 
     // Synchronize both desktop vertical sidebar tabs and mobile bottom nav tabs
-    ['bench', 'adapters', 'target', 'pins', 'console'].forEach(m => {
+    ['scope', 'bench', 'adapters', 'target', 'pins', 'console'].forEach(m => {
+        const isMatch = (m === 'scope' || m === 'bench') ? (primaryMode === 'scope') : (primaryMode === m);
         document.querySelectorAll(`[data-mode="${m}"]`).forEach(btn => {
-            btn.classList.toggle('active', primaryMode === m);
+            btn.classList.toggle('active', isMatch);
         });
     });
+
+    // Update URL hash parameter for direct deep linking and mode routing
+    try {
+        const curHash = window.location.hash.replace(/^#/, '');
+        if (curHash !== primaryMode && curHash !== `mode=${primaryMode}`) {
+            history.replaceState(null, '', `#${primaryMode}`);
+        }
+    } catch (_) {}
 
     if (primaryMode === 'adapters') {
         if (typeof selectAdapter === 'function') {
@@ -299,8 +309,13 @@ function switchMode(mode) {
     }
 
     window.dispatchEvent(new Event('resize'));
-    if (primaryMode === 'bench' && window.activeLogicController) {
-        window.activeLogicController.forceRedraw();
+    if (primaryMode === 'scope') {
+        if (window.activeLogicController) {
+            window.activeLogicController.forceRedraw();
+        }
+        if (window.redrawScope) {
+            window.redrawScope();
+        }
     }
 }
 
@@ -309,7 +324,7 @@ function switchView(viewName, toolName = null) {
     if (viewName === 'target' || viewName === 'flasher' || viewName === 'debugger' || toolName === 'flasher' || toolName === 'debugger') {
         switchMode('target');
     } else {
-        switchMode('bench');
+        switchMode('scope');
     }
 }
 
@@ -431,10 +446,10 @@ const FeatureRegistry = {
             }
             if (this.hasHardwareCan) {
                 badge.className = 'transceiver-mode-badge onboard';
-                badge.innerHTML = `<span class="badge-dot"></span> Onboard TCAN334 Transceiver`;
+                badge.innerHTML = `Onboard TCAN334 Transceiver`;
             } else {
                 badge.className = 'transceiver-mode-badge breakout';
-                badge.innerHTML = `<span class="badge-dot warning"></span> External Breakout Mode (GP18 TX / GP19 RX / GP22 Term)`;
+                badge.innerHTML = `External Breakout Mode (GP18 TX / GP19 RX / GP22 Term)`;
             }
         }
 
@@ -447,10 +462,10 @@ const FeatureRegistry = {
             }
             if (this.hasHardwareRs485) {
                 badge.className = 'transceiver-mode-badge onboard';
-                badge.innerHTML = `<span class="badge-dot"></span> Onboard SN65HVD3082 Transceiver`;
+                badge.innerHTML = `Onboard SN65HVD3082 Transceiver`;
             } else {
                 badge.className = 'transceiver-mode-badge breakout';
-                badge.innerHTML = `<span class="badge-dot warning"></span> External Breakout Mode (GP12 TX / GP13 RX / GP14 DE)`;
+                badge.innerHTML = `External Breakout Mode (GP12 TX / GP13 RX / GP14 DE)`;
             }
         }
     },
@@ -813,6 +828,338 @@ async function fetchBoardManifest() {
 }
 
 // --------------------------------------------------------------------------
+// Unified Scope Pin Config, Top Probe Bar, & MSO Window Controller
+// --------------------------------------------------------------------------
+const TRACE_PALETTE_18 = [
+    '#00e5ff', '#ff2a6d', '#ffd60a', '#05ffa1', '#b537f2', '#ff9f1c',
+    '#ff0055', '#7928ca', '#00f0ff', '#f72585', '#7209b7', '#3a0ca3',
+    '#4361ee', '#4cc9f0', '#06d6a0', '#ffd166', '#ef476f', '#118ab2'
+];
+
+let scopePinConfigs = {};
+let activeModalPin = 10;
+let selectedModalColor = TRACE_PALETTE_18[0];
+
+function initScopePinConfigs() {
+    for (let pin = 10; pin <= 29; pin++) {
+        const isDigitalDefault = (pin >= 20 && pin <= 27);
+        const paletteIdx = (pin - 10) % TRACE_PALETTE_18.length;
+        scopePinConfigs[pin] = {
+            pin: pin,
+            mode: isDigitalDefault ? 'digital' : 'released',
+            label: `D${pin - 20 >= 0 && pin - 20 < 8 ? pin - 20 : pin}`,
+            color: TRACE_PALETTE_18[paletteIdx],
+            digitalTrigger: 'none',
+            analogTrigger: {
+                edge: 'rising',
+                thresholdV: 1.65
+            }
+        };
+    }
+}
+
+function renderScopePinsBar() {
+    const bar = document.getElementById('scope-pins-bar');
+    if (!bar) return;
+    bar.innerHTML = '';
+
+    for (let pin = 10; pin <= 29; pin++) {
+        const cfg = scopePinConfigs[pin];
+        if (!cfg) continue;
+
+        const btn = document.createElement('button');
+        btn.className = `scope-pin-btn ${cfg.mode === 'digital' ? 'configured-digital' : cfg.mode === 'analog' ? 'configured-analog' : 'unconfigured'}`;
+        btn.setAttribute('data-pin', pin);
+        btn.setAttribute('title', `Click to configure GP${pin} (${cfg.mode.toUpperCase()})`);
+
+        // Indicator dots removed per strict user instruction; using styled badges/borders
+        let badgeContent = '';
+        if (cfg.mode === 'digital') {
+            btn.style.borderColor = cfg.color;
+            badgeContent = `<span class="pin-label-badge" style="color: ${cfg.color}; font-weight: 700;">${escapeHtml(cfg.label)}</span>`;
+        } else if (cfg.mode === 'analog') {
+            btn.style.borderColor = cfg.color;
+            badgeContent = `<span class="pin-adc-badge" style="color: ${cfg.color}; font-weight: 700;">◈ ADC${pin - 26}</span>`;
+        } else {
+            btn.style.borderColor = '';
+            badgeContent = `<span class="pin-label-badge" style="opacity: 0.5;">High-Z</span>`;
+        }
+
+        btn.innerHTML = `<span class="scope-pin-num">GP${pin}</span>${badgeContent}`;
+        btn.addEventListener('click', () => openPinConfigModal(pin));
+        bar.appendChild(btn);
+    }
+}
+
+function openPinConfigModal(pin) {
+    const modal = document.getElementById('modal-pin-config');
+    if (!modal) return;
+    const cfg = scopePinConfigs[pin];
+    if (!cfg) return;
+
+    activeModalPin = pin;
+    selectedModalColor = cfg.color;
+
+    const titlePinLabel = document.getElementById('pin-config-pin-label');
+    if (titlePinLabel) titlePinLabel.textContent = `GP${pin}`;
+
+    // ADC capability strictly GP26–GP29
+    const isAdcEligible = (pin >= 26 && pin <= 29);
+    const optAnalog = document.getElementById('opt-mode-analog');
+    const analogRadio = optAnalog ? optAnalog.querySelector('input') : null;
+    const notice = document.getElementById('pin-analog-notice');
+
+    if (analogRadio) {
+        analogRadio.disabled = !isAdcEligible;
+    }
+    if (optAnalog) {
+        optAnalog.style.opacity = isAdcEligible ? '1' : '0.45';
+        optAnalog.style.cursor = isAdcEligible ? 'pointer' : 'not-allowed';
+    }
+    if (notice) {
+        notice.style.display = isAdcEligible ? 'none' : 'block';
+    }
+
+    // Set mode radio
+    let currentMode = cfg.mode;
+    if (!isAdcEligible && currentMode === 'analog') {
+        currentMode = 'digital';
+    }
+    const modeRadios = modal.querySelectorAll('input[name="pin-mode"]');
+    modeRadios.forEach(r => {
+        r.checked = (r.value === currentMode);
+    });
+
+    // Custom label input
+    const labelInput = document.getElementById('pin-config-custom-name');
+    if (labelInput) labelInput.value = cfg.label || `GP${pin}`;
+
+    // Color preview & swatches
+    renderColorSwatches(selectedModalColor);
+
+    // Triggers
+    const digSelect = document.getElementById('pin-digital-trigger-select');
+    if (digSelect) digSelect.value = cfg.digitalTrigger || 'none';
+
+    const anaEdgeSelect = document.getElementById('pin-analog-edge-select');
+    if (anaEdgeSelect) anaEdgeSelect.value = cfg.analogTrigger?.edge || 'rising';
+
+    const anaVoltsInput = document.getElementById('pin-analog-volts-input');
+    if (anaVoltsInput) anaVoltsInput.value = cfg.analogTrigger?.thresholdV !== undefined ? cfg.analogTrigger.thresholdV : 1.65;
+
+    // Toggle trigger sections based on current mode
+    syncModalTriggerSections(currentMode);
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function syncModalTriggerSections(mode) {
+    const digSec = document.getElementById('digital-trigger-section');
+    const anaSec = document.getElementById('analog-trigger-section');
+    const trigGroup = document.getElementById('pin-trigger-group');
+
+    if (mode === 'digital') {
+        if (trigGroup) trigGroup.style.display = 'block';
+        if (digSec) digSec.style.display = 'block';
+        if (anaSec) anaSec.style.display = 'none';
+    } else if (mode === 'analog') {
+        if (trigGroup) trigGroup.style.display = 'block';
+        if (digSec) digSec.style.display = 'none';
+        if (anaSec) anaSec.style.display = 'block';
+    } else {
+        if (trigGroup) trigGroup.style.display = 'none';
+    }
+}
+
+function renderColorSwatches(activeColor) {
+    const grid = document.getElementById('color-swatch-grid');
+    const previewCircle = document.getElementById('preview-swatch-circle');
+    const previewText = document.getElementById('preview-color-code');
+
+    if (previewCircle) previewCircle.style.backgroundColor = activeColor;
+    if (previewText) previewText.textContent = activeColor.toUpperCase();
+
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    TRACE_PALETTE_18.forEach(color => {
+        const swatch = document.createElement('button');
+        swatch.className = `color-swatch-btn ${color.toLowerCase() === activeColor.toLowerCase() ? 'selected' : ''}`;
+        swatch.style.backgroundColor = color;
+        swatch.setAttribute('type', 'button');
+        swatch.setAttribute('data-color', color);
+        swatch.addEventListener('click', (e) => {
+            e.preventDefault();
+            selectedModalColor = color;
+            renderColorSwatches(color);
+        });
+        grid.appendChild(swatch);
+    });
+}
+
+function closePinConfigModal() {
+    const modal = document.getElementById('modal-pin-config');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function initPinConfigModal() {
+    const modal = document.getElementById('modal-pin-config');
+    if (!modal) return;
+
+    const btnClose = document.getElementById('btn-close-pin-config');
+    const btnCancel = document.getElementById('btn-cancel-pin-config');
+    const btnSave = document.getElementById('btn-save-pin-config');
+
+    if (btnClose) btnClose.addEventListener('click', closePinConfigModal);
+    if (btnCancel) btnCancel.addEventListener('click', closePinConfigModal);
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closePinConfigModal();
+    });
+
+    const modeRadios = modal.querySelectorAll('input[name="pin-mode"]');
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            syncModalTriggerSections(radio.value);
+        });
+    });
+
+    if (btnSave) {
+        btnSave.addEventListener('click', () => {
+            const cfg = scopePinConfigs[activeModalPin];
+            if (!cfg) return;
+
+            let selectedMode = 'digital';
+            modeRadios.forEach(r => { if (r.checked) selectedMode = r.value; });
+
+            const labelInput = document.getElementById('pin-config-custom-name');
+            const digSelect = document.getElementById('pin-digital-trigger-select');
+            const anaEdgeSelect = document.getElementById('pin-analog-edge-select');
+            const anaVoltsInput = document.getElementById('pin-analog-volts-input');
+
+            cfg.mode = selectedMode;
+            cfg.label = (labelInput && labelInput.value.trim()) ? labelInput.value.trim() : `GP${activeModalPin}`;
+            cfg.color = selectedModalColor;
+            cfg.digitalTrigger = digSelect ? digSelect.value : 'none';
+            cfg.analogTrigger = {
+                edge: anaEdgeSelect ? anaEdgeSelect.value : 'rising',
+                thresholdV: anaVoltsInput ? Math.max(0.0, Math.min(3.3, parseFloat(anaVoltsInput.value) || 1.65)) : 1.65
+            };
+
+            renderScopePinsBar();
+            updateMsoDynamicVisibility();
+            if (window.activeLogicController) window.activeLogicController.syncChannelsFromPins();
+            if (window.redrawScope) window.redrawScope();
+
+            closePinConfigModal();
+        });
+    }
+}
+
+function updateMsoDynamicVisibility() {
+    const digitalSub = document.getElementById('scope-digital-subwindow');
+    const splitter = document.getElementById('scope-mso-splitter');
+    const analogSub = document.getElementById('scope-analog-subwindow');
+
+    if (!digitalSub || !splitter || !analogSub) return;
+
+    let analogCount = 0;
+    for (let pin = 10; pin <= 29; pin++) {
+        if (scopePinConfigs[pin]?.mode === 'analog') analogCount++;
+    }
+
+    if (analogCount === 0) {
+        // Digital takes 100% height, analog & splitter hidden
+        splitter.style.display = 'none';
+        analogSub.style.display = 'none';
+        digitalSub.style.height = '100%';
+        digitalSub.style.flex = '1 1 auto';
+    } else {
+        // Mixed-signal mode: restore splitter and analog subwindow
+        splitter.style.display = 'flex';
+        analogSub.style.display = 'block';
+
+        const savedSplit = parseFloat(localStorage.getItem('agentla_mso_split')) || 55;
+        digitalSub.style.height = `${savedSplit}%`;
+        digitalSub.style.flex = 'none';
+        analogSub.style.height = `${100 - savedSplit}%`;
+        analogSub.style.flex = '1 1 auto';
+    }
+
+    if (window.activeLogicController) window.activeLogicController.forceRedraw();
+    if (window.redrawScope) window.redrawScope();
+}
+
+function initMsoSplitter() {
+    const container = document.getElementById('scope-mso-container');
+    const digitalSub = document.getElementById('scope-digital-subwindow');
+    const splitter = document.getElementById('scope-mso-splitter');
+    const analogSub = document.getElementById('scope-analog-subwindow');
+
+    if (!container || !digitalSub || !splitter || !analogSub) return;
+
+    let isDragging = false;
+    let startY = 0;
+    let startDigitalHeight = 0;
+
+    const onStart = (clientY) => {
+        isDragging = true;
+        startY = clientY;
+        startDigitalHeight = digitalSub.getBoundingClientRect().height;
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+    };
+
+    const onMove = (clientY) => {
+        if (!isDragging) return;
+        const totalHeight = container.getBoundingClientRect().height - splitter.getBoundingClientRect().height;
+        if (totalHeight <= 0) return;
+
+        const deltaY = clientY - startY;
+        let newDigHeight = startDigitalHeight + deltaY;
+
+        // Constraints: minimum 100px digital, minimum 100px analog
+        const minHeight = 100;
+        newDigHeight = Math.max(minHeight, Math.min(totalHeight - minHeight, newDigHeight));
+
+        const digPercent = (newDigHeight / totalHeight) * 100;
+        digitalSub.style.height = `${digPercent}%`;
+        digitalSub.style.flex = 'none';
+        analogSub.style.height = `${100 - digPercent}%`;
+        analogSub.style.flex = '1 1 auto';
+
+        localStorage.setItem('agentla_mso_split', digPercent.toFixed(1));
+
+        if (window.activeLogicController) window.activeLogicController.forceRedraw();
+        if (window.redrawScope) window.redrawScope();
+    };
+
+    const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        if (window.activeLogicController) window.activeLogicController.forceRedraw();
+        if (window.redrawScope) window.redrawScope();
+    };
+
+    splitter.addEventListener('mousedown', (e) => onStart(e.clientY));
+    document.addEventListener('mousemove', (e) => onMove(e.clientY));
+    document.addEventListener('mouseup', onEnd);
+
+    splitter.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) onStart(e.touches[0].clientY);
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) onMove(e.touches[0].clientY);
+    }, { passive: true });
+    document.addEventListener('touchend', onEnd);
+}
+
+// --------------------------------------------------------------------------
 // Unified Logic Analyzer Waveform Controller & Decoders
 // --------------------------------------------------------------------------
 function initLogicAnalyzer(container) {
@@ -1164,7 +1511,10 @@ function initLogicAnalyzer(container) {
 
     function runDecoders() {
         decodedFrames = [];
-        if (!rawLogicData || decoderConfig.protocol === 'off') return;
+        if (!rawLogicData || decoderConfig.protocol === 'off') {
+            renderPacketTable();
+            return;
+        }
         if (decoderConfig.protocol === 'spi') decodedFrames = decodeSpi(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'i2c') decodedFrames = decodeI2c(rawLogicData);
         if (decoderConfig.protocol === 'uart') decodedFrames = decodeUart(rawLogicData, displayedSampleRate);
@@ -1172,6 +1522,131 @@ function initLogicAnalyzer(container) {
         if (decoderConfig.protocol === 'modbus') decodedFrames = decodeModbus(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'onewire') decodedFrames = decodeOneWire(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'lin') decodedFrames = decodeLin(rawLogicData, displayedSampleRate);
+        renderPacketTable();
+    }
+
+    const directProtoSelect = document.getElementById('scope-decoder-protocol');
+    const mappingPillsContainer = document.getElementById('decoder-mapping-pills');
+    const packetDrawer = document.getElementById('scope-packet-drawer');
+    const btnOpenTable = document.getElementById('btn-scope-packet-table');
+    const btnCloseDrawer = document.getElementById('btn-close-packet-drawer');
+    const packetSearchInput = document.getElementById('packet-search-input');
+    const packetCountBadge = document.getElementById('packet-count-badge');
+    const packetTableBody = document.getElementById('packet-table-body');
+
+    function updateDecoderMappingPills() {
+        if (!mappingPillsContainer) return;
+        mappingPillsContainer.innerHTML = '';
+        const proto = decoderConfig.protocol;
+        if (proto === 'off') return;
+
+        let pills = [];
+        if (proto === 'spi') {
+            pills = [
+                { role: 'SCK', pin: basePin + (decoderConfig.sck || 0) },
+                { role: 'MOSI', pin: basePin + (decoderConfig.mosi || 1) },
+                { role: 'MISO', pin: basePin + (decoderConfig.miso || 2) },
+                { role: 'CS', pin: basePin + (decoderConfig.cs || 0) }
+            ];
+        } else if (proto === 'i2c') {
+            pills = [
+                { role: 'SCL', pin: basePin + (decoderConfig.scl || 1) },
+                { role: 'SDA', pin: basePin + (decoderConfig.sda || 0) }
+            ];
+        } else if (proto === 'uart') {
+            pills = [
+                { role: 'RX', pin: basePin + (decoderConfig.rx || 0) },
+                { role: 'Baud', pin: `${decoderConfig.baud || 115200}` }
+            ];
+        } else if (proto === 'can') {
+            pills = [
+                { role: 'CAN RX', pin: basePin + (decoderConfig.rx || 0) }
+            ];
+        } else {
+            pills = [{ role: 'SIG', pin: basePin }];
+        }
+
+        pills.forEach(p => {
+            const pill = document.createElement('span');
+            pill.className = 'decoder-mapping-pill';
+            pill.innerHTML = `<strong>${escapeHtml(p.role)}:</strong> ${typeof p.pin === 'number' ? 'GP' + p.pin : escapeHtml(p.pin)}`;
+            mappingPillsContainer.appendChild(pill);
+        });
+    }
+
+    if (directProtoSelect) {
+        directProtoSelect.addEventListener('change', () => {
+            decoderConfig.protocol = directProtoSelect.value;
+            if (decoderMenu) {
+                const protoSel = decoderMenu.querySelector('.decoder-protocol');
+                if (protoSel) protoSel.value = directProtoSelect.value;
+                syncDecoderMenu();
+            }
+            updateDecoderMappingPills();
+            runDecoders();
+            forceRedraw();
+        });
+    }
+
+    function renderPacketTable() {
+        if (!packetTableBody) return;
+        if (packetCountBadge) {
+            packetCountBadge.textContent = `${decodedFrames.length} packet${decodedFrames.length === 1 ? '' : 's'}`;
+        }
+        if (decodedFrames.length === 0) {
+            packetTableBody.innerHTML = '<tr><td colspan="6" class="empty-packet-row">No decoded packets captured yet</td></tr>';
+            return;
+        }
+
+        const query = packetSearchInput ? packetSearchInput.value.trim().toLowerCase() : '';
+        const filtered = query 
+            ? decodedFrames.filter(f => (f.label || '').toLowerCase().includes(query) || decoderConfig.protocol.toLowerCase().includes(query))
+            : decodedFrames;
+
+        if (filtered.length === 0) {
+            packetTableBody.innerHTML = '<tr><td colspan="6" class="empty-packet-row">No packets match filter</td></tr>';
+            return;
+        }
+
+        packetTableBody.innerHTML = '';
+        filtered.forEach((frame, idx) => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.setAttribute('title', 'Click to zoom and center trace on this packet');
+            const timeUs = (frame.start / displayedSampleRate) * 1e6;
+            tr.innerHTML = `
+                <td>${idx + 1}</td>
+                <td>${timeUs.toFixed(1)} µs</td>
+                <td><span class="badge" style="background: ${frame.color || 'var(--color-primary)'}; color: #000; font-weight: 600;">${decoderConfig.protocol.toUpperCase()}</span></td>
+                <td>${escapeHtml(frame.label)}</td>
+                <td><code>[${frame.end - frame.start} samples]</code></td>
+                <td><span style="color: var(--color-success); font-weight: 600;">OK</span></td>
+            `;
+            tr.addEventListener('click', () => {
+                const len = frame.end - frame.start;
+                window.activeLogicController?.centerOnPacket(frame.start, len);
+            });
+            packetTableBody.appendChild(tr);
+        });
+    }
+
+    if (btnOpenTable && packetDrawer) {
+        btnOpenTable.addEventListener('click', () => {
+            packetDrawer.classList.toggle('collapsed');
+            renderPacketTable();
+        });
+    }
+
+    if (btnCloseDrawer && packetDrawer) {
+        btnCloseDrawer.addEventListener('click', () => {
+            packetDrawer.classList.add('collapsed');
+        });
+    }
+
+    if (packetSearchInput) {
+        packetSearchInput.addEventListener('input', () => {
+            renderPacketTable();
+        });
     }
 
     if (decoderApply) {
@@ -1284,13 +1759,18 @@ function initLogicAnalyzer(container) {
                 const baseY = margin.top + (laneIdx + 1) * laneH - gap;
                 const highY = margin.top + laneIdx * laneH + gap;
 
+                const chPin = basePin + chIdx;
+                const pinCfg = scopePinConfigs[chPin];
+                const traceColor = pinCfg ? pinCfg.color : colors[chIdx % colors.length];
+                const traceLabel = pinCfg ? pinCfg.label : `D${chIdx}`;
+
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(margin.left, margin.top, graphW, graphH);
                 ctx.clip();
 
                 ctx.beginPath();
-                ctx.strokeStyle = colors[chIdx % colors.length];
+                ctx.strokeStyle = traceColor;
                 ctx.lineWidth = 1.8;
 
                 const startIdx = Math.max(0, Math.floor(xOffsetSamples));
@@ -1312,13 +1792,13 @@ function initLogicAnalyzer(container) {
                 ctx.stroke();
                 ctx.restore();
 
-                ctx.fillStyle = colors[chIdx % colors.length];
+                ctx.fillStyle = traceColor;
                 ctx.font = "11px -apple-system, sans-serif";
                 ctx.textAlign = "right";
                 ctx.textBaseline = "middle";
                 const m = currentMeasurements.find(item => item.ch === chIdx);
-                const timingStr = m && m.freq > 0 ? ` [${formatFreq(m.freq)}, ${m.duty.toFixed(0)}%]` : '';
-                ctx.fillText(`D${chIdx} (GP${basePin + chIdx})${timingStr}`, margin.left - 8, margin.top + (laneIdx + 0.5) * laneH);
+                const timingStr = m && m.freq > 0 ? ` [${formatFreq(m.freq)} · ${m.duty.toFixed(0)}%]` : '';
+                ctx.fillText(`${traceLabel} (GP${chPin})${timingStr}`, margin.left - 8, margin.top + (laneIdx + 0.5) * laneH);
             });
 
             // Draw Decoded Packet Bubbles
@@ -1503,6 +1983,85 @@ function initLogicAnalyzer(container) {
     if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
     window.addEventListener('resize', forceRedraw);
 
+    // In-Canvas Packet & Value Hover Tooltip
+    const tooltip = document.getElementById('scope-packet-tooltip');
+    canvas.addEventListener('mousemove', (e) => {
+        if (!rawLogicData || !tooltip) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const margin = { left: 70, right: 20, top: 25, bottom: 25 };
+        const graphW = canvas.width - margin.left - margin.right;
+        if (mouseX < margin.left || mouseX > margin.left + graphW) {
+            tooltip.style.display = 'none';
+            return;
+        }
+        const visibleSamples = Math.min(rawLogicData.length, Math.max(100, Math.round(visualTimebaseUs * 10 * (displayedSampleRate / 1000000))));
+        const sampleIdx = Math.floor(xOffsetSamples + ((mouseX - margin.left) / graphW) * visibleSamples);
+        if (sampleIdx < 0 || sampleIdx >= rawLogicData.length) {
+            tooltip.style.display = 'none';
+            return;
+        }
+
+        const timeUs = (sampleIdx / displayedSampleRate) * 1e6;
+        let text = `<strong>t = ${timeUs.toFixed(2)} µs</strong> (Sample #${sampleIdx})<br/>`;
+        const hitFrame = decodedFrames.find(f => sampleIdx >= f.start && sampleIdx <= f.end);
+        if (hitFrame) {
+            text += `<span style="color: ${hitFrame.color || 'var(--color-primary)'}; font-weight: 600;">${escapeHtml(hitFrame.label)}</span><br/>`;
+        }
+        const rawByte = rawLogicData[sampleIdx];
+        text += `Value: <code>0x${rawByte.toString(16).padStart(2, '0').toUpperCase()}</code> (0b${rawByte.toString(2).padStart(8, '0')})`;
+
+        tooltip.innerHTML = text;
+        tooltip.style.display = 'block';
+        tooltip.style.left = `${Math.min(rect.width - 200, Math.max(10, mouseX + 12))}px`;
+        tooltip.style.top = `${Math.min(rect.height - 70, Math.max(10, mouseY + 12))}px`;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        if (tooltip) tooltip.style.display = 'none';
+    });
+
+    // Floating Zoom Controls
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const btnZoomFit = document.getElementById('btn-zoom-fit');
+
+    if (btnZoomIn) btnZoomIn.addEventListener('click', () => window.activeLogicController?.zoomIn());
+    if (btnZoomOut) btnZoomOut.addEventListener('click', () => window.activeLogicController?.zoomOut());
+    if (btnZoomFit) btnZoomFit.addEventListener('click', () => window.activeLogicController?.zoomFit());
+
+    function syncChannelsFromPins() {
+        const configuredPins = [];
+        for (let p = 10; p <= 29; p++) {
+            if (scopePinConfigs[p]?.mode === 'digital') {
+                configuredPins.push(p);
+            }
+        }
+        if (configuredPins.length > 0) {
+            basePin = Math.min(...configuredPins);
+            const maxPin = Math.max(...configuredPins);
+            channelCount = Math.min(16, maxPin - basePin + 1);
+            activeChannels = configuredPins.map(p => p - basePin);
+            if (basePinSelect) basePinSelect.value = String(basePin);
+            if (channelCountSelect) channelCountSelect.value = String(Math.min(8, channelCount));
+            if (trigSrcSelect) {
+                const curVal = trigSrcSelect.value;
+                trigSrcSelect.innerHTML = '';
+                for (let i = 0; i < channelCount; i++) {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    const pinCfg = scopePinConfigs[basePin + i];
+                    opt.textContent = pinCfg ? `${pinCfg.label} (GP${basePin + i})` : `D${i}`;
+                    if (String(i) === curVal) opt.selected = true;
+                    trigSrcSelect.appendChild(opt);
+                }
+            }
+            updateBankSpanLabel();
+            forceRedraw();
+        }
+    }
+
     // Zoom and pan gestures
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -1517,11 +2076,14 @@ function initLogicAnalyzer(container) {
         startCapture: (onDone) => doCapture(onDone),
         setProtocol: (proto) => {
             decoderConfig.protocol = proto;
+            if (directProtoSelect) directProtoSelect.value = proto;
             if (decoderMenu) {
                 const protoSel = decoderMenu.querySelector('.decoder-protocol');
                 if (protoSel) protoSel.value = proto;
                 syncDecoderMenu();
             }
+            updateDecoderMappingPills();
+            runDecoders();
         },
         centerOnPacket: (sampleStart, sampleLength) => {
             const visible = Math.min(rawLogicData ? rawLogicData.length : 2048, Math.max(100, Math.round(visualTimebaseUs * 10 * (displayedSampleRate / 1000000))));
@@ -1550,6 +2112,7 @@ function initLogicAnalyzer(container) {
             visualTimebaseUs = Math.max(10, Math.round(((rawLogicData ? rawLogicData.length : 2048) / displayedSampleRate) * 1e5));
             forceRedraw();
         },
+        syncChannelsFromPins: () => syncChannelsFromPins(),
         forceRedraw: () => forceRedraw()
     };
 
@@ -1621,35 +2184,72 @@ function initAnalogScope(container) {
         ctx.fillText('1.65V', pad.left - 6, pad.top + graphH / 2);
         ctx.fillText('0.00V', pad.left - 6, pad.top + graphH);
 
-        // Draw Channel Legend at top
-        const chLabels = ['CH0 (ADC0)', 'CH1 (ADC1)', 'CH2 (ADC2)', 'CH3 (ADC3)'];
-        let legendX = pad.left;
-        ctx.font = '600 10.5px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'left';
-        for (let ch = 0; ch < 4; ch++) {
-            ctx.fillStyle = chColors[ch];
-            ctx.fillRect(legendX, pad.top - 16, 9, 9);
-            ctx.fillText(chLabels[ch], legendX + 13, pad.top - 9);
-            legendX += 95;
-        }
+        // Volts/div and Time/div calibrated display
+        ctx.fillText('0.41 V/div · 500 µs/div', pad.left + graphW, pad.top - 8);
 
-        // Draw synthetic ADC traces
+        // Derive active analog channels from scopePinConfigs (GP26-GP29)
+        const activeAnalogPins = [];
+        for (let p = 26; p <= 29; p++) {
+            if (scopePinConfigs[p]?.mode === 'analog') {
+                activeAnalogPins.push(p);
+            }
+        }
+        const displayPins = activeAnalogPins.length > 0 ? activeAnalogPins : [26, 27, 28, 29];
+
+        // Draw Channel Legend at top
+        let legendX = pad.left;
+        ctx.font = '600 10px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'left';
+        displayPins.forEach((pin, idx) => {
+            const cfg = scopePinConfigs[pin];
+            const color = cfg ? cfg.color : chColors[idx % chColors.length];
+            const label = cfg ? (cfg.label || `ADC${pin - 26}`) : `ADC${pin - 26}`;
+            ctx.fillStyle = color;
+            ctx.fillRect(legendX, pad.top - 16, 8, 8);
+            ctx.fillText(`${label} (GP${pin})`, legendX + 12, pad.top - 9);
+            legendX += 105;
+        });
+
+        // Draw synthetic ADC traces for active channels
         const now = Date.now();
-        for (let ch = 0; ch < 4; ch++) {
+        displayPins.forEach((pin, idx) => {
+            const cfg = scopePinConfigs[pin];
+            const color = cfg ? cfg.color : chColors[idx % chColors.length];
             ctx.beginPath();
-            ctx.strokeStyle = chColors[ch];
+            ctx.strokeStyle = color;
             ctx.lineWidth = 1.8;
             for (let x = 0; x <= graphW; x += 4) {
-                const phase = now / 300 + (x / 40) + ch;
+                const phase = now / 300 + (x / 40) + idx;
                 const v = 1.65 + Math.sin(phase) * 1.2;
                 const y = pad.top + graphH - (v / 3.3) * graphH;
                 if (x === 0) ctx.moveTo(pad.left + x, y);
                 else ctx.lineTo(pad.left + x, y);
             }
             ctx.stroke();
-        }
+        });
 
-        if (canvas.style.display !== 'none') {
+        // Draw Right-Margin Analog Trigger Cursor & Threshold Line
+        const trigPin = displayPins[0];
+        const trigV = trigPin && scopePinConfigs[trigPin]?.analogTrigger?.thresholdV !== undefined 
+            ? scopePinConfigs[trigPin].analogTrigger.thresholdV 
+            : 1.65;
+        const trigY = Math.round(pad.top + graphH - (trigV / 3.3) * graphH) + 0.5;
+
+        ctx.strokeStyle = isDark ? 'rgba(255, 214, 10, 0.45)' : 'rgba(217, 119, 6, 0.45)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, trigY);
+        ctx.lineTo(pad.left + graphW, trigY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = isDark ? '#ffd60a' : '#d97706';
+        ctx.font = 'bold 9px ui-monospace, SFMono-Regular, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`◀ Trig ${trigV.toFixed(2)}V`, pad.left + graphW + 3, trigY + 3);
+
+        const subwindow = document.getElementById('scope-analog-subwindow');
+        if (canvas.style.display !== 'none' && subwindow && subwindow.style.display !== 'none' && subwindow.clientHeight > 0) {
             animId = requestAnimationFrame(renderScope);
         }
     }
@@ -1846,16 +2446,12 @@ function updateTargetPowerUI(isOn, voltage, current) {
     if (current) targetCurrent = current;
 
     const pill = document.getElementById('btn-target-power-pill');
-    const dot = document.getElementById('top-bar-power-dot');
     const text = document.getElementById('top-bar-power-text');
     const voltVal = document.getElementById('top-bar-voltage-val');
     const currVal = document.getElementById('top-bar-current-val');
 
     if (pill) {
         pill.classList.toggle('active-on', isOn);
-    }
-    if (dot) {
-        dot.classList.toggle('green', isOn);
     }
     if (text) {
         if (isOn) {
@@ -1871,9 +2467,9 @@ function updateTargetPowerUI(isOn, voltage, current) {
     const summary = document.getElementById('target-detect-summary');
     if (summary) {
         if (isOn) {
-            summary.innerHTML = `<span class="status-dot green"></span> VTarget Active (${targetVoltage})`;
+            summary.textContent = `VTarget Active (${targetVoltage})`;
         } else {
-            summary.innerHTML = `<span class="status-dot"></span> VTarget Standby (0.00V)`;
+            summary.textContent = `VTarget Standby (0.00V)`;
         }
     }
 }
@@ -2183,6 +2779,42 @@ function initGenerator(container) {
     const statusText = $(container, '#gen-status-text');
     const canvas = $(container, '#gen-preview-canvas');
 
+    const stimulusDeck = document.getElementById('stimulus-deck');
+    const drawerHandle = document.getElementById('stimulus-drawer-handle');
+    const btnCollapse = document.getElementById('btn-collapse-stimulus');
+    const summaryText = document.getElementById('stimulus-summary-text');
+
+    function updateStimulusSummary(isRunning) {
+        if (!summaryText) return;
+        const pin = pinSelect ? pinSelect.value : '12';
+        const freq = freqInput ? freqInput.value : '1000';
+        const duty = dutyInput ? dutyInput.value : '50';
+        const fFormatted = formatFreq(parseFloat(freq) || 1000);
+        if (isRunning) {
+            summaryText.textContent = `GP${pin} @ ${fFormatted} (${duty}% PWM) [Running]`;
+        } else {
+            summaryText.textContent = `GP${pin} @ ${fFormatted} (${duty}% PWM) [Inactive]`;
+        }
+    }
+
+    if (drawerHandle && stimulusDeck) {
+        drawerHandle.addEventListener('click', (e) => {
+            if (e.target.closest('#btn-collapse-stimulus')) return;
+            stimulusDeck.classList.toggle('collapsed');
+        });
+    }
+
+    if (btnCollapse && stimulusDeck) {
+        btnCollapse.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stimulusDeck.classList.toggle('collapsed');
+        });
+    }
+
+    if (pinSelect) pinSelect.addEventListener('change', () => updateStimulusSummary(btnStop?.style.display === 'inline-flex'));
+    if (freqInput) freqInput.addEventListener('input', () => updateStimulusSummary(btnStop?.style.display === 'inline-flex'));
+    if (dutyInput) dutyInput.addEventListener('input', () => updateStimulusSummary(btnStop?.style.display === 'inline-flex'));
+
     function redrawPreview() {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -2226,6 +2858,7 @@ function initGenerator(container) {
             if (btnStop) btnStop.style.display = 'inline-flex';
             if (statusText) statusText.textContent = `PWM Active on GP${pin} (${freq} Hz, ${duty}%)`;
             if (statusPill) statusPill.classList.add('active');
+            updateStimulusSummary(true);
             syncPinRegistry();
         });
     }
@@ -2238,11 +2871,13 @@ function initGenerator(container) {
             if (btnStop) btnStop.style.display = 'none';
             if (statusText) statusText.textContent = 'Output Inactive';
             if (statusPill) statusPill.classList.remove('active');
+            updateStimulusSummary(false);
             syncPinRegistry();
         });
     }
 
     redrawPreview();
+    updateStimulusSummary(false);
 }
 
 // --------------------------------------------------------------------------
@@ -2424,11 +3059,7 @@ async function refreshProfilesList() {
 
 function renderProfileMenu(activeName) {
     const nameEl = document.getElementById('active-profile-name');
-    const dotEl = document.getElementById('profile-status-dot');
     if (nameEl) nameEl.textContent = activeName;
-    if (dotEl) {
-        dotEl.className = 'profile-dot ' + (activeProfileSlot === 0 ? 'safe' : 'active');
-    }
 
     const listEl = document.getElementById('profile-menu-slots');
     if (!listEl) return;
@@ -2787,7 +3418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (e.key === '1') {
             e.preventDefault();
-            switchMode('bench');
+            switchMode('scope');
         } else if (e.key === '2' || e.key === 'a' || e.key === 'A') {
             e.preventDefault();
             switchMode('adapters');
@@ -3195,12 +3826,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 11. Logo click
     const brandLogo = document.getElementById('brand-logo');
     if (brandLogo) {
-        brandLogo.addEventListener('click', () => switchMode('bench'));
+        brandLogo.addEventListener('click', () => switchMode('scope'));
     }
 
     // 12. Initialize board manifest, capabilities, and instrumentation modules
     await fetchBoardManifest();
+    initScopePinConfigs();
+    renderScopePinsBar();
+    initPinConfigModal();
+    initMsoSplitter();
+    updateMsoDynamicVisibility();
     initLogicAnalyzer(document);
+    initAnalogScope(document);
     initPinToggler();
     initCommand(document);
     initGenerator(document);
@@ -3224,5 +3861,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncPinRegistry();
     setInterval(syncPinRegistry, 4000);
 
-    console.log('AgentLA Unified Active Bench & Debugger initialized.');
+    console.log('AgentLA Unified Scope & Debugger initialized.');
 });

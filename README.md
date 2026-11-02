@@ -191,4 +191,3 @@ openocd -f interface/cmsis-dap.cfg -f target/stm32f1x.cfg
 | **[PicoRVD](https://github.com/aappleby/picorvd)** — Andrew Appleby | 1-wire SWIO PIO driver and PROGBUF memory access routines for WCH RISC-V targets |
 | **[gusmanb/logicanalyzer](https://github.com/gusmanb/logicanalyzer)** — Bernardo Guasconi | PIO-accelerated high-speed digital logic capture routines (`capture.pio`) and trigger engine |
 | **[lrndis](https://github.com/fetisov/lrndis)** — Sergey Fetisov | Embedded DHCP (`dhserver.c`), DNS (`dnserver.c`), and RNDIS packet processing |
-| **[WinBox.js](https://github.com/nextapps-de/winbox)** — Thomas Wilkerling (Nextapps GmbH) | Window manager powering the embedded Web Desktop multitool interface |
