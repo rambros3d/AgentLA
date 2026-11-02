@@ -114,6 +114,18 @@
         </div>
 
         <div class="bar-right">
+            <!-- Optional Demo-only Controls (revealed automatically when hosted in web demo) -->
+            <button class="preset-pill demo-only" id="btn-webserial-connect" title="Connect physical RP2350 over USB (WebSerial)" style="border-color: rgba(0, 229, 255, 0.4); color: var(--accent-cyan); display: none;">
+                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" style="vertical-align: middle; margin-right: 3px;">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                </svg>
+                Connect USB
+            </button>
+            <a href="../" class="preset-pill demo-only" style="border-color: rgba(255, 255, 255, 0.15); color: var(--text-secondary); text-decoration: none; display: none;" title="Return to Portal Landing Page">
+                ← Portal
+            </a>
+
             <div id="connection-status" class="status-indicator" title="Hardware Bridge Watchdog">
                 <div class="status-dot"></div>
                 <span class="status-text">Connecting...</span>
@@ -1062,6 +1074,28 @@
         </div>
     </div>
 
+    <!-- Dynamic Environment Loader: auto-loads mock hardware simulator when hosted as Web Demo -->
+    <script>
+        (function() {
+            var isDemo = window.location.protocol === 'https:' || 
+                         window.location.hostname.includes('github.io') ||
+                         window.location.search.includes('demo=1') ||
+                         (window.location.hostname === 'localhost' && window.location.port !== '80');
+            if (isDemo) {
+                document.title = "AgentLA - Interactive Online Demo (Active Bench & Target Station)";
+                var s = document.createElement('script');
+                s.src = 'mock-bridge.js';
+                s.onload = function() {
+                    document.querySelectorAll('.demo-only').forEach(function(el) { el.style.display = ''; });
+                    var statusText = document.querySelector('#connection-status .status-text');
+                    var statusDot = document.querySelector('#connection-status .status-dot');
+                    if (statusText) { statusText.textContent = 'Demo Mode'; statusText.style.color = 'var(--accent-cyan)'; }
+                    if (statusDot) { statusDot.className = 'status-dot green'; }
+                };
+                document.head.appendChild(s);
+            }
+        })();
+    </script>
     <script src="app.js"></script>
 </body>
 </html>

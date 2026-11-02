@@ -453,4 +453,21 @@
         }
     };
 
+    // Auto-wire demo connect button if present
+    document.addEventListener('DOMContentLoaded', () => {
+        const btnWebSerial = document.getElementById('btn-webserial-connect');
+        if (btnWebSerial) {
+            btnWebSerial.addEventListener('click', async () => {
+                if (window.AgentLA_WebSerial) {
+                    const connected = await window.AgentLA_WebSerial.connect();
+                    if (connected) {
+                        btnWebSerial.textContent = 'USB Connected';
+                        btnWebSerial.style.borderColor = '#34c759';
+                        btnWebSerial.style.color = '#34c759';
+                    }
+                }
+            });
+        }
+    });
+
 })();

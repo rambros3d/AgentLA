@@ -5,6 +5,7 @@ on:
     branches: ["dev", "master", "main"]
     paths:
       - "web/**"
+      - "firmware/html/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -30,10 +31,16 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Assemble GitHub Pages site (dereferencing symlinks)
+        run: |
+          mkdir -p _site
+          cp -rL web/* _site/
+          touch _site/.nojekyll
+
       - name: Upload static portal artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './web'
+          path: './_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
