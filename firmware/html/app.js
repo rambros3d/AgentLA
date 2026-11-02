@@ -21,6 +21,7 @@ const APP_TITLES = Object.freeze({
     i2c: "I2C Master",
     spi: "SPI Master",
     command: "Command Console",
+    console: "Command Console",
     about: "About & Pinout",
     settings: "System Settings"
 });
@@ -226,6 +227,8 @@ function switchMode(mode) {
         primaryMode = 'target';
     } else if (mode === 'pins' || mode === 'matrix') {
         primaryMode = 'pins';
+    } else if (mode === 'console' || mode === 'command' || mode === 'repl') {
+        primaryMode = 'console';
     } else {
         primaryMode = 'bench';
     }
@@ -234,21 +237,25 @@ function switchMode(mode) {
     const viewAdapters = document.getElementById('view-adapters');
     const viewTarget = document.getElementById('view-target-station');
     const viewPins = document.getElementById('view-pin-matrix');
+    const viewConsole = document.getElementById('view-console');
 
     const btnBench = document.getElementById('nav-mode-bench');
     const btnAdapters = document.getElementById('nav-mode-adapters');
     const btnTarget = document.getElementById('nav-mode-target');
     const btnPins = document.getElementById('nav-mode-pins');
+    const btnConsole = document.getElementById('nav-mode-console');
 
     if (viewBench) viewBench.classList.toggle('active', primaryMode === 'bench');
     if (viewAdapters) viewAdapters.classList.toggle('active', primaryMode === 'adapters');
     if (viewTarget) viewTarget.classList.toggle('active', primaryMode === 'target');
     if (viewPins) viewPins.classList.toggle('active', primaryMode === 'pins');
+    if (viewConsole) viewConsole.classList.toggle('active', primaryMode === 'console');
 
     if (btnBench) btnBench.classList.toggle('active', primaryMode === 'bench');
     if (btnAdapters) btnAdapters.classList.toggle('active', primaryMode === 'adapters');
     if (btnTarget) btnTarget.classList.toggle('active', primaryMode === 'target');
     if (btnPins) btnPins.classList.toggle('active', primaryMode === 'pins');
+    if (btnConsole) btnConsole.classList.toggle('active', primaryMode === 'console');
 
     if (primaryMode === 'pins') {
         updatePinMatrix();
@@ -1900,16 +1907,18 @@ document.addEventListener('DOMContentLoaded', () => {
         btnThemeToggle.addEventListener('click', toggleTheme);
     }
 
-    // 2. Primary Mode Navigation (4 Full Screen Tabs: Active Bench, Adapters, Debugger, Pin Matrix)
+    // 2. Primary Mode Navigation (5 Full Screen Tabs: Active Bench, Adapters, Debugger, Pin Matrix, Console)
     const btnBench = document.getElementById('nav-mode-bench');
     const btnAdapters = document.getElementById('nav-mode-adapters');
     const btnTarget = document.getElementById('nav-mode-target');
     const btnPins = document.getElementById('nav-mode-pins');
+    const btnConsole = document.getElementById('nav-mode-console');
 
     if (btnBench) btnBench.addEventListener('click', () => switchMode('bench'));
     if (btnAdapters) btnAdapters.addEventListener('click', () => switchMode('adapters'));
     if (btnTarget) btnTarget.addEventListener('click', () => switchMode('target'));
     if (btnPins) btnPins.addEventListener('click', () => switchMode('pins'));
+    if (btnConsole) btnConsole.addEventListener('click', () => switchMode('console'));
 
     const btnMatrixDiscover = document.getElementById('btn-matrix-safediscover');
     if (btnMatrixDiscover) {
@@ -1932,6 +1941,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (e.key === '4' || e.key === 'p' || e.key === 'P') {
             e.preventDefault();
             switchMode('pins');
+        } else if (e.key === '5' || e.key === 'c' || e.key === 'C') {
+            e.preventDefault();
+            switchMode('console');
         } else if (e.key === 'Escape') {
             closeSettingsModal();
         }
