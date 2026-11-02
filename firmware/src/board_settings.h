@@ -3,8 +3,8 @@
 
 #include "pico/stdlib.h"
 
-#if defined(SILINGPROBE_BOARD) || defined(AGENTPROBE_BOARD)
-    #include "boards/board_silingprobe.h"
+#if defined(BAKUPROBE_BOARD) || defined(SILINGPROBE_BOARD) || defined(AGENTPROBE_BOARD)
+    #include "boards/board_bakuprobe.h"
 #else
     #include "boards/board_pico2.h"
 #endif

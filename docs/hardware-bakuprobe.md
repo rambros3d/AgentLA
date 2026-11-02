@@ -1,14 +1,14 @@
-# Siling Probe Hardware Specification & Pinout
+# BakuProbe Hardware Specification & Pinout
 
 **Target MCU**: Raspberry Pi RP2350B (QFN-80)  
-**Board Profile ID**: `silingprobe`  
+**Board Profile ID**: `bakuprobe`  
 **Baseline Profile**: `pico2` (RP2350A, QFN-60)
 
 ---
 
 ## 1. Executive Summary & Design Highlights
 
-**Siling Probe** is an advanced open-hardware multi-instrument workstation probe based on the **RP2350B** (QFN-80 package). It provides a complete, simultaneous embedded toolset:
+**BakuProbe** is an advanced open-hardware multi-instrument workstation probe based on the **RP2350B** (QFN-80 package). It provides a complete, simultaneous embedded toolset:
 - **Zero Pin-Sharing**: 48 GPIOs and 8 ADCs partitioned into 5 independent physical zones.
 - **Bi-Directional Auto-Sensing Level Shifting ($1.2\,\text{V} - 5.0\,\text{V}$)** on the Programmer and Bus Master pods via TI TXS0108E / TXB0108, referenced dynamically to target VCC (`VTARGET`).
 - **Robust Power Architecture**: Direct USB-C $5\,\text{V}$ VBUS with USBLC6-2SC6 ESD protection and resettable PTC fuse, plus wide-input DC Barrel Jack ($7.0\,\text{V} - 24.0\,\text{V}$) with synchronous buck step-down for high-current target boards.
@@ -163,11 +163,11 @@
 
 ## 4. Software & Firmware Configuration
 
-The hardware profile is declaratively represented in [`boards/silingprobe.json`](file:///run/media/sun/halo/AgentLA/boards/silingprobe.json) and exposed to the C firmware via [`firmware/src/boards/board_silingprobe.h`](file:///run/media/sun/halo/AgentLA/firmware/src/boards/board_silingprobe.h).
+The hardware profile is declaratively represented in [`boards/bakuprobe/board.json`](file:///run/media/sun/halo/AgentLA/boards/bakuprobe/board.json) and exposed to the C firmware via [`firmware/src/boards/board_bakuprobe.h`](file:///run/media/sun/halo/AgentLA/firmware/src/boards/board_bakuprobe.h).
 
-To compile the firmware for the **Siling Probe** PCB:
+To compile the firmware for the **BakuProbe** PCB:
 ```bash
 # In CMake build settings (agentla_build_settings.cmake):
-cmake -B build-work -DSILINGPROBE_BOARD=ON
+cmake -B build-work -DBAKUPROBE_BOARD=ON
 make -C build-work -j4 AgentLA
 ```

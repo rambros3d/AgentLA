@@ -1,8 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "board_id": "silingprobe",
-  "name": "Siling Probe",
+  "board_id": "bakuprobe",
+  "name": "BakuProbe",
   "vendor": "AgentLA",
+  "version": "1.0.0",
+  "assets": {
+    "logo": "logo.svg",
+    "favicon": "favicon.svg",
+    "pinout": "pinout.svg"
+  },
   "mcu": {
     "chip": "RP2350B",
     "package": "QFN-80",
@@ -11,6 +17,7 @@
     "sram_bytes": 532480,
     "flash_bytes": 16777216
   },
+  "gpio_range": [0, 47],
   "power_architecture": {
     "usb_c": {
       "standard": "USB 2.0 Full-Speed Type-C (5V VBUS up to 1.5A/3A)",

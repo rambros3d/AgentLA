@@ -107,21 +107,67 @@ target_link_libraries(AgentLA
     hardware_uart
 )
 
-# HTTP content embedding - Phase 2 scaffold
+# HTTP content embedding - Dynamic Board Assets & WebUI
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(BOARD_ID "pico2" CACHE STRING "Target board identifier (pico2, bakuprobe)")
+set(WEB_STAGED_DIR "${CMAKE_CURRENT_BINARY_DIR}/web_staged")
+set(GENERATED_BOARD_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/firmware/src/generated/board_config.h")
+
+add_custom_command(
+    OUTPUT 
+        ${GENERATED_BOARD_HEADER}
+        ${WEB_STAGED_DIR}/board.json
+        ${WEB_STAGED_DIR}/logo.svg
+        ${WEB_STAGED_DIR}/pinout.svg
+        ${WEB_STAGED_DIR}/favicon.svg
+        ${WEB_STAGED_DIR}/index.html
+        ${WEB_STAGED_DIR}/app.js
+        ${WEB_STAGED_DIR}/style.css
+        ${WEB_STAGED_DIR}/wallpaper.svg
+        ${WEB_STAGED_DIR}/mcp.json
+        ${WEB_STAGED_DIR}/ok.json
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${WEB_STAGED_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_board_assets.py
+        --board ${BOARD_ID}
+        --boards-dir ${CMAKE_CURRENT_SOURCE_DIR}/boards
+        --base-html-dir ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html
+        --output-header ${GENERATED_BOARD_HEADER}
+        --output-web-dir ${WEB_STAGED_DIR}
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_board_assets.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/board.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/logo.svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/favicon.svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/pinout.svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/index.html
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/app.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/style.css
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/wallpaper.svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/mcp.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/ok.json
+    COMMENT "Generating board configuration and staging web assets for board '${BOARD_ID}'"
+    VERBATIM
+)
+
 pico_add_library(pico_httpd_content NOFLAG)
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/index.html
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/app.js
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/style.css
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/wallpaper.svg
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/mcp.json
-    ${CMAKE_CURRENT_LIST_DIR}/firmware/html/ok.json
+    ${WEB_STAGED_DIR}/index.html
+    ${WEB_STAGED_DIR}/app.js
+    ${WEB_STAGED_DIR}/style.css
+    ${WEB_STAGED_DIR}/wallpaper.svg
+    ${WEB_STAGED_DIR}/mcp.json
+    ${WEB_STAGED_DIR}/ok.json
+    ${WEB_STAGED_DIR}/board.json
+    ${WEB_STAGED_DIR}/logo.svg
+    ${WEB_STAGED_DIR}/favicon.svg
+    ${WEB_STAGED_DIR}/pinout.svg
 )
 pico_add_extra_outputs(AgentLA)
 
 
 target_include_directories(AgentLA PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/firmware/src
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/src/generated
     ${CMAKE_CURRENT_LIST_DIR}/firmware/pio
     /home/sun/sandbox/fedora/.pico-sdk/src/rp2_common/pico_lwip/include
     /home/sun/sandbox/fedora/.pico-sdk/lib/tinyusb/lib/networking

@@ -1,8 +1,8 @@
 # Deep-Dive Architectural & Technical Comparison: Raspberry Pi RP2350B vs. Espressif ESP32-P4
-## Comprehensive Engineering Evaluation for the AgentLA / Siling Probe Architecture
+## Comprehensive Engineering Evaluation for the AgentLA / BakuProbe Architecture
 
 **Document ID:** `DOC-ARCH-2026-001`  
-**Target Platform:** Siling Probe Multi-Instrument Workstation Probe (AgentLA)  
+**Target Platform:** BakuProbe Multi-Instrument Workstation Probe (AgentLA)  
 **Authors:** AgentLA Architectural & Hardware Systems Engineering Group  
 **Status:** Official Architectural Technical Report  
 **Date:** November 2026  
@@ -28,8 +28,8 @@
 
 ## 1. Executive Summary & System Context
 
-### 1.1 Project Siling Probe Mission
-**AgentLA** (and its reference workstation hardware, **Siling Probe**) is designed as an open-source, all-in-one embedded hardware bring-up lab. Unlike standard single-function debug probes (e.g., standard CMSIS-DAP adapters) or pure logic analyzers (e.g., Saleae clones), Siling Probe consolidates five distinct operational zones into a single monolithic device:
+### 1.1 Project BakuProbe Mission
+**AgentLA** (and its reference workstation hardware, **BakuProbe**) is designed as an open-source, all-in-one embedded hardware bring-up lab. Unlike standard single-function debug probes (e.g., standard CMSIS-DAP adapters) or pure logic analyzers (e.g., Saleae clones), BakuProbe consolidates five distinct operational zones into a single monolithic device:
 
 1. **Zone 1: Multi-Target Standalone Programmer & Debugger** (ARM SWD, JTAG, WCH 1-Wire SDI, QingKe RV-SWD, RISC-V SWIO, I3C, UART ISP).
 2. **Zone 2: Industrial Differential Transceivers** (Isolated CAN-FD, RS-485 / Modbus / DMX-512).
@@ -37,11 +37,11 @@
 4. **Zone 4: 16-Channel High-Speed Logic Analyzer & Pattern Generator** (100–150 MS/s capture with hardware triggers).
 5. **Zone 5: 8-Channel Analog Oscilloscope & Power Diagnostic Front-End** (High-impedance attenuators, target current/voltage sensing).
 
-Furthermore, Siling Probe operates completely driverless across Windows, Linux, and macOS by combining high-speed USB bulk endpoints with a virtual Ethernet interface (RNDIS/CDC-ECM), hosting an embedded HTTP/WebSocket/SSE web server (`http://agentla.lab`) and an embedded Model Context Protocol (MCP) server for local AI coding agent pair-programming.
+Furthermore, BakuProbe operates completely driverless across Windows, Linux, and macOS by combining high-speed USB bulk endpoints with a virtual Ethernet interface (RNDIS/CDC-ECM), hosting an embedded HTTP/WebSocket/SSE web server (`http://agentla.lab`) and an embedded Model Context Protocol (MCP) server for local AI coding agent pair-programming.
 
 ```
        ┌──────────────────────────────────────────────────────────────────┐
-       │                     Siling Probe Workstation                     │
+       │                     BakuProbe Workstation                     │
        ├─────────────────────────────────┬────────────────────────────────┤
        │     Real-Time Protocol Engine   │   Host Transport & Web Engine  │
        │  • 16-Ch Logic Analyzer (PIO)   │  • High-Speed USB / Ethernet   │
@@ -52,11 +52,11 @@ Furthermore, Siling Probe operates completely driverless across Windows, Linux, 
 ```
 
 ### 1.2 The Core Architectural Dilemma
-The current generation of Siling Probe is architected around the **Raspberry Pi RP2350B** (QFN-80 package). While the RP2350B provides unparalleled protocol agility, deterministic microcoded I/O (PIO), and dense GPIO breakouts (48 GPIOs, 8 ADCs), it suffers from an acute hardware bottleneck: its on-chip USB PHY is hard-locked to **USB 1.1 Full Speed (12 Mbps)**, yielding a practical sustained bandwidth limit of $\sim 1.0 - 1.1\,\text{MB/s}$.
+The current generation of BakuProbe is architected around the **Raspberry Pi RP2350B** (QFN-80 package). While the RP2350B provides unparalleled protocol agility, deterministic microcoded I/O (PIO), and dense GPIO breakouts (48 GPIOs, 8 ADCs), it suffers from an acute hardware bottleneck: its on-chip USB PHY is hard-locked to **USB 1.1 Full Speed (12 Mbps)**, yielding a practical sustained bandwidth limit of $\sim 1.0 - 1.1\,\text{MB/s}$.
 
 The **Espressif ESP32-P4** has emerged as a formidable alternative. Operating a dual-core 400 MHz RISC-V processor, an integrated **USB 2.0 High Speed (480 Mbps)** PHY ($\sim 40 - 53\,\text{MB/s}$ real-world throughput), an integrated 10/100 Ethernet MAC, and Octal/Hexadecapole PSRAM interfaces delivering up to $1.6\,\text{GB/s}$ memory bandwidth, the ESP32-P4 solves every data streaming and networking bottleneck. However, it lacks the Programmable I/O (PIO) state machine architecture of the RP2350, substituting it with a fixed-function Parallel I/O (PARLIO) peripheral and general-purpose timers.
 
-This report evaluates whether the Siling Probe should:
+This report evaluates whether the BakuProbe should:
 1. **Retain the RP2350B** as a pure monolithic solution;
 2. **Pivot completely to the ESP32-P4**; or
 3. **Adopt a Heterogeneous Dual-Chip Architecture** combining the RP2350B (as the cycle-deterministic real-time probe engine) with the ESP32-P4 (as the high-speed communications, streaming, and network coprocessor).
@@ -236,7 +236,7 @@ The RP2350 integrates a standard USB 1.1 Full-Speed transceiver (12 Mbps theoret
 
 * **Theoretical Max Bandwidth**: $12\,\text{Mbps} = 1.5\,\text{MB/s}$.
 * **Practical USB Bulk Throughput**: In real-world benchmarks running TinyUSB bulk endpoints, maximum throughput ranges between **$1.05\,\text{MB/s}$ and $1.15\,\text{MB/s}$** after accounting for packet headers, framing tokens, SOF markers, and bus turnaround.
-* **Impact on Siling Probe Operations**:
+* **Impact on BakuProbe Operations**:
   - **Logic Analyzer**: 16 channels @ 100 MS/s produces **$200\,\text{MB/s}$** of raw uncompressed digital data. RP2350 **cannot stream continuously**. Captures must be stored locally in internal SRAM (520 KB = 2.6 ms trace depth) or external PSRAM (8 MB = 40 ms trace depth), and then slowly dumped to the PC over USB at 1.1 MB/s (a full 8 MB PSRAM dump takes **$\sim 7.5$ seconds**).
   - **Oscilloscope**: Two ADC channels sampling at 500 kS/s 12-bit require **$2.0\,\text{MB/s}$**, exceeding the total USB link capacity. Real-time oscilloscope streaming is impossible without aggressive downsampling, decimation, or local triggering.
   - **Bandwidth Starvation**: When CMSIS-DAP debugging, RNDIS web browsing, and CDC serial communications run concurrently, all endpoints compete for the same 1.1 MB/s pipe, causing packet latency and UI sluggishness.
@@ -246,14 +246,14 @@ The ESP32-P4 integrates an on-chip **USB 2.0 High Speed (480 Mbps) OTG Controlle
 
 * **Theoretical Max Bandwidth**: $480\,\text{Mbps} = 60\,\text{MB/s}$.
 * **Practical USB Bulk Throughput**: Using 512-byte bulk endpoints backed by high-speed GDMA, practical sustained transfer speeds achieve **$42 - 53\,\text{MB/s}$**.
-* **Impact on Siling Probe Operations**:
+* **Impact on BakuProbe Operations**:
   - **Continuous Real-Time Logic Analyzer Streaming**:
     - 8 channels @ 40 MS/s = $40\,\text{MB/s}$ (streams indefinitely to Sigrok / PulseView without RAM buffer limits!).
     - 16 channels @ 20 MS/s = $40\,\text{MB/s}$ continuous streaming.
     - 8 channels @ 100 MS/s with light run-length encoding (RLE) can stream continuous digital traces indefinitely.
   - **High-Speed Oscilloscope Streaming**: Dual 12-bit ADC channels running at 2 MS/s continuous consume $8\,\text{MB/s}$, fitting comfortably within the 480 Mbps USB-HS pipe with ample headroom remaining.
   - **Zero Bandwidth Contention**: With $45+\,\text{MB/s}$ of practical bandwidth, CMSIS-DAP v2 (WinUSB), high-speed logic streaming, and high-bandwidth WebUI networking coexist seamlessly.
-  - **Dual Physical USB Ports**: Siling Probe could expose **two separate USB-C ports**:
+  - **Dual Physical USB Ports**: BakuProbe could expose **two separate USB-C ports**:
     1. *Port A (USB-HS 480 Mbps)*: Dedicated to High-Speed Sigrok streaming, WinUSB CMSIS-DAP v2, and high-bandwidth data transfers.
     2. *Port B (USB-FS 12 Mbps)*: Dedicated to isolated target UART pass-through, hardware power delivery, and isolated WebUI management.
 
@@ -281,13 +281,13 @@ ESP32-P4 Enterprise Probe:
 * Operates via **TinyUSB RNDIS / CDC-ECM** class drivers over the 12 Mbps link.
 * Runs **lwIP v2.1.x** in memory, serving static HTTP assets embedded via `pico_fsdata.inc`.
 * Browser page reloads require transmitting CSS, JS, SVG, and HTML over USB-FS. A 500 KB asset load takes $\sim 500\,\text{ms}$, resulting in noticeable latency when rendering real-time vector oscilloscope waveforms.
-* **Host Dependence**: Siling Probe cannot communicate over a local area network; it strictly requires a direct USB connection to a host computer.
+* **Host Dependence**: BakuProbe cannot communicate over a local area network; it strictly requires a direct USB connection to a host computer.
 
 ### 6.2 ESP32-P4 Network Subsystem
-* **Integrated 10/100 Ethernet MAC**: Includes a dedicated RMII interface supporting low-cost external PHYs (e.g., Microchip LAN8720, Realtek RTL8201). This allows Siling Probe to feature a physical **RJ-45 Ethernet jack**.
+* **Integrated 10/100 Ethernet MAC**: Includes a dedicated RMII interface supporting low-cost external PHYs (e.g., Microchip LAN8720, Realtek RTL8201). This allows BakuProbe to feature a physical **RJ-45 Ethernet jack**.
 * **Companion Wireless Connectivity**: The ESP32-P4 incorporates an ultra-high-speed **SDIO 3.0 Host** interface (operating at up to 200 MHz) designed specifically to pair with an Espressif wireless companion chip (such as the **ESP32-C6** or **ESP32-C2**). This provides native **Wi-Fi 6 (802.11ax)** and **Bluetooth 5.4 LE**.
 * **High-Speed USB RNDIS**: Over the 480 Mbps USB-HS link, web pages, dynamic SVG waveforms, and MCP WebSocket commands load instantaneously ($<10\,\text{ms}$).
-* **Standalone Bench Instrument**: Siling Probe transforms into an autonomous network appliance. An engineer or automated testing farm can connect the probe directly to laboratory Ethernet or Wi-Fi, mount it inside a test rack, and access `http://silingprobe.local` or connect via remote MCP sockets without any host computer connected via USB.
+* **Standalone Bench Instrument**: BakuProbe transforms into an autonomous network appliance. An engineer or automated testing farm can connect the probe directly to laboratory Ethernet or Wi-Fi, mount it inside a test rack, and access `http://bakuprobe.local` or connect via remote MCP sockets without any host computer connected via USB.
 
 ---
 
@@ -326,7 +326,7 @@ $$100\,\text{MS/s} \times 2\,\text{bytes/sample} = 200\,\text{MB/s}$$
 
 ## 8. Analog Front-End (AFE) & Oscilloscope Performance
 
-Zone 5 of the Siling Probe features an 8-channel analog oscilloscope and diagnostic front-end.
+Zone 5 of the BakuProbe features an 8-channel analog oscilloscope and diagnostic front-end.
 
 ```
 Zone 5 Analog Architecture:
@@ -349,9 +349,9 @@ Zone 5 Analog Architecture:
 | **Voltage Reference** | **Dedicated External VREF Pin** (`ADC_AVDD` / `VREF`) connected to TI REF3030 ($3.000\,\text{V} \pm 0.2\%$) | Internal bandgap reference; prone to thermal drift and rail noise; requires factory eFuse calibration curves |
 | **Linearity & Distortion** | Excellent monotonic linearity with precision external reference | Notorious non-linearity near $0\,\text{V}$ ($0 - 100\,\text{mV}$) and saturation near $V_{\text{max}}$ |
 
-### 8.2 Suitability for Siling Probe Zone 5
+### 8.2 Suitability for BakuProbe Zone 5
 The RP2350B has a decisive advantage in **analog signal integrity and pin allocation**:
-1. **8 Dedicated ADC Channels**: Siling Probe maps CH1–CH4 to analog scope inputs, CH5–CH6 to auxiliary sensor headers, CH7 to high-side target current sensing (TI INA180), and CH8 to target voltage monitoring. All 8 channels map cleanly to contiguous RP2350B pins (GP40–GP47).
+1. **8 Dedicated ADC Channels**: BakuProbe maps CH1–CH4 to analog scope inputs, CH5–CH6 to auxiliary sensor headers, CH7 to high-side target current sensing (TI INA180), and CH8 to target voltage monitoring. All 8 channels map cleanly to contiguous RP2350B pins (GP40–GP47).
 2. **Precision External VREF**: The RP2350B accepts an external ultra-precision reference (TI REF3030 $3.000\,\text{V}$), providing low-noise, lab-grade DC measurement accuracy.
 3. **ESP32-P4 ADC Limitations**: While the ESP32-P4 can sample faster (up to 2 MS/s), Espressif SAR ADCs are historically plagued by poor differential non-linearity (DNL), high 1/f noise, and blind zones near ground. For an engineering oscilloscope probe, the RP2350B delivers superior measurement fidelity and lower noise.
 
@@ -386,7 +386,7 @@ ESP32-P4 (QFN-88 / BGA-160):
 | **Silicon & Component Cost** | RP2350B chip cost: **$\sim \$1.10 - \$1.40$** in volume. | ESP32-P4 chip cost: **$\sim \$2.50 - \$3.50$** (higher for SiP PSRAM versions). |
 
 ### 9.2 Manufacturing Verdict
-Designing and manufacturing a Siling Probe PCB based on the RP2350B is significantly simpler, cheaper, and yields higher reliability on standard low-cost 4-layer PCB fabrication processes. The ESP32-P4 requires careful high-speed layout practices, controlled impedance simulation, an external multi-output PMIC or multiple discrete LDO/buck regulators, and elevated thermal management considerations.
+Designing and manufacturing a BakuProbe PCB based on the RP2350B is significantly simpler, cheaper, and yields higher reliability on standard low-cost 4-layer PCB fabrication processes. The ESP32-P4 requires careful high-speed layout practices, controlled impedance simulation, an external multi-output PMIC or multiple discrete LDO/buck regulators, and elevated thermal management considerations.
 
 ---
 
@@ -554,14 +554,14 @@ Universal Firmware Partitioning Model:
    - **Analog Oscilloscope Front-End**: The ADC sampling engine, clock dividers, DMA pacing, and external reference calibration differ fundamentally between the RP2350 8-channel SAR and the ESP32-P4 dual SAR.
 
 ### 11.4 Portability Verdict: Zephyr vs. Embedded Rust
-* **Zephyr Assessment**: While Zephyr provides a proven RTOS environment for standard enterprise devices, its lack of an abstracted parallel capture model and early ESP32-P4 peripheral support make it a heavy, high-friction choice for Siling Probe today.
+* **Zephyr Assessment**: While Zephyr provides a proven RTOS environment for standard enterprise devices, its lack of an abstracted parallel capture model and early ESP32-P4 peripheral support make it a heavy, high-friction choice for BakuProbe today.
 * **Embedded Rust Assessment**: Embedded Rust (specifically splitting the firmware into a pure `no_std` `agentla-core` crate and two target-specific HAL crates: `agentla-rp2350` using `embassy-rp` and `agentla-esp32p4` using `esp-hal`) provides the cleanest, most maintainable, and type-safe abstraction for a cross-platform future. It allows the core programmer, WebUI, and protocol logic to be tested on the host PC while cleanly isolating low-level PIO and PARLIO drivers to their respective hardware crates.
 
 ---
 
 ## 12. Quantitative Comparison Matrix & Evaluation Scorecard
 
-To provide an objective architectural assessment, the two platforms are evaluated across 12 critical engineering axes. Each axis is assigned a weighting factor reflecting its importance to the Siling Probe mission.
+To provide an objective architectural assessment, the two platforms are evaluated across 12 critical engineering axes. Each axis is assigned a weighting factor reflecting its importance to the BakuProbe mission.
 
 *Scores are assigned on a 1 to 10 scale (1 = Inadequate / Severe Deficit, 10 = Outstanding / Industry Leading).*
 
@@ -591,8 +591,8 @@ The quantitative evaluation reveals a striking conclusion:
 * **The Espressif ESP32-P4 is an exceptional high-throughput communications and compute engine**, but is ill-equipped for microcoded, cycle-deterministic hardware protocol synthesis.
 
 Attempting to force either chip to perform the other's role creates severe compromises:
-1. Staying **purely on RP2350B** forces Siling Probe users to accept slow 1.1 MB/s buffer dumps, an inability to stream logic captures continuously to Sigrok, and sluggish WebUI loading.
-2. Pivoting **completely to ESP32-P4** sacrifices the Siling Probe's greatest strength: its bulletproof, cycle-accurate support for complex debug protocols (WCH 1-Wire, QingKe RV-SWD, MIPI I3C, and hardware-triggered logic analysis) and requires months of risky firmware rewrites.
+1. Staying **purely on RP2350B** forces BakuProbe users to accept slow 1.1 MB/s buffer dumps, an inability to stream logic captures continuously to Sigrok, and sluggish WebUI loading.
+2. Pivoting **completely to ESP32-P4** sacrifices the BakuProbe's greatest strength: its bulletproof, cycle-accurate support for complex debug protocols (WCH 1-Wire, QingKe RV-SWD, MIPI I3C, and hardware-triggered logic analysis) and requires months of risky firmware rewrites.
 
 ### 13.2 Strategic Architectural Options
 
@@ -608,7 +608,7 @@ Attempting to force either chip to perform the other's role creates severe compr
 * **Pros**: Single-chip solution; full USB 2.0 High Speed (480 Mbps); native 10/100 Ethernet and Wi-Fi 6; massive Octal PSRAM.
 * **Cons**: Huge software porting effort (20+ person-weeks); loss of cycle-accurate hardware triggers; compromised WCH 1-wire and RV-SWD reliability; inferior ADC noise and linearity for the oscilloscope; more complex PCB power delivery.
 
-#### Strategic Option C: The Heterogeneous Hybrid Architecture (Siling Probe Pro / Ultimate)
+#### Strategic Option C: The Heterogeneous Hybrid Architecture (BakuProbe Pro / Ultimate)
 * **The Ideal Architectural Compromise**: Combine both processors into a coordinated master/satellite topology on a single workstation PCB:
   1. **RP2350B as the Real-Time Instrument Coprocessor (Probe Engine)**:
      - Owns Zone 1 (Programmer / Debugger), Zone 4 (Logic Analyzer), and Zone 5 (ADC Oscilloscope).
@@ -624,7 +624,7 @@ Attempting to force either chip to perform the other's role creates severe compr
 
 ```
 ========================================================================================
-            RECOMMENDED HETEROGENEOUS HYBRID ARCHITECTURE (SILING PROBE PRO)
+            RECOMMENDED HETEROGENEOUS HYBRID ARCHITECTURE (BAKUPROBE PRO)
 ========================================================================================
 
  [ TARGET HARDWARE ]                                      [ HOST PC & NETWORK ]
@@ -644,18 +644,18 @@ Attempting to force either chip to perform the other's role creates severe compr
 
 ### 13.3 Final Recommendation Roadmap
 
-1. **Short Term (Immediate Milestone - Siling Probe v1.0)**:
+1. **Short Term (Immediate Milestone - BakuProbe v1.0)**:
    - **Stick with the monolithic RP2350B**.
    - The current codebase is mature, tested, and fully functional on the RP2350B.
    - Maximize the RP2350B's capabilities: leverage its internal 520 KB SRAM for fast burst captures and use the 8 MB QSPI PSRAM for deep offline logging. The 1.1 MB/s USB-FS bandwidth is adequate for standalone flashing, CMSIS-DAP v1/v2 debugging, terminal interaction, and buffer-dumped logic analysis.
 
-2. **Medium Term (Siling Probe v1.5 - High-Speed USB Expansion)**:
+2. **Medium Term (BakuProbe v1.5 - High-Speed USB Expansion)**:
    - Before abandoning the Pico SDK ecosystem, evaluate adding an external High-Speed USB companion (such as an SPI-to-USB-HS bridge or ULPI PHY) to prove out 480 Mbps Sigrok streaming while retaining 100% of the PIO codebase.
 
-3. **Long Term (Next-Generation Siling Probe Pro - Flagship Workstation)**:
+3. **Long Term (Next-Generation BakuProbe Pro - Flagship Workstation)**:
    - Adopt **Strategic Option C (Heterogeneous Hybrid)**.
    - Pair the RP2350B with the ESP32-P4. This architecture achieves absolute engineering supremacy: the unrivaled protocol synthesis and determinism of Raspberry Pi PIO, combined with the extreme networking, memory bandwidth, and 480 Mbps streaming power of Espressif's flagship silicon.
 
 ---
 *Report certified by AgentLA Systems Architecture Group.*  
-*Repository Reference:* [`AgentLA`](file:///run/media/sun/halo/AgentLA) | *Hardware Board:* [`boards/silingprobe.json`](file:///run/media/sun/halo/AgentLA/boards/silingprobe.json)
+*Repository Reference:* [`AgentLA`](file:///run/media/sun/halo/AgentLA) | *Hardware Board:* [`boards/bakuprobe/board.json`](file:///run/media/sun/halo/AgentLA/boards/bakuprobe/board.json)

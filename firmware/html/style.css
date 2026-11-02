@@ -3030,6 +3030,81 @@ body.no-transparency {
 }
 
 /* --------------------------------------------------------------------------
+   Interactive Physical Pinout Vector Canvas & Transceiver Badges
+   -------------------------------------------------------------------------- */
+.pinout-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.pinout-canvas-container {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: auto;
+    min-height: 250px;
+}
+
+.pinout-canvas-container svg {
+    max-width: 100%;
+    height: auto;
+    max-height: 380px;
+    display: block;
+}
+
+.pinout-canvas-container .board-pin {
+    cursor: pointer;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.pinout-canvas-container .board-pin:hover,
+.pinout-canvas-container .board-pin.highlighted {
+    filter: drop-shadow(0 0 6px var(--accent-cyan)) brightness(1.25);
+    opacity: 1;
+}
+
+.pinout-canvas-container .board-pin.conflict {
+    filter: drop-shadow(0 0 8px #ff453a);
+}
+
+.pin-chip.highlighted {
+    outline: 2px solid var(--accent-cyan);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.45);
+    transform: translateY(-1px);
+}
+
+.transceiver-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.transceiver-mode-badge.onboard {
+    background: rgba(52, 199, 89, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.transceiver-mode-badge.breakout {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+    border: 1px solid rgba(255, 149, 0, 0.35);
+}
+
+/* --------------------------------------------------------------------------
    Centered System Settings Modal (#modal-settings)
    -------------------------------------------------------------------------- */
 .modal-backdrop {

@@ -300,7 +300,7 @@ uint32_t sys_now(void) {
 
 #include "webui_command_bridge.h"
 
-static char httpd_post_body[768];
+static char httpd_post_body[2048];
 static size_t httpd_post_body_len = 0;
 
 err_t httpd_post_begin(void *connection, const char *uri,

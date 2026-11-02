@@ -299,45 +299,365 @@ function togglePinDrawer(forceOpen) {
 }
 
 // --------------------------------------------------------------------------
-// Dynamic Pin Ownership & 30-Pin Domain Allocation
+// Dynamic Pin Ownership & Board Manifest Architecture
 // --------------------------------------------------------------------------
-const PIN_MAP = [
-    // Domain 1: Fixed Programmer Block (GP0 - GP9) - Non-flexible
-    { pin: 0, name: 'GP0', fn: 'I2C0 SDA', group: 'prog', role: 'SWD/I2C', fixed: true },
-    { pin: 1, name: 'GP1', fn: 'I2C0 SCL', group: 'prog', role: 'SWD/I2C', fixed: true },
-    { pin: 2, name: 'GP2', fn: 'BOOT0 RECV', group: 'prog', role: 'RECOVERY', fixed: true },
-    { pin: 3, name: 'GP3', fn: 'TARGET_PWR', group: 'prog', role: 'POWER', fixed: true },
-    { pin: 4, name: 'GP4', fn: 'P_SWCLK', group: 'prog', role: 'SWD', fixed: true },
-    { pin: 5, name: 'GP5', fn: 'P_SWDIO', group: 'prog', role: 'SWD', fixed: true },
-    { pin: 6, name: 'GP6', fn: 'P_NRST', group: 'prog', role: 'RESET', fixed: true },
-    { pin: 7, name: 'GP7', fn: 'RESERVED', group: 'prog', role: 'SYSTEM', fixed: true },
-    { pin: 8, name: 'GP8', fn: 'UART0 TX', group: 'prog', role: 'UART', fixed: true },
-    { pin: 9, name: 'GP9', fn: 'UART0 RX', group: 'prog', role: 'UART', fixed: true },
+let BOARD_MANIFEST = null;
 
-    // Domain 2: Flexible Adapter Interface (GP10 - GP19)
-    { pin: 10, name: 'GP10', fn: 'A_SDA (I2C1)', group: 'adapt', role: 'I2C', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 11, name: 'GP11', fn: 'A_SCL (I2C1)', group: 'adapt', role: 'I2C', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 12, name: 'GP12', fn: 'RS-485 TX', group: 'adapt', role: 'RS485', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 13, name: 'GP13', fn: 'RS-485 RX', group: 'adapt', role: 'RS485', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 14, name: 'GP14', fn: 'RS-485 DE', group: 'adapt', role: 'RS485', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 15, name: 'GP15', fn: 'A_MOSI', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 16, name: 'GP16', fn: 'A_MISO', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 17, name: 'GP17', fn: 'A_CS', group: 'adapt', role: 'SPI', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 18, name: 'GP18', fn: 'CAN_TX', group: 'adapt', role: 'CAN', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 19, name: 'GP19', fn: 'CAN_RX', group: 'adapt', role: 'CAN', fixed: false, driver: 0, observers: 0, handle: null },
+const FeatureRegistry = {
+    manifest: null,
+    hasHardwareCan: false,
+    hasHardwareRs485: false,
+    hasCurrentSense: false,
+    hasTargetPowerControl: false,
+    gpioMin: 0,
+    gpioMax: 29,
+    fixedGpioMax: 9,
 
-    // Domain 3: Flexible Logic Analyzer & ADC (GP20 - GP29)
-    { pin: 20, name: 'GP20', fn: 'LA CH0 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 21, name: 'GP21', fn: 'LA CH1 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 22, name: 'GP22', fn: 'LA CH2 / 120Ω TERM', group: 'la', role: 'TERM/CAP', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 23, name: 'GP23', fn: 'LA CH3 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 24, name: 'GP24', fn: 'LA CH4 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 25, name: 'GP25', fn: 'LA CH5 (PIO0)', group: 'la', role: 'CAPTURE', fixed: false, driver: 0, observers: 0, handle: null },
-    { pin: 26, name: 'GP26', fn: 'LA CH6 (ADC0)', group: 'la', role: 'ADC', fixed: false, isAnalog: true, driver: 0, observers: 0, handle: null },
-    { pin: 27, name: 'GP27', fn: 'LA CH7 (ADC1)', group: 'la', role: 'ADC', fixed: false, isAnalog: true, driver: 0, observers: 0, handle: null },
-    { pin: 28, name: 'GP28', fn: 'LA CH8 (ADC2)', group: 'la', role: 'ADC', fixed: false, isAnalog: true, driver: 0, observers: 0, handle: null },
-    { pin: 29, name: 'GP29', fn: 'LA CH9 (ADC3)', group: 'la', role: 'ADC', fixed: false, isAnalog: true, driver: 0, observers: 0, handle: null }
-];
+    init(manifest) {
+        this.manifest = manifest;
+        const feat = manifest.features || {};
+        this.hasHardwareCan = !!feat.has_hardware_can;
+        this.hasHardwareRs485 = !!feat.has_hardware_rs485;
+        this.hasCurrentSense = !!feat.target_current_sense || !!(manifest.power_architecture?.target_power?.current_sense_ic);
+        this.hasTargetPowerControl = !!feat.target_power_control || !!(manifest.power_architecture?.target_power?.firmware_switchable);
+
+        if (manifest.gpio_range && Array.isArray(manifest.gpio_range)) {
+            this.gpioMin = manifest.gpio_range[0];
+            this.gpioMax = manifest.gpio_range[1];
+        } else {
+            let maxP = 29;
+            if (manifest.zones) {
+                Object.values(manifest.zones).forEach(z => {
+                    if (z.gpio_range && z.gpio_range[1] > maxP) maxP = z.gpio_range[1];
+                });
+            }
+            this.gpioMin = 0;
+            this.gpioMax = maxP;
+        }
+
+        if (manifest.zones) {
+            Object.values(manifest.zones).forEach(z => {
+                const zname = (z.name || '').toLowerCase();
+                if (zname.includes('programmer') && z.gpio_range) {
+                    this.fixedGpioMax = z.gpio_range[1];
+                }
+            });
+        }
+
+        this.applyBranding();
+        this.applyTransceiverBadges();
+        this.applyTelemetryWidgets();
+    },
+
+    applyBranding() {
+        if (!this.manifest) return;
+        const name = this.manifest.name || 'AgentLA';
+        document.title = `${name} - AgentLA Unified Bench`;
+        const titleEls = document.querySelectorAll('.brand-title');
+        titleEls.forEach(el => { el.textContent = name; });
+
+        const brandLogo = document.getElementById('brand-logo');
+        if (brandLogo) {
+            brandLogo.innerHTML = `<img src="/logo.svg?v=${Date.now()}" alt="${name}" class="brand-logo-img" style="height: 20px; width: 20px; object-fit: contain; margin-right: 6px; vertical-align: middle;"> <span class="brand-title">${name}</span>`;
+        }
+
+        let link = document.querySelector("link[rel*='icon']");
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.head.appendChild(link);
+        }
+        link.href = `/favicon.svg?v=${Date.now()}`;
+
+        const pinoutBoardLabel = document.getElementById('pinout-board-label');
+        if (pinoutBoardLabel) {
+            pinoutBoardLabel.textContent = `${this.manifest.mcu?.chip || 'RP2350'} • ${name}`;
+        }
+    },
+
+    applyTransceiverBadges() {
+        const canCard = document.getElementById('card-adapter-can');
+        const rs485Card = document.getElementById('card-adapter-rs485');
+
+        if (canCard) {
+            let badge = canCard.querySelector('.transceiver-mode-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'transceiver-mode-badge';
+                canCard.querySelector('.adapter-card-header')?.appendChild(badge);
+            }
+            if (this.hasHardwareCan) {
+                badge.className = 'transceiver-mode-badge onboard';
+                badge.innerHTML = `<span class="badge-dot"></span> Onboard TCAN334 Transceiver`;
+            } else {
+                badge.className = 'transceiver-mode-badge breakout';
+                badge.innerHTML = `<span class="badge-dot warning"></span> External Breakout Mode (GP18 TX / GP19 RX / GP22 Term)`;
+            }
+        }
+
+        if (rs485Card) {
+            let badge = rs485Card.querySelector('.transceiver-mode-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'transceiver-mode-badge';
+                rs485Card.querySelector('.adapter-card-header')?.appendChild(badge);
+            }
+            if (this.hasHardwareRs485) {
+                badge.className = 'transceiver-mode-badge onboard';
+                badge.innerHTML = `<span class="badge-dot"></span> Onboard SN65HVD3082 Transceiver`;
+            } else {
+                badge.className = 'transceiver-mode-badge breakout';
+                badge.innerHTML = `<span class="badge-dot warning"></span> External Breakout Mode (GP12 TX / GP13 RX / GP14 DE)`;
+            }
+        }
+    },
+
+    applyTelemetryWidgets() {
+        const telemetryWidget = document.getElementById('target-power-telemetry');
+        if (telemetryWidget) {
+            if (this.hasCurrentSense) {
+                telemetryWidget.style.display = 'flex';
+                const icLabel = this.manifest.power_architecture?.target_power?.current_sense_ic || 'INA180';
+                const labelEl = telemetryWidget.querySelector('.telemetry-ic-label');
+                if (labelEl) labelEl.textContent = `(${icLabel})`;
+            } else {
+                telemetryWidget.style.display = 'none';
+            }
+        }
+    }
+};
+
+let PIN_MAP = [];
+
+function generatePinMapFromManifest(manifest) {
+    const list = [];
+    if (!manifest || !manifest.zones) return list;
+
+    const levelShifting = manifest.level_shifting || {};
+
+    Object.entries(manifest.zones).forEach(([zoneKey, zone]) => {
+        const isProgZone = zoneKey.includes('prog') || (zone.name || '').toLowerCase().includes('programmer');
+        const [zMin, zMax] = zone.gpio_range || [0, 0];
+
+        let levelShift = '3.3V Direct';
+        if (isProgZone && levelShifting.zone1_programmer) {
+            levelShift = `${levelShifting.zone1_programmer.voltage_range} Level-Shifted (${levelShifting.zone1_programmer.chip})`;
+        } else if (levelShifting.zone3_bus_masters && (zoneKey.includes('bus') || zoneKey.includes('adapt'))) {
+            levelShift = `${levelShifting.zone3_bus_masters.voltage_range} Level-Shifted (${levelShifting.zone3_bus_masters.chip})`;
+        } else if (zone.connector && zone.connector.includes('Level Translation')) {
+            levelShift = '1.2V - 5.0V Level-Shifted';
+        }
+
+        for (let p = zMin; p <= zMax; p++) {
+            let fn = `GPIO ${p}`;
+            let role = isProgZone ? 'SYSTEM' : 'GENERAL';
+            let isFixed = isProgZone;
+            let isAnalog = false;
+
+            if (zone.pins) {
+                for (const [pName, pNum] of Object.entries(zone.pins)) {
+                    if (pNum === p) {
+                        fn = pName.toUpperCase();
+                        role = isProgZone ? 'SWD/UART' : 'BUS';
+                        break;
+                    }
+                }
+            } else if (zone.can_fd && (zone.can_fd.tx_pin === p || zone.can_fd.rx_pin === p || zone.can_fd.term_120ohm_relay_pin === p)) {
+                if (zone.can_fd.tx_pin === p) fn = 'CAN_TX';
+                else if (zone.can_fd.rx_pin === p) fn = 'CAN_RX';
+                else fn = 'CAN_TERM_120Ω';
+                role = 'CAN';
+            } else if (zone.rs485 && (zone.rs485.tx_pin === p || zone.rs485.rx_pin === p || zone.rs485.de_re_pin === p)) {
+                if (zone.rs485.tx_pin === p) fn = 'RS485_TX';
+                else if (zone.rs485.rx_pin === p) fn = 'RS485_RX';
+                else fn = 'RS485_DE';
+                role = 'RS485';
+            } else if (zone.channels && zone.channels[`scope_ch${p - zMin + 1}`]) {
+                const ch = zone.channels[`scope_ch${p - zMin + 1}`];
+                fn = `SCOPE CH${ch.adc} (ADC${ch.adc})`;
+                role = 'ADC';
+                isAnalog = true;
+            } else if (zone.adc_channels && zone.adc_channels.includes(p - zMin)) {
+                const adcIdx = p - zMin;
+                fn = `ANALOG ADC${adcIdx} / CH${adcIdx}`;
+                role = 'ADC';
+                isAnalog = true;
+            } else if (zone.base_pin !== undefined) {
+                const chIdx = p - zone.base_pin;
+                fn = `LA CH${chIdx} (PIO)`;
+                role = 'CAPTURE';
+            } else if (p >= 10 && p <= 19) {
+                if (p === 10) fn = 'A_SDA (I2C1)';
+                else if (p === 11) fn = 'A_SCL (I2C1)';
+                else if (p === 12) fn = 'RS-485 TX';
+                else if (p === 13) fn = 'RS-485 RX';
+                else if (p === 14) fn = 'RS-485 DE';
+                else if (p === 15) fn = 'A_MOSI (SPI1)';
+                else if (p === 16) fn = 'A_MISO (SPI1)';
+                else if (p === 17) fn = 'A_CS (SPI1)';
+                else if (p === 18) fn = 'CAN_TX';
+                else if (p === 19) fn = 'CAN_RX';
+                role = 'ADAPTER';
+            } else if (p >= 20 && p <= 29) {
+                if (p >= 26) {
+                    fn = `ADC${p - 26} / LA CH${p - 20}`;
+                    role = 'ADC';
+                    isAnalog = true;
+                } else {
+                    fn = `LA CH${p - 20} (PIO0)`;
+                    role = 'CAPTURE';
+                }
+            }
+
+            list.push({
+                pin: p,
+                name: `GP${p}`,
+                fn: fn,
+                group: zoneKey,
+                zoneName: zone.name || zoneKey,
+                role: role,
+                fixed: isFixed,
+                isAnalog: isAnalog,
+                driver: 0,
+                observers: 0,
+                handle: null,
+                levelShift: levelShift,
+                connector: zone.connector || 'Standard Header'
+            });
+        }
+    });
+
+    return list;
+}
+
+function renderDynamicPinMatrix(manifest) {
+    const container = document.getElementById('matrix-domains-container');
+    if (!container || !manifest || !manifest.zones) return;
+    container.innerHTML = '';
+
+    const zones = Object.entries(manifest.zones);
+
+    zones.forEach(([zoneKey, zone]) => {
+        const [zMin, zMax] = zone.gpio_range || [0, 0];
+        const isProgZone = zoneKey.includes('prog') || (zone.name || '').toLowerCase().includes('programmer');
+        const isTransceiver = zoneKey.includes('transceiver') || (zone.name || '').toLowerCase().includes('transceiver');
+        const isScope = zoneKey.includes('scope') || (zone.name || '').toLowerCase().includes('scope');
+
+        let tagText = 'Unified Flexible Pool';
+        if (isProgZone) tagText = 'Dedicated CMSIS-DAP (1.2V–5.0V)';
+        else if (isTransceiver) tagText = 'Differential PHY (Isolated)';
+        else if (isScope) tagText = `${zone.attenuation || '1x'} Front-End & ADC`;
+        else if (zone.connector && zone.connector.includes('Level Translation')) tagText = 'Level-Shifted 1.2V–5.0V';
+
+        const card = document.createElement('div');
+        card.className = 'bento-card domain-card';
+        card.innerHTML = `
+            <div class="domain-header">
+                <div class="domain-header-left">
+                    <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
+                        <path d="M12 7V17M7 12H17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <h4>${zone.name || zoneKey} (GP${zMin}–GP${zMax})</h4>
+                </div>
+                <span class="domain-tag">${tagText}</span>
+            </div>
+            <div class="pin-matrix-grid" id="gpio-grid-zone-${zoneKey}"></div>
+        `;
+        container.appendChild(card);
+    });
+
+    renderAllZonePins();
+}
+
+function renderAllZonePins() {
+    if (!BOARD_MANIFEST || !BOARD_MANIFEST.zones) return;
+
+    Object.entries(BOARD_MANIFEST.zones).forEach(([zoneKey, zone]) => {
+        const grid = document.getElementById(`gpio-grid-zone-${zoneKey}`);
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const pins = PIN_MAP.filter(p => p.group === zoneKey);
+        pins.forEach(pin => {
+            const isConflict = pin.driver > 1;
+            const chip = document.createElement('div');
+            chip.className = `pin-chip ${pin.fixed ? 'fixed' : (isConflict ? 'conflict pin-conflict-alert' : (pin.driver > 0 ? 'claimed' : (pin.observers > 0 ? 'observer' : '')))}`;
+            chip.setAttribute('data-pin', pin.pin);
+
+            let statusText = 'Hi-Z';
+            if (pin.fixed) statusText = 'LOCK';
+            else if (isConflict) statusText = 'CONFLICT';
+            else if (pin.driver > 0) statusText = 'DRIVER';
+            else if (pin.observers > 0) statusText = `OBS(${pin.observers})`;
+
+            chip.innerHTML = `
+                <div class="pin-chip-header">
+                    <span class="pin-chip-name">${pin.name}</span>
+                    <span class="pin-status-tag ${isConflict ? 'conflict' : ''}">${statusText}</span>
+                </div>
+                <div class="pin-chip-fn">${pin.fn}</div>
+                <div class="pin-chip-claims">
+                    <span class="pin-metric">D:${pin.driver || 0}</span>
+                    <span class="pin-metric">O:${pin.observers || 0}</span>
+                </div>
+            `;
+            chip.addEventListener('click', () => inspectPin(pin.pin));
+            chip.addEventListener('pointerenter', () => highlightPinInSvg(pin.pin, true));
+            chip.addEventListener('pointerleave', () => highlightPinInSvg(pin.pin, false));
+            grid.appendChild(chip);
+        });
+    });
+}
+
+function highlightPinInSvg(pinNum, active) {
+    const svgPin = document.getElementById(`pin-gp${pinNum}`);
+    if (svgPin) {
+        if (active) {
+            svgPin.classList.add('highlighted');
+        } else {
+            svgPin.classList.remove('highlighted');
+        }
+    }
+}
+
+async function mountInteractivePinout() {
+    const canvas = document.getElementById('hardware-pinout-canvas');
+    if (!canvas) return;
+
+    try {
+        const res = await fetch(`/pinout.svg?v=${Date.now()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const svgText = await res.text();
+        canvas.innerHTML = svgText;
+
+        const boardPins = canvas.querySelectorAll('.board-pin');
+        boardPins.forEach(pinEl => {
+            const pinId = pinEl.id || '';
+            const m = pinId.match(/pin-gp(\d+)/i);
+            if (!m) return;
+            const pinNum = parseInt(m[1], 10);
+
+            pinEl.addEventListener('pointerenter', () => {
+                pinEl.classList.add('highlighted');
+                const chip = document.querySelector(`.pin-chip[data-pin="${pinNum}"]`);
+                if (chip) chip.classList.add('highlighted');
+            });
+
+            pinEl.addEventListener('pointerleave', () => {
+                pinEl.classList.remove('highlighted');
+                const chip = document.querySelector(`.pin-chip[data-pin="${pinNum}"]`);
+                if (chip) chip.classList.remove('highlighted');
+            });
+
+            pinEl.addEventListener('click', () => {
+                inspectPin(pinNum);
+            });
+        });
+    } catch (err) {
+        canvas.innerHTML = `<div style="color: var(--text-secondary); padding: 20px; font-size: 13px;">Pinout vector graphic preview offline (${err.message})</div>`;
+    }
+}
 
 function inspectPin(pinNum) {
     const pin = PIN_MAP.find(p => p.pin === pinNum);
@@ -346,19 +666,9 @@ function inspectPin(pinNum) {
     const isConflict = pin.driver > 1;
     let badgeHtml = '';
     if (pin.fixed) {
-        badgeHtml = `<span class="status-badge" style="background: color-mix(in oklch, var(--color-error) 18%, transparent); color: var(--color-error); border: 1px solid var(--color-error);"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path opacity="0.5" d="M2 16C2 13.1716 2 11.7574 2.87868 10.8787C3.75736 10 5.17157 10 8 10H16C18.8284 10 20.2426 10 21.1213 10.8787C22 11.7574 22 13.1716 22 16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H8C5.17157 22 3.75736 22 2.87868 21.1213C2 20.2426 2 18.8284 2 16Z" fill="currentColor"/>
-<path d="M8 15C8.55228 15 9 15.4477 9 16C9 16.5523 8.55228 17 8 17C7.44772 17 7 16.5523 7 16C7 15.4477 7.44772 15 8 15Z" fill="currentColor"/>
-<path d="M12 15C12.5523 15 13 15.4477 13 16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16C11 15.4477 11.4477 15 12 15Z" fill="currentColor"/>
-<path d="M16 15C16.5523 15 17 15.4477 17 16C17 16.5523 16.5523 17 16 17C15.4477 17 15 16.5523 15 16C15 15.4477 15.4477 15 16 15Z" fill="currentColor"/>
-<path d="M12 1.25C15.7279 1.25 18.75 4.27208 18.75 8V10.0547C18.3135 10.0221 17.8174 10.0092 17.25 10.0039V8C17.25 5.10051 14.8995 2.75 12 2.75C9.10051 2.75 6.75 5.10051 6.75 8V10.0039C6.18264 10.0092 5.68651 10.0221 5.25 10.0547V8C5.25 4.27208 8.27208 1.25 12 1.25Z" fill="currentColor"/>
-</svg> FIXED PROGRAMMER BLOCK</span>`;
+        badgeHtml = `<span class="status-badge" style="background: color-mix(in oklch, var(--color-error) 18%, transparent); color: var(--color-error); border: 1px solid var(--color-error);">FIXED HARDWARE BLOCK</span>`;
     } else if (isConflict) {
-        badgeHtml = `<span class="status-badge" style="background: color-mix(in oklch, var(--color-warning) 18%, transparent); color: var(--color-warning); border: 1px solid var(--color-warning);"><svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path opacity="0.5" d="M16.1569 3.80211L16.8431 4.20846C18.8718 5.40987 19.8862 6.01057 20.4431 7C21 7.98943 21 9.19084 21 11.5937V12.4063C21 14.8092 21 16.0106 20.4431 17C19.8862 17.9894 18.8718 18.5901 16.8431 19.7915L16.1569 20.1979C14.1282 21.3993 13.1138 22 12 22C10.8862 22 9.8718 21.3993 7.84308 20.1979L7.15692 19.7915C5.1282 18.5901 4.11384 17.9894 3.55692 17C3 16.0106 3 14.8092 3 12.4063V11.5937C3 9.19084 3 7.98943 3.55692 7C4.11384 6.01057 5.1282 5.40987 7.15692 4.20846L7.84308 3.80211C9.8718 2.6007 10.8862 2 12 2C13.1138 2 14.1282 2.6007 16.1569 3.80211Z" fill="currentColor"/>
-<path d="M12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25Z" fill="currentColor"/>
-<path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" fill="currentColor"/>
-</svg> ATOMIC CONFLICT (DRIVER COLLISION)</span>`;
+        badgeHtml = `<span class="status-badge" style="background: color-mix(in oklch, var(--color-warning) 18%, transparent); color: var(--color-warning); border: 1px solid var(--color-warning);">ATOMIC CONFLICT (DRIVER COLLISION)</span>`;
     } else if (pin.driver === 1) {
         badgeHtml = '<span class="status-badge ok">EXCLUSIVE DRIVER ACTIVE</span>';
     } else if (pin.observers > 0) {
@@ -372,8 +682,10 @@ function inspectPin(pinNum) {
             <div class="settings-section">
                 <div class="settings-section-title">Pin Inspection: ${pin.name}</div>
                 <div style="margin-bottom: 12px;">${badgeHtml}</div>
-                <div class="settings-row"><span class="settings-label">Hardware Domain</span><span style="font-family: monospace;">${pin.group.toUpperCase()}</span></div>
+                <div class="settings-row"><span class="settings-label">Hardware Domain</span><span style="font-family: monospace;">${(pin.zoneName || pin.group).toUpperCase()}</span></div>
                 <div class="settings-row"><span class="settings-label">Default Peripheral Function</span><span>${pin.fn}</span></div>
+                <div class="settings-row"><span class="settings-label">Voltage & Level Shifting</span><span>${pin.levelShift || '3.3V Tolerant'}</span></div>
+                <div class="settings-row"><span class="settings-label">Physical Connector</span><span>${pin.connector || 'Standard Header'}</span></div>
                 <div class="settings-row"><span class="settings-label">Active Drivers</span><span style="font-weight: 700; color: ${pin.driver > 1 ? '#ff9500' : 'var(--text-primary)'};">${pin.driver}</span></div>
                 <div class="settings-row"><span class="settings-label">Active Observers</span><span>${pin.observers}</span></div>
             </div>
@@ -401,9 +713,11 @@ async function syncPinRegistry() {
         });
     }
 
-    // Check conflicts: any dynamic pin (10-29) with >1 driver
     let conflictPin = null;
-    for (let p = 10; p <= 29; p++) {
+    const startDynamicPin = (FeatureRegistry.fixedGpioMax !== undefined) ? (FeatureRegistry.fixedGpioMax + 1) : 10;
+    const endDynamicPin = FeatureRegistry.gpioMax || 29;
+
+    for (let p = startDynamicPin; p <= endDynamicPin; p++) {
         const pinObj = PIN_MAP.find(x => x.pin === p);
         if (pinObj && pinObj.driver > 1) {
             conflictPin = p;
@@ -416,49 +730,44 @@ async function syncPinRegistry() {
         if (conflictPin !== null) {
             conflictBadge.className = 'pin-conflict-badge conflict';
             conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/><path d="M12 7.75C12.4142 7.75 12.75 8.08579 12.75 8.5V12.5C12.75 12.9142 12.4142 13.25 12 13.25C11.5858 13.25 11.25 12.9142 11.25 12.5V8.5C11.25 8.08579 11.5858 7.75 12 7.75Z" fill="currentColor"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg><span>Conflict on GP${conflictPin}: Multiple Drivers!</span>`;
+            const svgPin = document.getElementById(`pin-gp${conflictPin}`);
+            if (svgPin) svgPin.classList.add('conflict');
         } else {
             conflictBadge.className = 'pin-conflict-badge ok';
-            conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M16.0303 10.0303C16.3232 9.73744 16.3232 9.26256 16.0303 8.96967C15.7374 8.67678 15.2626 8.67678 14.9697 8.96967L10.5 13.4393L9.03033 11.9697C8.73744 11.6768 8.26256 11.6768 7.96967 11.9697C7.67678 12.2626 7.67678 12.7374 7.96967 13.0303L9.96967 15.0303C10.2626 15.3232 10.7374 15.3232 11.0303 15.0303L16.0303 10.0303Z" fill="currentColor"/></svg><span>All Pins Conflict-Free</span>`;
+            conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M16.0303 10.0303C16.3232 9.73744 16.3232 9.26256 16.0303 8.96967C15.7374 8.67678 15.2626 8.67678 14.9697 8.96967L10.5 13.4393L9.03033 11.9697C8.73744 11.6768 8.26256 11.6768 7.96967 11.9697C7.67678 12.2626 7.67678 12.7374 7.96967 13.0303L9.96967 15.0303C10.2626 15.3232 10.7374 15.3232 11.0303 15.0303L16.0303 10.0303Z" fill="currentColor"/></svg><span>All Pins Conflict-Free</span>`;
+            document.querySelectorAll('.board-pin.conflict').forEach(el => el.classList.remove('conflict'));
         }
     }
 
-    renderPinGroup('prog', '#gpio-grid-prog');
-    renderPinGroup('adapt', '#gpio-grid-adapt');
-    renderPinGroup('la', '#gpio-grid-la');
+    renderAllZonePins();
 }
 
-function renderPinGroup(groupName, containerSelector) {
-    const container = document.querySelector(containerSelector);
-    if (!container) return;
-    container.innerHTML = '';
-
-    const pins = PIN_MAP.filter(p => p.group === groupName);
-    pins.forEach(pin => {
-        const isConflict = pin.driver > 1;
-        const chip = document.createElement('div');
-        chip.className = `pin-chip ${pin.fixed ? 'fixed' : (isConflict ? 'conflict pin-conflict-alert' : (pin.driver > 0 ? 'claimed' : (pin.observers > 0 ? 'observer' : '')))}`;
-        chip.setAttribute('data-pin', pin.pin);
-
-        let statusText = 'Hi-Z';
-        if (pin.fixed) statusText = 'LOCK';
-        else if (isConflict) statusText = 'CONFLICT';
-        else if (pin.driver > 0) statusText = 'DRIVER';
-        else if (pin.observers > 0) statusText = `OBS(${pin.observers})`;
-
-        chip.innerHTML = `
-            <div class="pin-chip-header">
-                <span class="pin-chip-name">${pin.name}</span>
-                <span class="pin-status-tag ${isConflict ? 'conflict' : ''}">${statusText}</span>
-            </div>
-            <div class="pin-chip-fn">${pin.fn}</div>
-            <div class="pin-chip-claims">
-                <span class="pin-metric">D:${pin.driver || 0}</span>
-                <span class="pin-metric">O:${pin.observers || 0}</span>
-            </div>
-        `;
-        chip.addEventListener('click', () => inspectPin(pin.pin));
-        container.appendChild(chip);
-    });
+async function fetchBoardManifest() {
+    try {
+        const res = await fetch(`/board.json?v=${Date.now()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        BOARD_MANIFEST = await res.json();
+        FeatureRegistry.init(BOARD_MANIFEST);
+        PIN_MAP = generatePinMapFromManifest(BOARD_MANIFEST);
+        renderDynamicPinMatrix(BOARD_MANIFEST);
+    } catch (err) {
+        console.warn('Failed to load board manifest, using Pico 2 fallback:', err);
+        const fallback = {
+            board_id: 'pico2',
+            name: 'Raspberry Pi Pico 2',
+            features: { has_hardware_can: false, has_hardware_rs485: false, target_current_sense: false },
+            gpio_range: [0, 29],
+            zones: {
+                fixed_programmer: { name: 'Fixed Programmer Zone', gpio_range: [0, 9] },
+                flexible_pool: { name: 'Flexible Multiplexed Pool', gpio_range: [10, 25] },
+                analog_scope: { name: 'Analog Oscilloscope Front-End', gpio_range: [26, 29] }
+            }
+        };
+        BOARD_MANIFEST = fallback;
+        FeatureRegistry.init(fallback);
+        PIN_MAP = generatePinMapFromManifest(fallback);
+        renderDynamicPinMatrix(fallback);
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -1590,7 +1899,15 @@ function initPinToggler() {
     if (!grid) return;
     grid.innerHTML = '';
 
-    for (let p = 10; p <= 29; p++) {
+    const startP = (FeatureRegistry.fixedGpioMax !== undefined) ? (FeatureRegistry.fixedGpioMax + 1) : 10;
+    const endP = FeatureRegistry.gpioMax || 29;
+
+    const rangeTag = document.getElementById('gpio-control-range-tag');
+    if (rangeTag) {
+        rangeTag.textContent = `GP${startP}–GP${endP} • SIO High / Low / Pull / Hi-Z`;
+    }
+
+    for (let p = startP; p <= endP; p++) {
         const card = document.createElement('div');
         card.className = 'pin-toggle-card';
         card.setAttribute('data-pin', p);
@@ -1912,7 +2229,7 @@ async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
 // --------------------------------------------------------------------------
 // Shell Bootstrapping & Event Wire-Up
 // --------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     applyUiSettings();
 
     // 1. Theme toggle
@@ -2307,7 +2624,9 @@ document.addEventListener('DOMContentLoaded', () => {
         brandLogo.addEventListener('click', () => switchMode('bench'));
     }
 
-    // 12. Initialize all instrumentation modules directly
+    // 12. Initialize board manifest, capabilities, and instrumentation modules
+    await fetchBoardManifest();
+    mountInteractivePinout();
     initLogicAnalyzer(document);
     initPinToggler();
     initCommand(document);

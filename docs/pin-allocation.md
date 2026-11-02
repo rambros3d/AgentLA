@@ -2,7 +2,7 @@
 
 AgentLA supports two distinct board profiles:
 1. **Pico 2 (`pico2`)**: Baseline Raspberry Pi Pico 2 board using **RP2350A** (QFN-60, 30 GPIOs, 4 ADCs). Documented below.
-2. **Siling Probe (`silingprobe`)**: Custom hardware PCB using **RP2350B** (QFN-80, 48 GPIOs, 8 ADCs) with dedicated transceivers, level shifting, 8MB PSRAM, MicroSD slot, and USB-PD/DC jack power. Fully documented in [hardware-silingprobe.md](file:///run/media/sun/halo/AgentLA/docs/hardware-silingprobe.md) and [silingprobe.json](file:///run/media/sun/halo/AgentLA/boards/silingprobe.json).
+2. **BakuProbe (`bakuprobe`)**: Custom hardware PCB using **RP2350B** (QFN-80, 48 GPIOs, 8 ADCs) with dedicated transceivers, level shifting, 8MB PSRAM, MicroSD slot, and USB-PD/DC jack power. Fully documented in [hardware-bakuprobe.md](file:///run/media/sun/halo/AgentLA/docs/hardware-bakuprobe.md) and [board.json](file:///run/media/sun/halo/AgentLA/boards/bakuprobe/board.json).
 
 ---
 

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "board_id": "custom_board",
+  "name": "Custom Hardware Probe",
+  "vendor": "Custom Vendor",
+  "version": "1.0.0",
+  "assets": {
+    "logo": "logo.svg",
+    "favicon": "favicon.svg",
+    "pinout": "pinout.svg"
+  },
+  "mcu": {
+    "chip": "RP2350A",
+    "package": "QFN-60",
+    "cores": "Dual ARM Cortex-M33 / Hazard3 RISC-V",
+    "clock_max_mhz": 150,
+    "sram_bytes": 532480,
+    "flash_bytes": 4194304
+  },
+  "features": {
+    "onboard_led": 25,
+    "vref_volts": 3.3,
+    "has_hardware_can": false,
+    "has_hardware_rs485": false,
+    "target_current_sense": false,
+    "target_power_control": false,
+    "qwiic_stemma_qt": false
+  },
+  "zones": {
+    "flexible_pool": {
+      "name": "General Purpose GPIOs",
+      "gpio_range": [0, 29],
+      "channels_count": 30
+    }
+  }
+}

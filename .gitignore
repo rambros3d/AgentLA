@@ -11,6 +11,8 @@ build*/
 *.d
 *.so
 .cache/
+firmware/html/generated/
+firmware/src/generated/
 
 # CMake
 CMakeCache.txt

@@ -1,6 +1,6 @@
 /**
- * @file board_silingprobe.h
- * @brief Hardware Board Definition for Siling Probe Custom PCB (RP2350B QFN-80)
+ * @file board_bakuprobe.h
+ * @brief Hardware Board Definition for BakuProbe Custom PCB (RP2350B QFN-80)
  *
  * Highlights:
  *  - RP2350B (QFN-80) with 48 GPIOs and 8 ADCs
@@ -12,11 +12,11 @@
  *  - 16-channel contiguous 100/150 MS/s logic capture (GP24-39)
  *  - 8-channel analog oscilloscope front-end with REF3030 precision 3.000V VREF
  */
-#ifndef __AGENTLA_BOARD_SILINGPROBE_H__
-#define __AGENTLA_BOARD_SILINGPROBE_H__
+#ifndef __AGENTLA_BOARD_BAKUPROBE_H__
+#define __AGENTLA_BOARD_BAKUPROBE_H__
 
-#define BOARD_ID   "silingprobe"
-#define BOARD_NAME "Siling Probe"
+#define BOARD_ID   "bakuprobe"
+#define BOARD_NAME "BakuProbe"
 #define BOARD_MCU  "RP2350B (QFN-80)"
 #define NUM_GPIOS  48
 
@@ -81,4 +81,4 @@
 #define HAS_ONBOARD_LED     0
 #define VREF_VOLTAGE        3.0f
 
-#endif /* __AGENTLA_BOARD_SILINGPROBE_H__ */
+#endif /* __AGENTLA_BOARD_BAKUPROBE_H__ */
