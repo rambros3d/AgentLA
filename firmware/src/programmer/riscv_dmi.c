@@ -240,7 +240,7 @@ ch32_result_t riscv_read_mem(uint32_t addr, uint32_t *val) {
         }
 
         /* Execute PROGBUF (postexec) */
-        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC);
         if (res != CH32_OK) {
             if (!was_halted) riscv_resume();
             return res;
@@ -347,7 +347,7 @@ ch32_result_t riscv_write_mem(uint32_t addr, uint32_t val) {
         }
 
         /* Execute PROGBUF (postexec) */
-        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
+        res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC);
         if (res != CH32_OK) {
             if (!was_halted) riscv_resume();
             return res;
@@ -407,7 +407,7 @@ ch32_result_t riscv_write_hword(uint32_t addr, uint16_t val) {
 
     /* Execute PROGBUF (postexec) */
     riscv_dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_ERR_MASK);
-    res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_POSTEXEC);
+    res = riscv_dmi_write(DMI_COMMAND, CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC);
     if (res != CH32_OK) {
         if (!was_halted) riscv_resume();
         return res;

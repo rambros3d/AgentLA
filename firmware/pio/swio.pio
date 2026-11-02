@@ -19,7 +19,7 @@
 ;   - Clock divider: 125MHz / 12 ≈ 10.4MHz (96ns per tick)
 
 .program swio
-.side_set 1
+.side_set 1 pindirs
 
 .wrap_target
 

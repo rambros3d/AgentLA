@@ -3023,8 +3023,8 @@ static void cmd_ch32_read(char* args) {
 static void cmd_ch32_readm(char* args) {
     if (args == NULL) { send_response("ERR usage: CH32 READM <addr>"); return; }
     while (*args == ' ') args++;
-    if (!g_ch32_target.probed || g_ch32_target.mode != CH32_MODE_RVSWD) {
-        send_response("ERR CH32 READM requires probed RVSWD target (run CH32 DETECT mcu=ch32v203 first)");
+    if (!g_ch32_target.probed) {
+        send_response("ERR CH32 READM requires probed target (run CH32 DETECT first)");
         return;
     }
     uint32_t addr = (uint32_t)strtoul(args, NULL, 0);
@@ -3042,7 +3042,7 @@ static void cmd_ch32_readm(char* args) {
 
 static void cmd_ch32_reset(char* args) {
     (void)args;
-    if (g_ch32_target.probed && g_ch32_target.mode == CH32_MODE_RVSWD) {
+    if (g_ch32_target.probed) {
         ch32v20x_reset_microprocessor_and_run();
     }
     /* Hard-reset the RISC-V target by pulsing its NRST line (GPIO6, shared
@@ -4000,7 +4000,73 @@ static void process_command(char* cmd) {
             swio_deinit();
             send_response("OK SWIO deinitialized");
         }
-        else { send_response("ERR unknown SWIO subcommand: STATUS|INIT|DEINIT"); }
+        else if(args && strncmp(args, "RESET", 5) == 0) {
+            swio_reset();
+            send_response("OK SWIO reset");
+        }
+        else if(args && strncmp(args, "READ", 4) == 0) {
+            unsigned long reg = 0;
+            if (sscanf(args + 4, "%lx", &reg) == 1) {
+                if (!swio_is_initialized()) swio_init();
+                uint32_t val = swio_get((uint32_t)reg);
+                char msg[64];
+                sprintf(msg, "SWIO READ reg=0x%02lX val=0x%08lX", reg, (unsigned long)val);
+                send_response(msg);
+            } else {
+                send_response("ERR usage: SWIO READ <reg_hex>");
+            }
+        }
+        else if(args && strncmp(args, "WRITE", 5) == 0) {
+            unsigned long reg = 0, val = 0;
+            if (sscanf(args + 5, "%lx %lx", &reg, &val) == 2) {
+                if (!swio_is_initialized()) swio_init();
+                swio_put((uint32_t)reg, (uint32_t)val);
+                char msg[64];
+                sprintf(msg, "OK SWIO WRITE reg=0x%02lX val=0x%08lX", reg, val);
+                send_response(msg);
+            } else {
+                send_response("ERR usage: SWIO WRITE <reg_hex> <val_hex>");
+            }
+        }
+        else if(args && strncmp(args, "TRACE", 5) == 0) {
+            if (!swio_is_initialized()) swio_init();
+            
+            #define TRACE_LEN 1024
+            static uint8_t trace_buf[TRACE_LEN];
+            
+            uint32_t cmd = ((~0x11u) << 1) | 1;
+            
+            /* Tight sampling loop */
+            uint32_t flags = save_and_disable_interrupts();
+            pio_sm_put(SWIO_PIO, SWIO_SM, cmd);
+            for (int i = 0; i < TRACE_LEN; i++) {
+                trace_buf[i] = (uint8_t)(sio_hw->gpio_in & (1u << SWIO_DATA_PIN) ? 1 : 0);
+            }
+            restore_interrupts(flags);
+            
+            uint32_t result = 0;
+            if (!pio_sm_is_rx_fifo_empty(SWIO_PIO, SWIO_SM)) {
+                result = pio_sm_get(SWIO_PIO, SWIO_SM);
+            }
+            
+            /* Print run-length encoded trace of transitions */
+            printf("TRACE: res=0x%08lX\r\n", (unsigned long)result);
+            printf("RLE: ");
+            int last = trace_buf[0];
+            int count = 0;
+            for (int i = 0; i < TRACE_LEN; i++) {
+                if (trace_buf[i] == last) {
+                    count++;
+                } else {
+                    printf("%d:%d ", last, count);
+                    last = trace_buf[i];
+                    count = 1;
+                }
+            }
+            printf("%d:%d\r\n", last, count);
+            send_response("OK SWIO TRACE");
+        }
+        else { send_response("ERR unknown SWIO subcommand: STATUS|INIT|DEINIT|RESET|READ|WRITE|DIAG"); }
     }
     else if(strcmp(cmd, "RVSWD") == 0) {
         if(args && strncmp(args, "STATUS", 6) == 0) {

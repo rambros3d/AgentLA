@@ -1,4 +1,9 @@
-## ADDED Requirements
+# ch32-flash-programmer Specification
+
+## Purpose
+Specifies electronic signature identification and fast page flash programming and verification for WCH CH32 microcontrollers.
+
+## Requirements
 
 ### Requirement: WCH Target Electronic Signature Detection
 The system SHALL identify connected CH32 microcontrollers using ESIG and IDCODE registers.
@@ -10,3 +15,7 @@ The system SHALL identify connected CH32 microcontrollers using ESIG and IDCODE 
 #### Scenario: Fast Page Flash Programming
 - **WHEN** binary data is flashed to CH32 target
 - **THEN** fast mode keys unlock `FLASH_MODEKEYR` and page buffers are loaded before committing write
+
+#### Scenario: Flash readback verification
+- **WHEN** flash contents are verified after programming
+- **THEN** the system SHALL read back the written data using the vendored `get_block_aligned` fast-read path (via per-word `POSTEXEC`) rather than word-at-a-time reads

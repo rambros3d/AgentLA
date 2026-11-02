@@ -14,6 +14,8 @@
 #include "swio.pio.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
+#include "hardware/clocks.h"
+#include "rvswd.h"
 #include <stdio.h>
 
 /* WCH-specific debug interface config registers */
@@ -41,9 +43,12 @@ static inline void swio_busy_wait(int count) {
 void swio_init(void) {
     if (swio_initialized) return;
 
-    /* Configure GPIO pin for PIO */
-    gpio_set_drive_strength(SWIO_DATA_PIN, GPIO_DRIVE_STRENGTH_2MA);
-    gpio_set_slew_rate(SWIO_DATA_PIN, GPIO_SLEW_RATE_SLOW);
+    /* Safely release any other active transport (e.g. RVSWD on shared pins) */
+    rvswd_deinit();
+
+    /* Configure GPIO pin for PIO with pull-up */
+    gpio_init(SWIO_DATA_PIN);
+    gpio_pull_up(SWIO_DATA_PIN);
     gpio_set_function(SWIO_DATA_PIN, GPIO_FUNC_PIO1);
 
     /* Reset PIO state machine */
@@ -56,6 +61,9 @@ void swio_init(void) {
     /* Configure PIO state machine */
     pio_sm_config c = swio_program_get_default_config(swio_offset);
 
+    /* Explicitly configure sideset for pin direction (pindirs=true) */
+    sm_config_set_sideset(&c, 1, false, true);
+
     /* Pin mapping: all on SWIO_DATA_PIN */
     sm_config_set_out_pins(&c, SWIO_DATA_PIN, 1);
     sm_config_set_in_pins(&c, SWIO_DATA_PIN);
@@ -67,15 +75,16 @@ void swio_init(void) {
     sm_config_set_in_shift(&c, false, true, 32);  /* autopush enabled */
 
     /* Clock divider: 125 MHz / 12 ≈ 10.4 MHz (96ns per tick) */
-    sm_config_set_clkdiv(&c, 12.0f);
+    float clkdiv = 12.0f;
+    sm_config_set_clkdiv(&c, clkdiv);
 
     /* Initialize PIO */
     pio_sm_init(swio_pio, swio_sm, swio_offset, &c);
     pio_sm_set_pins(swio_pio, swio_sm, 0);
+    pio_sm_set_pindirs_with_mask(swio_pio, swio_sm, 0, 1u << SWIO_DATA_PIN);
     pio_sm_set_enabled(swio_pio, swio_sm, true);
 
     /* Send 8µs low pulse to reset debug module on target */
-    /* Must use raw SIO access to avoid PIO jitter */
     sio_hw->gpio_clr = (1 << SWIO_DATA_PIN);
     sio_hw->gpio_oe_set = (1 << SWIO_DATA_PIN);
     io_bank0_hw->io[SWIO_DATA_PIN].ctrl = GPIO_FUNC_SIO << IO_BANK0_GPIO0_CTRL_FUNCSEL_LSB;
@@ -160,9 +169,8 @@ uint32_t swio_get(uint32_t addr) {
 }
 
 void swio_reset(void) {
-    if (!swio_initialized) return;
-
-    /* Deinitialize and reinitialize to reset state */
-    swio_deinit();
+    if (swio_initialized) {
+        swio_deinit();
+    }
     swio_init();
 }

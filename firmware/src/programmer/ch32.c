@@ -173,8 +173,8 @@ ch32_result_t ch32_probe_target(ch32_mode_t mode) {
 
     switch (mode) {
     case CH32_MODE_SWIO: {
-        /* Initialize PIO-based SWIO engine (10x faster than bit-bang). */
-        swio_init();
+        /* Initialize or reset PIO-based SWIO engine (clean target reset sequence). */
+        swio_reset();
 
         /* Verify the debug module answers via DMSTATUS read. If no target
          * (or a 2-wire-only chip) is on the wire, SWIO returns all-ones. */

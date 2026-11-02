@@ -72,8 +72,10 @@ static void load_progbuf(const uint32_t *prog, int count) {
 
 /* Execute PROGBUF program via POSTEXEC */
 static ch32_result_t run_progbuf(void) {
-    /* Set COMMAND.POSTEXEC = 1 */
-    uint32_t cmd = CMD_TYPE_ACCESS_REG | CMD_POSTEXEC;
+    /* Set COMMAND.POSTEXEC = 1 with AARSIZE = 32-bit (0x00240000).
+     * RISC-V debug spec requires AARSIZE_32; without it, QingKe V2 debug
+     * module flags CMDERR=4 (unsupported abstract command). */
+    uint32_t cmd = CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC;
     ch32_result_t res = riscv_dmi_write(DMI_COMMAND, cmd);
     if (res != CH32_OK) return res;
 
@@ -102,7 +104,7 @@ static ch32_result_t run_progbuf(void) {
  * the lenient run_progbuf() because WCH reports non-fatal bus errors for
  * writes that still succeed. */
 static ch32_result_t run_progbuf_strict(void) {
-    uint32_t cmd = CMD_TYPE_ACCESS_REG | CMD_POSTEXEC;
+    uint32_t cmd = CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC;
     ch32_result_t res = riscv_dmi_write(DMI_COMMAND, cmd);
     if (res != CH32_OK) return res;
 
@@ -259,14 +261,15 @@ ch32_result_t ch32_progbuf_flash_erase(uint32_t addr, uint32_t len) {
     uint32_t end_addr = (addr + len + page_sz - 1) & ~(page_sz - 1);
 
     for (uint32_t curr = start_addr; curr < end_addr; curr += page_sz) {
-        /* Set address register */
+        /* WCH fast page erase sequence:
+         * 1. Arm erase mode (FTER)
+         * 2. Write target page address
+         * 3. Trigger operation (FTER | STRT) */
+        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTER);
+        if (res != CH32_OK) return res;
         res = riscv_write_mem(PROGBUF_FLASH_ADDR, curr | 0x08000000);
         if (res != CH32_OK) return res;
-
-        /* Execute erase command: FTPG + FTER | STRT */
-        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG | FLASH_CTLR_FTER);
-        if (res != CH32_OK) return res;
-        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG | FLASH_CTLR_STRT);
+        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTER | FLASH_CTLR_STRT);
         if (res != CH32_OK) return res;
 
         /* Wait for completion */
@@ -278,6 +281,9 @@ ch32_result_t ch32_progbuf_flash_erase(uint32_t addr, uint32_t len) {
             }
             sleep_us(100);
         }
+
+        /* Clear erase control bits */
+        riscv_write_mem(PROGBUF_FLASH_CTLR, 0);
     }
 
     return CH32_OK;
@@ -301,74 +307,77 @@ ch32_result_t ch32_progbuf_flash_write(uint32_t addr, const uint8_t *data, uint3
 
     uint32_t page_sz = g_ch32_target.page_size ? g_ch32_target.page_size : 64;
 
-    /* Initial flash control setup - MUST be done before loading PROGBUF program,
-     * because riscv_write_mem uses PROGBUF and will overwrite it. */
-    riscv_write_mem(PROGBUF_FLASH_ADDR, addr | 0x08000000);
-    riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG | FLASH_CTLR_BUFRST);
+    for (uint32_t offset = 0; offset < len; offset += page_sz) {
+        uint32_t page_addr = addr + offset;
+        uint32_t chunk_len = (len - offset < page_sz) ? (len - offset) : page_sz;
 
-    /* Load PROGBUF program (after riscv_write_mem calls to avoid overwrite) */
-    load_progbuf((const uint32_t *)prog_write_flash, sizeof(prog_write_flash) / 2);
+        /* Reset page buffer and enable fast page programming:
+         * 1. Arm fast page mode (FTPG)
+         * 2. Reset buffer (FTPG | BUFRST)
+         * 3. Set page address */
+        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG);
+        if (res != CH32_OK) return res;
+        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG | FLASH_CTLR_BUFRST);
+        if (res != CH32_OK) return res;
+        res = riscv_write_mem(PROGBUF_FLASH_ADDR, page_addr | 0x08000000);
+        if (res != CH32_OK) return res;
 
-    /* Set up registers via abstract commands (these don't use PROGBUF):
-     * a0 = flash base (0x40022000)
-     * a1 = DATA0 address (0xE00000F4)
-     * a2 = destination address
-     * a3 = BUFLOAD control value
-     * a4 = START control value
-     * a5 = BUFRST control value
-     */
-    riscv_write_reg(0x1000 + 10, PROGBUF_FLASH_BASE);      /* a0 */
-    /* DATA0 magic address: 0xE0000000 | (HARTINFO & 0x7FF) — minichlink's
-     * proven V203 formula. (0xE00000F4 was V003's offset and reads garbage
-     * on V203.) */
-    uint32_t hartinfo = 0;
-    riscv_dmi_read(DMI_HARTINFO, &hartinfo);
-    riscv_write_reg(0x1000 + 11, 0xE0000000 | (hartinfo & 0x7FF));   /* a1 (DATA0) */
-    riscv_write_reg(0x1000 + 12, addr | 0x08000000);        /* a2 (dest) */
-    riscv_write_reg(0x1000 + 13, FLASH_CTLR_FTPG | FLASH_CTLR_BUFLOAD);  /* a3 */
-    riscv_write_reg(0x1000 + 14, FLASH_CTLR_FTPG | FLASH_CTLR_STRT);     /* a4 */
-    riscv_write_reg(0x1000 + 15, FLASH_CTLR_FTPG | FLASH_CTLR_BUFRST);   /* a5 */
-    riscv_write_reg(0x1000 + 16, page_sz - 1);                            /* a6 (page mask) */
+        /* Wait for buffer reset to complete */
+        for (int i = 0; i < 500; i++) {
+            uint32_t statr = 0;
+            res = riscv_read_mem(PROGBUF_FLASH_STATR, &statr);
+            if (res == CH32_OK && !(statr & FLASH_STATR_BUSY)) break;
+            sleep_us(50);
+        }
 
-    /* Feed data words to PROGBUF — one explicit POSTEXEC per word (no
-     * ABSTRACTAUTO streaming: AUTOEXECDATA wedges the WCH DM after ~30-80
-     * executions, F9). */
-    uint32_t size_words = len / 4;
-    uint32_t page_count = (size_words + (page_sz / 4 - 1)) / (page_sz / 4);
-
-    for (uint32_t page = 0; page < page_count; page++) {
-        for (uint32_t word_idx = 0; word_idx < (page_sz / 4); word_idx++) {
-            int offset = (page * page_sz) + (word_idx * 4);
+        /* Load words into buffer */
+        for (uint32_t b = 0; b < page_sz; b += 4) {
             uint32_t word = 0xFFFFFFFF;
-
-            if (offset + 3 < (int)len) {
-                word = (uint32_t)data[offset] |
-                       ((uint32_t)data[offset + 1] << 8) |
-                       ((uint32_t)data[offset + 2] << 16) |
-                       ((uint32_t)data[offset + 3] << 24);
-            } else if (offset < (int)len) {
-                /* Partial word - fill with 0xFF */
-                for (uint32_t k = 0; offset + k < len && k < 4; k++) {
+            if (b + 4 <= chunk_len) {
+                word = (uint32_t)data[offset + b] |
+                       ((uint32_t)data[offset + b + 1] << 8) |
+                       ((uint32_t)data[offset + b + 2] << 16) |
+                       ((uint32_t)data[offset + b + 3] << 24);
+            } else if (b < chunk_len) {
+                for (uint32_t k = 0; b + k < chunk_len; k++) {
                     word &= ~(0xFFU << (k * 8));
-                    word |= ((uint32_t)data[offset + k] << (k * 8));
+                    word |= ((uint32_t)data[offset + b + k] << (k * 8));
                 }
             }
 
-            /* Feed each word with an explicit POSTEXEC instead of ABSTRACTAUTO
-             * streaming: the WCH DM wedges after ~30-80 consecutive
-             * AUTOEXECDATA executions (F9), while the DATA0-write + POSTEXEC
-             * + busy-wait pattern (the RAM-stub loader) never wedges. */
-            res = riscv_dmi_write(DMI_DATA0, word);
+            /* Write word to page address */
+            res = riscv_write_mem((page_addr + b) | 0x08000000, word);
             if (res != CH32_OK) return res;
-            res = run_progbuf();
-            if (res != CH32_OK) { printf("CH32: run_progbuf failed res=%d\r\n", (int)res); return res; }
+
+            /* Latch word into buffer */
+            res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG | FLASH_CTLR_BUFLOAD);
+            if (res != CH32_OK) return res;
+
+            /* Wait for buffer load to complete */
+            for (int i = 0; i < 500; i++) {
+                uint32_t statr = 0;
+                res = riscv_read_mem(PROGBUF_FLASH_STATR, &statr);
+                if (res == CH32_OK && !(statr & FLASH_STATR_BUSY)) break;
+                sleep_us(50);
+            }
         }
 
-        /* End of page - wait for the page write (START) to complete */
-        wait_progbuf_done();
+        /* Trigger page write (FTPG | STRT) */
+        res = riscv_write_mem(PROGBUF_FLASH_ADDR, page_addr | 0x08000000);
+        if (res != CH32_OK) return res;
+        res = riscv_write_mem(PROGBUF_FLASH_CTLR, FLASH_CTLR_FTPG | FLASH_CTLR_STRT);
+        if (res != CH32_OK) return res;
+
+        /* Wait for page write to complete */
+        for (int i = 0; i < 1000; i++) {
+            uint32_t statr = 0;
+            res = riscv_read_mem(PROGBUF_FLASH_STATR, &statr);
+            if (res == CH32_OK && !(statr & FLASH_STATR_BUSY)) break;
+            sleep_us(100);
+        }
     }
 
-    /* Cleanup */
+    /* Cleanup: reset flash control register */
     riscv_write_mem(PROGBUF_FLASH_CTLR, 0);
 
     /* Clear EOP flag */

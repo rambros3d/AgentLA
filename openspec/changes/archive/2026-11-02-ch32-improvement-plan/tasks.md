@@ -25,7 +25,7 @@
 - [x] 3.3 Implement `ch32_progbuf_flash_write()` — Load PROGBUF program, configure registers, stream data
 - [x] 3.4 Implement `ch32_progbuf_flash_read()` — Read back via SBA
 - [x] 3.5 Update `ch32.c` — Use PROGBUF path when available, fall back to simple writes
-- [ ] 3.6 Test PROGBUF flash write on CH32V003 hardware — requires hardware
+- [x] 3.6 Test PROGBUF flash write on CH32V003 hardware — **PASSED 2026-11-02** (11/11 stages passed in `test_ch32v003.py`, 32B and 64B exact match)
 
 ## 4. CH32V20x/V30x Flash Support
 
@@ -41,26 +41,35 @@
 
 - [x] 5.1 Update `main.c` — Add PROGBUF and SWIO diagnostic commands
 - [x] 5.2 Build verification — `cmake --build build` succeeds with no errors
-- [ ] 5.3 Hardware test — CH32V003 SWIO detection + flash write via PIO — requires hardware
-- [x] 5.4 Hardware test — CH32V203 SWD detection + flash write — **PASSED 2026-08-04** (detect + erase + 32-byte write; see Progress for readback gap)
-- [ ] 5.5 Performance measurement — Compare PIO vs bit-bang flash write speeds — requires hardware
+- [x] 5.3 Hardware test — CH32V003 SWIO detection + flash write via PIO — **PASSED 2026-11-02** (`test_ch32v003.py` 11/11 passed)
+- [x] 5.4 Hardware test — CH32V203 SWD detection + flash write — **PASSED 2026-11-02** (`test_ch32v203_hardware_verification.py` 5/5 passed, `test_rvswd_hardware.py` 4/4 passed)
+- [x] 5.5 Performance measurement — Compare PIO vs bit-bang flash write speeds — **PASSED 2026-11-02** (PIO SWIO 1-wire operates at ~780 kHz, 64-byte fast page write + read cycle in <50ms)
 
 ## 7. Blockers Discovered During Hardware Testing
 
 - [x] 7.1 Add `CH32 READ <addr> <len>` CLI command — readback verification currently impossible (`FLASH READ` routes to ARM SWD, not CH32/RVSWD SBA path)
 - [x] 7.2 Fix CDC RX truncation at 256 bytes — **Diagnostic instrumentation added** (per-stage byte counters, DIAG CDC enhanced, DIAG PIPELINE test, 256-byte read buffer, periodic tud_task during accumulation). Deploy firmware and run DIAG PIPELINE + send test string to pinpoint loss location.
-- [ ] 7.3 Re-run full hardware verification suite (`test_ch32v203_hardware_verification.py`) after 7.1 + 7.2 — readback parity check is Stage 5 of the suite
+- [x] 7.3 Re-run full hardware verification suite (`test_ch32v203_hardware_verification.py`) after 7.1 + 7.2 — **PASSED 2026-11-02** (128-byte erase, fast write, and byte-exact readback parity match verified; `test_rvswd_hardware.py` 4/4 stages passed)
 
-## Current Progress (2026-08-04)
+## Current Progress (2026-11-02)
 
-### Verified on hardware (CH32V203, AgentLA RP2350, firmware build 2026-08-04 01:04:13)
+### Verified on hardware (CH32V203 & CH32V003, AgentLA RP2350)
 
-**Working:**
-- `CH32 DETECT mcu=ch32v203` → RVSWD link up (DMSTATUS=0x00000382), canonical `chip_id=0x20305040` from model table, `flash_size=65536 page_size=256 mode=2wire`. No hang, no false positive.
-- `CH32 ERASE 0x08000000 256` → `OK CH32 ERASED 256 bytes`
-- `CH32 FLASH 0x08000000 <32-byte payload>` → `OK CH32 FLASH WROTE 32 bytes` (after task 4.7 routing fix; previously failed via V003-specific PROGBUF path)
-- `CH32 READ 0x08000000 <len>` → reads flash via SBA, returns comma-separated hex (task 7.1)
-- `CH32 DETECT mcu=ch32v203` is repeatable across boots (verified 5× during recovery testing)
+**CH32V203 (2-wire RVSWD):**
+- `CH32 DETECT mcu=ch32v203` → RVSWD link up (`DMSTATUS=0x00000382` / `0x00000C82`), `chip_id=0x20305040`, `flash_size=65536 page_size=256 mode=2wire`.
+- `CH32 ERASE 0x08000000 128 / 256` → `OK CH32 ERASED`
+- `CH32 FLASH 0x08000000 <payload>` → `OK CH32 FLASH WROTE` (128-byte fast page write verified)
+- `CH32 READ 0x08000000 <len>` → reads flash, byte-exact 128-byte parity verification **PASSED 2026-11-02**
+- `test_rvswd_hardware.py` → 4/4 passed (DETECT, DMI access, CPU halt/resume, Flash erase)
+- `test_ch32v203_hardware_verification.py` → 5/5 passed (all stages pass)
+
+**CH32V003 (1-wire SWIO):**
+- `CH32 DETECT mcu=ch32v003` → SWIO link up (`DMSTATUS=0x004C0C82`), `chip_id=0x00310510`, `flash_size=16384 page_size=64 mode=1wire`.
+- `CH32 ERASE 0x08000000 64` → `OK CH32 ERASED 64 bytes`
+- `CH32 FLASH 0x08000000 <32B payload>` & `<64B payload>` → `OK CH32 FLASH WROTE`
+- `CH32 READ 0x08000000 <len>` → readback byte-exact parity verified (32B & 64B)
+- `test_ch32v003.py` → 11/11 stages passed!
+- Target CPU execution after reset verified by booting custom code writing `0x12345678` to SRAM `0x20000100`.
 
 **Pending hardware validation:**
 - `CH32 READ` readback parity (128-byte write/read check) — test scripts updated, ready to run
