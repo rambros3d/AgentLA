@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>AgentLA - Adaptive Touch &amp; Desktop WebUI</title>
+    <title>AgentLA - Unified Active Bench &amp; Target Station</title>
     <script>
         // Restore theme immediately to avoid flash of wrong palette
         (function() {
@@ -61,51 +61,42 @@
         <div class="loader-content">
             <div class="spinner"></div>
             <h2>AgentLA</h2>
-            <p>Initializing Adaptive Shell...</p>
+            <p>Initializing Unified Active Bench...</p>
         </div>
     </div>
 
     <!-- Top Application Bar -->
     <header id="top-bar" class="app-header">
         <div class="bar-left">
-            <div class="brand-item" id="brand-logo" title="AgentLA Workspace Hub">
+            <div class="brand-item" id="brand-logo" title="AgentLA Unified Workbench">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
             </div>
 
-            <!-- View Mode Switcher: Single vs Split Mode & Presets -->
-            <div class="view-mode-bar" id="view-mode-bar">
-                <div class="segmented-control mode-segment" role="group" aria-label="Workspace View Mode">
-                    <button class="sub-btn active" id="btn-mode-single" title="Single Pane Focus">
-                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                        </svg>
-                        <span class="btn-label-desktop">Focus</span>
-                    </button>
-                    <button class="sub-btn" id="btn-mode-split" title="Dual-Slot Split View">
-                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
-                            <rect x="3" y="3" width="8" height="18" rx="1.5"/>
-                            <rect x="13" y="3" width="8" height="18" rx="1.5"/>
-                        </svg>
-                        <span class="btn-label-desktop">Split</span>
-                    </button>
-                </div>
-
-                <div class="quick-presets" id="quick-presets">
-                    <button class="preset-pill" id="preset-bus-debug" title="Preset: Logic Analyzer + Bus Master">
-                        <span class="preset-dot"></span> Bus Debug
-                    </button>
-                    <button class="preset-pill" id="preset-target-bringup" title="Preset: Target Flasher + Console">
-                        <span class="preset-dot"></span> Bring-Up
-                    </button>
-                    <button class="preset-pill" id="preset-sniff-i2c" title="Preset: Sniff I2C Bus (Driver + Observer)">
-                        <span class="preset-dot"></span> Sniff I2C
-                    </button>
-                    <button class="preset-pill" id="preset-sniff-spi" title="Preset: Sniff SPI Bus (Driver + Observer)">
-                        <span class="preset-dot"></span> Sniff SPI
-                    </button>
-                </div>
+            <!-- Two Primary Top-Bar Mode Switchers -->
+            <div class="primary-mode-nav" role="group" aria-label="Primary Workbench Mode">
+                <button class="sub-btn active" id="nav-mode-bench" data-mode="bench" title="Unified Active Bench (Observe + Stimulate)">
+                    <span>⚡</span>
+                    <span class="btn-label-desktop">Active Bench</span>
+                </button>
+                <button class="sub-btn" id="nav-mode-target" data-mode="target" title="Target Station (Flasher, SWD Debugger, Power Control)">
+                    <span>🎯</span>
+                    <span class="btn-label-desktop">Target Station</span>
+                </button>
             </div>
+
+            <!-- Slide-Out Pin Matrix Drawer Toggle -->
+            <button class="header-pill-btn" id="btn-toggle-pins" title="Hardware Pin Matrix &amp; Routing Drawer (Hotkey: P)">
+                <span>🔌</span>
+                <span>Pins</span>
+                <kbd class="hotkey-hint">P</kbd>
+            </button>
+
+            <!-- Auto-Sniff on Transmit Toolbar Pill -->
+            <label class="auto-sniff-pill" id="pill-auto-sniff" title="Automatically arm analyzer capture and zoom onto transmitted bus packets">
+                <input type="checkbox" id="chk-auto-sniff" checked>
+                <span>Auto-Sniff on Transmit</span>
+            </label>
         </div>
 
         <div class="bar-right">
@@ -128,7 +119,7 @@
                 </svg>
             </button>
 
-            <!-- Quick Inspector / Settings Trigger -->
+            <!-- Settings Trigger -->
             <button class="action-btn icon-btn header-btn" id="btn-header-settings" title="System Settings">
                 <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" fill="none" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
@@ -138,1264 +129,756 @@
         </div>
     </header>
 
-    <!-- Main Shell: Rail + Workspace -->
-    <div id="app-shell" class="app-shell">
-        <!-- Desktop Left Navigation Rail (>= 900px) -->
-        <nav id="left-nav-rail" class="left-nav-rail" aria-label="Desktop Workspace Navigation">
-            <button class="nav-rail-item active" data-view="dashboard" title="Dashboard Overview">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-                <span>Hub</span>
-            </button>
-            <button class="nav-rail-item" data-view="logic" title="Logic Analyzer">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
-                    <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
-                </svg>
-                <span>Logic</span>
-            </button>
-            <button class="nav-rail-item" data-view="flasher" title="Target Flasher">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
-                </svg>
-                <span>Flasher</span>
-            </button>
-            <button class="nav-rail-item" data-view="debugger" title="Target Debugger">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <circle cx="12" cy="12" r="9"/>
-                    <path d="M9 9l6 6M15 9l-6 6"/>
-                </svg>
-                <span>Debugger</span>
-            </button>
-            <button class="nav-rail-item" data-view="gpio" title="GPIO &amp; Pin Matrix">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
-                </svg>
-                <span>Pins</span>
-            </button>
-            <button class="nav-rail-item" data-view="i2c" title="I2C Master">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
-                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
-                    <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="9" font-family="Segoe UI, Arial, sans-serif">I²C</text>
-                </svg>
-                <span>I2C</span>
-            </button>
-            <button class="nav-rail-item" data-view="spi" title="SPI Master">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
-                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
-                    <text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="8.5" font-family="Segoe UI, Arial, sans-serif">SPI</text>
-                </svg>
-                <span>SPI</span>
-            </button>
-            <button class="nav-rail-item" data-view="generator" title="Signal Generator">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M2 12h3l2-6 4 12 4-12 2 6h5"/>
-                </svg>
-                <span>Gen</span>
-            </button>
-            <button class="nav-rail-item" data-view="scope" title="Analog Oscilloscope">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M3 12h4l3 8 4-16 3 8h4"/>
-                    <circle cx="12" cy="12" r="10"/>
-                </svg>
-                <span>Scope</span>
-            </button>
-            <button class="nav-rail-item" data-view="command" title="Command Console">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <polyline points="4 17 10 11 4 5"/>
-                    <line x1="12" y1="19" x2="20" y2="19"/>
-                </svg>
-                <span>Console</span>
-            </button>
-            <div class="nav-rail-spacer"></div>
-            <button class="nav-rail-item" data-view="about" title="About &amp; Pinout">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="18" x2="12" y2="11.3"/>
-                    <line x1="13.29" y1="7.9" x2="10.71" y2="7.9"/>
-                </svg>
-                <span>About</span>
-            </button>
-        </nav>
-
-        <!-- Main Workspace Container -->
-        <main id="main-workspace" class="main-workspace">
-            
-            <!-- View 1: Unified Dashboard Overview (Default Landing View) -->
-            <section id="view-dashboard" class="workspace-view active">
-                <div class="dashboard-scrollable">
-                    <!-- Probe Health & Telemetry Header Banner -->
-                    <div class="dashboard-hero-card">
-                        <div class="hero-left">
-                            <div class="hero-chip-badge">RP2350 HIGH-SPEED BENCH ENGINE</div>
-                            <h1 class="hero-title">AgentLA Unified Workspace Hub</h1>
-                            <p class="hero-sub">Touch-first instrumentation, live telemetry, and dynamic pin claim orchestration</p>
+    <!-- Main Workspace Area -->
+    <main id="main-workspace" class="main-workspace">
+        
+        <!-- ================================================================= -->
+        <!-- VIEW 1: UNIFIED ACTIVE BENCH (#view-active-bench)                -->
+        <!-- ================================================================= -->
+        <section id="view-active-bench" class="workspace-view active">
+            <div class="active-bench-container">
+                
+                <!-- Left / Top: Waveform Observation Area -->
+                <div class="observation-area" id="observation-area">
+                    <!-- Logic Channels Bar -->
+                    <div class="logic-channels-bar">
+                        <div class="logic-channels" id="bench-logic-channels">
+                            <!-- Populated dynamically by app.js -->
+                            <button class="pin-select-btn active" data-pin="0">D0 (GP20)</button>
+                            <button class="pin-select-btn active" data-pin="1">D1 (GP21)</button>
+                            <button class="pin-select-btn" data-pin="2">D2 (GP22)</button>
+                            <button class="pin-select-btn" data-pin="3">D3 (GP23)</button>
+                            <button class="pin-select-btn" data-pin="4">D4 (GP24)</button>
+                            <button class="pin-select-btn" data-pin="5">D5 (GP25)</button>
+                            <button class="pin-select-btn" data-pin="6">D6 (GP26)</button>
+                            <button class="pin-select-btn" data-pin="7">D7 (GP27)</button>
                         </div>
-                        <div class="hero-telemetry-grid">
-                            <div class="telemetry-pill">
-                                <span class="telem-label">SYS CLOCK</span>
-                                <span class="telem-val" id="telem-clock">150 MHz</span>
-                            </div>
-                            <div class="telemetry-pill">
-                                <span class="telem-label">CORE VOLTAGE</span>
-                                <span class="telem-val" id="telem-vreg">1.10 V</span>
-                            </div>
-                            <div class="telemetry-pill">
-                                <span class="telem-label">STATUS</span>
-                                <span class="telem-val status-accent" id="telem-state">IDLE</span>
-                            </div>
-                            <div class="telemetry-pill">
-                                <span class="telem-label">INTERFACE</span>
-                                <span class="telem-val" id="telem-ip">192.168.7.1</span>
-                            </div>
+                        <div class="observation-view-toggle">
+                            <button class="sub-btn active" id="btn-view-logic" title="Digital Logic Analyzer View">Logic</button>
+                            <button class="sub-btn" id="btn-view-scope" title="Analog Oscilloscope View (ADC0-3)">Scope</button>
                         </div>
                     </div>
 
-                    <!-- 1-Tap Quick-Launch Instrument Tiles -->
-                    <div class="section-title-row">
-                        <h2 class="dashboard-section-heading">Bench Instruments</h2>
-                        <span class="heading-badge">1-Tap Quick Launch</span>
+                    <!-- Canvas Wrapper -->
+                    <div class="graph-container-bare logic-canvas-wrapper" id="waveform-canvas-wrap">
+                        <canvas id="logic-canvas"></canvas>
+                        <canvas id="scope-canvas" style="display: none;"></canvas>
                     </div>
 
-                    <div class="dashboard-tiles-grid">
-                        <div class="dash-tile" data-tool="logic">
-                            <div class="tile-icon-box" style="--tile-color: #00e5ff;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
-                                    <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">Logic Analyzer</div>
-                                <div class="tile-desc">10-Ch 100 MS/s PIO0 with multi-touch pinch-zoom and SPI/I2C/UART decoders</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="flasher">
-                            <div class="tile-icon-box" style="--tile-color: #ff9f0a;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">Target Flasher</div>
-                                <div class="tile-desc">High-speed SWD, RV-SWD, and WCH-SDI flash programmer with verify</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="debugger">
-                            <div class="tile-icon-box" style="--tile-color: #34c759;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <circle cx="12" cy="12" r="9"/>
-                                    <path d="M9 9l6 6M15 9l-6 6"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">Target Debugger</div>
-                                <div class="tile-desc">Halt, single-step, run, and live memory hex inspection for Cortex-M &amp; RISC-V</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="gpio">
-                            <div class="tile-icon-box" style="--tile-color: #af52de;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                    <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">GPIO &amp; Pin Matrix</div>
-                                <div class="tile-desc">Dynamic pin claims, role inspection, and conflict resolution across all 30 pins</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="i2c">
-                            <div class="tile-icon-box" style="--tile-color: #0d84fa;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
-                                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
-                                    <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="9" font-family="Segoe UI, Arial, sans-serif">I²C</text>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">I2C Master</div>
-                                <div class="tile-desc">Hardware I2C1 bus scanning, register read/write, and live protocol transaction table</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="spi">
-                            <div class="tile-icon-box" style="--tile-color: #ff2a6d;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
-                                    <path d="M6 2V3m6-1v1m6-1v1M6 21v1m6-1v1m6-1v1"/>
-                                    <text x="12" y="15.3" text-anchor="middle" fill="currentColor" stroke="none" font-weight="bold" font-size="8.5" font-family="Segoe UI, Arial, sans-serif">SPI</text>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">SPI Master</div>
-                                <div class="tile-desc">Full-duplex SPI1 master with up to 10 MHz clock and padded transfer log</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="generator">
-                            <div class="tile-icon-box" style="--tile-color: #ff9500;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <path d="M2 12h3l2-6 4 12 4-12 2 6h5"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">Signal Generator</div>
-                                <div class="tile-desc">Hardware PWM &amp; clock output (1 Hz to 50 MHz) on GPIO 10–29 with duty cycle control</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="scope">
-                            <div class="tile-icon-box" style="--tile-color: #00e5ff;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <path d="M3 12h4l3 8 4-16 3 8h4"/>
-                                    <circle cx="12" cy="12" r="10"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">Analog Scope</div>
-                                <div class="tile-desc">4-channel real-time ADC oscilloscope (GP26–29 / ADC0–3) with 0–3.3V live waveform tracking</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="command">
-                            <div class="tile-icon-box" style="--tile-color: #cba6f7;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <polyline points="4 17 10 11 4 5"/>
-                                    <line x1="12" y1="19" x2="20" y2="19"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">Command Console</div>
-                                <div class="tile-desc">Raw JSON-RPC 2.0 / MCP endpoint console with quick action command chips</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
-
-                        <div class="dash-tile" data-tool="about">
-                            <div class="tile-icon-box" style="--tile-color: #34c759;">
-                                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <line x1="12" y1="18" x2="12" y2="11.3"/>
-                                    <line x1="13.29" y1="7.9" x2="10.71" y2="7.9"/>
-                                </svg>
-                            </div>
-                            <div class="tile-content">
-                                <div class="tile-title">About &amp; Pinout</div>
-                                <div class="tile-desc">Interactive SVG pinout diagram and hardware peripheral specifications</div>
-                            </div>
-                            <span class="tile-action-arrow">→</span>
-                        </div>
+                    <!-- Timing Measurement Bar -->
+                    <div class="logic-timing-bar" id="logic-timing-bar">
+                        <span>Digital Scope: Capture waveform to calculate frequency, duty cycle, and pulse timing.</span>
                     </div>
 
-                    <!-- Interactive 30-Pin Domain Allocation Widget (GPIO 0-29) -->
-                    <div class="section-title-row" style="margin-top: 24px;">
-                        <div>
-                            <h2 class="dashboard-section-heading">30-Pin Dynamic Ownership &amp; Allocation</h2>
-                            <p class="heading-sub">Runtime pin registry: Fixed Programmer (GP0–9) and Flexible Dynamic Pool (GP10–29)</p>
+                    <!-- Observation Controls Toolbar -->
+                    <div class="logic-controls control-bar">
+                        <button class="action-btn outline run-control-btn btn-run-stop stopped" id="btn-bench-run-stop">
+                            <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run
+                        </button>
+
+                        <!-- Protocol Decoder Configuration Popup -->
+                        <div class="decoder-config-wrap">
+                            <button class="action-btn outline decoder-toggle" id="btn-bench-decoder-toggle" title="Configure protocol decoder">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="#333"/><circle cx="15" cy="12" r="2" fill="#333"/><circle cx="11" cy="17" r="2" fill="#333"/></svg>
+                                Decode...
+                            </button>
+                            <div class="popup-menu decoder-menu">
+                                <div class="menu-item">
+                                    <label>Protocol</label>
+                                    <select class="decoder-protocol">
+                                        <option value="off">Off</option>
+                                        <option value="spi">SPI</option>
+                                        <option value="i2c">I2C</option>
+                                        <option value="uart">UART</option>
+                                        <option value="can">CAN 2.0 / CAN-FD</option>
+                                        <option value="modbus">Modbus RTU</option>
+                                        <option value="dmx">DMX-512</option>
+                                        <option value="led_1w">Addressable LED (1-Wire PWM)</option>
+                                        <option value="led_2w">Addressable LED (2-Wire SPI)</option>
+                                        <option value="onewire">1-Wire Dallas</option>
+                                        <option value="i3c">MIPI I3C SDR</option>
+                                        <option value="swd">ARM SWD</option>
+                                        <option value="swo">ARM SWO Trace</option>
+                                        <option value="lin">LIN Bus</option>
+                                        <option value="spiflash">SPI Flash</option>
+                                    </select>
+                                </div>
+                                <div class="menu-item decoder-spi-options">
+                                    <label>Clock</label>
+                                    <select class="decoder-sck"><option value="0">D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
+                                    <label>MOSI</label>
+                                    <select class="decoder-mosi"><option value="0">D0 (GP20)</option><option value="1" selected>D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
+                                    <label>MISO</label>
+                                    <select class="decoder-miso"><option value="0">D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2" selected>D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
+                                    <label>CS (active low)</label>
+                                    <select class="decoder-cs"><option value="0" selected>D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option><option value="-1">None</option></select>
+                                    <label>Mode</label>
+                                    <select class="decoder-spi-mode"><option value="0">Mode 0</option><option value="1">Mode 1</option><option value="2">Mode 2</option><option value="3">Mode 3</option></select>
+                                </div>
+                                <div class="menu-item decoder-i2c-options">
+                                    <label>SCL</label>
+                                    <select class="decoder-scl"><option value="0">D0 (GP20)</option><option value="1" selected>D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
+                                    <label>SDA</label>
+                                    <select class="decoder-sda"><option value="0" selected>D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
+                                </div>
+                                <div class="menu-item decoder-uart-options">
+                                    <label>RX</label>
+                                    <select class="decoder-rx"><option value="0" selected>D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
+                                    <label>Baud</label>
+                                    <select class="decoder-baud"><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option selected>115200</option><option>230400</option><option>1000000</option></select>
+                                </div>
+                                <button class="action-btn outline decoder-apply">Apply</button>
+                            </div>
                         </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <span class="dynamic-registry-pill" id="dash-registry-status">
-                                <span class="status-dot green"></span> Auto-Sync (SAFEDISCOVER)
-                            </span>
-                            <button class="action-btn outline btn-sm" id="btn-dash-refresh-pins">
-                                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
-                                    <path d="M23 4v6h-6M1 20v-6h6"/>
-                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                                </svg>
-                                Sync Pins
+
+                        <div class="divider"></div>
+
+                        <span class="ctrl-label">Trigger</span>
+                        <select class="compact-select trig-src" style="width: 70px;">
+                            <option value="0">D0</option>
+                            <option value="1">D1</option>
+                            <option value="2">D2</option>
+                            <option value="3">D3</option>
+                            <option value="4">D4</option>
+                            <option value="5">D5</option>
+                            <option value="6">D6</option>
+                            <option value="7">D7</option>
+                        </select>
+
+                        <button class="action-btn outline icon-btn trig-edge" title="Toggle Edge">
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2"><path d="M4 16h6l4-8h6" stroke-linejoin="round"/></svg>
+                        </button>
+
+                        <div class="divider"></div>
+
+                        <span class="ctrl-label">Rate</span>
+                        <select class="compact-select sample-rate" style="width: 105px;">
+                            <option value="100000000">100 MS/s</option>
+                            <option value="50000000">50 MS/s</option>
+                            <option value="20000000">20 MS/s</option>
+                            <option value="10000000" selected>10 MS/s</option>
+                            <option value="5000000">5 MS/s</option>
+                            <option value="2000000">2 MS/s</option>
+                            <option value="1000000">1 MS/s</option>
+                            <option value="500000">500 kS/s</option>
+                        </select>
+
+                        <div class="divider"></div>
+
+                        <span class="ctrl-label">Base</span>
+                        <select class="compact-select logic-base-pin" style="width: 75px;">
+                            <option value="10">GP10</option>
+                            <option value="11">GP11</option>
+                            <option value="12">GP12</option>
+                            <option value="13">GP13</option>
+                            <option value="14">GP14</option>
+                            <option value="15">GP15</option>
+                            <option value="16">GP16</option>
+                            <option value="17">GP17</option>
+                            <option value="18">GP18</option>
+                            <option value="19">GP19</option>
+                            <option value="20" selected>GP20</option>
+                            <option value="21">GP21</option>
+                            <option value="22">GP22</option>
+                        </select>
+
+                        <span class="ctrl-label">Span</span>
+                        <select class="compact-select logic-channel-count" style="width: 70px;">
+                            <option value="1">1 Ch</option>
+                            <option value="2">2 Ch</option>
+                            <option value="3">3 Ch</option>
+                            <option value="4">4 Ch</option>
+                            <option value="5">5 Ch</option>
+                            <option value="6">6 Ch</option>
+                            <option value="7">7 Ch</option>
+                            <option value="8" selected>8 Ch</option>
+                        </select>
+
+                        <div class="divider"></div>
+                        <span class="dynamic-registry-pill" id="logic-bank-pill" title="Dynamic span-based capture bank claim">
+                            <span class="status-dot green"></span> <span id="logic-bank-text">Bank: GP20–GP27</span>
+                        </span>
+
+                        <div class="divider"></div>
+
+                        <!-- Zoom Controls -->
+                        <div class="zoom-controls">
+                            <button class="action-btn outline icon-btn" id="btn-zoom-in" title="Zoom In (+)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                            </button>
+                            <button class="action-btn outline icon-btn" id="btn-zoom-out" title="Zoom Out (-)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                            </button>
+                            <button class="action-btn outline icon-btn" id="btn-zoom-fit" title="Zoom to Fit All Samples">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                             </button>
                         </div>
+
+                        <div class="divider"></div>
+
+                        <button class="action-btn outline icon-btn" id="btn-export-vcd" title="Export trace to VCD">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right / Bottom: Docked Stimulus Deck -->
+                <div class="stimulus-deck" id="stimulus-deck">
+                    <div class="stimulus-deck-header">
+                        <div class="stimulus-tabs" role="tablist">
+                            <button class="stimulus-tab active" data-tab="bus-masters" id="tab-bus-masters" role="tab" aria-selected="true">
+                                <span>🔄</span> Bus Masters
+                            </button>
+                            <button class="stimulus-tab" data-tab="console" id="tab-console" role="tab" aria-selected="false">
+                                <span>&gt;_</span> REPL / Console
+                            </button>
+                            <button class="stimulus-tab" data-tab="generator" id="tab-generator" role="tab" aria-selected="false">
+                                <span>∿</span> Pattern Gen
+                            </button>
+                            <button class="stimulus-tab" data-tab="pin-toggler" id="tab-pin-toggler" role="tab" aria-selected="false">
+                                <span>⚡</span> Pin Toggler
+                            </button>
+                        </div>
+                        <button class="btn-collapse-stimulus" id="btn-collapse-stimulus" title="Collapse / Expand Stimulus Deck" aria-label="Toggle Deck Height">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" class="chevron-icon">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </button>
                     </div>
 
-                    <div class="dash-pin-domains-card">
-                        <!-- Domain 1: Fixed Programmer Block (GP0 - GP9) -->
-                        <div class="domain-group domain-fixed-block">
-                            <div class="domain-group-header">
-                                <span class="domain-badge domain-prog">🔒 FIXED PROGRAMMER BLOCK (NON-FLEXIBLE)</span>
-                                <span class="domain-range">GP0 – GP9 (SWD / RV-SWD / WCH-SDI / UART0 / BOOT0 — Cannot be claimed by flexible roles)</span>
+                    <div class="stimulus-deck-body">
+                        <!-- Tab 1: Bus Masters -->
+                        <div class="stimulus-pane active" id="pane-bus-masters">
+                            <div class="bus-subtabs" id="bus-master-subtabs">
+                                <button class="bus-subtab active" data-bus="i2c">I2C</button>
+                                <button class="bus-subtab" data-bus="spi">SPI</button>
+                                <button class="bus-subtab" data-bus="uart">UART</button>
+                                <button class="bus-subtab" data-bus="can">CAN 2.0B / FD</button>
+                                <button class="bus-subtab" data-bus="modbus">Modbus</button>
+                                <button class="bus-subtab" data-bus="onewire">1-Wire</button>
+                                <button class="bus-subtab" data-bus="lin">LIN</button>
                             </div>
-                            <div class="domain-pins-row" id="dash-pins-prog"></div>
+
+                            <!-- I2C Master Panel -->
+                            <div class="bus-sender-panel active" id="bus-sender-i2c">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">Addr (Hex)</span>
+                                    <input type="text" id="i2c-addr" class="cmd-input" style="width: 70px;" value="50" spellcheck="false">
+                                    <span class="ctrl-label">Tx (Hex)</span>
+                                    <input type="text" id="i2c-tx" class="cmd-input" placeholder="00FFAA" value="00A1" spellcheck="false">
+                                    <span class="ctrl-label">Rx Len</span>
+                                    <input type="number" id="i2c-rx-len" class="cmd-input" style="width: 60px;" value="2" min="0" step="1">
+                                    <select class="compact-select" id="i2c-baud">
+                                        <option value="100000">100 kHz</option>
+                                        <option value="400000" selected>400 kHz</option>
+                                        <option value="1000000">1 MHz</option>
+                                    </select>
+                                </div>
+                                <div class="control-bar">
+                                    <button class="action-btn outline" id="btn-i2c-write">Write</button>
+                                    <button class="action-btn outline" id="btn-i2c-read">Read</button>
+                                    <button class="action-btn outline" id="btn-i2c-wr" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Write+Read</button>
+                                    <button class="action-btn outline" id="btn-i2c-scan">Scan Bus</button>
+                                    <div style="flex-grow: 1;"></div>
+                                    <button class="action-btn outline icon-btn" id="btn-i2c-clear-log" title="Clear log">✕</button>
+                                </div>
+                            </div>
+
+                            <!-- SPI Master Panel -->
+                            <div class="bus-sender-panel" id="bus-sender-spi">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">Tx (Hex)</span>
+                                    <input type="text" id="spi-tx" class="cmd-input" placeholder="9F0000" value="9F0000" spellcheck="false">
+                                    <span class="ctrl-label">Rx Len</span>
+                                    <input type="number" id="spi-rx-len" class="cmd-input" style="width: 60px;" value="3" min="0" step="1">
+                                    <span class="ctrl-label">Pad (Hex)</span>
+                                    <input type="text" id="spi-pad" class="cmd-input" style="width: 60px;" value="00" spellcheck="false">
+                                    <select class="compact-select" id="spi-baud">
+                                        <option value="1000000" selected>1 MHz</option>
+                                        <option value="5000000">5 MHz</option>
+                                        <option value="10000000">10 MHz</option>
+                                    </select>
+                                </div>
+                                <div class="control-bar">
+                                    <button class="action-btn outline" id="btn-spi-write">Write</button>
+                                    <button class="action-btn outline" id="btn-spi-read">Read</button>
+                                    <button class="action-btn outline" id="btn-spi-wr" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Write+Read</button>
+                                    <div style="flex-grow: 1;"></div>
+                                    <button class="action-btn outline icon-btn" id="btn-spi-clear-log" title="Clear log">✕</button>
+                                </div>
+                            </div>
+
+                            <!-- UART Sender Panel -->
+                            <div class="bus-sender-panel" id="bus-sender-uart">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">Payload (ASCII or \x Hex)</span>
+                                    <input type="text" id="uart-tx" class="cmd-input" placeholder="AT+GMR\r\n" value="PING\r\n" spellcheck="false">
+                                    <select class="compact-select" id="uart-baud">
+                                        <option value="9600">9600</option>
+                                        <option value="115200" selected>115200</option>
+                                        <option value="1000000">1000000</option>
+                                    </select>
+                                    <button class="action-btn outline" id="btn-uart-send" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Transmit</button>
+                                </div>
+                            </div>
+
+                            <!-- CAN 2.0B / CAN-FD Sender Panel -->
+                            <div class="bus-sender-panel" id="bus-sender-can">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">ID (Hex)</span>
+                                    <input type="text" id="can-id" class="cmd-input" style="width: 70px;" value="123" spellcheck="false">
+                                    <span class="ctrl-label">Data (Hex)</span>
+                                    <input type="text" id="can-data" class="cmd-input" placeholder="11 22 33 44" value="11 22 33 44 55 66 77 88" spellcheck="false">
+                                    <select class="compact-select" id="can-bitrate">
+                                        <option value="250000">250 kbps</option>
+                                        <option value="500000" selected>500 kbps</option>
+                                        <option value="1000000">1 Mbps (FD)</option>
+                                    </select>
+                                    <label style="font-size: 11px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" id="can-term-check" checked> 120Ω Term
+                                    </label>
+                                    <button class="action-btn outline" id="btn-can-send" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Transmit CAN</button>
+                                </div>
+                            </div>
+
+                            <!-- Modbus RTU Sender Panel -->
+                            <div class="bus-sender-panel" id="bus-sender-modbus">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">Slave</span>
+                                    <input type="number" id="modbus-slave" class="cmd-input" style="width: 50px;" value="1" min="1" max="247">
+                                    <span class="ctrl-label">FC</span>
+                                    <select class="compact-select" id="modbus-fc">
+                                        <option value="03" selected>03 Read Holding Regs</option>
+                                        <option value="04">04 Read Input Regs</option>
+                                        <option value="06">06 Write Single Reg</option>
+                                        <option value="16">16 Write Multiple Regs</option>
+                                    </select>
+                                    <span class="ctrl-label">Start Reg</span>
+                                    <input type="text" id="modbus-reg" class="cmd-input" style="width: 60px;" value="0001" spellcheck="false">
+                                    <span class="ctrl-label">Qty/Val</span>
+                                    <input type="text" id="modbus-val" class="cmd-input" style="width: 60px;" value="0002" spellcheck="false">
+                                    <button class="action-btn outline" id="btn-modbus-send" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Send Modbus</button>
+                                </div>
+                            </div>
+
+                            <!-- 1-Wire Sender Panel -->
+                            <div class="bus-sender-panel" id="bus-sender-onewire">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">ROM Command</span>
+                                    <select class="compact-select" id="onewire-cmd">
+                                        <option value="CC" selected>Skip ROM (0xCC)</option>
+                                        <option value="33">Read ROM (0x33)</option>
+                                        <option value="55">Match ROM (0x55)</option>
+                                    </select>
+                                    <span class="ctrl-label">Function/Data (Hex)</span>
+                                    <input type="text" id="onewire-tx" class="cmd-input" value="44" placeholder="44 (Convert T)" spellcheck="false">
+                                    <button class="action-btn outline" id="btn-onewire-send" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Reset &amp; Send</button>
+                                </div>
+                            </div>
+
+                            <!-- LIN Sender Panel -->
+                            <div class="bus-sender-panel" id="bus-sender-lin">
+                                <div class="control-bar">
+                                    <span class="ctrl-label">Frame ID (Hex)</span>
+                                    <input type="text" id="lin-id" class="cmd-input" style="width: 60px;" value="3C" spellcheck="false">
+                                    <span class="ctrl-label">Data (Hex)</span>
+                                    <input type="text" id="lin-data" class="cmd-input" value="01 02 03 04" spellcheck="false">
+                                    <select class="compact-select" id="lin-baud">
+                                        <option value="9600">9600 bps</option>
+                                        <option value="19200" selected>19200 bps</option>
+                                    </select>
+                                    <button class="action-btn outline" id="btn-lin-send" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">Send LIN</button>
+                                </div>
+                            </div>
+
+                            <!-- Synchronized Bus Log Table -->
+                            <div class="bus-table-wrap terminal-display" style="flex: 1; min-height: 120px; overflow-y: auto;">
+                                <table class="bus-log-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 75px;">Time</th>
+                                            <th style="width: 65px;">Bus</th>
+                                            <th>Request</th>
+                                            <th>Response</th>
+                                            <th style="width: 70px;">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bus-master-log-body">
+                                        <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 15px;">Send a transaction to see synchronized bus stimulus &amp; sniff capture.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
-                        <!-- Flexible Pool Header -->
-                        <div class="flex-pool-divider">
-                            <span class="flex-pool-badge">⚡ FLEXIBLE POOL (GP10 – GP29): DYNAMIC RUNTIME CLAIMS</span>
-                            <span class="flex-pool-sub">Atomic claim validation, active driver exclusivity, and shared read-only observation</span>
+                        <!-- Tab 2: REPL / Console -->
+                        <div class="stimulus-pane" id="pane-console">
+                            <div class="panel terminal-display" style="flex: 1; min-height: 140px; overflow-y: auto; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px;">
+                                <div class="output-content" id="cmd-output-content" style="font-family: monospace; font-size: 11.5px; white-space: pre-wrap;">AgentLA Stimulus REPL ready. Type firmware or MCP commands.</div>
+                            </div>
+                            <div class="quick-chips">
+                                <button class="chip-btn" data-cmd="STATUS">STATUS</button>
+                                <button class="chip-btn" data-cmd="IDENTIFY">IDENTIFY</button>
+                                <button class="chip-btn" data-cmd="SAFEDISCOVER">SAFEDISCOVER</button>
+                                <button class="chip-btn" data-cmd="PINSTATUS">PINSTATUS</button>
+                                <button class="chip-btn" data-cmd="SWD TEST">SWD TEST</button>
+                            </div>
+                            <div class="control-bar">
+                                <input type="text" class="cmd-input" id="cmd-text-input" placeholder="Enter MCP command (e.g. STATUS, SWD IDCODE, PINSTATUS)..." autocomplete="off" spellcheck="false">
+                                <button class="action-btn outline" id="btn-cmd-submit">Send</button>
+                                <button class="action-btn outline icon-btn" id="btn-cmd-clear" title="Clear Console">✕</button>
+                            </div>
                         </div>
 
-                        <!-- Domain 2: Adapter Interface (GP10 - GP19) -->
-                        <div class="domain-group">
-                            <div class="domain-group-header">
-                                <span class="domain-badge domain-adapt">DOMAIN 2: ADAPTER BUS &amp; TRANSCEIVER INTERFACE</span>
-                                <span class="domain-range">GP10 – GP19 (I2C1 / RS-485 Transceiver GP12–14 / SPI1 / CAN Transceiver GP18–19 with 120Ω Term on GP22 — Dynamic ownership)</span>
+                        <!-- Tab 3: Pattern Gen -->
+                        <div class="stimulus-pane" id="pane-generator">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">Hardware PWM &amp; Clock Generator</div>
+                                <span class="dynamic-registry-pill" id="gen-status-pill">
+                                    <span class="status-dot"></span> <span id="gen-status-text">Output Inactive</span>
+                                </span>
                             </div>
-                            <div class="domain-pins-row" id="dash-pins-adapt"></div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
+                                <div class="claims-field">
+                                    <label>Pin (GP10–29)</label>
+                                    <select class="compact-select" id="gen-pin-select">
+                                        <option value="10">GP10</option>
+                                        <option value="11">GP11</option>
+                                        <option value="12" selected>GP12</option>
+                                        <option value="13">GP13</option>
+                                        <option value="14">GP14</option>
+                                        <option value="15">GP15</option>
+                                        <option value="16">GP16</option>
+                                        <option value="17">GP17</option>
+                                        <option value="18">GP18</option>
+                                        <option value="19">GP19</option>
+                                        <option value="20">GP20</option>
+                                        <option value="21">GP21</option>
+                                        <option value="22">GP22</option>
+                                        <option value="23">GP23</option>
+                                        <option value="24">GP24</option>
+                                        <option value="25">GP25</option>
+                                        <option value="26">GP26</option>
+                                        <option value="27">GP27</option>
+                                        <option value="28">GP28</option>
+                                        <option value="29">GP29</option>
+                                    </select>
+                                </div>
+                                <div class="claims-field">
+                                    <label>Frequency (Hz)</label>
+                                    <input type="number" class="cmd-input" id="gen-freq-input" value="1000" min="1" max="50000000">
+                                </div>
+                                <div class="claims-field">
+                                    <label>Duty Cycle (%)</label>
+                                    <input type="number" class="cmd-input" id="gen-duty-input" value="50" min="1" max="99">
+                                </div>
+                                <div class="claims-field">
+                                    <label>Waveform</label>
+                                    <select class="compact-select" id="gen-type-select">
+                                        <option value="square" selected>Square Clock</option>
+                                        <option value="pwm">Variable PWM</option>
+                                        <option value="burst">Pulse Burst</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="control-bar">
+                                <button class="action-btn outline" id="gen-btn-start" style="border-color: var(--accent-green); color: var(--accent-green);">Start Generator</button>
+                                <button class="action-btn outline" id="gen-btn-stop" style="display: none; border-color: var(--accent-red); color: var(--accent-red);">Stop Generator</button>
+                            </div>
+                            <div style="flex: 1; min-height: 80px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px; display: flex; flex-direction: column;">
+                                <div style="font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Waveform Model Preview</div>
+                                <canvas id="gen-preview-canvas" style="width: 100%; height: 100%; flex: 1; display: block; border-radius: 4px;"></canvas>
+                            </div>
                         </div>
 
-                        <!-- Domain 3: Logic Analyzer & ADC (GP20 - GP29) -->
-                        <div class="domain-group">
-                            <div class="domain-group-header">
-                                <span class="domain-badge domain-la">DOMAIN 3: LOGIC ANALYZER &amp; ADC</span>
-                                <span class="domain-range">GP20 – GP29 (Span-based Capture Bank / GP22: CAN 120Ω Termination / GP26–GP29: Analog Capable ADC0–3)</span>
+                        <!-- Tab 4: Pin Toggler -->
+                        <div class="stimulus-pane" id="pane-pin-toggler">
+                            <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">Instant GPIO 10–29 Pin State Toggler</div>
+                            <div class="pin-toggler-grid" id="pin-toggler-grid">
+                                <!-- Populated dynamically by app.js (GP10 through GP29) -->
                             </div>
-                            <div class="domain-pins-row" id="dash-pins-la"></div>
-                        </div>
-
-                        <div class="domain-footer-status">
-                            <div class="domain-stats-group">
-                                <span>Drivers Active: <strong id="dash-driver-count">0</strong></span>
-                                <span>Observers: <strong id="dash-observer-count">0</strong></span>
-                                <span>Analog Pins: <strong>GP26–GP29</strong></span>
-                            </div>
-                            <div style="flex-grow: 1;"></div>
-                            <span id="dash-pin-selected-status">Click any pin chip above to inspect RP2350 capabilities or claim/release.</span>
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- View 2: Dual-Slot Dockable Workspace -->
-            <section id="view-instruments" class="workspace-view">
-                <div id="slot-container" class="slot-container mode-single">
-                    <!-- SLOT 1 -->
-                    <div id="slot-1" class="instrument-slot active-slot" data-slot="1">
-                        <div class="slot-header">
-                            <div class="slot-title-group">
-                                <span class="slot-badge">Slot 1</span>
-                                <select class="compact-select slot-tool-select" data-slot="1">
-                                    <option value="logic" selected>Logic Analyzer</option>
-                                    <option value="generator">Signal Generator</option>
-                                    <option value="scope">Analog Scope</option>
-                                    <option value="flasher">Target Flasher</option>
-                                    <option value="debugger">Target Debugger</option>
-                                    <option value="gpio">GPIO &amp; Pin Matrix</option>
-                                    <option value="i2c">I2C Master</option>
-                                    <option value="spi">SPI Master</option>
-                                    <option value="command">Command Console</option>
-                                    <option value="about">About &amp; Pinout</option>
-                                </select>
+            </div>
+        </section>
+
+        <!-- ================================================================= -->
+        <!-- VIEW 2: TARGET STATION (#view-target-station)                    -->
+        <!-- ================================================================= -->
+        <section id="view-target-station" class="workspace-view">
+            <div class="target-station-container">
+                
+                <!-- Left Column: VTarget Power Rail & Flasher -->
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    
+                    <!-- VTarget Power Rail Card -->
+                    <div class="station-card">
+                        <div class="station-card-title">
+                            <span>⚡ Target Power Rail (VTarget)</span>
+                            <span class="dynamic-registry-pill" id="vtarget-status-badge">
+                                <span class="status-dot green"></span> 3.3V ACTIVE
+                            </span>
+                        </div>
+                        <div class="vtarget-rail-controls">
+                            <button class="vtarget-btn active-3v3" id="btn-vtarget-3v3">3.3V Rail</button>
+                            <button class="vtarget-btn" id="btn-vtarget-5v">5.0V Rail</button>
+                            <button class="vtarget-btn" id="btn-vtarget-off">Power OFF</button>
+                        </div>
+                        <div class="vtarget-telemetry-grid">
+                            <div class="vtarget-telem-item">
+                                <span class="vtarget-telem-label">MEASURED VOLTAGE</span>
+                                <span class="vtarget-telem-val" id="vtarget-voltage-val">3.31 V</span>
                             </div>
-                            <div class="slot-actions">
-                                <button class="action-btn icon-btn slot-swap-btn" title="Swap Slot 1 &amp; Slot 2">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                        <polyline points="17 14 12 9 7 14"/>
-                                        <line x1="12" y1="9" x2="12" y2="21"/>
-                                    </svg>
-                                </button>
-                                <button class="action-btn icon-btn slot-config-btn" title="Slot Inspector &amp; Config">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
-                                        <circle cx="12" cy="12" r="3"/>
-                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                                    </svg>
-                                </button>
+                            <div class="vtarget-telem-item">
+                                <span class="vtarget-telem-label">SENSE CURRENT</span>
+                                <span class="vtarget-telem-val" id="vtarget-current-val">14 mA</span>
                             </div>
                         </div>
-                        <div class="slot-body" id="slot-1-content"></div>
+                        <div style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+                            <span>Target Architecture:</span>
+                            <strong style="color: var(--accent-cyan);" id="target-detect-summary">RP2350 (Cortex-M33 / RISC-V Hazard3)</strong>
+                        </div>
                     </div>
 
-                    <!-- SLOT 2 (Dual Split Pane) -->
-                    <div id="slot-2" class="instrument-slot" data-slot="2">
-                        <div class="slot-header">
-                            <div class="slot-title-group">
-                                <span class="slot-badge">Slot 2</span>
-                                <select class="compact-select slot-tool-select" data-slot="2">
-                                    <option value="i2c" selected>I2C Master</option>
-                                    <option value="spi">SPI Master</option>
-                                    <option value="generator">Signal Generator</option>
-                                    <option value="scope">Analog Scope</option>
-                                    <option value="logic">Logic Analyzer</option>
-                                    <option value="flasher">Target Flasher</option>
-                                    <option value="debugger">Target Debugger</option>
-                                    <option value="gpio">GPIO &amp; Pin Matrix</option>
-                                    <option value="command">Command Console</option>
-                                    <option value="about">About &amp; Pinout</option>
+                    <!-- Target Flasher Card -->
+                    <div class="station-card">
+                        <div class="station-card-title">
+                            <span>🔥 Universal Target Flasher</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">SWD / RV-SWD / WCH-SDI</span>
+                        </div>
+                        
+                        <div class="flasher-dropzone" id="flash-dropzone">
+                            <input type="file" id="flash-file-input" accept=".bin,.hex,.elf,.uf2" style="display: none;">
+                            <svg class="dropzone-icon" viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="1.8">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                            </svg>
+                            <div class="dropzone-title" id="dropzone-title">Drop firmware (.bin, .hex, .elf, .uf2) or click</div>
+                            <div class="dropzone-sub" id="dropzone-sub">Auto-detect ready via SWD / RV-SWD / WCH-SDI</div>
+                        </div>
+
+                        <div class="flasher-controls" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div class="flasher-field">
+                                <label>Target Chip</label>
+                                <select class="compact-select" id="flash-chip-select">
+                                    <option value="auto" selected>Auto-Detect on Connect</option>
+                                    <option value="ch32v">CH32V203 / RISC-V (0x08000000)</option>
+                                    <option value="stm32">STM32 Cortex-M (0x08000000)</option>
+                                    <option value="rp2040">RP2040 / RP2350 (0x10000000)</option>
                                 </select>
                             </div>
-                            <div class="slot-actions">
-                                <button class="action-btn icon-btn slot-swap-btn" title="Swap Slot 1 &amp; Slot 2">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                        <polyline points="17 14 12 9 7 14"/>
-                                        <line x1="12" y1="9" x2="12" y2="21"/>
-                                    </svg>
-                                </button>
-                                <button class="action-btn icon-btn slot-config-btn" title="Slot Inspector &amp; Config">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
-                                        <circle cx="12" cy="12" r="3"/>
-                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                                    </svg>
-                                </button>
-                                <button class="action-btn icon-btn slot-close-btn" id="btn-close-slot-2" title="Close Split View (Focus Single)">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
-                                        <line x1="18" y1="6" x2="6" y2="18"/>
-                                        <line x1="6" y1="6" x2="18" y2="18"/>
-                                    </svg>
-                                </button>
+                            <div class="flasher-field">
+                                <label>Base Address</label>
+                                <input type="text" class="cmd-input" id="flash-addr" value="0x08000000" spellcheck="false">
                             </div>
                         </div>
-                        <div class="slot-body" id="slot-2-content"></div>
+
+                        <div>
+                            <div class="flasher-status-row" style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">
+                                <span id="flash-stage-text">Ready. Select or drop a file to program.</span>
+                                <span id="flash-percent-text">0%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-fill" id="flash-progress"></div>
+                            </div>
+                        </div>
+
+                        <div class="control-bar">
+                            <button class="action-btn outline" id="btn-flash-detect">Detect Target</button>
+                            <button class="action-btn outline" id="btn-flash-program" style="border-color: var(--accent-cyan); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.1);">Flash Target</button>
+                            <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); cursor: pointer; margin-left: auto;">
+                                <input type="checkbox" id="flash-verify-check" checked> Verify write
+                            </label>
+                            <button class="action-btn outline icon-btn" id="btn-flash-clear" title="Clear log">✕</button>
+                        </div>
+
+                        <pre class="flasher-log-drawer" id="flash-log" style="height: 90px; margin: 0; font-size: 11px;">AgentLA Universal Programmer ready.</pre>
+                    </div>
+
+                </div>
+
+                <!-- Right Column: SWD / CMSIS-DAP Target Debugger -->
+                <div class="station-card" style="height: 100%; box-sizing: border-box;">
+                    <div class="station-card-title">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span>🐞 Target SWD / CMSIS-DAP Debugger</span>
+                            <div class="dbg-status-pill disconnected" id="dbg-status-pill">
+                                <span class="status-dot"></span>
+                                <span id="dbg-status-text">DISCONNECTED</span>
+                            </div>
+                        </div>
+                        <div class="segmented-control" style="width: 240px;">
+                            <button class="sub-btn" id="dbg-btn-halt">Halt</button>
+                            <button class="sub-btn" id="dbg-btn-step">Step</button>
+                            <button class="sub-btn" id="dbg-btn-run">Resume</button>
+                            <button class="sub-btn" id="dbg-btn-reset">Reset</button>
+                        </div>
+                    </div>
+
+                    <!-- Core Registers (R0 - R15 + xPSR) -->
+                    <div>
+                        <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Core Registers (R0–R15, SP, LR, PC, xPSR)</div>
+                        <div class="dbg-registers-grid" id="dbg-registers-grid">
+                            <div class="reg-cell"><span class="reg-name">R0</span><span class="reg-val" id="reg-r0">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R1</span><span class="reg-val" id="reg-r1">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R2</span><span class="reg-val" id="reg-r2">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R3</span><span class="reg-val" id="reg-r3">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R4</span><span class="reg-val" id="reg-r4">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R5</span><span class="reg-val" id="reg-r5">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R6</span><span class="reg-val" id="reg-r6">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R7</span><span class="reg-val" id="reg-r7">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R8</span><span class="reg-val" id="reg-r8">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R9</span><span class="reg-val" id="reg-r9">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R10</span><span class="reg-val" id="reg-r10">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R11</span><span class="reg-val" id="reg-r11">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">R12</span><span class="reg-val" id="reg-r12">0x00000000</span></div>
+                            <div class="reg-cell"><span class="reg-name">SP (R13)</span><span class="reg-val" id="reg-sp">0x20004000</span></div>
+                            <div class="reg-cell"><span class="reg-name">LR (R14)</span><span class="reg-val" id="reg-lr">0x0800018D</span></div>
+                            <div class="reg-cell"><span class="reg-name">PC (R15)</span><span class="reg-val" id="reg-pc">0x08000244</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Memory Read / Write Hex View -->
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 140px;">
+                        <div class="control-bar" style="padding-bottom: 6px;">
+                            <span class="ctrl-label">Memory Address:</span>
+                            <input type="text" class="cmd-input" id="dbg-mem-addr" value="0x20000000" style="width: 110px;" spellcheck="false">
+                            <span class="ctrl-label">Length:</span>
+                            <select class="compact-select" id="dbg-mem-len" style="width: 75px;">
+                                <option value="64">64 B</option>
+                                <option value="128">128 B</option>
+                                <option value="256" selected>256 B</option>
+                            </select>
+                            <button class="action-btn outline" id="dbg-btn-readmem">Read Memory</button>
+                        </div>
+                        <div class="memory-hex-wrap" style="flex: 1; overflow-y: auto;">
+                            <table class="memory-hex-table">
+                                <thead>
+                                    <tr>
+                                        <th>Address</th>
+                                        <th>Hex Bytes (00-0F)</th>
+                                        <th>ASCII</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dbg-hex-body">
+                                    <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 16px;">Click Read Memory to inspect target RAM / Flash.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <pre class="flasher-log-drawer" id="dbg-log" style="height: 70px; margin: 0; font-size: 11px;">Debugger ready. Target probe pins: GP4 P_SWCLK, GP5 P_SWDIO.</pre>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- SLIDE-OUT HARDWARE PIN MATRIX DRAWER                              -->
+    <!-- ================================================================= -->
+    <div id="pin-matrix-backdrop" class="pin-matrix-backdrop"></div>
+    <aside id="pin-matrix-drawer" class="pin-matrix-drawer" aria-label="Hardware Pin Routing Matrix">
+        <div class="pin-drawer-header">
+            <div class="pin-drawer-title-group">
+                <h3 class="pin-drawer-title">Hardware Pin Routing Matrix</h3>
+                <span class="pin-conflict-badge ok" id="pin-drawer-conflict-badge">✓ All Pins Conflict-Free</span>
+            </div>
+            <button class="action-btn icon-btn" id="btn-close-pin-drawer" title="Close Drawer (Esc or P)">✕</button>
+        </div>
+        <div class="pin-drawer-content">
+            <!-- Dynamic Pin Claims Section -->
+            <div class="pin-drawer-section">
+                <div class="claims-control-grid">
+                    <div class="claims-field">
+                        <label>Role Preset</label>
+                        <select class="compact-select" id="gpio-claim-preset">
+                            <option value="i2c" selected>I2C1 Adapter (GP10, GP11)</option>
+                            <option value="rs485">RS-485 Transceiver (GP12–14)</option>
+                            <option value="can">CAN Transceiver (GP18, GP19, GP22 Term)</option>
+                            <option value="spi">SPI1 Adapter (GP14–17)</option>
+                            <option value="uart">UART1 Adapter (GP12, GP13)</option>
+                            <option value="capture">PIO0 Capture Bank (GP20–27)</option>
+                            <option value="adc">Scope Analog (GP26, GP27)</option>
+                            <option value="custom">Custom Configuration...</option>
+                        </select>
+                    </div>
+                    <div class="claims-field">
+                        <label>Pins (10–29)</label>
+                        <input type="text" class="cmd-input" id="gpio-claim-pins" value="10,11" spellcheck="false">
+                    </div>
+                    <div class="claims-field" style="max-width: 90px;">
+                        <label>Function</label>
+                        <select class="compact-select" id="gpio-claim-func">
+                            <option value="3" selected>I2C (3)</option>
+                            <option value="1">SPI (1)</option>
+                            <option value="2">UART (2)</option>
+                            <option value="6">PIO0 (6)</option>
+                            <option value="7">PIO1 (7)</option>
+                            <option value="5">SIO (5)</option>
+                        </select>
+                    </div>
+                    <div class="claims-field claims-field-check">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 11px;">
+                            <input type="checkbox" id="gpio-claim-observer"> Observer
+                        </label>
+                    </div>
+                    <div class="claims-btn-row">
+                        <button class="action-btn outline btn-sm" id="btn-gpio-claim">Claim</button>
+                        <button class="action-btn outline btn-sm" id="btn-gpio-safediscover">Discover</button>
                     </div>
                 </div>
-            </section>
-        </main>
 
-        <!-- Mobile & Tablet Bottom Navigation Bar (< 900px, >= 48px touch targets) -->
-        <nav id="bottom-nav-bar" class="bottom-nav-bar" aria-label="Mobile Navigation Bar">
-            <button class="bottom-nav-item active" data-view="dashboard">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-                <span>Hub</span>
-            </button>
-            <button class="bottom-nav-item" data-view="logic">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
-                    <path d="M 2.25,9 V 3 h 4.5 v 6 h 4.5 V 3 h 4.5 v 6 h 4.5 V 3 h 1.5"/>
-                </svg>
-                <span>Logic</span>
-            </button>
-            <button class="bottom-nav-item" data-view="flasher">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
-                </svg>
-                <span>Flash</span>
-            </button>
-            <button class="bottom-nav-item" data-view="debugger">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <circle cx="12" cy="12" r="9"/>
-                    <path d="M9 9l6 6M15 9l-6 6"/>
-                </svg>
-                <span>Debug</span>
-            </button>
-            <button class="bottom-nav-item" data-view="gpio">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M7 8h2m6 0h2M7 16h2m6 0h2M12 7v10"/>
-                </svg>
-                <span>Pins</span>
-            </button>
-            <button class="bottom-nav-item" id="btn-bottom-more" data-view="more">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
-                    <circle cx="12" cy="12" r="1.5"/>
-                    <circle cx="19" cy="12" r="1.5"/>
-                    <circle cx="5" cy="12" r="1.5"/>
-                </svg>
-                <span>More</span>
-            </button>
-        </nav>
-    </div>
+                <div class="claims-release-row" style="margin-top: 6px;">
+                    <input type="text" class="cmd-input" id="gpio-release-handle" placeholder="Handle #" spellcheck="false" style="max-width: 120px;">
+                    <button class="action-btn outline btn-sm" id="btn-gpio-release">Release</button>
+                    <div style="flex-grow: 1;"></div>
+                    <span id="gpio-active-claims-summary" style="font-size: 11px; color: var(--text-secondary);">No active claims.</span>
+                </div>
+            </div>
 
-    <!-- Slide-Up Bottom Sheet (Touch) / Slide-Out Right Drawer (Desktop) -->
+            <!-- Domain 2: Adapter Interface (GP10 - GP19) -->
+            <div class="pin-drawer-section">
+                <div class="pin-group-header">
+                    <span>⚡ Domain 2: Flexible Adapter Bus (GP10–GP19)</span>
+                </div>
+                <div class="pin-matrix-grid" id="gpio-grid-adapt"></div>
+            </div>
+
+            <!-- Domain 3: Analyzer & ADC (GP20 - GP29) -->
+            <div class="pin-drawer-section">
+                <div class="pin-group-header">
+                    <span>⚡ Domain 3: Flexible Analyzer &amp; ADC (GP20–GP29)</span>
+                </div>
+                <div class="pin-matrix-grid" id="gpio-grid-la"></div>
+            </div>
+
+            <!-- Domain 1: Fixed Programmer Block (GP0 - GP9) -->
+            <div class="pin-drawer-section">
+                <div class="pin-group-header">
+                    <span>🔒 Domain 1: Fixed Programmer Block (GP0–GP9)</span>
+                </div>
+                <div class="pin-matrix-grid" id="gpio-grid-prog"></div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Slide-Up Inspector Drawer / Modal Overlay -->
     <div id="inspector-overlay" class="inspector-overlay"></div>
     <aside id="inspector-drawer" class="inspector-drawer" aria-label="Tool Inspector and Configuration">
         <div class="drawer-header">
             <div class="drawer-drag-handle" aria-hidden="true"></div>
             <div class="drawer-title-row">
-                <h3 class="drawer-title" id="drawer-title">Inspector &amp; Configuration</h3>
-                <button class="action-btn icon-btn drawer-close-btn" id="btn-close-drawer" aria-label="Close Inspector">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
+                <h3 class="drawer-title" id="drawer-title">Settings &amp; Inspection</h3>
+                <button class="action-btn icon-btn drawer-close-btn" id="btn-close-drawer" aria-label="Close">✕</button>
             </div>
         </div>
-        <div class="drawer-content" id="drawer-content">
-            <!-- Dynamically populated -->
-        </div>
+        <div class="drawer-content" id="drawer-content"></div>
     </aside>
 
-    <!-- Mobile "More Tools" Bottom Sheet Menu -->
-    <div id="more-menu-sheet" class="more-menu-sheet">
-        <div class="sheet-drag-handle" aria-hidden="true"></div>
-        <div class="more-menu-header">
-            <h3>Additional Instruments</h3>
-            <button class="action-btn icon-btn btn-close-more" aria-label="Close">✕</button>
-        </div>
-        <div class="more-menu-grid">
-            <button class="more-tool-btn" data-view="generator">
-                <div class="more-tool-icon">∿</div>
-                <span>Signal Gen</span>
-            </button>
-            <button class="more-tool-btn" data-view="scope">
-                <div class="more-tool-icon">⚡</div>
-                <span>Analog Scope</span>
-            </button>
-            <button class="more-tool-btn" data-view="i2c">
-                <div class="more-tool-icon">I²C</div>
-                <span>I2C Master</span>
-            </button>
-            <button class="more-tool-btn" data-view="spi">
-                <div class="more-tool-icon">SPI</div>
-                <span>SPI Master</span>
-            </button>
-            <button class="more-tool-btn" data-view="command">
-                <div class="more-tool-icon">&gt;_</div>
-                <span>Console</span>
-            </button>
-            <button class="more-tool-btn" data-view="about">
-                <div class="more-tool-icon">ℹ</div>
-                <span>About</span>
-            </button>
-            <button class="more-tool-btn" data-action="settings">
-                <div class="more-tool-icon">⚙</div>
-                <span>Settings</span>
-            </button>
-            <button class="more-tool-btn text-amber" id="btn-more-reboot">
-                <div class="more-tool-icon">↻</div>
-                <span>Reboot</span>
-            </button>
-            <button class="more-tool-btn text-red" id="btn-more-bootsel">
-                <div class="more-tool-icon">⚡</div>
-                <span>BOOTSEL</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Hidden Storage for Tool Templates -->
+    <!-- Hidden Storage for Dialog Templates -->
     <div id="templates-store" style="display: none;">
-
-        <!-- Flasher Template -->
-        <div id="template-flasher" class="app-content">
-            <div class="flasher-container">
-                <div class="flasher-dropzone" id="flash-dropzone">
-                    <input type="file" id="flash-file-input" accept=".bin,.hex,.uf2" style="display: none;">
-                    <svg class="dropzone-icon" viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" fill="none" stroke-width="1.8">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                    </svg>
-                    <div class="dropzone-title" id="dropzone-title">Drop firmware (.bin, .hex, .uf2) or click to browse</div>
-                    <div class="dropzone-sub" id="dropzone-sub">Target auto-detect ready via SWD / RV-SWD / WCH-SDI</div>
-                </div>
-
-                <div class="flasher-controls">
-                    <div class="flasher-field">
-                        <label>Target Chip</label>
-                        <select class="compact-select" id="flash-chip-select">
-                            <option value="auto" selected>Auto-Detect on Connect</option>
-                            <option value="ch32v">CH32V203 / RISC-V (0x08000000)</option>
-                            <option value="stm32">STM32 Cortex-M (0x08000000)</option>
-                            <option value="rp2040">RP2040 / RP2350 (0x10000000)</option>
-                        </select>
-                    </div>
-                    <div class="flasher-field">
-                        <label>Start Address (Hex)</label>
-                        <input type="text" class="cmd-input" id="flash-addr" value="0x08000000" spellcheck="false">
-                    </div>
-                    <div class="flasher-field" style="max-width: 90px;">
-                        <label>Chunk Size</label>
-                        <select class="compact-select" id="flash-chunk">
-                            <option value="256" selected>256 B</option>
-                            <option value="128">128 B</option>
-                            <option value="64">64 B</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="flasher-status-row">
-                        <span id="flash-stage-text">Ready. Select or drop a file to program.</span>
-                        <span id="flash-percent-text">0%</span>
-                    </div>
-                    <div class="progress-track">
-                        <div class="progress-fill" id="flash-progress"></div>
-                    </div>
-                </div>
-
-                <div class="control-bar" style="padding: 0; background: transparent; border: none;">
-                    <button class="action-btn outline" id="btn-flash-detect">Detect Target</button>
-                    <button class="action-btn outline" id="btn-flash-program" style="border-color: var(--term-accent-color); color: #fff; background: rgba(13, 132, 250, 0.2);">Flash Target</button>
-                    <div style="flex-grow: 1;"></div>
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
-                        <input type="checkbox" id="flash-verify-check" checked> Verify write
-                    </label>
-                    <button class="action-btn outline icon-btn" id="btn-flash-clear" title="Clear log">
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M4 6h16 M4 10h16 M4 14h8 M4 18h8 M15 14l4 4 M19 14l-4 4"/></svg>
-                    </button>
-                </div>
-
-                <pre class="flasher-log-drawer" id="flash-log">AgentLA Universal Programmer ready.</pre>
-            </div>
-        </div>
-
-        <!-- Logic Analyzer Template -->
-        <div id="template-logic" class="app-content">
-            <div class="logic-layout">
-                <div class="logic-channels">
-                    <button class="pin-select-btn active" data-pin="0">D0 (GP20)</button>
-                    <button class="pin-select-btn active" data-pin="1">D1 (GP21)</button>
-                    <button class="pin-select-btn" data-pin="2">D2 (GP22)</button>
-                    <button class="pin-select-btn" data-pin="3">D3 (GP23)</button>
-                    <button class="pin-select-btn" data-pin="4">D4 (GP24)</button>
-                    <button class="pin-select-btn" data-pin="5">D5 (GP25)</button>
-                    <button class="pin-select-btn" data-pin="6">D6 (GP26)</button>
-                    <button class="pin-select-btn" data-pin="7">D7 (GP27)</button>
-                </div>
-
-                <div class="graph-container-bare logic-canvas-wrapper">
-                    <canvas id="logic-canvas"></canvas>
-                </div>
-
-                <div class="logic-timing-bar" id="logic-timing-bar" style="display: flex; gap: 12px; font-size: 11px; color: var(--text-secondary); padding: 5px 10px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 4px; overflow-x: auto; white-space: nowrap; font-family: monospace;">
-                    <span>Digital Scope: Capture waveform to calculate frequency, duty cycle, and pulse timing.</span>
-                </div>
-
-                <div class="logic-controls control-bar">
-                    <button class="action-btn outline run-control-btn btn-run-stop stopped">
-                        <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run
-                    </button>
-
-                    <div class="decoder-config-wrap">
-                        <button class="action-btn outline decoder-toggle" title="Configure protocol decoder">
-                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="#333"/><circle cx="15" cy="12" r="2" fill="#333"/><circle cx="11" cy="17" r="2" fill="#333"/></svg>
-                            Decode...
-                        </button>
-                        <div class="popup-menu decoder-menu">
-                            <div class="menu-item">
-                                <label>Protocol</label>
-                                <select class="decoder-protocol">
-                                    <option value="off">Off</option>
-                                    <option value="spi">SPI</option>
-                                    <option value="i2c">I2C</option>
-                                    <option value="uart">UART</option>
-                                    <option value="can">CAN 2.0 / CAN-FD</option>
-                                    <option value="modbus">Modbus RTU</option>
-                                    <option value="dmx">DMX-512</option>
-                                    <option value="led_1w">Addressable LED (1-Wire PWM)</option>
-                                    <option value="led_2w">Addressable LED (2-Wire SPI)</option>
-                                    <option value="onewire">1-Wire Dallas</option>
-                                    <option value="i3c">MIPI I3C SDR</option>
-                                    <option value="swd">ARM SWD</option>
-                                    <option value="swo">ARM SWO Trace</option>
-                                    <option value="lin">LIN Bus</option>
-                                    <option value="spiflash">SPI Flash</option>
-                                </select>
-                            </div>
-                            <div class="menu-item decoder-spi-options">
-                                <label>Clock</label>
-                                <select class="decoder-sck"><option value="0">D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
-                                <label>MOSI</label>
-                                <select class="decoder-mosi"><option value="0">D0 (GP20)</option><option value="1" selected>D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
-                                <label>MISO</label>
-                                <select class="decoder-miso"><option value="0">D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2" selected>D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
-                                <label>CS (active low)</label>
-                                <select class="decoder-cs"><option value="0" selected>D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option><option value="-1">None</option></select>
-                                <label>Mode</label>
-                                <select class="decoder-spi-mode"><option value="0">Mode 0</option><option value="1">Mode 1</option><option value="2">Mode 2</option><option value="3">Mode 3</option></select>
-                            </div>
-                            <div class="menu-item decoder-i2c-options">
-                                <label>SCL</label>
-                                <select class="decoder-scl"><option value="0">D0 (GP20)</option><option value="1" selected>D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
-                                <label>SDA</label>
-                                <select class="decoder-sda"><option value="0" selected>D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
-                            </div>
-                            <div class="menu-item decoder-uart-options">
-                                <label>RX</label>
-                                <select class="decoder-rx"><option value="0" selected>D0 (GP20)</option><option value="1">D1 (GP21)</option><option value="2">D2 (GP22)</option><option value="3">D3 (GP23)</option></select>
-                                <label>Baud</label>
-                                <select class="decoder-baud"><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option selected>115200</option><option>230400</option><option>1000000</option></select>
-                            </div>
-                            <button class="action-btn outline decoder-apply">Apply</button>
-                        </div>
-                    </div>
-
-                    <div style="flex-grow: 1;"></div>
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">Trigger</span>
-                    <select class="compact-select trig-src" style="width: 75px;">
-                        <option value="0">D0</option>
-                        <option value="1">D1</option>
-                        <option value="2">D2</option>
-                        <option value="3">D3</option>
-                        <option value="4">D4</option>
-                        <option value="5">D5</option>
-                        <option value="6">D6</option>
-                        <option value="7">D7</option>
-                    </select>
-
-                    <button class="action-btn outline icon-btn trig-edge" title="Toggle Edge">
-                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2"><path d="M4 16h6l4-8h6" stroke-linejoin="round"/></svg>
-                    </button>
-
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">Sample Rate</span>
-                    <select class="compact-select sample-rate" style="width: 125px;">
-                        <option value="100000000">100 MS/s</option>
-                        <option value="50000000">50 MS/s</option>
-                        <option value="20000000">20 MS/s</option>
-                        <option value="10000000" selected>10 MS/s</option>
-                        <option value="5000000">5 MS/s</option>
-                        <option value="2000000">2 MS/s</option>
-                        <option value="1000000">1 MS/s</option>
-                        <option value="500000">500 kS/s</option>
-                    </select>
-
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">Base</span>
-                    <select class="compact-select logic-base-pin" style="width: 80px;" title="Arbitrary capture span base pin">
-                        <option value="10">GP10</option>
-                        <option value="11">GP11</option>
-                        <option value="12">GP12</option>
-                        <option value="13">GP13</option>
-                        <option value="14">GP14</option>
-                        <option value="15">GP15</option>
-                        <option value="16">GP16</option>
-                        <option value="17">GP17</option>
-                        <option value="18">GP18</option>
-                        <option value="19">GP19</option>
-                        <option value="20" selected>GP20</option>
-                        <option value="21">GP21</option>
-                        <option value="22">GP22</option>
-                    </select>
-
-                    <span class="ctrl-label">Span</span>
-                    <select class="compact-select logic-channel-count" style="width: 75px;" title="Capture channel count">
-                        <option value="1">1 Ch</option>
-                        <option value="2">2 Ch</option>
-                        <option value="3">3 Ch</option>
-                        <option value="4">4 Ch</option>
-                        <option value="5">5 Ch</option>
-                        <option value="6">6 Ch</option>
-                        <option value="7">7 Ch</option>
-                        <option value="8" selected>8 Ch</option>
-                    </select>
-
-                    <div class="divider"></div>
-                    <span class="dynamic-registry-pill" id="logic-bank-pill" title="Dynamic span-based capture bank claim">
-                        <span class="status-dot green"></span> <span id="logic-bank-text">Bank: GP20–GP27</span>
-                    </span>
-
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">Engine</span>
-                    <div class="segmented-control capture-mode-selector" id="capture-mode-control" style="width: 210px;" title="Decoupled Capture Engine Mode">
-                        <button class="sub-btn active" data-mode="STREAM" id="btn-mode-stream">STREAM</button>
-                        <button class="sub-btn" data-mode="TURBO" id="btn-mode-turbo">TURBO</button>
-                        <button class="sub-btn" data-mode="SCOPE" id="btn-mode-scope">SCOPE</button>
-                    </div>
-
-                    <div id="scope-depth-ctrl" style="display: none; align-items: center; gap: 6px;">
-                        <span class="ctrl-label">Pre</span>
-                        <select class="compact-select scope-pre-depth" id="scope-pre-depth" style="width: 70px;" title="Scope Pre-Trigger Depth">
-                            <option value="16384">16 KB</option>
-                            <option value="32768">32 KB</option>
-                            <option value="65536" selected>64 KB</option>
-                        </select>
-                    </div>
-
-                    <button class="action-btn outline icon-btn" id="btn-export-vcd" title="Export trace to VCD" style="margin-left: 4px;">
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Debugger Template -->
-        <div id="template-debugger" class="app-content">
-            <div class="debugger-container">
-                <div class="dbg-header">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">Hardware Target</span>
-                        <div class="dbg-status-pill disconnected" id="dbg-status-pill">
-                            <span class="status-dot"></span>
-                            <span id="dbg-status-text">DISCONNECTED</span>
-                        </div>
-                    </div>
-                    <div class="segmented-control" style="width: 240px;">
-                        <button class="sub-btn" id="dbg-btn-halt">Halt</button>
-                        <button class="sub-btn" id="dbg-btn-step">Step</button>
-                        <button class="sub-btn" id="dbg-btn-run">Run</button>
-                        <button class="sub-btn" id="dbg-btn-reset">Reset</button>
-                    </div>
-                </div>
-
-                <div class="control-bar" style="padding: 0; background: transparent; border: none;">
-                    <span class="ctrl-label">Memory Hex Dump:</span>
-                    <span class="ctrl-label">Address</span>
-                    <input type="text" class="cmd-input" id="dbg-mem-addr" value="0x20000000" style="width: 110px;" spellcheck="false">
-                    <span class="ctrl-label">Length</span>
-                    <select class="compact-select" id="dbg-mem-len" style="width: 80px;">
-                        <option value="64">64 B</option>
-                        <option value="128">128 B</option>
-                        <option value="256" selected>256 B</option>
-                    </select>
-                    <button class="action-btn outline" id="dbg-btn-readmem">Read Memory</button>
-                </div>
-
-                <div class="memory-hex-wrap">
-                    <table class="memory-hex-table">
-                        <thead>
-                            <tr>
-                                <th>Address</th>
-                                <th>Hex Bytes (00-0F)</th>
-                                <th>ASCII</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dbg-hex-body">
-                            <tr><td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 20px;">No memory loaded. Connect target and click Read Memory.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <pre class="flasher-log-drawer" id="dbg-log" style="max-height: 80px;">Debugger ready. Connect target probe pins (GP4 P_SWCLK, GP5 P_SWDIO).</pre>
-            </div>
-        </div>
-
-        <!-- GPIO & Pin Matrix Template -->
-        <div id="template-gpio" class="app-content">
-            <div class="pin-matrix-container">
-                <!-- Dynamic Ownership Controls -->
-                <div class="pin-group dynamic-claims-panel">
-                    <div class="pin-group-header">
-                        <span>Dynamic Pin Ownership Registry (GPIO 10 – 29)</span>
-                        <span style="font-size: 10px; color: var(--accent-cyan);">Atomic Validation &amp; Conflict Reporting</span>
-                    </div>
-                    <div class="claims-control-grid">
-                        <div class="claims-field">
-                            <label>Role Preset</label>
-                            <select class="compact-select" id="gpio-claim-preset">
-                                <option value="i2c" selected>I2C1 Adapter (GP10, GP11)</option>
-                                <option value="rs485">RS-485 Transceiver (GP12, GP13, GP14)</option>
-                                <option value="can">CAN Transceiver (GP18, GP19, GP22 Term)</option>
-                                <option value="spi">SPI1 Adapter (GP14, GP15, GP16, GP17)</option>
-                                <option value="uart">UART1 Adapter (GP12, GP13)</option>
-                                <option value="capture">PIO0 Capture Bank (GP20–GP27)</option>
-                                <option value="adc">Scope Analog (GP26, GP27)</option>
-                                <option value="custom">Custom Configuration...</option>
-                            </select>
-                        </div>
-                        <div class="claims-field">
-                            <label>Pins (10–29)</label>
-                            <input type="text" class="cmd-input" id="gpio-claim-pins" value="10,11" spellcheck="false" placeholder="10,11">
-                        </div>
-                        <div class="claims-field" style="max-width: 100px;">
-                            <label>Function</label>
-                            <select class="compact-select" id="gpio-claim-func">
-                                <option value="3" selected>I2C (3)</option>
-                                <option value="1">SPI (1)</option>
-                                <option value="2">UART (2)</option>
-                                <option value="6">PIO0 (6)</option>
-                                <option value="7">PIO1 (7)</option>
-                                <option value="5">SIO (5)</option>
-                            </select>
-                        </div>
-                        <div class="claims-field claims-field-check">
-                            <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                                <input type="checkbox" id="gpio-claim-observer"> Observer Only (Shared Read)
-                            </label>
-                        </div>
-                        <div class="claims-btn-row">
-                            <button class="action-btn outline btn-sm" id="btn-gpio-claim">Claim (PINCLAIM)</button>
-                            <button class="action-btn outline btn-sm" id="btn-gpio-safediscover">Safe Discover</button>
-                        </div>
-                    </div>
-
-                    <div class="claims-release-row">
-                        <div class="claims-field" style="max-width: 140px;">
-                            <label>Active Handle</label>
-                            <input type="text" class="cmd-input" id="gpio-release-handle" placeholder="Handle #" spellcheck="false">
-                        </div>
-                        <button class="action-btn outline btn-sm" id="btn-gpio-release" style="margin-top: 14px;">Release Handle</button>
-                        <div style="flex-grow: 1;"></div>
-                        <span id="gpio-active-claims-summary" style="font-size: 11px; color: var(--text-secondary); align-self: center;">No active user claims.</span>
-                    </div>
-                </div>
-
-                <!-- Domain 1: Fixed Programmer -->
-                <div class="pin-group domain-fixed-block">
-                    <div class="pin-group-header">
-                        <span>🔒 Fixed Programmer Block (GP0 - GP9)</span>
-                        <span style="font-size: 10px; color: var(--text-secondary);">SWD / RV-SWD / WCH-SDI / UART Bootloader (Fixed)</span>
-                    </div>
-                    <div class="pin-matrix-grid" id="gpio-grid-prog"></div>
-                </div>
-
-                <!-- Domain 2: Flexible Adapter -->
-                <div class="pin-group">
-                    <div class="pin-group-header">
-                        <span>⚡ Flexible Adapter &amp; Transceiver Interface (GP10 - GP19)</span>
-                        <span style="font-size: 10px; color: var(--text-secondary);">I2C1 / RS-485 (GP12–14) / SPI1 / CAN (GP18–19) / 120Ω Term (GP22)</span>
-                    </div>
-                    <div class="pin-matrix-grid" id="gpio-grid-adapt"></div>
-                </div>
-
-                <!-- Domain 3: Flexible Analyzer & ADC -->
-                <div class="pin-group">
-                    <div class="pin-group-header">
-                        <span>⚡ Flexible Logic Analyzer &amp; ADC (GP20 - GP29)</span>
-                        <span style="font-size: 10px; color: var(--text-secondary);">Span-based Capture Bank (PIO0) / GP26–GP29: Analog Capable</span>
-                    </div>
-                    <div class="pin-matrix-grid" id="gpio-grid-la"></div>
-                </div>
-
-                <div class="control-bar" style="padding: 0; background: transparent; border: none;">
-                    <button class="action-btn outline" id="btn-gpio-refresh">Refresh All Pins</button>
-                    <div style="flex-grow: 1;"></div>
-                    <pre id="gpio-log-text" style="font-size: 11px; color: var(--text-secondary); margin: 0; background: none; border: none; padding: 0;">Click a pin chip to inspect or claim state.</pre>
-                </div>
-            </div>
-        </div>
-
-        <!-- I2C Master Template -->
-        <div id="template-i2c" class="app-content">
-            <div class="bus-layout">
-                <div class="bus-table-wrap terminal-display">
-                    <table class="bus-log-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Command</th>
-                                <th>Request</th>
-                                <th>Response</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="i2c-log-body"></tbody>
-                    </table>
-                </div>
-
-                <div class="bus-controls">
-                    <div class="control-bar">
-                        <span class="ctrl-label">Addr (Hex)</span>
-                        <input type="text" id="i2c-addr" class="cmd-input" style="width: 70px;" value="50" placeholder="50" spellcheck="false">
-                        <span class="ctrl-label">Tx (Hex)</span>
-                        <input type="text" id="i2c-tx" class="cmd-input" placeholder="00FFAA" spellcheck="false">
-                        <span class="ctrl-label">Rx Len</span>
-                        <input type="number" id="i2c-rx-len" class="cmd-input" style="width: 70px;" value="4" min="0" step="1">
-                    </div>
-                    <div class="control-bar">
-                        <button class="action-btn outline" id="btn-i2c-write">Write</button>
-                        <button class="action-btn outline" id="btn-i2c-read">Read</button>
-                        <button class="action-btn outline" id="btn-i2c-wr">Write then Read</button>
-                        <span class="dynamic-registry-pill" id="i2c-claim-pill" title="Dynamic pin claim handle">
-                            <span class="status-dot green"></span> <span id="i2c-claim-text">Claim: GP10,GP11</span>
-                        </span>
-                        <button class="action-btn outline btn-sm" id="btn-i2c-release-claim" title="Release I2C dynamic pin claim">Release</button>
-                        <button class="action-btn outline btn-sm btn-adapter-pin-config" id="btn-i2c-pin-config" title="Reconfigure I2C pins">Pin Config</button>
-                        <div class="bus-right-controls">
-                            <select class="compact-select" id="i2c-baud">
-                                <option value="100000">100 kHz (Std)</option>
-                                <option value="400000" selected>400 kHz (Fast)</option>
-                                <option value="1000000">1 MHz (Fast+)</option>
-                            </select>
-                            <button class="action-btn outline" id="btn-i2c-scan">Scan Bus</button>
-                            <button class="clear-btn action-btn outline icon-btn" id="btn-i2c-clear-log" title="Clear Log">
-                                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M4 6h16 M4 10h16 M4 14h8 M4 18h8 M15 14l4 4 M19 14l-4 4"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SPI Master Template -->
-        <div id="template-spi" class="app-content">
-            <div class="bus-layout">
-                <div class="bus-table-wrap terminal-display">
-                    <table class="bus-log-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Command</th>
-                                <th>Request</th>
-                                <th>Response</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="spi-log-body"></tbody>
-                    </table>
-                </div>
-
-                <div class="bus-controls">
-                    <div class="control-bar">
-                        <span class="ctrl-label">Tx (Hex)</span>
-                        <input type="text" id="spi-tx" class="cmd-input" placeholder="9F0000" spellcheck="false">
-                        <span class="ctrl-label">Rx Len</span>
-                        <input type="number" id="spi-rx-len" class="cmd-input" style="width: 70px;" value="3" min="0" step="1">
-                        <span class="ctrl-label">Pad (Hex)</span>
-                        <input type="text" id="spi-pad" class="cmd-input" style="width: 70px;" value="00" spellcheck="false">
-                    </div>
-                    <div class="control-bar">
-                        <button class="action-btn outline" id="btn-spi-write">Write</button>
-                        <button class="action-btn outline" id="btn-spi-read">Read</button>
-                        <button class="action-btn outline" id="btn-spi-wr">Write then Read</button>
-                        <span class="dynamic-registry-pill" id="spi-claim-pill" title="Dynamic pin claim handle">
-                            <span class="status-dot green"></span> <span id="spi-claim-text">Claim: GP14-17</span>
-                        </span>
-                        <button class="action-btn outline btn-sm" id="btn-spi-release-claim" title="Release SPI dynamic pin claim">Release</button>
-                        <button class="action-btn outline btn-sm btn-adapter-pin-config" id="btn-spi-pin-config" title="Reconfigure SPI pins">Pin Config</button>
-                        <div class="bus-right-controls">
-                            <select class="compact-select" id="spi-baud">
-                                <option value="1000000" selected>1 MHz</option>
-                                <option value="5000000">5 MHz</option>
-                                <option value="10000000">10 MHz</option>
-                            </select>
-                            <button class="clear-btn action-btn outline icon-btn" id="btn-spi-clear-log" title="Clear Log">
-                                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M4 6h16 M4 10h16 M4 14h8 M4 18h8 M15 14l4 4 M19 14l-4 4"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Command Console Template -->
-        <div id="template-command" class="app-content">
-            <div class="terminal-container">
-                <div class="panel terminal-display">
-                    <div class="output-content" id="cmd-output-content"></div>
-                </div>
-                <div class="quick-chips">
-                    <button class="chip-btn" data-cmd="STATUS">STATUS</button>
-                    <button class="chip-btn" data-cmd="IDENTIFY">IDENTIFY</button>
-                    <button class="chip-btn" data-cmd="SAFEDISCOVER">SAFEDISCOVER</button>
-                    <button class="chip-btn" data-cmd="PINSTATUS">PINSTATUS</button>
-                    <button class="chip-btn" data-cmd="SWD TEST">SWD TEST</button>
-                </div>
-                <div class="control-bar">
-                    <input type="text" class="cmd-input" id="cmd-text-input" placeholder="Enter MCP / ASCII firmware command (e.g. STATUS, SWD IDCODE)..." autocomplete="off" spellcheck="false">
-                    <button class="action-btn outline" id="btn-cmd-submit">Send</button>
-                    <button class="clear-btn action-btn outline icon-btn" id="btn-cmd-clear" title="Clear Console">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M4 6h16 M4 10h16 M4 14h8 M4 18h8 M15 14l4 4 M19 14l-4 4"/></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- About Window Template -->
-        <div id="template-about" class="app-content">
-            <div style="padding: 14px; height: 100%; box-sizing: border-box; overflow-y: auto;">
-                <div class="svg-pinout-wrap" id="about-svg-wrap">
-                    <!-- Interactive SVG pinout generated by app.js -->
-                </div>
-                <div class="about-container" style="display: flex; flex-direction: row; box-sizing: border-box; align-items: center; gap: 20px; padding: 10px 0;">
-                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid var(--border-color); padding-right: 20px;">
-                        <div style="font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px;">AgentLA</div>
-                        <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-secondary);">Embedded Bring-Up &amp; Debug Multitool</div>
-                        <div style="font-size: 11px; color: var(--accent-green); background: rgba(52, 199, 89, 0.12); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(52, 199, 89, 0.3);">
-                            RP2350 High-Speed Core
-                        </div>
-                    </div>
-                    <div style="flex: 1.5;">
-                        <table class="about-table">
-                            <tr><td>IP Address</td><td class="info-ip">192.168.7.1</td></tr>
-                            <tr><td>Chip Target</td><td class="info-chip">RP2350 (ARM / RISC-V)</td></tr>
-                            <tr><td>Programmer Modes</td><td>SWD, RV-SWD, WCH-SDI</td></tr>
-                            <tr><td>Logic Channels</td><td>10-Ch (100 MS/s PIO0)</td></tr>
-                            <tr><td>Adapter Masters</td><td>I2C1, SPI1, UART1, CAN, I3C</td></tr>
-                            <tr><td>Clock Freq</td><td class="info-clock">150 MHz</td></tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Signal Generator Template -->
-        <div id="template-generator" class="app-content">
-            <div class="generator-container" style="display: flex; flex-direction: column; height: 100%; padding: 14px; gap: 12px; box-sizing: border-box; overflow-y: auto;">
-                <div class="panel" style="padding: 16px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
-                        <div>
-                            <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary);">Hardware Signal &amp; PWM Generator</h3>
-                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">RP2350 slice-accurate clock and pulse output across flexible pins (GP10–29)</div>
-                        </div>
-                        <span class="dynamic-registry-pill" id="gen-status-pill">
-                            <span class="status-dot"></span> <span id="gen-status-text">Output Inactive</span>
-                        </span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 16px;">
-                        <div class="claims-field">
-                            <label>Output Pin (Flexible Pool)</label>
-                            <select class="compact-select" id="gen-pin-select">
-                                <option value="10">GP10</option>
-                                <option value="11">GP11</option>
-                                <option value="12" selected>GP12</option>
-                                <option value="13">GP13</option>
-                                <option value="14">GP14</option>
-                                <option value="15">GP15</option>
-                                <option value="16">GP16</option>
-                                <option value="17">GP17</option>
-                                <option value="18">GP18</option>
-                                <option value="19">GP19</option>
-                                <option value="20">GP20</option>
-                                <option value="21">GP21</option>
-                                <option value="22">GP22</option>
-                                <option value="23">GP23</option>
-                                <option value="24">GP24</option>
-                                <option value="25">GP25</option>
-                                <option value="26">GP26</option>
-                                <option value="27">GP27</option>
-                                <option value="28">GP28</option>
-                                <option value="29">GP29</option>
-                            </select>
-                        </div>
-                        <div class="claims-field">
-                            <label>Waveform Type</label>
-                            <select class="compact-select" id="gen-mode-select">
-                                <option value="PWM" selected>Square Wave / PWM</option>
-                                <option value="CLK">Clock Reference (50% Fixed)</option>
-                                <option value="PULSE">Pulse Generator</option>
-                            </select>
-                        </div>
-                        <div class="claims-field">
-                            <label>Frequency Presets</label>
-                            <select class="compact-select" id="gen-freq-preset">
-                                <option value="custom">Custom Value...</option>
-                                <option value="1000" selected>1 kHz (Audio / Test)</option>
-                                <option value="10000">10 kHz (Switching)</option>
-                                <option value="100000">100 kHz (I2C Std)</option>
-                                <option value="400000">400 kHz (I2C Fast)</option>
-                                <option value="1000000">1 MHz (SPI / MCU clk)</option>
-                                <option value="10000000">10 MHz (High Speed)</option>
-                                <option value="25000000">25 MHz (Ethernet / System)</option>
-                                <option value="50000000">50 MHz (Maximum Core)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-                        <div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <label style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Frequency (1 Hz – 50 MHz)</label>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <input type="number" class="cmd-input" id="gen-freq-input" value="1000" min="1" max="50000000" style="width: 110px; font-family: monospace;">
-                                    <span style="font-size: 11px; color: var(--text-secondary);" id="gen-freq-formatted">1.000 kHz</span>
-                                </div>
-                            </div>
-                            <input type="range" class="settings-range" id="gen-freq-slider" min="1" max="10000000" value="1000" step="1">
-                        </div>
-
-                        <div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <label style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Duty Cycle (0% – 100%)</label>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <input type="number" class="cmd-input" id="gen-duty-input" value="50" min="0" max="100" style="width: 70px; font-family: monospace;">
-                                    <span style="font-size: 11px; color: var(--text-secondary);">%</span>
-                                </div>
-                            </div>
-                            <input type="range" class="settings-range" id="gen-duty-slider" min="0" max="100" value="50" step="1">
-                        </div>
-                    </div>
-
-                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                        <button class="action-btn outline btn-run-stop stopped" id="btn-gen-toggle" style="background: rgba(52, 199, 89, 0.2); border-color: #34c759; color: #fff; min-width: 140px;">
-                            Start Output
-                        </button>
-                        <div style="flex-grow: 1;"></div>
-                        <div style="display: flex; gap: 16px; font-size: 11px; color: var(--text-secondary); font-family: monospace;">
-                            <span>Period: <strong id="gen-stat-period" style="color: var(--text-primary);">1.00 ms</strong></span>
-                            <span>High Time: <strong id="gen-stat-high" style="color: var(--text-primary);">500.0 µs</strong></span>
-                            <span>Low Time: <strong id="gen-stat-low" style="color: var(--text-primary);">500.0 µs</strong></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Preview Canvas -->
-                <div class="panel" style="flex: 1; min-height: 120px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column;">
-                    <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Waveform Model Preview</div>
-                    <canvas id="gen-preview-canvas" style="width: 100%; height: 100%; flex: 1; display: block; border-radius: 4px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Analog Scope Template -->
-        <div id="template-scope" class="app-content">
-            <div class="scope-container" style="display: flex; flex-direction: column; height: 100%; padding: 10px; gap: 8px; box-sizing: border-box;">
-                <div class="scope-channel-bar" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                    <span class="scope-ch-badge" style="background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
-                        CH0 (GP26 / ADC0): <strong id="scope-v-ch0">0.00 V</strong>
-                    </span>
-                    <span class="scope-ch-badge" style="background: rgba(255, 214, 10, 0.15); border: 1px solid #ffd60a; color: #ffd60a; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
-                        CH1 (GP27 / ADC1): <strong id="scope-v-ch1">0.00 V</strong>
-                    </span>
-                    <span class="scope-ch-badge" style="background: rgba(255, 42, 109, 0.15); border: 1px solid #ff2a6d; color: #ff2a6d; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
-                        CH2 (GP28 / ADC2): <strong id="scope-v-ch2">0.00 V</strong>
-                    </span>
-                    <span class="scope-ch-badge" style="background: rgba(52, 199, 89, 0.15); border: 1px solid #34c759; color: #34c759; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;">
-                        CH3 (GP29 / ADC3): <strong id="scope-v-ch3">0.00 V</strong>
-                    </span>
-                    <div style="flex-grow: 1;"></div>
-                    <span class="dynamic-registry-pill" id="scope-claim-pill">
-                        <span class="status-dot green"></span> <span id="scope-claim-text">ADC Active: GP26–29</span>
-                    </span>
-                </div>
-
-                <div class="graph-container-bare" style="flex: 1; min-height: 180px; position: relative; background: #060c14; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
-                    <canvas id="scope-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
-                </div>
-
-                <div class="control-bar" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                    <button class="action-btn outline btn-run-stop stopped" id="btn-scope-run">
-                        <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run
-                    </button>
-
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">V/Div:</span>
-                    <select class="compact-select" id="scope-scale-select" style="width: 95px;">
-                        <option value="100">100 mV/div</option>
-                        <option value="200">200 mV/div</option>
-                        <option value="500" selected>500 mV/div</option>
-                        <option value="1000">1.0 V/div</option>
-                    </select>
-
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">Timebase:</span>
-                    <select class="compact-select" id="scope-timebase-select" style="width: 95px;">
-                        <option value="1">1 ms/div</option>
-                        <option value="5">5 ms/div</option>
-                        <option value="10" selected>10 ms/div</option>
-                        <option value="50">50 ms/div</option>
-                        <option value="100">100 ms/div</option>
-                    </select>
-
-                    <div class="divider"></div>
-
-                    <span class="ctrl-label">Trigger CH:</span>
-                    <select class="compact-select" id="scope-trig-ch" style="width: 75px;">
-                        <option value="0" selected>ADC0</option>
-                        <option value="1">ADC1</option>
-                        <option value="2">ADC2</option>
-                        <option value="3">ADC3</option>
-                    </select>
-
-                    <button class="action-btn outline btn-sm" id="btn-scope-clear" title="Clear Trace Buffer">Clear</button>
-                    <div style="flex-grow: 1;"></div>
-                    <span style="font-size: 11px; color: var(--text-secondary);">SAR ADC 0–3.3V (500 kS/s)</span>
-                </div>
-            </div>
-        </div>
-
         <!-- System Settings Template -->
         <div id="template-settings" class="app-content">
             <div class="settings-container">
@@ -1447,7 +930,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <!-- Application Script -->

@@ -2050,3 +2050,697 @@ body.no-transparency {
     background: var(--accent-cyan);
     cursor: pointer;
 }
+
+/* --------------------------------------------------------------------------
+   10. Unified Active Bench UX & Navigation Redesign
+   -------------------------------------------------------------------------- */
+
+/* Header Mode Segment & Primary Navigation */
+.primary-mode-nav {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 3px;
+    box-shadow: var(--card-rim-highlight);
+}
+
+.primary-mode-nav .sub-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.primary-mode-nav .sub-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.primary-mode-nav .sub-btn.active {
+    background: var(--bg-card);
+    color: var(--accent-cyan);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25), var(--card-rim-highlight);
+}
+
+/* Header Pins Drawer Button */
+.header-pill-btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    box-shadow: var(--card-rim-highlight);
+}
+
+.header-pill-btn:hover, .header-pill-btn.active {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+.hotkey-hint {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-family: ui-monospace, monospace;
+    color: var(--text-muted);
+}
+
+/* Auto-Sniff on Transmit Pill */
+.auto-sniff-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.auto-sniff-pill:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-cyan);
+}
+
+.auto-sniff-pill input[type="checkbox"] {
+    accent-color: var(--accent-cyan);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.auto-sniff-pill:has(input:checked) {
+    border-color: rgba(0, 229, 255, 0.4);
+    background: rgba(0, 229, 255, 0.08);
+    color: var(--accent-cyan);
+}
+
+/* Active Bench Responsive Container */
+.active-bench-container {
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Desktop layout (>= 1200px): Side-by-side */
+@media (min-width: 1200px) {
+    .active-bench-container {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 420px;
+        gap: 12px;
+        padding: 12px;
+    }
+}
+
+/* Compact / Mobile layout (< 1200px): Split-deck stacked */
+@media (max-width: 1199.98px) {
+    .active-bench-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px;
+    }
+    .active-bench-container .observation-area {
+        flex: 1 1 60%;
+        min-height: 260px;
+    }
+    .active-bench-container .stimulus-deck {
+        flex: 0 0 auto;
+        max-height: 40%;
+        transition: max-height 0.25s ease;
+    }
+    .stimulus-deck.collapsed {
+        max-height: 44px !important;
+    }
+    .stimulus-deck.collapsed .stimulus-deck-body {
+        display: none !important;
+    }
+    .stimulus-deck.collapsed .chevron-icon {
+        transform: rotate(180deg);
+    }
+}
+
+/* Waveform Observation Area */
+.observation-area {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.logic-channels-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.observation-view-toggle {
+    display: inline-flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.observation-view-toggle .sub-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.observation-view-toggle .sub-btn.active {
+    background: var(--bg-surface);
+    color: var(--accent-cyan);
+}
+
+.logic-canvas-wrapper {
+    flex: 1;
+    min-height: 160px;
+    position: relative;
+    background: #060c14;
+    overflow: hidden;
+}
+
+.logic-canvas-wrapper canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Docked Stimulus Deck */
+.stimulus-deck {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.stimulus-deck-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 8px;
+    height: 42px;
+    flex-shrink: 0;
+}
+
+.stimulus-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+}
+
+.stimulus-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    padding: 10px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.stimulus-tab:hover {
+    color: var(--text-primary);
+}
+
+.stimulus-tab.active {
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
+    font-weight: 600;
+}
+
+.btn-collapse-stimulus {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.btn-collapse-stimulus:hover {
+    color: var(--text-primary);
+}
+
+.stimulus-deck-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.stimulus-pane {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 12px;
+    gap: 10px;
+    box-sizing: border-box;
+}
+
+.stimulus-pane.active {
+    display: flex;
+}
+
+/* Bus Masters Subtabs & Panels */
+.bus-subtabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+}
+
+.bus-subtab {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.bus-subtab:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-cyan);
+}
+
+.bus-subtab.active {
+    background: rgba(0, 229, 255, 0.12);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-weight: 600;
+}
+
+.bus-sender-panel {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bus-sender-panel.active {
+    display: flex;
+}
+
+/* Pin Toggler Grid */
+.pin-toggler-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.pin-toggle-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pin-toggle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.pin-toggle-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pin-toggle-state {
+    font-size: 10px;
+    font-family: monospace;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+}
+
+.pin-toggle-state.high {
+    background: rgba(52, 199, 89, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.pin-toggle-state.low {
+    background: rgba(142, 142, 147, 0.15);
+    color: var(--text-muted);
+}
+
+.pin-toggle-actions {
+    display: flex;
+    gap: 3px;
+}
+
+.pin-toggle-actions button {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 3px 0;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.pin-toggle-actions button:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+/* Target Station Surface */
+.target-station-container {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 14px;
+    height: 100%;
+    padding: 14px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+    .target-station-container {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+}
+
+.station-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--card-rim-highlight);
+}
+
+.station-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+/* VTarget Power Control Telemetry */
+.vtarget-rail-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.vtarget-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.vtarget-btn:hover {
+    border-color: var(--accent-cyan);
+}
+
+.vtarget-btn.active-3v3 {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+.vtarget-btn.active-5v {
+    background: rgba(255, 149, 0, 0.15);
+    border-color: var(--accent-amber);
+    color: var(--accent-amber);
+}
+
+.vtarget-btn.active-off {
+    background: rgba(255, 42, 109, 0.15);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+}
+
+.vtarget-telemetry-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.vtarget-telem-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.vtarget-telem-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.vtarget-telem-val {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--accent-green);
+    margin-top: 2px;
+}
+
+/* Core Debugger Registers Grid */
+.dbg-registers-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.reg-cell {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+}
+
+.reg-name {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.reg-val {
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Slide-Out Pin Matrix Drawer */
+.pin-matrix-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.pin-matrix-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.pin-matrix-drawer {
+    position: fixed;
+    top: var(--header-height, 48px);
+    right: 0;
+    bottom: 0;
+    width: 440px;
+    max-width: 90vw;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.pin-matrix-drawer.open {
+    transform: translateX(0);
+}
+
+.pin-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+}
+
+.pin-drawer-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.pin-drawer-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pin-conflict-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+}
+
+.pin-conflict-badge.ok {
+    background: rgba(52, 199, 89, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.pin-conflict-badge.conflict {
+    background: rgba(255, 149, 0, 0.2);
+    color: var(--accent-amber);
+    border: 1px solid rgba(255, 149, 0, 0.5);
+    animation: conflictPulse 1.5s infinite;
+}
+
+@keyframes conflictPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+}
+
+.pin-drawer-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pin-drawer-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Conflict highlighting on pin cards */
+.pin-conflict-alert {
+    border-color: var(--accent-amber) !important;
+    background: rgba(255, 149, 0, 0.08) !important;
+}
+
+/* Zoom controls */
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+

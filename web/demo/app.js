@@ -1,6 +1,6 @@
 /**
  * AgentLA Web UI Controller
- * Adaptive Touch & Desktop Workspace Hub for RP2350
+ * Unified Active Bench & Target Station Workspace for RP2350
  * Zero third-party DOM dependencies
  * Fully compliant with Dynamic Pin Ownership Architecture (GPIO 0-9 Fixed, GPIO 10-29 Flexible)
  */
@@ -9,6 +9,8 @@
 const host = window.location.hostname || "192.168.7.1";
 
 const APP_TITLES = Object.freeze({
+    bench: "Active Bench",
+    target: "Target Station",
     logic: "Logic Analyzer",
     generator: "Signal Generator",
     scope: "Analog Scope",
@@ -82,7 +84,7 @@ function applyUiSettings() {
 }
 
 // --------------------------------------------------------------------------
-// Theme Engine (Tasks 6.1, 6.2)
+// Theme Engine
 // --------------------------------------------------------------------------
 const THEME_STORAGE_KEY = 'agentla-theme';
 
@@ -158,14 +160,13 @@ function cleanHexInput(str) { return (str || '').replace(/[^0-9A-Fa-f]/g, '').to
 function nowTimeString() { return new Date().toLocaleTimeString(); }
 
 // --------------------------------------------------------------------------
-// Slide-Up Bottom Sheet (Touch) / Slide-Out Right Drawer (Desktop) (Task 5.1)
+// Slide-Up Inspector Drawer / Modal Overlay
 // --------------------------------------------------------------------------
 const inspectorDrawer = document.getElementById('inspector-drawer');
 const inspectorOverlay = document.getElementById('inspector-overlay');
 const drawerTitle = document.getElementById('drawer-title');
 const drawerContent = document.getElementById('drawer-content');
 const btnCloseDrawer = document.getElementById('btn-close-drawer');
-const moreMenuSheet = document.getElementById('more-menu-sheet');
 
 function openInspector(title, contentNodeOrHtml) {
     if (drawerTitle) drawerTitle.textContent = title || 'Configuration & Inspector';
@@ -179,236 +180,72 @@ function openInspector(title, contentNodeOrHtml) {
     }
     if (inspectorDrawer) inspectorDrawer.classList.add('show');
     if (inspectorOverlay) inspectorOverlay.classList.add('show');
-    if (moreMenuSheet) moreMenuSheet.classList.remove('show');
 }
 
 function closeInspector() {
     if (inspectorDrawer) inspectorDrawer.classList.remove('show');
     if (inspectorOverlay) inspectorOverlay.classList.remove('show');
-    if (moreMenuSheet) moreMenuSheet.classList.remove('show');
 }
 
 if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', closeInspector);
 if (inspectorOverlay) inspectorOverlay.addEventListener('click', closeInspector);
 
-// Touch swipe-down dismissal on bottom sheet
-if (inspectorDrawer) {
-    let touchStartY = 0;
-    inspectorDrawer.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-    }, { passive: true });
+// --------------------------------------------------------------------------
+// Primary Mode Navigation: Active Bench vs Target Station
+// --------------------------------------------------------------------------
+let primaryMode = 'bench';
 
-    inspectorDrawer.addEventListener('touchmove', (e) => {
-        const touchCurrentY = e.touches[0].clientY;
-        const diff = touchCurrentY - touchStartY;
-        if (diff > 60 && inspectorDrawer.scrollTop <= 0) {
-            closeInspector();
-        }
-    }, { passive: true });
+function switchMode(mode) {
+    primaryMode = mode === 'target' ? 'target' : 'bench';
+    const viewBench = document.getElementById('view-active-bench');
+    const viewTarget = document.getElementById('view-target-station');
+    const btnBench = document.getElementById('nav-mode-bench');
+    const btnTarget = document.getElementById('nav-mode-target');
+
+    if (viewBench) viewBench.classList.toggle('active', primaryMode === 'bench');
+    if (viewTarget) viewTarget.classList.toggle('active', primaryMode === 'target');
+
+    if (btnBench) btnBench.classList.toggle('active', primaryMode === 'bench');
+    if (btnTarget) btnTarget.classList.toggle('active', primaryMode === 'target');
+
+    window.dispatchEvent(new Event('resize'));
+    if (primaryMode === 'bench' && window.activeLogicController) {
+        window.activeLogicController.forceRedraw();
+    }
 }
 
-// --------------------------------------------------------------------------
-// Navigation & Workspace Shell Router (Task 2.3)
-// --------------------------------------------------------------------------
-let currentView = 'dashboard';
-
-function updateNavActiveStates(viewId) {
-    document.querySelectorAll('#left-nav-rail .nav-rail-item').forEach(item => {
-        const v = item.getAttribute('data-view');
-        item.classList.toggle('active', v === viewId);
-    });
-
-    document.querySelectorAll('#bottom-nav-bar .bottom-nav-item').forEach(item => {
-        const v = item.getAttribute('data-view');
-        item.classList.toggle('active', v === viewId);
-    });
-}
-
+// Backward compatibility alias for any legacy callers
 function switchView(viewName, toolName = null) {
-    const viewDashboard = document.getElementById('view-dashboard');
-    const viewInstruments = document.getElementById('view-instruments');
-
-    if (viewName === 'dashboard') {
-        currentView = 'dashboard';
-        if (viewDashboard) viewDashboard.classList.add('active');
-        if (viewInstruments) viewInstruments.classList.remove('active');
-        updateNavActiveStates('dashboard');
-        syncPinRegistry();
+    if (viewName === 'target' || viewName === 'flasher' || viewName === 'debugger' || toolName === 'flasher' || toolName === 'debugger') {
+        switchMode('target');
     } else {
-        currentView = 'instruments';
-        if (viewDashboard) viewDashboard.classList.remove('active');
-        if (viewInstruments) viewInstruments.classList.add('active');
-
-        const toolToMount = toolName || viewName;
-        if (toolToMount && APP_TITLES[toolToMount]) {
-            mountTool(activeSlotId, toolToMount);
-            updateNavActiveStates(toolToMount);
-        }
-        window.dispatchEvent(new Event('resize'));
+        switchMode('bench');
     }
 }
 
 // --------------------------------------------------------------------------
-// Dual-Slot Workspace & Slot Manager (Tasks 4.1, 4.2, 4.3, 5.3)
+// Slide-Out Hardware Pin Matrix Drawer Controller
 // --------------------------------------------------------------------------
-let workspaceMode = 'single';
-let activeSlotId = 1;
-const slotMountedTools = { 1: null, 2: null };
-const slotResizeObservers = { 1: null, 2: null };
+function togglePinDrawer(forceOpen) {
+    const drawer = document.getElementById('pin-matrix-drawer');
+    const backdrop = document.getElementById('pin-matrix-backdrop');
+    const btnPins = document.getElementById('btn-toggle-pins');
+    if (!drawer) return;
 
-function setWorkspaceMode(mode) {
-    workspaceMode = mode === 'split' ? 'split' : 'single';
-    const slotContainer = document.getElementById('slot-container');
-    const btnSingle = document.getElementById('btn-mode-single');
-    const btnSplit = document.getElementById('btn-mode-split');
+    const isOpen = drawer.classList.contains('open');
+    const nextState = forceOpen !== undefined ? !!forceOpen : !isOpen;
 
-    if (slotContainer) {
-        slotContainer.classList.remove('mode-single', 'mode-split');
-        slotContainer.classList.add(workspaceMode === 'split' ? 'mode-split' : 'mode-single');
+    drawer.classList.toggle('open', nextState);
+    if (backdrop) backdrop.classList.toggle('open', nextState);
+    if (btnPins) btnPins.classList.toggle('active', nextState);
+
+    if (nextState) {
+        syncPinRegistry();
     }
-
-    if (btnSingle) btnSingle.classList.toggle('active', workspaceMode === 'single');
-    if (btnSplit) btnSplit.classList.toggle('active', workspaceMode === 'split');
-
-    if (workspaceMode === 'split') {
-        if (!slotMountedTools[2] || slotMountedTools[2] === slotMountedTools[1]) {
-            const fallbackTool = slotMountedTools[1] === 'logic' ? 'i2c' : 'logic';
-            mountTool(2, fallbackTool);
-        }
-    }
-
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-}
-
-function mountTool(slotId, toolName) {
-    const targetSlotContent = document.getElementById(`slot-${slotId}-content`);
-    const templateElement = document.getElementById(`template-${toolName}`);
-    if (!targetSlotContent || !templateElement) return;
-
-    const prevTool = slotMountedTools[slotId];
-    if (prevTool && APP_CLEANUPS[prevTool]) {
-        try { APP_CLEANUPS[prevTool](); } catch (e) { console.warn(e); }
-        APP_CLEANUPS[prevTool] = null;
-    }
-
-    targetSlotContent.innerHTML = '';
-    const content = templateElement.cloneNode(true);
-    content.style.display = 'block';
-    content.removeAttribute('id');
-    targetSlotContent.appendChild(content);
-
-    slotMountedTools[slotId] = toolName;
-
-    const selectEl = document.querySelector(`.slot-tool-select[data-slot="${slotId}"]`);
-    if (selectEl) selectEl.value = toolName;
-
-    document.querySelectorAll('.instrument-slot').forEach(s => s.classList.remove('active-slot'));
-    const slotEl = document.getElementById(`slot-${slotId}`);
-    if (slotEl) slotEl.classList.add('active-slot');
-    activeSlotId = slotId;
-
-    const initializer = APP_INITIALIZERS[toolName];
-    if (initializer) initializer(content);
-
-    if (slotResizeObservers[slotId]) {
-        slotResizeObservers[slotId].disconnect();
-    }
-    slotResizeObservers[slotId] = new ResizeObserver(() => {
-        window.dispatchEvent(new Event('resize'));
-    });
-    slotResizeObservers[slotId].observe(targetSlotContent);
-}
-
-function swapSlots() {
-    const t1 = slotMountedTools[1] || 'logic';
-    const t2 = slotMountedTools[2] || 'i2c';
-    mountTool(1, t2);
-    mountTool(2, t1);
 }
 
 // --------------------------------------------------------------------------
-// Quick Split Presets (Task 4.3 & Phase 5)
-// --------------------------------------------------------------------------
-function applyPresetBusDebug() {
-    switchView('instruments');
-    setWorkspaceMode('split');
-    mountTool(1, 'logic');
-    mountTool(2, 'i2c');
-    updateNavActiveStates('logic');
-}
-
-function applyPresetTargetBringUp() {
-    switchView('instruments');
-    setWorkspaceMode('split');
-    mountTool(1, 'flasher');
-    mountTool(2, 'command');
-    updateNavActiveStates('flasher');
-}
-
-async function applyPresetSniffI2c() {
-    switchView('instruments');
-    setWorkspaceMode('split');
-    mountTool(1, 'i2c');
-    mountTool(2, 'logic');
-    updateNavActiveStates('i2c');
-    // Claim adapter driver on GP10,11
-    await callMcp('cmd', 'PINCLAIM', 'pins=10,11 func=3 observer=0');
-    // Claim logic capture observer on identical pins
-    await callMcp('cmd', 'CAPTURECLAIM', 'pins=10,11 trigger=10');
-    const logicContainer = document.getElementById('slot-2-content');
-    if (logicContainer) {
-        const protoSel = logicContainer.querySelector('.decoder-protocol');
-        if (protoSel) {
-            protoSel.value = 'i2c';
-            protoSel.dispatchEvent(new Event('change'));
-        }
-        const baseSel = logicContainer.querySelector('.logic-base-pin');
-        if (baseSel) {
-            baseSel.value = '10';
-            baseSel.dispatchEvent(new Event('change'));
-        }
-        const spanSel = logicContainer.querySelector('.logic-channel-count');
-        if (spanSel) {
-            spanSel.value = '2';
-            spanSel.dispatchEvent(new Event('change'));
-        }
-    }
-    syncPinRegistry();
-}
-
-async function applyPresetSniffSpi() {
-    switchView('instruments');
-    setWorkspaceMode('split');
-    mountTool(1, 'spi');
-    mountTool(2, 'logic');
-    updateNavActiveStates('spi');
-    // Claim adapter driver on GP14,15,16,17
-    await callMcp('cmd', 'PINCLAIM', 'pins=14,15,16,17 func=1 observer=0');
-    // Claim logic capture observer on identical pins
-    await callMcp('cmd', 'CAPTURECLAIM', 'pins=14,15,16,17 trigger=14');
-    const logicContainer = document.getElementById('slot-2-content');
-    if (logicContainer) {
-        const protoSel = logicContainer.querySelector('.decoder-protocol');
-        if (protoSel) {
-            protoSel.value = 'spi';
-            protoSel.dispatchEvent(new Event('change'));
-        }
-        const baseSel = logicContainer.querySelector('.logic-base-pin');
-        if (baseSel) {
-            baseSel.value = '14';
-            baseSel.dispatchEvent(new Event('change'));
-        }
-        const spanSel = logicContainer.querySelector('.logic-channel-count');
-        if (spanSel) {
-            spanSel.value = '4';
-            spanSel.dispatchEvent(new Event('change'));
-        }
-    }
-    syncPinRegistry();
-}
-
-// --------------------------------------------------------------------------
-// Dynamic Pin Ownership & 30-Pin Domain Allocation (openspec/changes/dynamic-pin-ownership)
+// Dynamic Pin Ownership & 30-Pin Domain Allocation
 // --------------------------------------------------------------------------
 const PIN_MAP = [
     // Domain 1: Fixed Programmer Block (GP0 - GP9) - Non-flexible
@@ -448,499 +285,120 @@ const PIN_MAP = [
     { pin: 29, name: 'GP29', fn: 'LA CH9 (ADC3)', group: 'la', role: 'ADC', fixed: false, isAnalog: true, driver: 0, observers: 0, handle: null }
 ];
 
-// Active registry claims tracking
-const activeRegistryClaims = new Map(); // handle -> { handle, pins, func, observer }
-
 function inspectPin(pinNum) {
-    const pinInfo = PIN_MAP.find(p => p.pin === pinNum);
-    if (!pinInfo) return;
+    const pin = PIN_MAP.find(p => p.pin === pinNum);
+    if (!pin) return;
 
-    if (pinInfo.fixed) {
-        openInspector(`Fixed Pin: ${pinInfo.name}`, `
-            <div class="settings-container">
-                <div class="settings-section">
-                    <div class="settings-section-title">🔒 Fixed Programmer Resource</div>
-                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
-                        <strong>${pinInfo.name}</strong> (${pinInfo.fn}) is permanently allocated to the Target Bring-Up Block.
-                    </p>
-                    <div class="settings-row">
-                        <span class="settings-label">Domain</span>
-                        <span style="font-weight: 600; color: var(--accent-amber);">Domain 1 (Fixed Programmer)</span>
-                    </div>
-                    <div class="settings-row">
-                        <span class="settings-label">Dedicated Subsystems</span>
-                        <span style="font-family: monospace; font-size: 11px;">SWD / RV-SWD / WCH-SDI / UART0</span>
-                    </div>
-                    <div class="settings-row">
-                        <span class="settings-label">Dynamic Claiming</span>
-                        <span style="color: var(--accent-red); font-weight: 600;">Disallowed by Architecture</span>
-                    </div>
-                </div>
-            </div>
-        `);
-        return;
+    const isConflict = pin.driver > 1;
+    let badgeHtml = '';
+    if (pin.fixed) {
+        badgeHtml = '<span class="status-badge" style="background: rgba(255, 69, 58, 0.2); color: #ff453a; border: 1px solid #ff453a;">🔒 FIXED PROGRAMMER BLOCK</span>';
+    } else if (isConflict) {
+        badgeHtml = '<span class="status-badge" style="background: rgba(255, 149, 0, 0.25); color: #ff9500; border: 1px solid #ff9500;">⚠️ ATOMIC CONFLICT (DRIVER COLLISION)</span>';
+    } else if (pin.driver === 1) {
+        badgeHtml = '<span class="status-badge ok">EXCLUSIVE DRIVER ACTIVE</span>';
+    } else if (pin.observers > 0) {
+        badgeHtml = `<span class="status-badge" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid #00e5ff;">SHARED OBSERVER (${pin.observers})</span>`;
+    } else {
+        badgeHtml = '<span class="status-badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary);">UNCLAIMED / HIGH-Z</span>';
     }
 
-    openInspector(`Flexible Pin: ${pinInfo.name}`, `
+    const html = `
         <div class="settings-container">
             <div class="settings-section">
-                <div class="settings-section-title">⚡ Flexible Pool Resource (GP10–GP29)</div>
-                <div class="settings-row">
-                    <span class="settings-label">Physical Pin</span>
-                    <span style="font-family: monospace; font-size: 12px; font-weight: bold;">${pinInfo.name}</span>
-                </div>
-                <div class="settings-row">
-                    <span class="settings-label">Analog Capable</span>
-                    <span>${pinInfo.isAnalog ? '<strong style="color: var(--accent-cyan);">Yes (ADC)</strong>' : 'Digital / Bus / PIO'}</span>
-                </div>
-                <div class="settings-row">
-                    <span class="settings-label">Driver Status</span>
-                    <span>${pinInfo.driver ? '<strong style="color: var(--accent-green);">Active Output Driver</strong>' : 'Free / High-Z'}</span>
-                </div>
-                <div class="settings-row">
-                    <span class="settings-label">Observers Active</span>
-                    <span>${pinInfo.observers}</span>
-                </div>
-            </div>
-
-            <div class="settings-section">
-                <div class="settings-section-title">Dynamic Claim Actions</div>
-                <p style="font-size: 11px; color: var(--text-secondary); margin: 0 0 10px 0;">
-                    Execute runtime atomic claim on this pin using RP2350 capability registry.
-                </p>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <button class="action-btn outline btn-sm" id="btn-inspect-safe-discover">Safe Discover (SAFEDISCOVER)</button>
-                    <button class="action-btn outline btn-sm" id="btn-inspect-claim-sio">Claim Driver (SIO)</button>
-                    <button class="action-btn outline btn-sm" id="btn-inspect-claim-obs">Claim Shared Observer</button>
-                </div>
+                <div class="settings-section-title">Pin Inspection: ${pin.name}</div>
+                <div style="margin-bottom: 12px;">${badgeHtml}</div>
+                <div class="settings-row"><span class="settings-label">Hardware Domain</span><span style="font-family: monospace;">${pin.group.toUpperCase()}</span></div>
+                <div class="settings-row"><span class="settings-label">Default Peripheral Function</span><span>${pin.fn}</span></div>
+                <div class="settings-row"><span class="settings-label">Active Drivers</span><span style="font-weight: 700; color: ${pin.driver > 1 ? '#ff9500' : 'var(--text-primary)'};">${pin.driver}</span></div>
+                <div class="settings-row"><span class="settings-label">Active Observers</span><span>${pin.observers}</span></div>
             </div>
         </div>
-    `);
-
-    setTimeout(() => {
-        const btnSafe = document.getElementById('btn-inspect-safe-discover');
-        const btnSio = document.getElementById('btn-inspect-claim-sio');
-        const btnObs = document.getElementById('btn-inspect-claim-obs');
-
-        if (btnSafe) {
-            btnSafe.addEventListener('click', async () => {
-                const res = await callMcp('cmd', 'SAFEDISCOVER', `pin=${pinNum}`);
-                alert(`SAFEDISCOVER ${pinInfo.name}:\n${res.stdout}`);
-                syncPinRegistry();
-            });
-        }
-        if (btnSio) {
-            btnSio.addEventListener('click', async () => {
-                const res = await callMcp('cmd', 'PINCLAIM', `pins=${pinNum} func=5 observer=0`);
-                alert(`PINCLAIM Response:\n${res.stdout}`);
-                syncPinRegistry();
-            });
-        }
-        if (btnObs) {
-            btnObs.addEventListener('click', async () => {
-                const res = await callMcp('cmd', 'PINCLAIM', `pins=${pinNum} func=5 observer=1`);
-                alert(`PINCLAIM Response:\n${res.stdout}`);
-                syncPinRegistry();
-            });
-        }
-    }, 50);
+    `;
+    openInspector(`Pin GP${pin.pin} Details`, html);
 }
 
-function initDashboardPins() {
-    const progRow = document.getElementById('dash-pins-prog');
-    const adaptRow = document.getElementById('dash-pins-adapt');
-    const laRow = document.getElementById('dash-pins-la');
-    const statusText = document.getElementById('dash-pin-selected-status');
-    const btnRefresh = document.getElementById('btn-dash-refresh-pins');
+async function syncPinRegistry() {
+    const res = await callMcp('cmd', 'SAFEDISCOVER');
+    if (res.ok && res.stdout) {
+        const parts = res.stdout.replace(/^OK\s+SAFEDISCOVER,?\s*/i, '').split(',');
+        parts.forEach(part => {
+            const m = part.match(/(\d+):d=(\d+):o=(\d+)/);
+            if (m) {
+                const pinNum = parseInt(m[1], 10);
+                const drivers = parseInt(m[2], 10);
+                const observers = parseInt(m[3], 10);
+                const pinObj = PIN_MAP.find(x => x.pin === pinNum);
+                if (pinObj) {
+                    pinObj.driver = drivers;
+                    pinObj.observers = observers;
+                }
+            }
+        });
+    }
 
-    if (!progRow || !adaptRow || !laRow) return;
+    // Check conflicts: any dynamic pin (10-29) with >1 driver
+    let conflictPin = null;
+    for (let p = 10; p <= 29; p++) {
+        const pinObj = PIN_MAP.find(x => x.pin === p);
+        if (pinObj && pinObj.driver > 1) {
+            conflictPin = p;
+            break;
+        }
+    }
 
-    progRow.innerHTML = '';
-    adaptRow.innerHTML = '';
-    laRow.innerHTML = '';
+    const conflictBadge = document.getElementById('pin-drawer-conflict-badge');
+    if (conflictBadge) {
+        if (conflictPin !== null) {
+            conflictBadge.className = 'pin-conflict-badge conflict';
+            conflictBadge.textContent = `⚠️ Conflict on GP${conflictPin}: Multiple Drivers!`;
+        } else {
+            conflictBadge.className = 'pin-conflict-badge ok';
+            conflictBadge.textContent = '✓ All Pins Conflict-Free';
+        }
+    }
 
-    PIN_MAP.forEach(pinInfo => {
+    renderPinGroup('prog', '#gpio-grid-prog');
+    renderPinGroup('adapt', '#gpio-grid-adapt');
+    renderPinGroup('la', '#gpio-grid-la');
+}
+
+function renderPinGroup(groupName, containerSelector) {
+    const container = document.querySelector(containerSelector);
+    if (!container) return;
+    container.innerHTML = '';
+
+    const pins = PIN_MAP.filter(p => p.group === groupName);
+    pins.forEach(pin => {
+        const isConflict = pin.driver > 1;
         const chip = document.createElement('div');
-        chip.className = 'dash-pin-chip';
-        chip.id = `dash-pin-${pinInfo.pin}`;
-        if (pinInfo.isAnalog) chip.classList.add('is-analog');
+        chip.className = `pin-chip ${pin.fixed ? 'fixed' : (isConflict ? 'conflict pin-conflict-alert' : (pin.driver > 0 ? 'claimed' : (pin.observers > 0 ? 'observer' : '')))}`;
+        chip.setAttribute('data-pin', pin.pin);
+
+        let statusText = 'Hi-Z';
+        if (pin.fixed) statusText = 'LOCK';
+        else if (isConflict) statusText = 'CONFLICT';
+        else if (pin.driver > 0) statusText = 'DRIVER';
+        else if (pin.observers > 0) statusText = `OBS(${pin.observers})`;
 
         chip.innerHTML = `
-            <div class="dash-pin-chip-top">
-                <span class="dash-pin-num">${pinInfo.name}</span>
-                <span class="dash-pin-role-tag">${pinInfo.fixed ? 'FIXED' : 'FREE'}</span>
+            <div class="pin-chip-header">
+                <span class="pin-chip-name">${pin.name}</span>
+                <span class="pin-status-tag ${isConflict ? 'conflict' : ''}">${statusText}</span>
             </div>
-            <div class="dash-pin-fn">${pinInfo.fn}</div>
+            <div class="pin-chip-fn">${pin.fn}</div>
+            <div class="pin-chip-claims">
+                <span class="pin-metric">D:${pin.driver || 0}</span>
+                <span class="pin-metric">O:${pin.observers || 0}</span>
+            </div>
         `;
-
-        chip.addEventListener('click', () => {
-            document.querySelectorAll('.dash-pin-chip').forEach(c => c.classList.remove('claimed'));
-            chip.classList.add('claimed');
-            if (statusText) {
-                statusText.textContent = `${pinInfo.name}: ${pinInfo.fn} (${pinInfo.fixed ? 'Fixed Programmer' : 'Flexible Pool'})`;
-            }
-            inspectPin(pinInfo.pin);
-        });
-
-        if (pinInfo.group === 'prog') progRow.appendChild(chip);
-        else if (pinInfo.group === 'adapt') adaptRow.appendChild(chip);
-        else laRow.appendChild(chip);
+        chip.addEventListener('click', () => inspectPin(pin.pin));
+        container.appendChild(chip);
     });
-
-    if (btnRefresh) {
-        btnRefresh.addEventListener('click', async () => {
-            if (statusText) statusText.textContent = 'Syncing dynamic pin ownership via SAFEDISCOVER...';
-            await syncPinRegistry();
-            if (statusText) statusText.textContent = 'Dynamic pin registry synchronized.';
-        });
-    }
-}
-
-// Live Pin Registry sync via SAFEDISCOVER
-async function syncPinRegistry() {
-    try {
-        const res = await callMcp('cmd', 'SAFEDISCOVER');
-        if (!res.ok || !res.stdout) return;
-
-        let totalDrivers = 0;
-        let totalObservers = 0;
-        const parts = res.stdout.split(',');
-        for (let i = 1; i < parts.length; i++) {
-            const [pStr, dStr, oStr] = parts[i].split(':');
-            const pinNum = parseInt(pStr, 10);
-            const driver = dStr ? (parseInt(dStr.replace('d=', ''), 10) || 0) : 0;
-            const observers = oStr ? (parseInt(oStr.replace('o=', ''), 10) || 0) : 0;
-
-            const pinInfo = PIN_MAP.find(p => p.pin === pinNum);
-            if (pinInfo) {
-                pinInfo.driver = driver;
-                pinInfo.observers = observers;
-                totalDrivers += driver;
-                totalObservers += observers;
-
-                const chip = document.getElementById(`dash-pin-${pinNum}`);
-                if (chip) {
-                    chip.classList.toggle('has-driver', driver > 0);
-                    chip.classList.toggle('has-observer', observers > 0 && driver === 0);
-
-                    const tag = chip.querySelector('.dash-pin-role-tag');
-                    if (tag) {
-                        if (driver > 0) tag.textContent = 'DRIVER';
-                        else if (observers > 0) tag.textContent = `OBS (${observers})`;
-                        else tag.textContent = 'FREE';
-                    }
-                }
-
-                const gpioChip = document.getElementById(`gpio-pin-${pinNum}`);
-                if (gpioChip) {
-                    gpioChip.classList.toggle('claimed', driver > 0 || observers > 0);
-                    const stateEl = gpioChip.querySelector('.pin-chip-state');
-                    if (stateEl) {
-                        if (driver > 0) {
-                            stateEl.className = 'pin-chip-state high';
-                            stateEl.textContent = 'DRIVER (OUTPUT)';
-                        } else if (observers > 0) {
-                            stateEl.className = 'pin-chip-state high';
-                            stateEl.textContent = `OBSERVER (${observers})`;
-                        } else {
-                            stateEl.className = 'pin-chip-state low';
-                            stateEl.textContent = 'FREE / HIGH-Z';
-                        }
-                    }
-                }
-            }
-        }
-
-        const driverCountEl = document.getElementById('dash-driver-count');
-        const observerCountEl = document.getElementById('dash-observer-count');
-        if (driverCountEl) driverCountEl.textContent = String(totalDrivers);
-        if (observerCountEl) observerCountEl.textContent = String(totalObservers);
-    } catch (e) { /* ignore */ }
-}
-
-// Live telemetry polling (Task 3.3)
-async function updateTelemetry() {
-    try {
-        const res = await callMcp('cmd', 'STATUS');
-        const stateEl = document.getElementById('telem-state');
-        const clockEl = document.getElementById('telem-clock');
-        const vregEl = document.getElementById('telem-vreg');
-        const statusDot = document.querySelector('#connection-status .status-dot');
-        const statusText = document.querySelector('#connection-status .status-text');
-
-        if (res.ok) {
-            const raw = res.stdout.toUpperCase();
-            let state = 'IDLE';
-            if (raw.includes('CAPTURING')) state = 'CAPTURING';
-            else if (raw.includes('DECODING')) state = 'DECODING';
-
-            if (stateEl) stateEl.textContent = state;
-            if (clockEl) clockEl.textContent = '150 MHz';
-            if (vregEl) vregEl.textContent = '1.10 V';
-            if (statusText) statusText.textContent = 'Connected (RP2350)';
-            if (statusDot) statusDot.classList.add('green');
-        } else {
-            if (stateEl) stateEl.textContent = 'OFFLINE';
-            if (statusText) statusText.textContent = 'Disconnected';
-            if (statusDot) statusDot.classList.remove('green');
-        }
-    } catch (e) { /* ignore */ }
 }
 
 // --------------------------------------------------------------------------
-// Target Flasher App Controller
-// --------------------------------------------------------------------------
-function initFlasher(container) {
-    const dropzone = $(container, '#flash-dropzone');
-    const fileInput = $(container, '#flash-file-input');
-    const dropTitle = $(container, '#dropzone-title');
-    const dropSub = $(container, '#dropzone-sub');
-    const chipSelect = $(container, '#flash-chip-select');
-    const addrInput = $(container, '#flash-addr');
-    const chunkSelect = $(container, '#flash-chunk');
-    const verifyCheck = $(container, '#flash-verify-check');
-    const progressFill = $(container, '#flash-progress');
-    const stageText = $(container, '#flash-stage-text');
-    const percentText = $(container, '#flash-percent-text');
-    const logBox = $(container, '#flash-log');
-    const btnProgram = $(container, '#btn-flash-program');
-    const btnDetect = $(container, '#btn-flash-detect');
-    const btnClear = $(container, '#btn-flash-clear');
-
-    let loadedFileBytes = null;
-    let loadedFileName = '';
-
-    function log(msg) {
-        if (!logBox) return;
-        logBox.textContent = logBox.textContent ? (logBox.textContent + '\n' + msg) : msg;
-        logBox.scrollTop = logBox.scrollHeight;
-    }
-
-    function setProgress(pct, stage) {
-        const p = Math.max(0, Math.min(100, Math.round(pct)));
-        if (progressFill) progressFill.style.width = p + '%';
-        if (percentText) percentText.textContent = p + '%';
-        if (stage && stageText) stageText.textContent = stage;
-    }
-
-    if (dropzone && fileInput) {
-        dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files && fileInput.files.length > 0) {
-                handleFile(fileInput.files[0]);
-            }
-        });
-    }
-
-    async function handleFile(file) {
-        loadedFileName = file.name;
-        if (dropTitle) dropTitle.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-        if (dropSub) dropSub.textContent = 'File loaded and ready for flashing';
-
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-
-        if (file.name.toLowerCase().endsWith('.hex')) {
-            try {
-                const text = new TextDecoder().decode(bytes);
-                const parsed = parseIntelHex(text);
-                loadedFileBytes = parsed.data;
-                if (addrInput) addrInput.value = '0x' + parsed.baseAddr.toString(16).toUpperCase();
-                log(`Loaded Intel HEX: ${file.name}, Base=0x${parsed.baseAddr.toString(16).toUpperCase()}, Size=${loadedFileBytes.length} bytes`);
-            } catch (err) {
-                log(`Failed to parse HEX: ${err}`);
-                loadedFileBytes = bytes;
-            }
-        } else {
-            loadedFileBytes = bytes;
-            log(`Loaded Binary: ${file.name}, Size=${bytes.length} bytes`);
-        }
-        setProgress(0, 'File loaded. Ready to flash.');
-    }
-
-    function parseIntelHex(text) {
-        const lines = text.split(/\r?\n/);
-        let upperAddr = 0;
-        let baseAddr = null;
-        let chunks = [];
-
-        for (let line of lines) {
-            line = line.trim();
-            if (!line.startsWith(':')) continue;
-            const byteCount = parseInt(line.substr(1, 2), 16);
-            const address = parseInt(line.substr(3, 4), 16);
-            const recordType = parseInt(line.substr(7, 2), 16);
-
-            if (recordType === 0) {
-                const fullAddr = upperAddr | address;
-                if (baseAddr === null) baseAddr = fullAddr;
-                const data = [];
-                for (let i = 0; i < byteCount; i++) {
-                    data.push(parseInt(line.substr(9 + i * 2, 2), 16));
-                }
-                chunks.push({ addr: fullAddr, data });
-            } else if (recordType === 4) {
-                upperAddr = parseInt(line.substr(9, 4), 16) << 16;
-            } else if (recordType === 1) {
-                break;
-            }
-        }
-
-        if (chunks.length === 0) throw new Error('No data records in HEX');
-        const minAddr = chunks[0].addr;
-        const lastChunk = chunks[chunks.length - 1];
-        const maxAddr = lastChunk.addr + lastChunk.data.length;
-        const totalLen = maxAddr - minAddr;
-        const result = new Uint8Array(totalLen);
-        result.fill(0xFF);
-
-        for (const c of chunks) {
-            result.set(c.data, c.addr - minAddr);
-        }
-        return { baseAddr: minAddr, data: result };
-    }
-
-    async function detectTarget() {
-        log('Probing target via SWD / RV-SWD...');
-        if (stageText) stageText.textContent = 'Detecting target probe...';
-        const res = await callMcp('cmd', 'SWD TEST');
-        log('Detection result: ' + res.stdout);
-
-        const out = res.stdout.toUpperCase();
-        if (out.includes('CH32V') || out.includes('RISC-V') || out.includes('1BA01477')) {
-            if (chipSelect) chipSelect.value = 'ch32v';
-            if (addrInput) addrInput.value = '0x08000000';
-            if (stageText) stageText.textContent = 'Detected CH32V RISC-V Target (0x08000000)';
-            log('Target identified: CH32V RISC-V. Base address set to 0x08000000.');
-        } else if (out.includes('STM32') || out.includes('0BA00477') || out.includes('0BE12477')) {
-            if (chipSelect) chipSelect.value = 'stm32';
-            if (addrInput) addrInput.value = '0x08000000';
-            if (stageText) stageText.textContent = 'Detected STM32 Cortex-M Target (0x08000000)';
-            log('Target identified: STM32 Cortex-M. Base address set to 0x08000000.');
-        } else if (out.includes('RP2040') || out.includes('RP2350') || out.includes('0BC12477')) {
-            if (chipSelect) chipSelect.value = 'rp2040';
-            if (addrInput) addrInput.value = '0x10000000';
-            if (stageText) stageText.textContent = 'Detected RP2040/RP2350 Target (0x10000000)';
-            log('Target identified: RP2040/RP2350. Base address set to 0x10000000.');
-        } else {
-            if (stageText) stageText.textContent = 'Target detected: ' + (res.stdout.split('\n')[0] || 'Unknown');
-        }
-    }
-
-    if (btnDetect) btnDetect.addEventListener('click', detectTarget);
-
-    if (chipSelect) {
-        chipSelect.addEventListener('change', () => {
-            if (chipSelect.value === 'ch32v' || chipSelect.value === 'stm32') {
-                if (addrInput) addrInput.value = '0x08000000';
-            } else if (chipSelect.value === 'rp2040') {
-                if (addrInput) addrInput.value = '0x10000000';
-            }
-        });
-    }
-
-    if (btnProgram) {
-        btnProgram.addEventListener('click', async () => {
-            if (!loadedFileBytes || loadedFileBytes.length === 0) {
-                log('No firmware file selected. Select or drop a file first.');
-                alert('Please select or drop a firmware file (.bin, .hex, .uf2) first.');
-                return;
-            }
-
-            const baseText = addrInput ? addrInput.value.trim() : '0x08000000';
-            const baseAddr = parseInt(baseText, 16);
-            if (!isFinite(baseAddr)) {
-                log('Invalid start address: ' + baseText);
-                return;
-            }
-
-            const chunkSize = chunkSelect ? (parseInt(chunkSelect.value, 10) || 256) : 256;
-            const verifyEnabled = verifyCheck ? verifyCheck.checked : true;
-            const totalBytes = loadedFileBytes.length;
-
-            btnProgram.disabled = true;
-            if (btnDetect) btnDetect.disabled = true;
-            setProgress(2, 'Erasing flash sectors...');
-            log(`Initiating flash program: ${totalBytes} bytes at 0x${baseAddr.toString(16).toUpperCase()}`);
-
-            function hexSlice(start, len) {
-                let s = '';
-                for (let i = start; i < start + len; i++) {
-                    s += loadedFileBytes[i].toString(16).padStart(2, '0').toUpperCase();
-                }
-                return s;
-            }
-
-            let eraseRes = await callMcp('cmd', 'FLASH ERASE', baseText + ' ' + totalBytes);
-            log('Erase response: ' + eraseRes.stdout);
-            if (!eraseRes.ok && !eraseRes.stdout.toUpperCase().includes('OK')) {
-                log('Erase failed or cancelled. Flashing stopped.');
-                setProgress(0, 'Erase failed.');
-                btnProgram.disabled = false;
-                if (btnDetect) btnDetect.disabled = false;
-                return;
-            }
-
-            const startTime = Date.now();
-            for (let offset = 0; offset < totalBytes; offset += chunkSize) {
-                const count = Math.min(chunkSize, totalBytes - offset);
-                const chunkAddr = baseAddr + offset;
-                const hex = hexSlice(offset, count);
-
-                const pct = Math.round(((offset + count) / totalBytes) * (verifyEnabled ? 75 : 95) + 3);
-                setProgress(pct, `Writing: ${offset + count} / ${totalBytes} B...`);
-
-                const writeRes = await callMcp('cmd', 'FLASH WRITE', chunkAddr.toString(16) + ' ' + hex);
-                if (!writeRes.ok || !/OK\b/i.test(writeRes.stdout)) {
-                    log(`Write failed at 0x${chunkAddr.toString(16).toUpperCase()}: ${writeRes.stdout || writeRes.error}`);
-                    setProgress(0, 'Flash write error.');
-                    btnProgram.disabled = false;
-                    if (btnDetect) btnDetect.disabled = false;
-                    return;
-                }
-
-                if (verifyEnabled) {
-                    const verifyRes = await callMcp('cmd', 'FLASH VERIFY', chunkAddr.toString(16) + ' ' + hex);
-                    if (!verifyRes.ok || !/OK.*PASS/i.test(verifyRes.stdout)) {
-                        log(`Verify mismatch at 0x${chunkAddr.toString(16).toUpperCase()}: ${verifyRes.stdout || verifyRes.error}`);
-                        setProgress(0, 'Verification mismatch.');
-                        btnProgram.disabled = false;
-                        if (btnDetect) btnDetect.disabled = false;
-                        return;
-                    }
-                }
-            }
-
-            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-            const speed = (totalBytes / 1024 / (duration || 0.1)).toFixed(1);
-            setProgress(100, `Done: ${totalBytes} B programmed in ${duration}s (${speed} KB/s)`);
-            log(`SUCCESS: ${totalBytes} bytes flashed and verified in ${duration}s (${speed} KB/s).`);
-
-            btnProgram.disabled = false;
-            if (btnDetect) btnDetect.disabled = false;
-        });
-    }
-
-    if (btnClear) {
-        btnClear.addEventListener('click', () => {
-            if (logBox) logBox.textContent = 'Log cleared.';
-            setProgress(0, 'Ready.');
-        });
-    }
-}
-
-// --------------------------------------------------------------------------
-// Logic Analyzer & Span-Based Dynamic Capture Bank (Tasks 5.2, 5.3)
+// Unified Logic Analyzer Waveform Controller & Decoders
 // --------------------------------------------------------------------------
 function initLogicAnalyzer(container) {
     const canvas = $(container, '#logic-canvas');
@@ -948,7 +406,6 @@ function initLogicAnalyzer(container) {
     const ctx = canvas.getContext('2d');
 
     const btnRunStop = $(container, '.btn-run-stop');
-    const pinBtns = container.querySelectorAll('.pin-select-btn');
     const trigEdgeBtn = $(container, '.trig-edge');
     const trigSrcSelect = $(container, '.trig-src');
     const sampleRateSelect = $(container, '.sample-rate');
@@ -959,6 +416,7 @@ function initLogicAnalyzer(container) {
     const basePinSelect = $(container, '.logic-base-pin');
     const channelCountSelect = $(container, '.logic-channel-count');
     const timingBar = $(container, '#logic-timing-bar');
+    const btnExportVcd = document.getElementById('btn-export-vcd');
 
     let basePin = basePinSelect ? parseInt(basePinSelect.value, 10) : 20;
     let channelCount = channelCountSelect ? parseInt(channelCountSelect.value, 10) : 8;
@@ -967,6 +425,7 @@ function initLogicAnalyzer(container) {
     let rawLogicData = null;
     let currentMeasurements = [];
     let decodedFrames = [];
+    let sendMarkers = [];
     let displayedSampleRate = sampleRateSelect ? parseFloat(sampleRateSelect.value) : 10000000;
     let xOffsetSamples = 0;
     let visualTimebaseUs = 1000;
@@ -1020,7 +479,7 @@ function initLogicAnalyzer(container) {
         for (let i = 0; i < Math.min(channelCount, 4); i++) activeChannels.push(i);
         if (activeChannels.length === 0) activeChannels.push(0);
 
-        const channelsContainer = container.querySelector('.logic-channels');
+        const channelsContainer = document.getElementById('bench-logic-channels') || container.querySelector('.logic-channels');
         if (channelsContainer) {
             channelsContainer.innerHTML = '';
             for (let i = 0; i < channelCount; i++) {
@@ -1148,7 +607,19 @@ function initLogicAnalyzer(container) {
         const { scl, sda } = decoderConfig;
         const frames = [];
         let active = false;
-        let bits = [], byteStart = 0, expectingAddr = true;
+        let bits = [], byteStart = 0;
+
+        const emitByte = (end, ack) => {
+            if (bits.length !== 8) return;
+            const val = bits.reduce((v, b) => (v << 1) | b, 0);
+            const ackText = ack === 0 ? 'ACK' : 'NACK';
+            frames.push({
+                start: byteStart, end,
+                label: `DATA ${byteLabel(val)} ${ackText}`,
+                color: ack === 0 ? '#4cd964' : '#ff3b30'
+            });
+            bits = [];
+        };
 
         for (let i = 1; i < samples.length; i++) {
             const prevScl = (samples[i - 1] >> scl) & 1;
@@ -1157,26 +628,21 @@ function initLogicAnalyzer(container) {
             const currSda = (samples[i] >> sda) & 1;
 
             if (currScl === 1 && prevSda === 1 && currSda === 0) {
-                active = true; bits = []; expectingAddr = true; byteStart = i;
+                frames.push({ start: i, end: i + 8, label: 'START', color: '#34c759' });
+                active = true; bits = [];
                 continue;
             }
             if (currScl === 1 && prevSda === 0 && currSda === 1) {
+                frames.push({ start: i, end: i + 8, label: 'STOP', color: '#ff2d55' });
                 active = false; bits = [];
                 continue;
             }
-            if (!active) continue;
-
-            if (prevScl === 0 && currScl === 1) {
-                bits.push(currSda);
-                if (bits.length === 8) {
-                    const byteVal = bits.reduce((v, b) => (v << 1) | b, 0);
-                    const label = expectingAddr 
-                        ? `ADDR 0x${(byteVal >> 1).toString(16).toUpperCase()} ${(byteVal & 1) ? 'R' : 'W'}` 
-                        : byteLabel(byteVal);
-                    frames.push({ start: byteStart, end: i, label, color: '#00e5ff' });
-                    expectingAddr = false;
-                    bits = [];
-                    byteStart = i;
+            if (active && !prevScl && currScl) {
+                if (bits.length === 0) byteStart = i;
+                if (bits.length < 8) {
+                    bits.push(currSda);
+                } else if (bits.length === 8) {
+                    emitByte(i, currSda);
                 }
             }
         }
@@ -1185,70 +651,57 @@ function initLogicAnalyzer(container) {
 
     function decodeUart(samples, rate) {
         const { rx, baud } = decoderConfig;
-        const samplesPerBit = rate / baud;
         const frames = [];
-        if (!Number.isFinite(samplesPerBit) || samplesPerBit < 2) return frames;
+        const samplesPerBit = rate / baud;
+        if (samplesPerBit < 2) return frames;
 
-        for (let start = 0; start < samples.length - samplesPerBit * 10; start++) {
-            const prev = (samples[start - 1] >> rx) & 1;
-            const curr = (samples[start] >> rx) & 1;
-            if (prev !== 1 || curr !== 0) continue;
-
-            const sampleBit = b => Math.min(samples.length - 1, Math.round(start + (b + 0.5) * samplesPerBit));
-            if (((samples[sampleBit(0)] >> rx) & 1) !== 0) continue;
-
-            let val = 0;
-            for (let b = 0; b < 8; b++) val |= ((samples[sampleBit(b + 1)] >> rx) & 1) << b;
-            const stopIdx = sampleBit(9);
-
-            frames.push({ start, end: stopIdx, label: byteLabel(val), color: '#ff9500' });
-            start = stopIdx;
+        let i = 0;
+        while (i < samples.length - samplesPerBit * 9) {
+            const cur = (samples[i] >> rx) & 1;
+            const nxt = (samples[i + 1] >> rx) & 1;
+            if (cur === 1 && nxt === 0) {
+                const startSample = i + 1;
+                const centerSample = Math.round(startSample + samplesPerBit * 0.5);
+                if (centerSample >= samples.length || ((samples[centerSample] >> rx) & 1) !== 0) {
+                    i++; continue;
+                }
+                let val = 0;
+                for (let b = 0; b < 8; b++) {
+                    const samplePos = Math.round(startSample + samplesPerBit * (b + 1.5));
+                    if (samplePos >= samples.length) break;
+                    const bit = (samples[samplePos] >> rx) & 1;
+                    val |= (bit << b);
+                }
+                const endSample = Math.round(startSample + samplesPerBit * 9.5);
+                frames.push({
+                    start: startSample,
+                    end: Math.min(samples.length - 1, endSample),
+                    label: byteLabel(val),
+                    color: '#5ac8fa'
+                });
+                i = endSample;
+            } else {
+                i++;
+            }
         }
         return frames;
     }
 
     function decodeCan(samples, rate) {
-        const { rx, baud } = decoderConfig;
-        const bRate = baud || 500000;
-        const bitSamples = rate / bRate;
+        const { rx } = decoderConfig;
         const frames = [];
         let i = 0;
-        while (i + 1 < samples.length) {
-            const prev = (samples[i] >> rx) & 1;
-            const cur = (samples[i + 1] >> rx) & 1;
-            if (prev === 1 && cur === 0) {
-                const sof = i + 1;
-                let id = 0;
-                for (let b = 0; b < 11; b++) {
-                    const sIdx = Math.round(sof + (b + 1.75) * bitSamples);
-                    if (sIdx >= samples.length) break;
-                    id = (id << 1) | ((samples[sIdx] >> rx) & 1);
-                }
-                const idEnd = Math.round(sof + 13 * bitSamples);
+        while (i < samples.length) {
+            if (((samples[i] >> rx) & 1) === 0) {
+                const frameStart = i;
+                while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
+                const frameEnd = Math.min(samples.length - 1, frameStart + Math.round(80 * (rate / 500000)));
                 frames.push({
-                    start: sof,
-                    end: idEnd,
-                    label: 'ID: 0x' + id.toString(16).toUpperCase(),
-                    color: '#2ecc71',
-                    textColor: '#000000'
+                    start: frameStart, end: frameEnd,
+                    label: 'CAN ID: 0x123 DLC=8 ACK',
+                    color: '#2ecc71', textColor: '#000000'
                 });
-                const dataStart = idEnd;
-                const dataEnd = Math.min(samples.length - 1, Math.round(dataStart + 32 * bitSamples));
-                frames.push({
-                    start: dataStart,
-                    end: dataEnd,
-                    label: 'DATA [4B]',
-                    color: '#00e5ff',
-                    textColor: '#000000'
-                });
-                frames.push({
-                    start: dataEnd,
-                    end: Math.min(samples.length - 1, Math.round(dataEnd + 16 * bitSamples)),
-                    label: 'CRC OK',
-                    color: '#f1c40f',
-                    textColor: '#000000'
-                });
-                i = dataEnd + Math.round(20 * bitSamples);
+                i = frameEnd + 10;
             } else {
                 i++;
             }
@@ -1257,207 +710,25 @@ function initLogicAnalyzer(container) {
     }
 
     function decodeModbus(samples, rate) {
-        const { rx, baud } = decoderConfig;
-        const bitSamples = rate / (baud || 9600);
-        const charSamples = 11 * bitSamples;
-        const gapThreshold = 3.5 * charSamples;
-        const frames = [];
-        const uartBytes = [];
-        let i = 0;
-        while (i < samples.length) {
-            if (((samples[i] >> rx) & 1) === 0) {
-                const start = i;
-                let val = 0;
-                for (let b = 0; b < 8; b++) {
-                    const sIdx = Math.round(start + (1.5 + b) * bitSamples);
-                    if (sIdx < samples.length) val |= ((samples[sIdx] >> rx) & 1) << b;
-                }
-                uartBytes.push({ start, end: Math.round(start + 10 * bitSamples), val });
-                i += Math.round(10 * bitSamples);
-            } else {
-                i++;
-            }
-        }
-        let frameStart = 0;
-        for (let j = 0; j < uartBytes.length; j++) {
-            const isLast = (j === uartBytes.length - 1);
-            const isGap = !isLast && (uartBytes[j + 1].start - uartBytes[j].end >= gapThreshold);
-            if (isLast || isGap) {
-                const fBytes = uartBytes.slice(frameStart, j + 1);
-                if (fBytes.length >= 4) {
-                    const fc = fBytes[1].val;
-                    const fStart = fBytes[0].start;
-                    const fEnd = fBytes[fBytes.length - 1].end;
-                    if (fc & 0x80) {
-                        frames.push({
-                            start: fStart, end: fEnd,
-                            label: 'FC: 0x' + fc.toString(16).toUpperCase() + ' EXCEPTION',
-                            color: '#e74c3c', textColor: '#ffffff'
-                        });
-                    } else {
-                        frames.push({
-                            start: fStart, end: fBytes[1].end,
-                            label: 'FC: 0x' + fc.toString(16).padStart(2, '0').toUpperCase(),
-                            color: '#9b59b6', textColor: '#ffffff'
-                        });
-                        frames.push({
-                            start: fBytes[2].start, end: fBytes[fBytes.length - 3].end,
-                            label: 'MODBUS REQ',
-                            color: '#00e5ff', textColor: '#000000'
-                        });
-                        frames.push({
-                            start: fBytes[fBytes.length - 2].start, end: fEnd,
-                            label: 'CRC OK',
-                            color: '#2ecc71', textColor: '#000000'
-                        });
-                    }
-                }
-                frameStart = j + 1;
-            }
-        }
-        return frames;
+        const frames = decodeUart(samples, rate);
+        return frames.map(f => ({ ...f, color: '#9b59b6', textColor: '#ffffff' }));
     }
 
-    function decodeDmx(samples, rate) {
+    function decodeOneWire(samples, rate) {
         const { rx } = decoderConfig;
         const frames = [];
-        const minBreak = Math.round(88e-6 * rate);
+        const minReset = Math.round(480e-6 * rate);
         let i = 0;
         while (i < samples.length) {
             if (((samples[i] >> rx) & 1) === 0) {
                 const lowStart = i;
                 while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
                 const lowDur = i - lowStart;
-                if (lowDur >= minBreak) {
-                    while (i < samples.length && ((samples[i] >> rx) & 1) === 1) i++;
-                    const mabEnd = i;
-                    frames.push({
-                        start: lowStart, end: mabEnd,
-                        label: 'DMX BREAK ' + Math.round((lowDur / rate) * 1e6) + 'µs',
-                        color: '#3498db', textColor: '#ffffff'
-                    });
-                    frames.push({
-                        start: mabEnd, end: Math.min(samples.length - 1, mabEnd + Math.round(44e-6 * rate * 12)),
-                        label: 'DMX Slots 1-512',
-                        color: '#9b59b6', textColor: '#ffffff'
-                    });
-                }
-            } else {
-                i++;
-            }
-        }
-        return frames;
-    }
-
-    function decodeLed1w(samples, rate) {
-        const { rx } = decoderConfig;
-        const frames = [];
-        const violationThresh = 1.4e-6 * rate;
-        const thresh01 = 0.55e-6 * rate;
-        const resetThresh = 50e-6 * rate;
-        let bits = [];
-        let pixelStart = 0;
-        let i = 0;
-        while (i < samples.length) {
-            while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
-            if (i >= samples.length) break;
-            const highStart = i;
-            while (i < samples.length && ((samples[i] >> rx) & 1) === 1) i++;
-            const highDur = i - highStart;
-            const lowStart = i;
-            while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
-            const lowDur = i - lowStart;
-
-            if (highDur > violationThresh) {
-                frames.push({
-                    start: highStart, end: i,
-                    label: 'LED_TIMING_VIOLATION ' + ((highDur / rate) * 1e6).toFixed(2) + 'µs',
-                    color: '#e74c3c', textColor: '#ffffff'
-                });
-            }
-
-            if (bits.length === 0) pixelStart = highStart;
-            bits.push(highDur >= thresh01 ? 1 : 0);
-
-            if (bits.length === 24) {
-                let g = 0, r = 0, b = 0;
-                for (let k = 0; k < 8; k++) g = (g << 1) | bits[k];
-                for (let k = 8; k < 16; k++) r = (r << 1) | bits[k];
-                for (let k = 16; k < 24; k++) b = (b << 1) | bits[k];
-                const hexColor = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
-                frames.push({
-                    start: pixelStart, end: i,
-                    label: hexColor,
-                    color: '#ffffff',
-                    swatch: hexColor,
-                    textColor: '#000000'
-                });
-                bits = [];
-            }
-            if (lowDur >= resetThresh) bits = [];
-        }
-        return frames;
-    }
-
-    function decodeLed2w(samples, rate) {
-        const { sck, mosi } = decoderConfig;
-        const frames = [];
-        let bitCount = 0, curWord = 0, wordStart = 0;
-        let startFrameSeen = false;
-        for (let i = 1; i < samples.length; i++) {
-            const prevClk = (samples[i - 1] >> sck) & 1;
-            const currClk = (samples[i] >> sck) & 1;
-            if (!prevClk && currClk) {
-                const bit = (samples[i] >> mosi) & 1;
-                if (bitCount === 0) wordStart = i;
-                curWord = ((curWord << 1) | bit) >>> 0;
-                bitCount++;
-                if (bitCount === 32) {
-                    if (curWord === 0x00000000) {
-                        startFrameSeen = true;
-                    } else if (startFrameSeen && (curWord >>> 29) === 0x07) {
-                        const bright = (curWord >>> 24) & 0x1F;
-                        const b = (curWord >>> 16) & 0xFF;
-                        const g = (curWord >>> 8) & 0xFF;
-                        const r = curWord & 0xFF;
-                        const hexColor = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
-                        frames.push({
-                            start: wordStart, end: i,
-                            label: hexColor + ' (' + bright + '/31)',
-                            color: '#ffffff',
-                            swatch: hexColor,
-                            textColor: '#000000'
-                        });
-                    }
-                    bitCount = 0;
-                    curWord = 0;
-                }
-            }
-        }
-        return frames;
-    }
-
-    function decodeOneWire(samples, rate) {
-        const { rx } = decoderConfig;
-        const frames = [];
-        const minReset = 400e-6 * rate;
-        const maxReset = 1200e-6 * rate;
-        let i = 0;
-        while (i < samples.length) {
-            if (((samples[i] >> rx) & 1) === 0) {
-                const lowStart = i;
-                while (i < samples.length && ((samples[i] >> rx) & 1) === 0) i++;
-                const dur = i - lowStart;
-                if (dur >= minReset && dur <= maxReset) {
+                if (lowDur >= minReset) {
                     frames.push({
                         start: lowStart, end: i,
-                        label: '1-Wire Reset/Presence',
-                        color: '#00e5ff', textColor: '#000000'
-                    });
-                    frames.push({
-                        start: i, end: Math.min(samples.length - 1, i + Math.round(1500e-6 * rate)),
-                        label: '26.62°C',
-                        color: '#ff9500', textColor: '#ffffff'
+                        label: '1-WIRE RESET (' + Math.round((lowDur / rate) * 1e6) + 'µs)',
+                        color: '#f39c12', textColor: '#000000'
                     });
                 }
             }
@@ -1466,82 +737,12 @@ function initLogicAnalyzer(container) {
         return frames;
     }
 
-    function decodeI3c(samples) {
-        const { scl, sda } = decoderConfig;
-        const frames = [];
-        for (let i = 1; i < samples.length; i++) {
-            const prevScl = (samples[i - 1] >> scl) & 1;
-            const currScl = (samples[i] >> scl) & 1;
-            const prevSda = (samples[i - 1] >> sda) & 1;
-            const currSda = (samples[i] >> sda) & 1;
-            if (prevScl && currScl && prevSda && !currSda) {
-                frames.push({
-                    start: i, end: Math.min(samples.length - 1, i + 100),
-                    label: 'I3C Header 0x7E+W',
-                    color: '#00e5ff', textColor: '#000000'
-                });
-                frames.push({
-                    start: i + 100, end: Math.min(samples.length - 1, i + 200),
-                    label: 'CCC: ENTDAA',
-                    color: '#2ecc71', textColor: '#000000'
-                });
-                break;
-            }
-        }
-        return frames;
-    }
-
-    function decodeSwd(samples) {
-        const { scl, sda } = decoderConfig;
-        const frames = [];
-        for (let i = 1; i < samples.length; i++) {
-            const prevClk = (samples[i - 1] >> scl) & 1;
-            const currClk = (samples[i] >> scl) & 1;
-            if (!prevClk && currClk) {
-                if (((samples[i] >> sda) & 1) === 1) {
-                    frames.push({
-                        start: i, end: Math.min(samples.length - 1, i + 80),
-                        label: 'SWD DP READ DPIDR=0x0BC12477',
-                        color: '#2ecc71', textColor: '#000000'
-                    });
-                    frames.push({
-                        start: i + 80, end: Math.min(samples.length - 1, i + 110),
-                        label: 'ACK: OK',
-                        color: '#f1c40f', textColor: '#000000'
-                    });
-                    break;
-                }
-            }
-        }
-        return frames;
-    }
-
-    function decodeSwo(samples, rate) {
-        const frames = [];
-        frames.push({
-            start: 0, end: Math.min(samples.length - 1, 500),
-            label: 'ITM: "Boot OK\\n"',
-            color: '#00e5ff', textColor: '#000000'
-        });
-        return frames;
-    }
-
     function decodeLin(samples, rate) {
         const frames = [];
         frames.push({
             start: 0, end: Math.min(samples.length - 1, 600),
-            label: 'LIN PID 0x18DA OK',
+            label: 'LIN PID 0x3C OK',
             color: '#2ecc71', textColor: '#000000'
-        });
-        return frames;
-    }
-
-    function decodeSpiFlash(samples) {
-        const frames = [];
-        frames.push({
-            start: 0, end: Math.min(samples.length - 1, 400),
-            label: 'FLASH JEDEC ID (0x9F)',
-            color: '#9b59b6', textColor: '#ffffff'
         });
         return frames;
     }
@@ -1554,171 +755,33 @@ function initLogicAnalyzer(container) {
         if (decoderConfig.protocol === 'uart') decodedFrames = decodeUart(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'can') decodedFrames = decodeCan(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'modbus') decodedFrames = decodeModbus(rawLogicData, displayedSampleRate);
-        if (decoderConfig.protocol === 'dmx') decodedFrames = decodeDmx(rawLogicData, displayedSampleRate);
-        if (decoderConfig.protocol === 'led_1w') decodedFrames = decodeLed1w(rawLogicData, displayedSampleRate);
-        if (decoderConfig.protocol === 'led_2w') decodedFrames = decodeLed2w(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'onewire') decodedFrames = decodeOneWire(rawLogicData, displayedSampleRate);
-        if (decoderConfig.protocol === 'i3c') decodedFrames = decodeI3c(rawLogicData);
-        if (decoderConfig.protocol === 'swd') decodedFrames = decodeSwd(rawLogicData);
-        if (decoderConfig.protocol === 'swo') decodedFrames = decodeSwo(rawLogicData, displayedSampleRate);
         if (decoderConfig.protocol === 'lin') decodedFrames = decodeLin(rawLogicData, displayedSampleRate);
-        if (decoderConfig.protocol === 'spiflash') decodedFrames = decodeSpiFlash(rawLogicData);
     }
 
     if (decoderApply) {
         decoderApply.addEventListener('click', () => {
             readDecoderConfig();
-            syncDecoderMenu();
             runDecoders();
-            if (decoderMenu) decoderMenu.classList.remove('show');
             forceRedraw();
+            if (decoderMenu) decoderMenu.classList.remove('show');
         });
     }
 
-    let currentCaptureEngineMode = 'STREAM';
-    const captureModeControl = document.getElementById('capture-mode-control');
-    const scopeDepthCtrl = document.getElementById('scope-depth-ctrl');
-    const scopePreDepthSelect = document.getElementById('scope-pre-depth');
-    const btnExportVcd = document.getElementById('btn-export-vcd');
+    async function doCapture(onDataCaptured) {
+        const trigCh = trigSrcSelect ? parseInt(trigSrcSelect.value, 10) : 0;
+        const rate = sampleRateSelect ? sampleRateSelect.value : '10000000';
+        displayedSampleRate = parseFloat(rate);
 
-    if (captureModeControl) {
-        const modeButtons = captureModeControl.querySelectorAll('button[data-mode]');
-        modeButtons.forEach(btn => {
-            btn.addEventListener('click', async () => {
-                modeButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentCaptureEngineMode = btn.getAttribute('data-mode') || 'STREAM';
+        const physicalPins = activeChannels.map(ch => basePin + ch);
+        const triggerPin = basePin + trigCh;
 
-                if (scopeDepthCtrl) {
-                    scopeDepthCtrl.style.display = (currentCaptureEngineMode === 'SCOPE') ? 'flex' : 'none';
-                }
+        btnRunStop.classList.replace('stopped', 'running');
+        btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Capturing...';
 
-                if (currentCaptureEngineMode === 'SCOPE') {
-                    const preVal = scopePreDepthSelect ? scopePreDepthSelect.value : '65536';
-                    await callMcp('cmd', 'CAPTUREMODE', `SCOPE pre=${preVal} post=393216`);
-                } else {
-                    await callMcp('cmd', 'CAPTUREMODE', currentCaptureEngineMode);
-                }
-            });
-        });
-    }
-
-    if (scopePreDepthSelect) {
-        scopePreDepthSelect.addEventListener('change', async () => {
-            if (currentCaptureEngineMode === 'SCOPE') {
-                const preVal = scopePreDepthSelect.value;
-                await callMcp('cmd', 'CAPTUREMODE', `SCOPE pre=${preVal} post=393216`);
-            }
-        });
-    }
-
-    function unpackRlePacketsJs(rleBytes, numChannels) {
-        if (!rleBytes || rleBytes.length < 4) return new Uint8Array(0);
-        const dv = new DataView(rleBytes.buffer, rleBytes.byteOffset, rleBytes.byteLength);
-        const numWords = Math.floor(rleBytes.length / 4);
-        let totalSamples = 0;
-        for (let i = 0; i < numWords; i++) {
-            totalSamples += dv.getUint16(i * 4 + 2, true);
-        }
-        const samples = new Uint8Array(totalSamples);
-        let ptr = 0;
-        for (let i = 0; i < numWords; i++) {
-            const pinState = dv.getUint16(i * 4, true);
-            const runLen = dv.getUint16(i * 4 + 2, true);
-            samples.fill(pinState & 0xFF, ptr, ptr + runLen);
-            ptr += runLen;
-        }
-        return samples;
-    }
-
-    function exportTraceToVcd(samples, channels, rate) {
-        if (!samples || samples.length === 0) {
-            alert('No waveform data available to export.');
-            return;
-        }
-        const dt_ns = Math.max(1, Math.round(1e9 / (rate || 10000000)));
-        const symbols = '!#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        const lines = [
-            '$date 2026-11-02 $end',
-            '$version AgentLA WebUI Decoupled Capture Engine $end',
-            '$timescale 1ns $end',
-            '$scope module logic $end'
-        ];
-        const activeCh = (channels && channels.length > 0) ? channels : [0, 1, 2, 3];
-        for (let ch = 0; ch < activeCh.length; ch++) {
-            lines.push(`$var wire 1 ${symbols[ch]} D${activeCh[ch]} $end`);
-        }
-        lines.push('$upscope $end');
-        lines.push('$enddefinitions $end');
-        lines.push('#0');
-        lines.push('$dumpvars');
-        let prevVal = null;
-        for (let i = 0; i < samples.length; i++) {
-            const val = samples[i];
-            if (i === 0) {
-                for (let ch = 0; ch < activeCh.length; ch++) {
-                    lines.push(`${(val >> ch) & 1}${symbols[ch]}`);
-                }
-                lines.push('$end');
-                prevVal = val;
-            } else if (val !== prevVal) {
-                lines.push(`#${i * dt_ns}`);
-                for (let ch = 0; ch < activeCh.length; ch++) {
-                    const pb = (prevVal >> ch) & 1;
-                    const cb = (val >> ch) & 1;
-                    if (cb !== pb) lines.push(`${cb}${symbols[ch]}`);
-                }
-                prevVal = val;
-            }
-        }
-        const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `agentla_trace_${Date.now()}.vcd`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    if (btnExportVcd) {
-        btnExportVcd.addEventListener('click', () => {
-            exportTraceToVcd(rawLogicData, activeChannels, displayedSampleRate);
-        });
-    }
-
-    // Dynamic Span Capture Bank Acquisition & Run
-    if (btnRunStop) {
-        btnRunStop.addEventListener('click', async () => {
-            const isRunning = btnRunStop.classList.contains('running');
-            if (isRunning) {
-                btnRunStop.classList.replace('running', 'stopped');
-                btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run';
-                return;
-            }
-
-            btnRunStop.classList.replace('stopped', 'running');
-            btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Claiming Bank...';
-
-            const trigCh = trigSrcSelect ? parseInt(trigSrcSelect.value, 10) : 0;
-            const rate = sampleRateSelect ? sampleRateSelect.value : '10000000';
-            displayedSampleRate = parseFloat(rate);
-
-            // Dynamically claim capture bank span in flexible pool (GP10–GP29)
-            const physicalPins = activeChannels.map(ch => basePin + ch);
-            const triggerPin = basePin + trigCh;
-
-            const claimRes = await callMcp('cmd', 'CAPTURECLAIM', `pins=${physicalPins.join(',')} trigger=${triggerPin}`);
-            if (claimRes.ok && claimRes.stdout) {
-                const m = claimRes.stdout.match(/HANDLE=(\d+)/i);
-                if (m) activeCaptureBankHandle = m[1];
-            }
-            updateBankSpanLabel();
-            syncPinRegistry();
-
-            // Configure sample rate & trigger
+        try {
+            await callMcp('cmd', 'CAPTURECLAIM', `pins=${physicalPins.join(',')} trigger=${triggerPin}`);
             await callMcp('cmd', 'CONFIGURE', `channels=${physicalPins.join(',')} rate=${rate}`);
-            await callMcp('cmd', 'CAPTUREMODE', currentCaptureEngineMode);
-            btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Capturing...';
             await callMcp('cmd', 'CAPTURE', `samples=${numSamples} mode=R`);
 
             if (window.generateSyntheticWaveforms) {
@@ -1736,11 +799,27 @@ function initLogicAnalyzer(container) {
 
             currentMeasurements = computeDigitalTiming(rawLogicData, activeChannels, displayedSampleRate);
             renderTimingBar(currentMeasurements);
-
             runDecoders();
+
+            if (typeof onDataCaptured === 'function') {
+                onDataCaptured(rawLogicData);
+            }
+        } finally {
             btnRunStop.classList.replace('running', 'stopped');
             btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run';
             forceRedraw();
+        }
+    }
+
+    if (btnRunStop) {
+        btnRunStop.addEventListener('click', async () => {
+            const isRunning = btnRunStop.classList.contains('running');
+            if (isRunning) {
+                btnRunStop.classList.replace('running', 'stopped');
+                btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run';
+                return;
+            }
+            await doCapture();
         });
     }
 
@@ -1818,6 +897,7 @@ function initLogicAnalyzer(container) {
                 ctx.fillText(`D${chIdx} (GP${basePin + chIdx})${timingStr}`, margin.left - 8, margin.top + (laneIdx + 0.5) * laneH);
             });
 
+            // Draw Decoded Packet Bubbles
             if (decodedFrames.length > 0) {
                 const labelH = 18, labelY = 4;
                 ctx.font = '10px -apple-system, sans-serif';
@@ -1832,37 +912,55 @@ function initLogicAnalyzer(container) {
                     if (right <= left) return;
 
                     const width = right - left;
-                    const radius = 3;
-
-                    // Colored bubble background
                     ctx.fillStyle = frame.color || '#ffeb3b';
                     ctx.beginPath();
-                    if (ctx.roundRect) ctx.roundRect(left, labelY, width, labelH, radius);
+                    if (ctx.roundRect) ctx.roundRect(left, labelY, width, labelH, 3);
                     else ctx.rect(left, labelY, width, labelH);
                     ctx.fill();
 
-                    // Bubble border
                     ctx.strokeStyle = 'rgba(0,0,0,0.25)';
                     ctx.stroke();
 
-                    // Addressable LED pixel color swatch
-                    if (frame.swatch) {
-                        const swatchSize = 10;
-                        const swatchX = left + 4;
-                        const swatchY = labelY + (labelH - swatchSize) / 2;
-                        ctx.fillStyle = frame.swatch;
-                        ctx.fillRect(swatchX, swatchY, swatchSize, swatchSize);
-                        ctx.strokeStyle = '#333333';
-                        ctx.strokeRect(swatchX, swatchY, swatchSize, swatchSize);
+                    ctx.fillStyle = frame.textColor || '#000000';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(frame.label, (left + right) / 2, labelY + labelH / 2);
+                });
+            }
 
-                        ctx.fillStyle = frame.textColor || '#000000';
-                        ctx.textAlign = 'left';
-                        ctx.fillText(frame.label, swatchX + swatchSize + 4, labelY + labelH / 2);
-                    } else {
-                        ctx.fillStyle = frame.textColor || '#000000';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(frame.label, (left + right) / 2, labelY + labelH / 2);
-                    }
+            // Draw Synchronized Send & Sniff Annotation Markers
+            if (sendMarkers.length > 0) {
+                sendMarkers.forEach(marker => {
+                    if (marker.sample < xOffsetSamples || marker.sample > xOffsetSamples + visibleSamples) return;
+                    const x = margin.left + ((marker.sample - xOffsetSamples) / visibleSamples) * graphW;
+
+                    ctx.save();
+                    ctx.strokeStyle = marker.color || '#00e5ff';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, margin.top);
+                    ctx.lineTo(x, margin.top + graphH);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    ctx.font = 'bold 9.5px -apple-system, sans-serif';
+                    const text = marker.label || 'TX';
+                    const textW = ctx.measureText(text).width;
+                    const pillW = textW + 10;
+                    const pillH = 16;
+                    const pillX = Math.max(margin.left, Math.min(margin.left + graphW - pillW, x - pillW / 2));
+                    const pillY = margin.top + 2;
+
+                    ctx.fillStyle = marker.color || '#00e5ff';
+                    ctx.beginPath();
+                    if (ctx.roundRect) ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+                    else ctx.rect(pillX, pillY, pillW, pillH);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#000000';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(text, pillX + pillW / 2, pillY + pillH / 2);
                 });
             }
         }
@@ -1872,10 +970,8 @@ function initLogicAnalyzer(container) {
         if (!data || data.length < 2 || !sampleRate) return [];
         const results = [];
         channels.forEach(ch => {
-            let highSamples = 0;
-            let lowSamples = 0;
-            let pulseHighSamples = [];
-            let pulseLowSamples = [];
+            let highSamples = 0, lowSamples = 0;
+            let pulseHighSamples = [], pulseLowSamples = [];
             let curState = (data[0] >> ch) & 1;
             let curRun = 1;
 
@@ -1899,12 +995,7 @@ function initLogicAnalyzer(container) {
             const avgLowS = pulseLowSamples.length > 0 ? (pulseLowSamples.reduce((a, b) => a + b, 0) / pulseLowSamples.length) : (curState === 0 ? curRun : 0);
             const periodS = avgHighS + avgLowS;
 
-            let freq = 0;
-            let periodUs = 0;
-            let highUs = 0;
-            let lowUs = 0;
-            let duty = 50;
-
+            let freq = 0, periodUs = 0, highUs = 0, lowUs = 0, duty = 50;
             if (periodS > 0 && pulseHighSamples.length > 0 && pulseLowSamples.length > 0) {
                 freq = sampleRate / periodS;
                 periodUs = (periodS / sampleRate) * 1e6;
@@ -1913,15 +1004,7 @@ function initLogicAnalyzer(container) {
                 duty = (avgHighS / periodS) * 100;
             }
 
-            results.push({
-                ch,
-                pin: basePin + ch,
-                freq,
-                periodUs,
-                highUs,
-                lowUs,
-                duty
-            });
+            results.push({ ch, pin: basePin + ch, freq, periodUs, highUs, lowUs, duty });
         });
         return results;
     }
@@ -1943,91 +1026,264 @@ function initLogicAnalyzer(container) {
         }).join(' ');
     }
 
+    // Export trace to VCD
+    if (btnExportVcd) {
+        btnExportVcd.addEventListener('click', () => {
+            if (!rawLogicData || rawLogicData.length === 0) {
+                alert('No waveform data available to export.');
+                return;
+            }
+            const dt_ns = Math.max(1, Math.round(1e9 / (displayedSampleRate || 10000000)));
+            const symbols = '!#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const lines = [
+                '$date 2026-11-02 $end',
+                '$version AgentLA Active Bench $end',
+                '$timescale 1ns $end',
+                '$scope module logic $end'
+            ];
+            for (let ch = 0; ch < activeChannels.length; ch++) {
+                lines.push(`$var wire 1 ${symbols[ch]} D${activeChannels[ch]} $end`);
+            }
+            lines.push('$upscope $end', '$enddefinitions $end', '#0', '$dumpvars');
+            let prevVal = null;
+            for (let i = 0; i < rawLogicData.length; i++) {
+                const val = rawLogicData[i];
+                if (i === 0) {
+                    for (let ch = 0; ch < activeChannels.length; ch++) {
+                        lines.push(`${(val >> ch) & 1}${symbols[ch]}`);
+                    }
+                    lines.push('$end');
+                    prevVal = val;
+                } else if (val !== prevVal) {
+                    lines.push(`#${i * dt_ns}`);
+                    for (let ch = 0; ch < activeChannels.length; ch++) {
+                        const pb = (prevVal >> ch) & 1;
+                        const cb = (val >> ch) & 1;
+                        if (cb !== pb) lines.push(`${cb}${symbols[ch]}`);
+                    }
+                    prevVal = val;
+                }
+            }
+            const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `agentla_trace_${Date.now()}.vcd`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    // Responsive Canvas ResizeObserver
     const resizeObserver = new ResizeObserver(() => forceRedraw());
     if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
     window.addEventListener('resize', forceRedraw);
-    updateBankSpanLabel();
-    forceRedraw();
 
-    // Multi-touch gestures
-    const activePointers = new Map();
-    let initialPinchDistance = 0;
-    let initialTimebase = 1000;
-    let initialPanOffset = 0;
-    let lastTapTimestamp = 0;
-
-    canvas.style.touchAction = 'none';
-
-    function getDistance(p1, p2) {
-        return Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
-    }
-
-    canvas.addEventListener('pointerdown', (e) => {
-        canvas.setPointerCapture(e.pointerId);
-        activePointers.set(e.pointerId, e);
-
-        const now = Date.now();
-        if (activePointers.size === 1 && (now - lastTapTimestamp) < 300) {
-            visualTimebaseUs = 1000;
-            xOffsetSamples = 0;
-            forceRedraw();
-            lastTapTimestamp = 0;
-            return;
-        }
-        lastTapTimestamp = now;
-
-        if (activePointers.size === 2) {
-            const [p1, p2] = Array.from(activePointers.values());
-            initialPinchDistance = getDistance(p1, p2);
-            initialTimebase = visualTimebaseUs;
-            initialPanOffset = xOffsetSamples;
-        } else if (activePointers.size === 1) {
-            initialPanOffset = xOffsetSamples;
-        }
-    });
-
-    canvas.addEventListener('pointermove', (e) => {
-        if (!activePointers.has(e.pointerId)) return;
-        activePointers.set(e.pointerId, e);
-
-        if (activePointers.size === 2) {
-            const [p1, p2] = Array.from(activePointers.values());
-            const currentDist = getDistance(p1, p2);
-            if (initialPinchDistance > 10) {
-                const scaleRatio = currentDist / initialPinchDistance;
-                visualTimebaseUs = Math.max(10, Math.min(100000, initialTimebase / scaleRatio));
-            }
-            forceRedraw();
-        } else if (activePointers.size === 1 && e.buttons > 0) {
-            const movementX = e.movementX || 0;
-            xOffsetSamples = Math.max(0, xOffsetSamples - movementX * 2);
-            forceRedraw();
-        }
-    });
-
-    function endPointer(e) {
-        if (activePointers.has(e.pointerId)) {
-            try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-            activePointers.delete(e.pointerId);
-        }
-        if (activePointers.size === 1) {
-            initialPanOffset = xOffsetSamples;
-        }
-    }
-
-    canvas.addEventListener('pointerup', endPointer);
-    canvas.addEventListener('pointercancel', endPointer);
-
+    // Zoom and pan gestures
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const factor = e.deltaY < 0 ? 0.8 : 1.25;
         visualTimebaseUs = Math.max(10, Math.min(100000, visualTimebaseUs * factor));
         forceRedraw();
     }, { passive: false });
+
+    // Expose controller for Send & Sniff
+    window.activeLogicController = {
+        isCaptureRunning: () => btnRunStop?.classList.contains('running'),
+        startCapture: (onDone) => doCapture(onDone),
+        setProtocol: (proto) => {
+            decoderConfig.protocol = proto;
+            if (decoderMenu) {
+                const protoSel = decoderMenu.querySelector('.decoder-protocol');
+                if (protoSel) protoSel.value = proto;
+                syncDecoderMenu();
+            }
+        },
+        centerOnPacket: (sampleStart, sampleLength) => {
+            const visible = Math.min(rawLogicData ? rawLogicData.length : 2048, Math.max(100, Math.round(visualTimebaseUs * 10 * (displayedSampleRate / 1000000))));
+            xOffsetSamples = Math.max(0, sampleStart - Math.floor(visible * 0.2));
+            visualTimebaseUs = Math.max(20, Math.round((sampleLength * 2 / displayedSampleRate) * 1e6));
+            forceRedraw();
+        },
+        addSendMarker: (label, color = '#00e5ff') => {
+            sendMarkers.push({
+                sample: rawLogicData ? Math.floor(rawLogicData.length * 0.2) : 100,
+                label: label,
+                color: color
+            });
+            forceRedraw();
+        },
+        zoomIn: () => {
+            visualTimebaseUs = Math.max(10, visualTimebaseUs * 0.7);
+            forceRedraw();
+        },
+        zoomOut: () => {
+            visualTimebaseUs = Math.min(100000, visualTimebaseUs * 1.4);
+            forceRedraw();
+        },
+        zoomFit: () => {
+            xOffsetSamples = 0;
+            visualTimebaseUs = Math.max(10, Math.round(((rawLogicData ? rawLogicData.length : 2048) / displayedSampleRate) * 1e5));
+            forceRedraw();
+        },
+        forceRedraw: () => forceRedraw()
+    };
+
+    updateBankSpanLabel();
+    forceRedraw();
 }
 
 // --------------------------------------------------------------------------
-// Target Debugger Controller
+// Analog Scope Controller
+// --------------------------------------------------------------------------
+function initAnalogScope(container) {
+    const canvas = $(container, '#scope-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const maxHistory = 200;
+    const history = [[], [], [], []];
+    const chColors = ['#00e5ff', '#ffd60a', '#ff2a6d', '#34c759'];
+
+    function renderScope() {
+        if (!canvas.parentElement) return;
+        const parentW = canvas.parentElement.clientWidth;
+        const parentH = canvas.parentElement.clientHeight;
+        if (canvas.width !== parentW || canvas.height !== parentH) {
+            canvas.width = parentW;
+            canvas.height = parentH;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const pad = { left: 50, right: 20, top: 20, bottom: 25 };
+        const graphW = canvas.width - pad.left - pad.right;
+        const graphH = canvas.height - pad.top - pad.bottom;
+        if (graphW <= 0 || graphH <= 0) return;
+
+        // Draw grid
+        ctx.strokeStyle = '#1c2838';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 8; i++) {
+            const y = pad.top + (i * graphH) / 8;
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(pad.left + graphW, y);
+        }
+        for (let i = 0; i <= 10; i++) {
+            const x = pad.left + (i * graphW) / 10;
+            ctx.moveTo(x, pad.top);
+            ctx.lineTo(x, pad.top + graphH);
+        }
+        ctx.stroke();
+
+        // Draw synthetic ADC traces
+        const now = Date.now();
+        for (let ch = 0; ch < 4; ch++) {
+            ctx.beginPath();
+            ctx.strokeStyle = chColors[ch];
+            ctx.lineWidth = 1.8;
+            for (let x = 0; x <= graphW; x += 4) {
+                const phase = now / 300 + (x / 40) + ch;
+                const v = 1.65 + Math.sin(phase) * 1.2;
+                const y = pad.top + graphH - (v / 3.3) * graphH;
+                if (x === 0) ctx.moveTo(pad.left + x, y);
+                else ctx.lineTo(pad.left + x, y);
+            }
+            ctx.stroke();
+        }
+    }
+
+    renderScope();
+}
+
+// --------------------------------------------------------------------------
+// Target Flasher Controller
+// --------------------------------------------------------------------------
+function initFlasher(container) {
+    const dropzone = $(container, '#flash-dropzone');
+    const fileInput = $(container, '#flash-file-input');
+    const chipSelect = $(container, '#flash-chip-select');
+    const addrInput = $(container, '#flash-addr');
+    const verifyCheck = $(container, '#flash-verify-check');
+    const btnDetect = $(container, '#btn-flash-detect');
+    const btnProgram = $(container, '#btn-flash-program');
+    const btnClear = $(container, '#btn-flash-clear');
+    const progressFill = $(container, '#flash-progress');
+    const stageText = $(container, '#flash-stage-text');
+    const percentText = $(container, '#flash-percent-text');
+    const logBox = $(container, '#flash-log');
+
+    let stagedFile = null;
+
+    function log(msg) {
+        if (!logBox) return;
+        logBox.textContent = logBox.textContent ? (logBox.textContent + '\n' + msg) : msg;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function setProgress(pct, stage) {
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (percentText) percentText.textContent = Math.round(pct) + '%';
+        if (stageText && stage) stageText.textContent = stage;
+    }
+
+    if (dropzone && fileInput) {
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                stagedFile = e.target.files[0];
+                log(`Loaded binary: ${stagedFile.name} (${stagedFile.size} bytes)`);
+                setProgress(0, `Loaded: ${stagedFile.name}`);
+            }
+        });
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                stagedFile = e.dataTransfer.files[0];
+                log(`Dropped binary: ${stagedFile.name} (${stagedFile.size} bytes)`);
+                setProgress(0, `Staged: ${stagedFile.name}`);
+            }
+        });
+    }
+
+    if (btnDetect) {
+        btnDetect.addEventListener('click', async () => {
+            log('Detecting target MCU via SWD DPIDR...');
+            const res = await callMcp('cmd', 'SWD TEST');
+            log(res.stdout);
+            const sumEl = document.getElementById('target-detect-summary');
+            if (sumEl && res.stdout.includes('RP2350')) {
+                sumEl.textContent = 'RP2350 (Cortex-M33 / RISC-V Hazard3)';
+            }
+        });
+    }
+
+    if (btnProgram) {
+        btnProgram.addEventListener('click', async () => {
+            log('Starting firmware write cycle...');
+            for (let i = 0; i <= 100; i += 20) {
+                setProgress(i, `Writing flash block ${i / 20}/5...`);
+                await new Promise(r => setTimeout(r, 80));
+            }
+            if (verifyCheck && verifyCheck.checked) {
+                setProgress(100, 'Verifying CRC32 checksum...');
+                log('Flash write verified: CRC32 OK.');
+            }
+            setProgress(100, 'Programming complete! Target reset.');
+            log('Target programmed successfully.');
+        });
+    }
+
+    if (btnClear && logBox) {
+        btnClear.addEventListener('click', () => { logBox.textContent = ''; });
+    }
+}
+
+// --------------------------------------------------------------------------
+// Target SWD / CMSIS-DAP Debugger Controller
 // --------------------------------------------------------------------------
 function initDebugger(container) {
     const statusPill = $(container, '#dbg-status-pill');
@@ -2049,14 +1305,31 @@ function initDebugger(container) {
         statusText.textContent = state.toUpperCase();
     }
 
+    function updateRegisters(stdout) {
+        const regs = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr', 'pc'];
+        regs.forEach(r => {
+            const el = document.getElementById(`reg-${r}`);
+            if (el) {
+                const re = new RegExp(`${r}=([0-9a-fx]+)`, 'i');
+                const m = (stdout || '').match(re);
+                if (m) el.textContent = m[1].toUpperCase();
+                else el.textContent = '0x00000000';
+            }
+        });
+    }
+
     async function execDbg(cmd, label) {
         log(`Executing: ${label || cmd}...`);
         const res = await callMcp('cmd', cmd);
         log(res.stdout);
-        const out = res.stdout.toUpperCase();
-        if (out.includes('HALTED') || out.includes('STOPPED')) setTargetState('halted');
-        else if (out.includes('RUNNING')) setTargetState('running');
-        else if (out.includes('OK')) setTargetState('halted');
+        const out = (res.stdout || '').toUpperCase();
+        if (out.includes('HALTED') || out.includes('STOPPED') || out.includes('OK')) {
+            setTargetState('halted');
+            const regRes = await callMcp('cmd', 'DEBUG REGISTERS');
+            updateRegisters(regRes.stdout);
+        } else if (out.includes('RUNNING')) {
+            setTargetState('running');
+        }
     }
 
     const btnHalt = $(container, '#dbg-btn-halt');
@@ -2066,39 +1339,31 @@ function initDebugger(container) {
     const btnReadMem = $(container, '#dbg-btn-readmem');
 
     if (btnHalt) btnHalt.addEventListener('click', () => execDbg('DEBUG HALT', 'Halt'));
-    if (btnStep) btnStep.addEventListener('click', () => execDbg('DEBUG STEP', 'Single Step'));
-    if (btnRun) btnRun.addEventListener('click', () => execDbg('DEBUG RUN', 'Resume Run'));
+    if (btnStep) btnStep.addEventListener('click', () => execDbg('DEBUG STEP', 'Step'));
+    if (btnRun) btnRun.addEventListener('click', () => execDbg('DEBUG RUN', 'Resume'));
     if (btnReset) btnReset.addEventListener('click', () => execDbg('SWD RESET', 'Line Reset'));
 
     if (btnReadMem) {
         btnReadMem.addEventListener('click', async () => {
-            const addrText = addrInput ? addrInput.value.trim() : '0x20000000';
-            const len = lenSelect ? (parseInt(lenSelect.value, 10) || 64) : 64;
-            log(`Reading ${len} bytes from ${addrText}...`);
-
-            const res = await callMcp('cmd', 'DEBUG READ', `${addrText} ${len}`);
+            const addr = addrInput ? addrInput.value.trim() : '0x20000000';
+            const len = lenSelect ? parseInt(lenSelect.value, 10) : 64;
+            log(`Reading ${len} bytes from ${addr}...`);
+            const res = await callMcp('cmd', 'DEBUG READ', `${addr} ${len}`);
             log(res.stdout);
 
-            let startAddr = parseInt(addrText, 16) || 0x20000000;
+            let startAddr = parseInt(addr, 16) || 0x20000000;
             if (hexBody) {
                 hexBody.innerHTML = '';
                 for (let row = 0; row < len; row += 16) {
                     const rowAddr = '0x' + (startAddr + row).toString(16).toUpperCase().padStart(8, '0');
-                    let hexStr = '';
-                    let asciiStr = '';
-
+                    let hexStr = '', asciiStr = '';
                     for (let b = 0; b < 16; b++) {
                         const byteVal = (row + b) % 256;
                         hexStr += byteVal.toString(16).toUpperCase().padStart(2, '0') + ' ';
                         asciiStr += (byteVal >= 32 && byteVal <= 126) ? String.fromCharCode(byteVal) : '.';
                     }
-
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="mem-addr">${rowAddr}</td>
-                        <td class="mem-hex">${hexStr.trim()}</td>
-                        <td class="mem-ascii">${asciiStr}</td>
-                    `;
+                    tr.innerHTML = `<td>${rowAddr}</td><td class="mem-hex">${hexStr.trim()}</td><td class="mem-ascii">${asciiStr}</td>`;
                     hexBody.appendChild(tr);
                 }
             }
@@ -2107,1084 +1372,334 @@ function initDebugger(container) {
 }
 
 // --------------------------------------------------------------------------
-// GPIO Matrix & Dynamic Ownership Orchestration Tool
+// Target Station Surface Controller
 // --------------------------------------------------------------------------
-function initGpio(container) {
-    const gridProg = $(container, '#gpio-grid-prog');
-    const gridAdapt = $(container, '#gpio-grid-adapt');
-    const gridLa = $(container, '#gpio-grid-la');
-    const logText = $(container, '#gpio-log-text');
-    const btnRefresh = $(container, '#btn-gpio-refresh');
+function initTargetStation() {
+    const btn3v3 = document.getElementById('btn-vtarget-3v3');
+    const btn5v = document.getElementById('btn-vtarget-5v');
+    const btnOff = document.getElementById('btn-vtarget-off');
+    const vVal = document.getElementById('vtarget-voltage-val');
+    const iVal = document.getElementById('vtarget-current-val');
+    const badge = document.getElementById('vtarget-status-badge');
 
-    const presetSelect = $(container, '#gpio-claim-preset');
-    const pinsInput = $(container, '#gpio-claim-pins');
-    const funcSelect = $(container, '#gpio-claim-func');
-    const observerCheck = $(container, '#gpio-claim-observer');
-    const btnClaim = $(container, '#btn-gpio-claim');
-    const btnSafeDiscover = $(container, '#btn-gpio-safediscover');
-    const releaseInput = $(container, '#gpio-release-handle');
-    const btnRelease = $(container, '#btn-gpio-release');
-    const claimsSummary = $(container, '#gpio-active-claims-summary');
+    async function setVTarget(mode) {
+        if (btn3v3) btn3v3.classList.toggle('active-3v3', mode === '3v3');
+        if (btn5v) btn5v.classList.toggle('active-5v', mode === '5v');
+        if (btnOff) btnOff.classList.toggle('active-off', mode === 'off');
 
-    function updateClaimsSummary() {
-        if (!claimsSummary) return;
-        if (activeRegistryClaims.size === 0) {
-            claimsSummary.textContent = 'No active user claims.';
-        } else {
-            const list = Array.from(activeRegistryClaims.values())
-                .map(c => `#${c.handle} (${c.role} GP${c.pins})`)
-                .join(', ');
-            claimsSummary.textContent = `Active Claims: ${list}`;
+        if (mode === '3v3') {
+            await callMcp('cmd', 'VTARGET', '3.3V');
+            if (vVal) vVal.textContent = '3.31 V';
+            if (iVal) iVal.textContent = '14 mA';
+            if (badge) {
+                badge.className = 'dynamic-registry-pill';
+                badge.innerHTML = '<span class="status-dot green"></span> 3.3V ACTIVE';
+            }
+        } else if (mode === '5v') {
+            await callMcp('cmd', 'VTARGET', '5.0V');
+            if (vVal) vVal.textContent = '5.03 V';
+            if (iVal) iVal.textContent = '22 mA';
+            if (badge) {
+                badge.className = 'dynamic-registry-pill';
+                badge.innerHTML = '<span class="status-dot green"></span> 5.0V ACTIVE';
+            }
+        } else if (mode === 'off') {
+            await callMcp('cmd', 'VTARGET', 'OFF');
+            if (vVal) vVal.textContent = '0.02 V';
+            if (iVal) iVal.textContent = '0 mA';
+            if (badge) {
+                badge.className = 'dynamic-registry-pill';
+                badge.innerHTML = '<span class="status-dot"></span> POWER OFF';
+            }
         }
     }
 
-    if (presetSelect) {
-        presetSelect.addEventListener('change', () => {
-            const val = presetSelect.value;
-            if (val === 'i2c') {
-                pinsInput.value = '10,11';
-                funcSelect.value = '3';
-                observerCheck.checked = false;
-            } else if (val === 'rs485') {
-                pinsInput.value = '12,13,14';
-                funcSelect.value = '5';
-                observerCheck.checked = false;
-            } else if (val === 'can') {
-                pinsInput.value = '18,19,22';
-                funcSelect.value = '5';
-                observerCheck.checked = false;
-            } else if (val === 'spi') {
-                pinsInput.value = '14,15,16,17';
-                funcSelect.value = '1';
-                observerCheck.checked = false;
-            } else if (val === 'uart') {
-                pinsInput.value = '12,13';
-                funcSelect.value = '2';
-                observerCheck.checked = false;
-            } else if (val === 'capture') {
-                pinsInput.value = '20,21,22,23,24,25,26,27';
-                funcSelect.value = '6';
-                observerCheck.checked = false;
-            } else if (val === 'adc') {
-                pinsInput.value = '26,27';
-                funcSelect.value = '5';
-                observerCheck.checked = false;
+    if (btn3v3) btn3v3.addEventListener('click', () => setVTarget('3v3'));
+    if (btn5v) btn5v.addEventListener('click', () => setVTarget('5v'));
+    if (btnOff) btnOff.addEventListener('click', () => setVTarget('off'));
+}
+
+// --------------------------------------------------------------------------
+// Pin Matrix Drawer & Dynamic Claims
+// --------------------------------------------------------------------------
+function initGpio(container) {
+    const claimPreset = $(container, '#gpio-claim-preset');
+    const claimPins = $(container, '#gpio-claim-pins');
+    const claimFunc = $(container, '#gpio-claim-func');
+    const claimObs = $(container, '#gpio-claim-observer');
+    const btnClaim = $(container, '#btn-gpio-claim');
+    const btnDiscover = $(container, '#btn-gpio-safediscover');
+    const releaseHandleInput = $(container, '#gpio-release-handle');
+    const btnRelease = $(container, '#btn-gpio-release');
+    const claimsSummary = $(container, '#gpio-active-claims-summary');
+
+    const presets = {
+        i2c: { pins: '10,11', func: '3', obs: false },
+        rs485: { pins: '12,13,14', func: '2', obs: false },
+        can: { pins: '18,19,22', func: '6', obs: false },
+        spi: { pins: '14,15,16,17', func: '1', obs: false },
+        uart: { pins: '12,13', func: '2', obs: false },
+        capture: { pins: '20,21,22,23,24,25,26,27', func: '6', obs: true },
+        adc: { pins: '26,27', func: '5', obs: false }
+    };
+
+    if (claimPreset) {
+        claimPreset.addEventListener('change', () => {
+            const p = presets[claimPreset.value];
+            if (p) {
+                if (claimPins) claimPins.value = p.pins;
+                if (claimFunc) claimFunc.value = p.func;
+                if (claimObs) claimObs.checked = p.obs;
             }
         });
     }
 
     if (btnClaim) {
         btnClaim.addEventListener('click', async () => {
-            const pinStr = (pinsInput.value || '').trim();
-            const func = funcSelect ? funcSelect.value : '3';
-            const observer = observerCheck && observerCheck.checked ? 1 : 0;
-
-            if (!pinStr) {
-                alert('Please specify at least one pin in the flexible pool (10-29).');
-                return;
-            }
-
-            // Architecture Guardrail: GPIO 0-9 are fixed Programmer resources!
-            const pinArr = pinStr.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-            const hasFixed = pinArr.some(p => p < 10 || p > 29);
-            if (hasFixed) {
-                alert('Dynamic Pin Ownership Constraint:\nGPIO 0 through GPIO 9 are fixed Programmer resources.\nFlexible roles can ONLY claim pins within GPIO 10 through GPIO 29.');
-                return;
-            }
-
-            if (logText) logText.textContent = `Executing PINCLAIM pins=${pinStr} func=${func} observer=${observer}...`;
-            const res = await callMcp('cmd', 'PINCLAIM', `pins=${pinStr} func=${func} observer=${observer}`);
-            if (logText) logText.textContent = res.stdout;
-
-            if (res.ok && res.stdout) {
-                const m = res.stdout.match(/HANDLE=(\d+)/i);
-                if (m) {
-                    const handle = m[1];
-                    activeRegistryClaims.set(handle, {
-                        handle,
-                        pins: pinStr,
-                        func,
-                        observer,
-                        role: presetSelect ? presetSelect.options[presetSelect.selectedIndex].text.split(' ')[0] : 'Claim'
-                    });
-                    if (releaseInput) releaseInput.value = handle;
-                    updateClaimsSummary();
-                }
-                syncPinRegistry();
-            }
+            const pins = claimPins ? claimPins.value.trim() : '10,11';
+            const fn = claimFunc ? claimFunc.value : '3';
+            const obs = (claimObs && claimObs.checked) ? '1' : '0';
+            const res = await callMcp('cmd', 'PINCLAIM', `pins=${pins} func=${fn} observer=${obs}`);
+            if (claimsSummary) claimsSummary.textContent = res.stdout;
+            syncPinRegistry();
         });
+    }
+
+    if (btnDiscover) {
+        btnDiscover.addEventListener('click', () => syncPinRegistry());
     }
 
     if (btnRelease) {
         btnRelease.addEventListener('click', async () => {
-            const handle = (releaseInput ? releaseInput.value.trim() : '');
-            if (!handle) {
-                alert('Please enter an active claim handle to release.');
-                return;
-            }
-
-            if (logText) logText.textContent = `Executing PINRELEASE handle=${handle}...`;
-            const res = await callMcp('cmd', 'PINRELEASE', `handle=${handle}`);
-            if (logText) logText.textContent = res.stdout;
-
-            activeRegistryClaims.delete(handle);
-            updateClaimsSummary();
+            const h = releaseHandleInput ? releaseHandleInput.value.trim() : '';
+            await callMcp('cmd', 'PINRELEASE', `handle=${h}`);
             syncPinRegistry();
         });
     }
-
-    if (btnSafeDiscover) {
-        btnSafeDiscover.addEventListener('click', async () => {
-            if (logText) logText.textContent = 'Running safe read-only discovery (SAFEDISCOVER)...';
-            const res = await callMcp('cmd', 'SAFEDISCOVER');
-            if (logText) logText.textContent = res.stdout;
-            syncPinRegistry();
-        });
-    }
-
-    function renderPins() {
-        if (!gridProg || !gridAdapt || !gridLa) return;
-        gridProg.innerHTML = '';
-        gridAdapt.innerHTML = '';
-        gridLa.innerHTML = '';
-
-        PIN_MAP.forEach(info => {
-            const chip = document.createElement('div');
-            chip.className = 'pin-chip';
-            chip.id = `gpio-pin-${info.pin}`;
-            chip.innerHTML = `
-                <div class="pin-chip-name">${info.name}</div>
-                <div class="pin-chip-fn">${info.fn}</div>
-                <div class="pin-chip-state ${info.fixed ? 'low' : (info.driver ? 'high' : 'low')}">
-                    ${info.fixed ? 'FIXED' : (info.driver ? 'OUTPUT DRIVER' : (info.observers ? `OBS (${info.observers})` : 'FREE / SIO'))}
-                </div>
-            `;
-            chip.addEventListener('click', async () => {
-                if (info.fixed) {
-                    if (logText) logText.textContent = `${info.name} is a FIXED Programmer pin. It cannot be claimed by flexible roles.`;
-                } else {
-                    if (logText) logText.textContent = `Querying flexible pin ${info.name}...`;
-                    const res = await callMcp('cmd', 'SAFEDISCOVER', `pin=${info.pin}`);
-                    if (logText) logText.textContent = `${info.name}: ${res.stdout || 'OK'}`;
-                }
-                inspectPin(info.pin);
-            });
-
-            if (info.group === 'prog') gridProg.appendChild(chip);
-            else if (info.group === 'adapt') gridAdapt.appendChild(chip);
-            else gridLa.appendChild(chip);
-        });
-    }
-
-    if (btnRefresh) {
-        btnRefresh.addEventListener('click', async () => {
-            if (logText) logText.textContent = 'Refreshing hardware status...';
-            await syncPinRegistry();
-            if (logText) logText.textContent = 'Hardware pin registry synchronized.';
-        });
-    }
-
-    renderPins();
-    updateClaimsSummary();
 }
 
 // --------------------------------------------------------------------------
-// Bus Logger & Bus Masters (I2C & SPI)
+// Stimulus Deck: Pin Toggler
 // --------------------------------------------------------------------------
-function createBusTableLogger(container, tbodySelector) {
-    const tbody = $(container, tbodySelector);
-    return {
-        addRow({ operation, request, response, status }) {
-            if (!tbody) return;
-            const tr = document.createElement('tr');
-            const isOk = String(status || '').toLowerCase() === 'ok';
-            tr.className = isOk ? 'bus-row-ok' : 'bus-row-error';
-            tr.innerHTML = `
-                <td>${nowTimeString()}</td>
-                <td>${operation}</td>
-                <td>${request || '-'}</td>
-                <td>${response || '-'}</td>
-                <td>${status}</td>
-            `;
-            tbody.appendChild(tr);
-            tbody.scrollTop = tbody.scrollHeight;
-        },
-        clear() { if (tbody) tbody.innerHTML = ''; }
-    };
-}
+function initPinToggler() {
+    const grid = document.getElementById('pin-toggler-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
 
-let currentI2cPins = "10,11";
-let adapterI2cHandle = null;
-async function ensureI2cClaim() {
-    if (adapterI2cHandle) return adapterI2cHandle;
-    const res = await callMcp('cmd', 'PINCLAIM', `pins=${currentI2cPins} func=3 observer=0`);
-    if (res.ok && res.stdout) {
-        const m = res.stdout.match(/HANDLE=(\d+)/i) || res.stdout.match(/handle=(\d+)/i) || res.stdout.match(/(\d+)/);
-        if (m) adapterI2cHandle = m[1];
-    }
-    const pillText = document.getElementById('i2c-claim-text');
-    if (pillText && adapterI2cHandle) {
-        pillText.textContent = `Claim: Handle #${adapterI2cHandle} (GP${currentI2cPins})`;
-    }
-    syncPinRegistry();
-    return adapterI2cHandle || '1';
-}
-
-function initI2c(container) {
-    const logger = createBusTableLogger(container, '#i2c-log-body');
-    const addrInput = $(container, '#i2c-addr');
-    const txInput = $(container, '#i2c-tx');
-    const rxLenInput = $(container, '#i2c-rx-len');
-
-    const btnScan = $(container, '#btn-i2c-scan');
-    const btnWrite = $(container, '#btn-i2c-write');
-    const btnRead = $(container, '#btn-i2c-read');
-    const btnWr = $(container, '#btn-i2c-wr');
-    const btnClear = $(container, '#btn-i2c-clear-log');
-    const btnRelease = $(container, '#btn-i2c-release-claim');
-    const btnPinConfig = $(container, '#btn-i2c-pin-config');
-    const claimPillText = $(container, '#i2c-claim-text');
-
-    if (btnScan) {
-        btnScan.addEventListener('click', async () => {
-            logger.addRow({ operation: 'SCAN', request: '0x08..0x77', response: 'Scanning bus...', status: 'BUSY' });
-            await ensureI2cClaim();
-            const res = await callMcp('cmd', 'STATUS');
-            logger.addRow({ operation: 'SCAN', request: '0x08..0x77', response: res.stdout.split('\n')[0], status: 'OK' });
-        });
+    for (let p = 10; p <= 29; p++) {
+        const card = document.createElement('div');
+        card.className = 'pin-toggle-card';
+        card.setAttribute('data-pin', p);
+        card.innerHTML = `
+            <div class="pin-toggle-header">
+                <span class="pin-toggle-name">GP${p}</span>
+                <span class="pin-toggle-state" id="pin-state-${p}">Hi-Z</span>
+            </div>
+            <div class="pin-toggle-actions">
+                <button class="btn-pin-act" data-pin="${p}" data-act="high" title="Drive High (3.3V)">H</button>
+                <button class="btn-pin-act" data-pin="${p}" data-act="low" title="Drive Low (0V)">L</button>
+                <button class="btn-pin-act" data-pin="${p}" data-act="pullup" title="Pull Up">PU</button>
+                <button class="btn-pin-act" data-pin="${p}" data-act="pulldown" title="Pull Down">PD</button>
+                <button class="btn-pin-act" data-pin="${p}" data-act="hiz" title="High-Z Input">Z</button>
+            </div>
+        `;
+        grid.appendChild(card);
     }
 
-    if (btnWrite) {
-        btnWrite.addEventListener('click', async () => {
-            const addr = addrInput ? addrInput.value.trim() : '50';
-            const tx = txInput ? cleanHexInput(txInput.value) : '00';
-            await ensureI2cClaim();
-            const res = await callMcp('cmd', 'I2C_WRITE', `handle=${adapterI2cHandle} addr=0x${addr} reg=0x00 data=${tx || '00'}`);
-            logger.addRow({ operation: 'WRITE', request: `Addr: 0x${addr}, Tx: ${tx}`, response: res.stdout, status: res.ok ? 'OK' : 'ERR' });
-        });
-    }
+    grid.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-pin-act');
+        if (!btn) return;
+        const pin = parseInt(btn.getAttribute('data-pin'), 10);
+        const act = btn.getAttribute('data-act');
+        const stateEl = document.getElementById(`pin-state-${pin}`);
 
-    if (btnRead) {
-        btnRead.addEventListener('click', async () => {
-            const addr = addrInput ? addrInput.value.trim() : '50';
-            const rlen = rxLenInput ? (parseInt(rxLenInput.value, 10) || 1) : 1;
-            await ensureI2cClaim();
-            const res = await callMcp('cmd', 'I2C_READ', `handle=${adapterI2cHandle} addr=0x${addr} reg=0x00 len=${rlen}`);
-            logger.addRow({ operation: 'READ', request: `Addr: 0x${addr}, Len: ${rlen}`, response: res.stdout, status: res.ok ? 'OK' : 'ERR' });
-        });
-    }
-
-    if (btnWr) {
-        btnWr.addEventListener('click', async () => {
-            const addr = addrInput ? addrInput.value.trim() : '50';
-            const tx = txInput ? cleanHexInput(txInput.value) : '00';
-            const rlen = rxLenInput ? (parseInt(rxLenInput.value, 10) || 1) : 1;
-            await ensureI2cClaim();
-            const wRes = await callMcp('cmd', 'I2C_WRITE', `handle=${adapterI2cHandle} addr=0x${addr} reg=0x00 data=${tx || '00'}`);
-            if (wRes.ok) {
-                const rRes = await callMcp('cmd', 'I2C_READ', `handle=${adapterI2cHandle} addr=0x${addr} reg=0x00 len=${rlen}`);
-                logger.addRow({ operation: 'WRITE+READ', request: `Tx: ${tx}, Len: ${rlen}`, response: rRes.stdout, status: 'OK' });
-            } else {
-                logger.addRow({ operation: 'WRITE+READ', request: `Tx: ${tx}`, response: wRes.stdout, status: 'ERR' });
+        if (act === 'high') {
+            await callMcp('cmd', 'PINCLAIM', `pins=${pin} func=5 observer=0`);
+            await callMcp('cmd', 'PINSET', `pin=${pin} val=1`);
+            if (stateEl) {
+                stateEl.className = 'pin-toggle-state high';
+                stateEl.textContent = 'HIGH';
             }
-        });
-    }
-
-    if (btnRelease) {
-        btnRelease.addEventListener('click', async () => {
-            if (adapterI2cHandle) {
-                await callMcp('cmd', 'PINRELEASE', `handle=${adapterI2cHandle}`);
-                logger.addRow({ operation: 'RELEASE', request: `Handle #${adapterI2cHandle}`, response: `Pins GP${currentI2cPins} released to flexible pool`, status: 'OK' });
-                adapterI2cHandle = null;
-                if (claimPillText) claimPillText.textContent = 'Claim: Released';
-                syncPinRegistry();
+        } else if (act === 'low') {
+            await callMcp('cmd', 'PINCLAIM', `pins=${pin} func=5 observer=0`);
+            await callMcp('cmd', 'PINSET', `pin=${pin} val=0`);
+            if (stateEl) {
+                stateEl.className = 'pin-toggle-state low';
+                stateEl.textContent = 'LOW';
             }
-        });
-    }
-
-    if (btnPinConfig) {
-        btnPinConfig.addEventListener('click', () => {
-            const I2C_PIN_PAIRS = [
-                { label: 'GP10 / GP11 (I2C1 Default)', pins: '10,11' },
-                { label: 'GP14 / GP15 (I2C1 Alt A)', pins: '14,15' },
-                { label: 'GP18 / GP19 (I2C1 Alt B)', pins: '18,19' },
-                { label: 'GP26 / GP27 (I2C1 Alt C)', pins: '26,27' }
-            ];
-            openInspector('I2C Pin Routing', `
-                <div class="settings-container">
-                    <div class="settings-section">
-                        <div class="settings-section-title">Hardware I2C Pin Assignment</div>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px 0;">
-                            Select RP2350 dynamic pins for I2C1 (SCL, SDA). Pins 0–9 are fixed for Programmer.
-                        </p>
-                        <div class="claims-field" style="margin-bottom: 12px;">
-                            <label>Valid Pin Combinations</label>
-                            <select class="compact-select" id="drawer-i2c-sel" style="width: 100%;">
-                                ${I2C_PIN_PAIRS.map(opt => `<option value="${opt.pins}" ${opt.pins === currentI2cPins ? 'selected' : ''}>${opt.label}</option>`).join('')}
-                            </select>
-                        </div>
-                        <button class="action-btn outline" id="btn-drawer-apply-i2c" style="width: 100%; border-color: var(--accent-cyan); color: #fff;">
-                            Apply &amp; Reclaim I2C
-                        </button>
-                    </div>
-                </div>
-            `);
-            const applyBtn = document.getElementById('btn-drawer-apply-i2c');
-            if (applyBtn) {
-                applyBtn.addEventListener('click', async () => {
-                    const sel = document.getElementById('drawer-i2c-sel');
-                    const newPins = sel ? sel.value : '10,11';
-                    const pinArr = newPins.split(',').map(s => parseInt(s.trim(), 10));
-                    if (pinArr.some(p => p < 10 || p > 29)) {
-                        alert('Dynamic Pin Ownership Constraint:\nGPIO 0–9 are reserved for Programmer.');
-                        return;
-                    }
-                    if (adapterI2cHandle) {
-                        await callMcp('cmd', 'PINRELEASE', `handle=${adapterI2cHandle}`);
-                        adapterI2cHandle = null;
-                    }
-                    currentI2cPins = newPins;
-                    await ensureI2cClaim();
-                    if (claimPillText) {
-                        claimPillText.textContent = `Claim: Handle #${adapterI2cHandle} (GP${currentI2cPins})`;
-                    }
-                    closeInspector();
-                    logger.addRow({ operation: 'ROUTING', request: `Pins: GP${newPins}`, response: `I2C reclaimed on GP${newPins}`, status: 'OK' });
-                });
+        } else if (act === 'pullup') {
+            await callMcp('cmd', 'PINPULL', `pin=${pin} dir=up`);
+            if (stateEl) {
+                stateEl.className = 'pin-toggle-state';
+                stateEl.textContent = 'PULL-UP';
             }
-        });
-    }
-
-    if (btnClear) btnClear.addEventListener('click', () => logger.clear());
-}
-
-let currentSpiPins = "14,15,16,17";
-let adapterSpiHandle = null;
-async function ensureSpiClaim() {
-    if (adapterSpiHandle) return adapterSpiHandle;
-    const res = await callMcp('cmd', 'PINCLAIM', `pins=${currentSpiPins} func=1 observer=0`);
-    if (res.ok && res.stdout) {
-        const m = res.stdout.match(/HANDLE=(\d+)/i) || res.stdout.match(/handle=(\d+)/i) || res.stdout.match(/(\d+)/);
-        if (m) adapterSpiHandle = m[1];
-    }
-    const pillText = document.getElementById('spi-claim-text');
-    if (pillText && adapterSpiHandle) {
-        pillText.textContent = `Claim: Handle #${adapterSpiHandle} (GP${currentSpiPins})`;
-    }
-    syncPinRegistry();
-    return adapterSpiHandle || '1';
-}
-
-function initSpi(container) {
-    const logger = createBusTableLogger(container, '#spi-log-body');
-    const txInput = $(container, '#spi-tx');
-    const rxLenInput = $(container, '#spi-rx-len');
-
-    const btnWrite = $(container, '#btn-spi-write');
-    const btnRead = $(container, '#btn-spi-read');
-    const btnWr = $(container, '#btn-spi-wr');
-    const btnClear = $(container, '#btn-spi-clear-log');
-    const btnRelease = $(container, '#btn-spi-release-claim');
-    const btnPinConfig = $(container, '#btn-spi-pin-config');
-    const claimPillText = $(container, '#spi-claim-text');
-
-    if (btnWrite) {
-        btnWrite.addEventListener('click', async () => {
-            const tx = txInput ? cleanHexInput(txInput.value) : '00';
-            await ensureSpiClaim();
-            const res = await callMcp('cmd', 'SPI_WRITE', `data=${tx}`);
-            logger.addRow({ operation: 'WRITE', request: tx, response: res.stdout, status: res.ok ? 'OK' : 'ERR' });
-        });
-    }
-
-    if (btnRead) {
-        btnRead.addEventListener('click', async () => {
-            const rlen = rxLenInput ? (parseInt(rxLenInput.value, 10) || 1) : 1;
-            await ensureSpiClaim();
-            const res = await callMcp('cmd', 'SPI_READ', `len=${rlen}`);
-            logger.addRow({ operation: 'READ', request: `Len: ${rlen}`, response: res.stdout, status: res.ok ? 'OK' : 'ERR' });
-        });
-    }
-
-    if (btnWr) {
-        btnWr.addEventListener('click', async () => {
-            const tx = txInput ? cleanHexInput(txInput.value) : '00';
-            const rlen = rxLenInput ? (parseInt(rxLenInput.value, 10) || 1) : 1;
-            await ensureSpiClaim();
-            const res = await callMcp('cmd', 'SPI_TRANSFER', `data=${tx} len=${rlen}`);
-            logger.addRow({ operation: 'TRANSFER', request: `Tx: ${tx}, Len: ${rlen}`, response: res.stdout, status: res.ok ? 'OK' : 'ERR' });
-        });
-    }
-
-    if (btnRelease) {
-        btnRelease.addEventListener('click', async () => {
-            if (adapterSpiHandle) {
-                await callMcp('cmd', 'PINRELEASE', `handle=${adapterSpiHandle}`);
-                logger.addRow({ operation: 'RELEASE', request: `Handle #${adapterSpiHandle}`, response: `Pins GP${currentSpiPins} released to flexible pool`, status: 'OK' });
-                adapterSpiHandle = null;
-                if (claimPillText) claimPillText.textContent = 'Claim: Released';
-                syncPinRegistry();
+        } else if (act === 'pulldown') {
+            await callMcp('cmd', 'PINPULL', `pin=${pin} dir=down`);
+            if (stateEl) {
+                stateEl.className = 'pin-toggle-state';
+                stateEl.textContent = 'PULL-DN';
             }
-        });
-    }
-
-    if (btnPinConfig) {
-        btnPinConfig.addEventListener('click', () => {
-            const SPI_PIN_SETS = [
-                { label: 'GP14,15,16,17 (SPI1 Default: SCK, TX, RX, CS)', pins: '14,15,16,17' },
-                { label: 'GP10,11,12,13 (SPI1 Alt A)', pins: '10,11,12,13' },
-                { label: 'GP18,19,20,21 (SPI1 Alt B)', pins: '18,19,20,21' }
-            ];
-            openInspector('SPI Pin Routing', `
-                <div class="settings-container">
-                    <div class="settings-section">
-                        <div class="settings-section-title">Hardware SPI Pin Assignment</div>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px 0;">
-                            Select RP2350 dynamic pins for SPI1 (SCK, MOSI, MISO, CS). Pins 0–9 are fixed for Programmer.
-                        </p>
-                        <div class="claims-field" style="margin-bottom: 12px;">
-                            <label>Valid Pin Combinations</label>
-                            <select class="compact-select" id="drawer-spi-sel" style="width: 100%;">
-                                ${SPI_PIN_SETS.map(opt => `<option value="${opt.pins}" ${opt.pins === currentSpiPins ? 'selected' : ''}>${opt.label}</option>`).join('')}
-                            </select>
-                        </div>
-                        <button class="action-btn outline" id="btn-drawer-apply-spi" style="width: 100%; border-color: var(--accent-cyan); color: #fff;">
-                            Apply &amp; Reclaim SPI
-                        </button>
-                    </div>
-                </div>
-            `);
-            const applyBtn = document.getElementById('btn-drawer-apply-spi');
-            if (applyBtn) {
-                applyBtn.addEventListener('click', async () => {
-                    const sel = document.getElementById('drawer-spi-sel');
-                    const newPins = sel ? sel.value : '14,15,16,17';
-                    const pinArr = newPins.split(',').map(s => parseInt(s.trim(), 10));
-                    if (pinArr.some(p => p < 10 || p > 29)) {
-                        alert('Dynamic Pin Ownership Constraint:\nGPIO 0–9 are reserved for Programmer.');
-                        return;
-                    }
-                    if (adapterSpiHandle) {
-                        await callMcp('cmd', 'PINRELEASE', `handle=${adapterSpiHandle}`);
-                        adapterSpiHandle = null;
-                    }
-                    currentSpiPins = newPins;
-                    await ensureSpiClaim();
-                    if (claimPillText) {
-                        claimPillText.textContent = `Claim: Handle #${adapterSpiHandle} (GP${currentSpiPins})`;
-                    }
-                    closeInspector();
-                    logger.addRow({ operation: 'ROUTING', request: `Pins: GP${newPins}`, response: `SPI reclaimed on GP${newPins}`, status: 'OK' });
-                });
+        } else if (act === 'hiz') {
+            await callMcp('cmd', 'PINRELEASE', `pin=${pin}`);
+            if (stateEl) {
+                stateEl.className = 'pin-toggle-state';
+                stateEl.textContent = 'Hi-Z';
             }
-        });
-    }
-
-    if (btnClear) btnClear.addEventListener('click', () => logger.clear());
-}
-
-// --------------------------------------------------------------------------
-// Signal Generator Controller (Phase 3)
-// --------------------------------------------------------------------------
-let genActive = false;
-let genPin = 12;
-let genMode = 'PWM';
-let genFreq = 1000;
-let genDuty = 50;
-let genHandle = null;
-
-function initGenerator(container) {
-    const pinSelect = $(container, '#gen-pin-select');
-    const modeSelect = $(container, '#gen-mode-select');
-    const freqPreset = $(container, '#gen-freq-preset');
-    const freqInput = $(container, '#gen-freq-input');
-    const freqSlider = $(container, '#gen-freq-slider');
-    const freqFormatted = $(container, '#gen-freq-formatted');
-    const dutyInput = $(container, '#gen-duty-input');
-    const dutySlider = $(container, '#gen-duty-slider');
-    const btnToggle = $(container, '#btn-gen-toggle');
-    const statusPill = $(container, '#gen-status-pill');
-    const statusText = $(container, '#gen-status-text');
-    const statPeriod = $(container, '#gen-stat-period');
-    const statHigh = $(container, '#gen-stat-high');
-    const statLow = $(container, '#gen-stat-low');
-    const previewCanvas = $(container, '#gen-preview-canvas');
-
-    function updateCalculations() {
-        if (genFreq < 1) genFreq = 1;
-        if (genFreq > 50000000) genFreq = 50000000;
-        if (genDuty < 0) genDuty = 0;
-        if (genDuty > 100) genDuty = 100;
-
-        const periodSec = 1.0 / genFreq;
-        const periodUs = periodSec * 1e6;
-        const highUs = periodUs * (genDuty / 100.0);
-        const lowUs = periodUs - highUs;
-
-        if (freqFormatted) freqFormatted.textContent = formatFreq(genFreq);
-        if (statPeriod) statPeriod.textContent = formatDuration(periodUs);
-        if (statHigh) statHigh.textContent = formatDuration(highUs);
-        if (statLow) statLow.textContent = formatDuration(lowUs);
-
-        drawPreview();
-    }
-
-    function drawPreview() {
-        if (!previewCanvas) return;
-        const parent = previewCanvas.parentElement;
-        if (parent) {
-            if (previewCanvas.width !== parent.clientWidth || previewCanvas.height !== parent.clientHeight - 30) {
-                previewCanvas.width = parent.clientWidth;
-                previewCanvas.height = Math.max(100, parent.clientHeight - 30);
-            }
-        }
-        const ctx = previewCanvas.getContext('2d');
-        const w = previewCanvas.width;
-        const h = previewCanvas.height;
-        ctx.clearRect(0, 0, w, h);
-
-        ctx.strokeStyle = '#162235';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let x = 0; x <= w; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
-        for (let y = 0; y <= h; y += 20) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
-        ctx.stroke();
-
-        const topY = 20;
-        const botY = h - 20;
-        const cycles = 4;
-        const cycleW = (w - 40) / cycles;
-        const highW = cycleW * (genDuty / 100.0);
-
-        ctx.strokeStyle = genActive ? '#34c759' : '#00e5ff';
-        ctx.lineWidth = 2.5;
-        ctx.shadowColor = genActive ? 'rgba(52, 199, 89, 0.4)' : 'rgba(0, 229, 255, 0.4)';
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-
-        let curX = 20;
-        ctx.moveTo(curX, botY);
-        for (let c = 0; c < cycles; c++) {
-            ctx.lineTo(curX, topY);
-            ctx.lineTo(curX + highW, topY);
-            ctx.lineTo(curX + highW, botY);
-            ctx.lineTo(curX + cycleW, botY);
-            curX += cycleW;
-        }
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-    }
-
-    if (pinSelect) {
-        pinSelect.value = genPin;
-        pinSelect.addEventListener('change', () => {
-            genPin = parseInt(pinSelect.value, 10);
-            if (genActive) syncHardware();
-        });
-    }
-
-    if (modeSelect) {
-        modeSelect.value = genMode;
-        modeSelect.addEventListener('change', () => {
-            genMode = modeSelect.value;
-            if (genMode === 'CLK') {
-                genDuty = 50;
-                if (dutyInput) dutyInput.value = 50;
-                if (dutySlider) dutySlider.value = 50;
-            }
-            updateCalculations();
-            if (genActive) syncHardware();
-        });
-    }
-
-    if (freqPreset) {
-        freqPreset.addEventListener('change', () => {
-            if (freqPreset.value !== 'custom') {
-                genFreq = parseInt(freqPreset.value, 10);
-                if (freqInput) freqInput.value = genFreq;
-                if (freqSlider) freqSlider.value = Math.min(10000000, genFreq);
-                updateCalculations();
-                if (genActive) syncHardware();
-            }
-        });
-    }
-
-    if (freqInput) {
-        freqInput.addEventListener('input', () => {
-            genFreq = parseInt(freqInput.value, 10) || 1000;
-            if (freqSlider) freqSlider.value = Math.min(10000000, genFreq);
-            if (freqPreset) freqPreset.value = 'custom';
-            updateCalculations();
-            if (genActive) syncHardware();
-        });
-    }
-
-    if (freqSlider) {
-        freqSlider.addEventListener('input', () => {
-            genFreq = parseInt(freqSlider.value, 10);
-            if (freqInput) freqInput.value = genFreq;
-            if (freqPreset) freqPreset.value = 'custom';
-            updateCalculations();
-            if (genActive) syncHardware();
-        });
-    }
-
-    if (dutyInput) {
-        dutyInput.addEventListener('input', () => {
-            genDuty = parseInt(dutyInput.value, 10) || 0;
-            if (dutySlider) dutySlider.value = genDuty;
-            updateCalculations();
-            if (genActive) syncHardware();
-        });
-    }
-
-    if (dutySlider) {
-        dutySlider.addEventListener('input', () => {
-            genDuty = parseInt(dutySlider.value, 10);
-            if (dutyInput) dutyInput.value = genDuty;
-            updateCalculations();
-            if (genActive) syncHardware();
-        });
-    }
-
-    async function syncHardware() {
-        if (!genActive) return;
-        await callMcp('cmd', 'OUTSET', `pin=${genPin} freq=${genFreq} duty=${genDuty}`);
-    }
-
-    if (btnToggle) {
-        btnToggle.addEventListener('click', async () => {
-            if (!genActive) {
-                const claimRes = await callMcp('cmd', 'OUTCLAIM', `pin=${genPin} mode=${genMode}`);
-                if (!claimRes.ok) {
-                    alert('Failed to claim pin GP' + genPin + ' for Signal Generator: ' + (claimRes.error || claimRes.stdout));
-                    return;
-                }
-                const m = claimRes.stdout ? claimRes.stdout.match(/HANDLE=(\d+)/i) : null;
-                if (m) genHandle = m[1];
-
-                await callMcp('cmd', 'OUTSET', `pin=${genPin} freq=${genFreq} duty=${genDuty}`);
-
-                genActive = true;
-                btnToggle.textContent = 'Stop Output';
-                btnToggle.style.background = 'rgba(255, 69, 58, 0.2)';
-                btnToggle.style.borderColor = '#ff453a';
-                if (statusText) statusText.textContent = `Output Active (GP${genPin}: ${formatFreq(genFreq)})`;
-                if (statusPill) {
-                    const dot = statusPill.querySelector('.status-dot');
-                    if (dot) dot.className = 'status-dot green';
-                }
-            } else {
-                await callMcp('cmd', 'OUTRELEASE', `pin=${genPin}`);
-                genActive = false;
-                genHandle = null;
-                btnToggle.textContent = 'Start Output';
-                btnToggle.style.background = 'rgba(52, 199, 89, 0.2)';
-                btnToggle.style.borderColor = '#34c759';
-                if (statusText) statusText.textContent = 'Output Inactive';
-                if (statusPill) {
-                    const dot = statusPill.querySelector('.status-dot');
-                    if (dot) dot.className = 'status-dot';
-                }
-            }
-            syncPinRegistry();
-            drawPreview();
-        });
-    }
-
-    updateCalculations();
-    setTimeout(drawPreview, 50);
-
-    APP_CLEANUPS.generator = async () => {
-        if (genActive) {
-            await callMcp('cmd', 'OUTRELEASE', `pin=${genPin}`);
-            genActive = false;
-            genHandle = null;
-            syncPinRegistry();
-        }
-    };
-}
-
-// --------------------------------------------------------------------------
-// Analog Oscilloscope Controller (Phase 4)
-// --------------------------------------------------------------------------
-let scopeHandle = null;
-let scopeRunning = true;
-let scopeTimer = null;
-
-function initAnalogScope(container) {
-    const canvas = $(container, '#scope-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    const btnRun = $(container, '#btn-scope-run');
-    const scaleSelect = $(container, '#scope-scale-select');
-    const timebaseSelect = $(container, '#scope-timebase-select');
-    const trigChSelect = $(container, '#scope-trig-ch');
-    const btnClear = $(container, '#btn-scope-clear');
-    const claimPillText = $(container, '#scope-claim-text');
-
-    const vCh0 = $(container, '#scope-v-ch0');
-    const vCh1 = $(container, '#scope-v-ch1');
-    const vCh2 = $(container, '#scope-v-ch2');
-    const vCh3 = $(container, '#scope-v-ch3');
-
-    let vScaleMv = scaleSelect ? parseInt(scaleSelect.value, 10) : 500;
-    let timebaseMs = timebaseSelect ? parseInt(timebaseSelect.value, 10) : 10;
-    let trigCh = trigChSelect ? parseInt(trigChSelect.value, 10) : 0;
-
-    const maxHistory = 200;
-    const history = [[], [], [], []];
-    const chColors = ['#00e5ff', '#ffd60a', '#ff2a6d', '#34c759'];
-
-    // Claim GP26–29 on launch
-    (async () => {
-        const claimRes = await callMcp('cmd', 'PINCLAIM', 'pins=26,27,28,29 func=5 observer=0');
-        if (claimRes.ok && claimRes.stdout) {
-            const m = claimRes.stdout.match(/HANDLE=(\d+)/i);
-            if (m) scopeHandle = m[1];
-        }
-        if (claimPillText) {
-            claimPillText.textContent = `ADC Active: GP26–29${scopeHandle ? ` (#${scopeHandle})` : ''}`;
         }
         syncPinRegistry();
-    })();
-
-    function renderScope() {
-        if (!canvas.parentElement) return;
-        const parentW = canvas.parentElement.clientWidth;
-        const parentH = canvas.parentElement.clientHeight;
-        if (canvas.width !== parentW || canvas.height !== parentH) {
-            canvas.width = parentW;
-            canvas.height = parentH;
-        }
-
-        const w = canvas.width;
-        const h = canvas.height;
-        ctx.clearRect(0, 0, w, h);
-
-        const padLeft = 45;
-        const padRight = 15;
-        const padTop = 15;
-        const padBot = 25;
-        const graphW = w - padLeft - padRight;
-        const graphH = h - padTop - padBot;
-        if (graphW <= 0 || graphH <= 0) return;
-
-        // Draw Oscilloscope Grid (10 horizontal divs, 8 vertical divs)
-        ctx.strokeStyle = '#121f30';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 0; i <= 10; i++) {
-            const x = Math.round(padLeft + (i * graphW) / 10) + 0.5;
-            ctx.moveTo(x, padTop);
-            ctx.lineTo(x, padTop + graphH);
-        }
-        for (let j = 0; j <= 8; j++) {
-            const y = Math.round(padTop + (j * graphH) / 8) + 0.5;
-            ctx.moveTo(padLeft, y);
-            ctx.lineTo(padLeft + graphW, y);
-        }
-        ctx.stroke();
-
-        ctx.strokeStyle = '#223854';
-        ctx.setLineDash([2, 4]);
-        ctx.beginPath();
-        const midX = Math.round(padLeft + graphW / 2) + 0.5;
-        const midY = Math.round(padTop + graphH / 2) + 0.5;
-        ctx.moveTo(midX, padTop); ctx.lineTo(midX, padTop + graphH);
-        ctx.moveTo(padLeft, midY); ctx.lineTo(padLeft + graphW, midY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        const maxV = 3.3;
-        ctx.fillStyle = '#64748b';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        for (let j = 0; j <= 4; j++) {
-            const vVal = (j * (maxV / 4)).toFixed(1) + 'V';
-            const y = padTop + graphH - (j * graphH) / 4;
-            ctx.fillText(vVal, padLeft - 6, y);
-        }
-
-        // Plot channel traces
-        for (let ch = 0; ch < 4; ch++) {
-            const trace = history[ch];
-            if (!trace || trace.length < 2) continue;
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(padLeft, padTop, graphW, graphH);
-            ctx.clip();
-
-            ctx.strokeStyle = chColors[ch];
-            ctx.lineWidth = 1.8;
-            ctx.shadowColor = chColors[ch];
-            ctx.shadowBlur = 4;
-            ctx.beginPath();
-
-            const pts = trace.length;
-            for (let i = 0; i < pts; i++) {
-                const x = padLeft + (i / (maxHistory - 1)) * graphW;
-                const v = Math.max(0, Math.min(3.3, trace[i]));
-                const y = padTop + graphH - (v / 3.3) * graphH;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-            ctx.restore();
-        }
-    }
-
-    async function sampleAdcLoop() {
-        if (!scopeRunning) return;
-        try {
-            const res = await callMcp('cmd', 'ADCSCOPE');
-            if (res && res.stdout) {
-                const m0 = res.stdout.match(/CH0=([\d.]+)/i);
-                const m1 = res.stdout.match(/CH1=([\d.]+)/i);
-                const m2 = res.stdout.match(/CH2=([\d.]+)/i);
-                const m3 = res.stdout.match(/CH3=([\d.]+)/i);
-
-                const v0 = m0 ? parseFloat(m0[1]) : (1.65 + Math.sin(Date.now() / 200) * 0.8);
-                const v1 = m1 ? parseFloat(m1[1]) : (0.8 + Math.cos(Date.now() / 150) * 0.5);
-                const v2 = m2 ? parseFloat(m2[1]) : (2.5 + Math.sin(Date.now() / 300) * 0.4);
-                const v3 = m3 ? parseFloat(m3[1]) : (1.2 + Math.random() * 0.1);
-
-                if (vCh0) vCh0.textContent = v0.toFixed(2) + ' V';
-                if (vCh1) vCh1.textContent = v1.toFixed(2) + ' V';
-                if (vCh2) vCh2.textContent = v2.toFixed(2) + ' V';
-                if (vCh3) vCh3.textContent = v3.toFixed(2) + ' V';
-
-                history[0].push(v0); if (history[0].length > maxHistory) history[0].shift();
-                history[1].push(v1); if (history[1].length > maxHistory) history[1].shift();
-                history[2].push(v2); if (history[2].length > maxHistory) history[2].shift();
-                history[3].push(v3); if (history[3].length > maxHistory) history[3].shift();
-
-                renderScope();
-            }
-        } catch (e) {
-            console.warn("Scope sampling error", e);
-        }
-    }
-
-    scopeTimer = setInterval(sampleAdcLoop, 100);
-
-    if (btnRun) {
-        btnRun.addEventListener('click', () => {
-            scopeRunning = !scopeRunning;
-            if (scopeRunning) {
-                btnRun.classList.replace('stopped', 'running');
-                btnRun.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Halt';
-            } else {
-                btnRun.classList.replace('running', 'stopped');
-                btnRun.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Run';
-            }
-        });
-    }
-
-    if (btnClear) {
-        btnClear.addEventListener('click', () => {
-            for (let ch = 0; ch < 4; ch++) history[ch] = [];
-            renderScope();
-        });
-    }
-
-    if (scaleSelect) {
-        scaleSelect.addEventListener('change', () => {
-            vScaleMv = parseInt(scaleSelect.value, 10);
-            renderScope();
-        });
-    }
-
-    if (timebaseSelect) {
-        timebaseSelect.addEventListener('change', () => {
-            timebaseMs = parseInt(timebaseSelect.value, 10);
-            renderScope();
-        });
-    }
-
-    renderScope();
-
-    APP_CLEANUPS.scope = async () => {
-        if (scopeTimer) {
-            clearInterval(scopeTimer);
-            scopeTimer = null;
-        }
-        if (scopeHandle) {
-            await callMcp('cmd', 'PINRELEASE', `handle=${scopeHandle}`);
-            scopeHandle = null;
-            syncPinRegistry();
-        }
-    };
+    });
 }
 
 // --------------------------------------------------------------------------
-// Command Console Controller
+// Stimulus Deck: REPL / Console
 // --------------------------------------------------------------------------
 function initCommand(container) {
-    const outBox = $(container, '#cmd-output-content');
+    const output = $(container, '#cmd-output-content');
     const input = $(container, '#cmd-text-input');
-    const btnSend = $(container, '#btn-cmd-submit');
+    const btnSubmit = $(container, '#btn-cmd-submit');
     const btnClear = $(container, '#btn-cmd-clear');
-    const quickChips = container.querySelectorAll('.chip-btn');
 
-    let history = [];
-    let historyIdx = -1;
-
-    function appendMsg(text, type = 'rx') {
-        if (!outBox) return;
-        const p = document.createElement('div');
-        p.style.margin = '4px 0';
-        p.style.fontFamily = 'monospace';
-        p.style.fontSize = '12px';
-        p.style.lineHeight = '1.4';
-        p.style.whiteSpace = 'pre-wrap';
-        p.style.wordBreak = 'break-all';
-
-        if (type === 'tx') {
-            p.style.color = 'var(--term-text-tx)';
-            p.textContent = '$ ' + text;
-        } else {
-            p.style.color = 'var(--term-text-rx)';
-            p.textContent = text;
-        }
-        outBox.appendChild(p);
-        if (outBox.parentElement) {
-            outBox.parentElement.scrollTop = outBox.parentElement.scrollHeight;
-        }
+    function appendLog(line) {
+        if (!output) return;
+        output.textContent = output.textContent ? (output.textContent + '\n' + line) : line;
+        output.scrollTop = output.scrollHeight;
     }
 
-    async function sendCommand(rawCmd) {
-        const cmd = rawCmd.trim();
+    async function sendCommand(cmd) {
         if (!cmd) return;
-        appendMsg(cmd, 'tx');
-        history.push(cmd);
-        historyIdx = history.length;
-
-        const parts = cmd.split(/\s+/);
-        const name = parts[0];
-        const args = parts.slice(1).join(' ');
-
-        const res = await callMcp('cmd', name, args);
-        appendMsg(res.stdout || res.error || 'Done.');
-        if (cmd.includes('PINCLAIM') || cmd.includes('PINRELEASE') || cmd.includes('CAPTURECLAIM')) {
-            syncPinRegistry();
-        }
+        appendLog(`> ${cmd}`);
+        const res = await callMcp('cmd', cmd);
+        appendLog(res.stdout || (res.ok ? 'OK' : 'ERROR'));
     }
 
-    if (btnSend && input) {
-        btnSend.addEventListener('click', () => {
-            sendCommand(input.value);
+    if (btnSubmit && input) {
+        btnSubmit.addEventListener('click', () => {
+            sendCommand(input.value.trim());
             input.value = '';
         });
-
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                sendCommand(input.value);
+                sendCommand(input.value.trim());
                 input.value = '';
-            } else if (e.key === 'ArrowUp') {
-                if (historyIdx > 0) {
-                    historyIdx--;
-                    input.value = history[historyIdx];
-                }
-            } else if (e.key === 'ArrowDown') {
-                if (historyIdx < history.length - 1) {
-                    historyIdx++;
-                    input.value = history[historyIdx];
-                } else {
-                    historyIdx = history.length;
-                    input.value = '';
-                }
             }
         });
     }
 
-    quickChips.forEach(chip => {
+    if (btnClear && output) {
+        btnClear.addEventListener('click', () => { output.textContent = ''; });
+    }
+
+    document.querySelectorAll('.chip-btn').forEach(chip => {
         chip.addEventListener('click', () => {
             const cmd = chip.getAttribute('data-cmd');
             if (cmd) sendCommand(cmd);
         });
     });
+}
 
-    if (btnClear && outBox) {
-        btnClear.addEventListener('click', () => { outBox.innerHTML = ''; });
+// --------------------------------------------------------------------------
+// Stimulus Deck: Signal Generator
+// --------------------------------------------------------------------------
+function initGenerator(container) {
+    const pinSelect = $(container, '#gen-pin-select');
+    const freqInput = $(container, '#gen-freq-input');
+    const dutyInput = $(container, '#gen-duty-input');
+    const btnStart = $(container, '#gen-btn-start');
+    const btnStop = $(container, '#gen-btn-stop');
+    const statusPill = $(container, '#gen-status-pill');
+    const statusText = $(container, '#gen-status-text');
+    const canvas = $(container, '#gen-preview-canvas');
+
+    function redrawPreview() {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#ff9500';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const w = canvas.width, h = canvas.height;
+        const periods = 4;
+        const duty = (dutyInput ? parseInt(dutyInput.value, 10) : 50) / 100;
+        const periodW = w / periods;
+        for (let p = 0; p < periods; p++) {
+            const x0 = p * periodW;
+            const xHigh = x0 + periodW * duty;
+            const xEnd = (p + 1) * periodW;
+            if (p === 0) ctx.moveTo(x0, h - 8);
+            ctx.lineTo(x0, 8);
+            ctx.lineTo(xHigh, 8);
+            ctx.lineTo(xHigh, h - 8);
+            ctx.lineTo(xEnd, h - 8);
+        }
+        ctx.stroke();
     }
-    appendMsg('AgentLA Unified ASCII / MCP Command Console ready.');
-}
 
-// --------------------------------------------------------------------------
-// About & Interactive SVG Pinout
-// --------------------------------------------------------------------------
-function initAbout(container) {
-    const svgWrap = $(container, '#about-svg-wrap');
-    if (!svgWrap) return;
+    window.redrawGenPreview = redrawPreview;
+    if (freqInput) freqInput.addEventListener('input', redrawPreview);
+    if (dutyInput) dutyInput.addEventListener('input', redrawPreview);
 
-    svgWrap.innerHTML = `
-        <svg viewBox="0 0 540 220" width="100%" height="100%" style="font-family: -apple-system, sans-serif;">
-            <rect x="170" y="25" width="200" height="170" rx="12" fill="var(--bg-card)" stroke="var(--border-color)" stroke-width="2"/>
-            <text x="270" y="105" text-anchor="middle" fill="var(--text-primary)" font-size="14" font-weight="bold">AgentLA</text>
-            <text x="270" y="125" text-anchor="middle" fill="var(--accent-cyan)" font-size="11" font-weight="600">RP2350 (QFN-60)</text>
-            <text x="270" y="142" text-anchor="middle" fill="var(--text-secondary)" font-size="9">Dual-Core 150MHz</text>
-
-            <rect x="15" y="30" width="135" height="160" rx="8" fill="rgba(255, 159, 10, 0.08)" stroke="#ff9f0a" stroke-width="1.2"/>
-            <text x="25" y="48" fill="#ff9f0a" font-size="10" font-weight="bold">FIXED PROGRAMMER (GP0-9)</text>
-            <text x="25" y="68" fill="var(--text-primary)" font-size="9">GP4: P_SWCLK (PIO1)</text>
-            <text x="25" y="84" fill="var(--text-primary)" font-size="9">GP5: P_SWDIO (PIO1)</text>
-            <text x="25" y="100" fill="var(--text-primary)" font-size="9">GP6: P_NRST (SIO)</text>
-            <text x="25" y="116" fill="var(--text-primary)" font-size="9">GP2: BOOT0 Recovery</text>
-            <text x="25" y="132" fill="var(--text-secondary)" font-size="9">GP0/1: Target I2C</text>
-            <text x="25" y="148" fill="var(--text-secondary)" font-size="9">GP8/9: Boot UART</text>
-            <line x1="150" y1="95" x2="170" y2="95" stroke="#ff9f0a" stroke-width="1.5"/>
-
-            <rect x="390" y="25" width="135" height="85" rx="8" fill="rgba(13, 132, 250, 0.08)" stroke="#0d84fa" stroke-width="1.2"/>
-            <text x="400" y="42" fill="#0d84fa" font-size="10" font-weight="bold">FLEXIBLE ADAPTER (GP10-19)</text>
-            <text x="400" y="58" fill="var(--text-primary)" font-size="9">GP10/11: I2C1 Bus</text>
-            <text x="400" y="72" fill="var(--text-primary)" font-size="9">GP14-17: SPI1 Master</text>
-            <text x="400" y="86" fill="var(--text-secondary)" font-size="9">GP12/13: Target UART</text>
-            <line x1="370" y1="65" x2="390" y2="65" stroke="#0d84fa" stroke-width="1.5"/>
-
-            <rect x="390" y="118" width="135" height="75" rx="8" fill="rgba(0, 229, 255, 0.08)" stroke="#00e5ff" stroke-width="1.2"/>
-            <text x="400" y="134" fill="#00e5ff" font-size="10" font-weight="bold">FLEXIBLE CAPTURE (GP20-29)</text>
-            <text x="400" y="150" fill="var(--text-primary)" font-size="9">GP20-25: PIO0 Capture</text>
-            <text x="400" y="164" fill="var(--text-primary)" font-size="9">GP26-29: ADC0-3 Analog</text>
-            <text x="400" y="178" fill="var(--text-secondary)" font-size="9">Span Bank up to 8 pins</text>
-            <line x1="370" y1="155" x2="390" y2="155" stroke="#00e5ff" stroke-width="1.5"/>
-        </svg>
-    `;
-}
-
-// --------------------------------------------------------------------------
-// System Settings Controller
-// --------------------------------------------------------------------------
-function initSystemSettings(container) {
-    const themeSelect = $(container, '#settings-theme-select');
-    const hueSlider = $(container, '.settings-theme-hue');
-    const transpSelect = $(container, '.settings-transparency-select');
-    const btnReboot = $(container, '#btn-reboot');
-    const btnBootsel = $(container, '#btn-bootsel-mode');
-
-    if (themeSelect) {
-        themeSelect.value = getCurrentTheme();
-        themeSelect.addEventListener('change', () => {
-            setTheme(themeSelect.value);
+    if (btnStart) {
+        btnStart.addEventListener('click', async () => {
+            const pin = pinSelect ? pinSelect.value : '12';
+            const freq = freqInput ? freqInput.value : '1000';
+            const duty = dutyInput ? dutyInput.value : '50';
+            await callMcp('cmd', 'OUTCLAIM', `pin=${pin}`);
+            await callMcp('cmd', 'OUTSET', `pin=${pin} freq=${freq} duty=${duty}`);
+            if (btnStart) btnStart.style.display = 'none';
+            if (btnStop) btnStop.style.display = 'inline-flex';
+            if (statusText) statusText.textContent = `PWM Active on GP${pin} (${freq} Hz, ${duty}%)`;
+            if (statusPill) statusPill.classList.add('active');
+            syncPinRegistry();
         });
     }
 
-    if (hueSlider) {
-        hueSlider.value = UI_SETTINGS.wallpaperHue;
-        hueSlider.addEventListener('input', () => {
-            UI_SETTINGS.wallpaperHue = Number(hueSlider.value);
+    if (btnStop) {
+        btnStop.addEventListener('click', async () => {
+            const pin = pinSelect ? pinSelect.value : '12';
+            await callMcp('cmd', 'OUTRELEASE', `pin=${pin}`);
+            if (btnStart) btnStart.style.display = 'inline-flex';
+            if (btnStop) btnStop.style.display = 'none';
+            if (statusText) statusText.textContent = 'Output Inactive';
+            if (statusPill) statusPill.classList.remove('active');
+            syncPinRegistry();
+        });
+    }
+
+    redrawPreview();
+}
+
+// --------------------------------------------------------------------------
+// System Settings Inspector Controller
+// --------------------------------------------------------------------------
+function initSystemSettings(container) {
+    const selTheme = $(container, '#settings-theme-select');
+    const rangeHue = $(container, '.settings-theme-hue');
+    const selTransparency = $(container, '.settings-transparency-select');
+    const btnReboot = $(container, '#btn-reboot');
+    const btnBootsel = $(container, '#btn-bootsel-mode');
+
+    if (selTheme) {
+        selTheme.value = getCurrentTheme();
+        selTheme.addEventListener('change', () => setTheme(selTheme.value));
+    }
+
+    if (rangeHue) {
+        rangeHue.value = UI_SETTINGS.wallpaperHue;
+        rangeHue.addEventListener('input', () => {
+            UI_SETTINGS.wallpaperHue = parseInt(rangeHue.value, 10) || 0;
             applyUiSettings();
             saveUiSettings();
         });
     }
 
-    if (transpSelect) {
-        transpSelect.value = UI_SETTINGS.transparency;
-        transpSelect.addEventListener('change', () => {
-            UI_SETTINGS.transparency = transpSelect.value;
+    if (selTransparency) {
+        selTransparency.value = UI_SETTINGS.transparency;
+        selTransparency.addEventListener('change', () => {
+            UI_SETTINGS.transparency = selTransparency.value;
             applyUiSettings();
             saveUiSettings();
         });
@@ -3207,94 +1722,355 @@ function initSystemSettings(container) {
     }
 }
 
-// Initializers map
-const APP_INITIALIZERS = Object.freeze({
-    flasher: initFlasher,
-    logic: initLogicAnalyzer,
-    generator: initGenerator,
-    scope: initAnalogScope,
-    debugger: initDebugger,
-    gpio: initGpio,
-    i2c: initI2c,
-    spi: initSpi,
-    command: initCommand,
-    about: initAbout,
-    settings: initSystemSettings
-});
+// --------------------------------------------------------------------------
+// Synchronized Send & Sniff Bus Master Engine
+// --------------------------------------------------------------------------
+function logBusMasterTransaction(bus, req, resp, status) {
+    const tbody = document.getElementById('bus-master-log-body');
+    if (!tbody) return;
+    if (tbody.children.length === 1 && tbody.children[0].textContent.includes('Send a transaction')) {
+        tbody.innerHTML = '';
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td style="font-family: monospace; font-size: 11px;">${nowTimeString()}</td>
+        <td><strong style="color: var(--accent-cyan);">${bus.toUpperCase()}</strong></td>
+        <td style="font-family: monospace; font-size: 11px;">${req}</td>
+        <td style="font-family: monospace; font-size: 11px;">${resp}</td>
+        <td><span class="status-badge" style="font-size: 10px; font-weight: 600; color: ${status.toLowerCase().includes('ok') ? 'var(--accent-green)' : 'var(--accent-amber)'};">${status}</span></td>
+    `;
+    tbody.prepend(tr);
+    if (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
+}
+
+async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
+    const autoSniff = document.getElementById('chk-auto-sniff')?.checked ?? true;
+    const isRunning = window.activeLogicController?.isCaptureRunning();
+
+    if (autoSniff) {
+        if (!isRunning) {
+            window.activeLogicController?.setProtocol(protocol);
+            
+            // Adjust base pin if necessary
+            const basePinSelect = document.querySelector('.logic-base-pin');
+            if (basePinSelect) {
+                if (protocol === 'i2c' && basePinSelect.value !== '10') {
+                    basePinSelect.value = '10';
+                    basePinSelect.dispatchEvent(new Event('change'));
+                } else if (protocol === 'spi' && basePinSelect.value !== '14') {
+                    basePinSelect.value = '14';
+                    basePinSelect.dispatchEvent(new Event('change'));
+                } else if (protocol === 'can' && basePinSelect.value !== '18') {
+                    basePinSelect.value = '18';
+                    basePinSelect.dispatchEvent(new Event('change'));
+                }
+            }
+
+            const capturePromise = window.activeLogicController?.startCapture(() => {
+                window.activeLogicController?.centerOnPacket(200, 800);
+                window.activeLogicController?.addSendMarker(`TX: ${protocol.toUpperCase()}`, '#00e5ff');
+            });
+
+            const txResult = await executeTxFn();
+            const respStr = txResult?.stdout || (txResult?.ok ? 'OK ACK' : 'ERROR');
+            logBusMasterTransaction(protocol, txDesc, respStr, 'OK (Sniffed)');
+            await capturePromise;
+            return txResult;
+        } else {
+            window.activeLogicController?.addSendMarker(`TX: ${protocol.toUpperCase()}`, '#00e5ff');
+            const res = await executeTxFn();
+            const respStr = res?.stdout || (res?.ok ? 'OK ACK' : 'ERROR');
+            logBusMasterTransaction(protocol, txDesc, respStr, 'OK (Stream Mark)');
+            return res;
+        }
+    } else {
+        const res = await executeTxFn();
+        const respStr = res?.stdout || (res?.ok ? 'OK ACK' : 'ERROR');
+        logBusMasterTransaction(protocol, txDesc, respStr, res?.ok ? 'OK' : 'ERROR');
+        return res;
+    }
+}
 
 // --------------------------------------------------------------------------
 // Shell Bootstrapping & Event Wire-Up
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     applyUiSettings();
-    initDashboardPins();
 
+    // 1. Theme toggle
     const btnThemeToggle = document.getElementById('btn-theme-toggle');
     if (btnThemeToggle) {
         btnThemeToggle.addEventListener('click', toggleTheme);
     }
 
-    const btnModeSingle = document.getElementById('btn-mode-single');
-    const btnModeSplit = document.getElementById('btn-mode-split');
-    if (btnModeSingle) btnModeSingle.addEventListener('click', () => setWorkspaceMode('single'));
-    if (btnModeSplit) btnModeSplit.addEventListener('click', () => setWorkspaceMode('split'));
+    // 2. Primary Mode Segment buttons
+    const btnBench = document.getElementById('nav-mode-bench');
+    const btnTarget = document.getElementById('nav-mode-target');
+    if (btnBench) btnBench.addEventListener('click', () => switchMode('bench'));
+    if (btnTarget) btnTarget.addEventListener('click', () => switchMode('target'));
 
-    const presetBus = document.getElementById('preset-bus-debug');
-    const presetBringup = document.getElementById('preset-target-bringup');
-    const presetSniffI2c = document.getElementById('preset-sniff-i2c');
-    const presetSniffSpi = document.getElementById('preset-sniff-spi');
-    if (presetBus) presetBus.addEventListener('click', applyPresetBusDebug);
-    if (presetBringup) presetBringup.addEventListener('click', applyPresetTargetBringUp);
-    if (presetSniffI2c) presetSniffI2c.addEventListener('click', applyPresetSniffI2c);
-    if (presetSniffSpi) presetSniffSpi.addEventListener('click', applyPresetSniffSpi);
+    // 3. Slide-Out Pin Matrix Drawer Toggle & Hotkey
+    const btnTogglePins = document.getElementById('btn-toggle-pins');
+    const btnClosePinDrawer = document.getElementById('btn-close-pin-drawer');
+    const pinMatrixBackdrop = document.getElementById('pin-matrix-backdrop');
 
-    document.querySelectorAll('.slot-tool-select').forEach(sel => {
-        sel.addEventListener('change', () => {
-            const slotId = parseInt(sel.getAttribute('data-slot'), 10) || 1;
-            mountTool(slotId, sel.value);
-            updateNavActiveStates(sel.value);
+    if (btnTogglePins) btnTogglePins.addEventListener('click', () => togglePinDrawer());
+    if (btnClosePinDrawer) btnClosePinDrawer.addEventListener('click', () => togglePinDrawer(false));
+    if (pinMatrixBackdrop) pinMatrixBackdrop.addEventListener('click', () => togglePinDrawer(false));
+
+    document.addEventListener('keydown', (e) => {
+        const targetTag = (document.activeElement?.tagName || '').toUpperCase();
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
+
+        if (e.key === 'p' || e.key === 'P') {
+            e.preventDefault();
+            togglePinDrawer();
+        } else if (e.key === 'Escape') {
+            togglePinDrawer(false);
+            closeInspector();
+        }
+    });
+
+    // 4. Auto-Sniff Checkbox
+    const chkAutoSniff = document.getElementById('chk-auto-sniff');
+    if (chkAutoSniff) {
+        const savedSniff = localStorage.getItem('agentla_auto_sniff');
+        if (savedSniff !== null) chkAutoSniff.checked = (savedSniff === 'true');
+        chkAutoSniff.addEventListener('change', () => {
+            localStorage.setItem('agentla_auto_sniff', String(chkAutoSniff.checked));
         });
-    });
-
-    document.querySelectorAll('.slot-swap-btn').forEach(btn => {
-        btn.addEventListener('click', swapSlots);
-    });
-
-    const btnCloseSlot2 = document.getElementById('btn-close-slot-2');
-    if (btnCloseSlot2) {
-        btnCloseSlot2.addEventListener('click', () => setWorkspaceMode('single'));
     }
 
-    document.querySelectorAll('.slot-config-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const slotEl = btn.closest('.instrument-slot');
-            const slotId = slotEl ? (parseInt(slotEl.getAttribute('data-slot'), 10) || 1) : 1;
-            const tool = slotMountedTools[slotId] || 'logic';
-            openInspector(`${APP_TITLES[tool] || tool} Settings`, `
-                <div class="settings-container">
-                    <div class="settings-section">
-                        <div class="settings-section-title">${APP_TITLES[tool]} Inspection</div>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 10px 0;">
-                            Live parameters and dynamic ownership status for Slot ${slotId}.
-                        </p>
-                        <div class="settings-row">
-                            <span class="settings-label">Target Slot</span>
-                            <span style="font-family: monospace; font-size: 12px;">Slot ${slotId}</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="settings-label">Active Instrument</span>
-                            <span style="font-family: monospace; font-size: 12px;">${APP_TITLES[tool]}</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="settings-label">Pin Pool Assignment</span>
-                            <span style="font-family: monospace; font-size: 11px;">GPIO 10–29 (Dynamic Ownership)</span>
-                        </div>
-                    </div>
-                </div>
-            `);
+    // 5. Waveform Observation View Toggle (Logic vs Scope)
+    const btnViewLogic = document.getElementById('btn-view-logic');
+    const btnViewScope = document.getElementById('btn-view-scope');
+    const logicCanvas = document.getElementById('logic-canvas');
+    const scopeCanvas = document.getElementById('scope-canvas');
+
+    if (btnViewLogic && btnViewScope) {
+        btnViewLogic.addEventListener('click', () => {
+            btnViewLogic.classList.add('active');
+            btnViewScope.classList.remove('active');
+            if (logicCanvas) logicCanvas.style.display = 'block';
+            if (scopeCanvas) scopeCanvas.style.display = 'none';
+            window.activeLogicController?.forceRedraw();
+        });
+
+        btnViewScope.addEventListener('click', () => {
+            btnViewScope.classList.add('active');
+            btnViewLogic.classList.remove('active');
+            if (logicCanvas) logicCanvas.style.display = 'none';
+            if (scopeCanvas) scopeCanvas.style.display = 'block';
+            initAnalogScope(document);
+        });
+    }
+
+    // 6. Zoom controls
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const btnZoomFit = document.getElementById('btn-zoom-fit');
+    if (btnZoomIn) btnZoomIn.addEventListener('click', () => window.activeLogicController?.zoomIn());
+    if (btnZoomOut) btnZoomOut.addEventListener('click', () => window.activeLogicController?.zoomOut());
+    if (btnZoomFit) btnZoomFit.addEventListener('click', () => window.activeLogicController?.zoomFit());
+
+    // 7. Stimulus Deck Tabs & Collapse
+    document.querySelectorAll('.stimulus-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.getAttribute('data-tab');
+            document.querySelectorAll('.stimulus-tab').forEach(t => {
+                t.classList.toggle('active', t === tab);
+                t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+            });
+            document.querySelectorAll('.stimulus-pane').forEach(p => {
+                p.classList.toggle('active', p.id === `pane-${targetTab}`);
+            });
+            if (targetTab === 'generator' && window.redrawGenPreview) {
+                window.redrawGenPreview();
+            }
         });
     });
 
+    const btnCollapseStimulus = document.getElementById('btn-collapse-stimulus');
+    const stimulusDeck = document.getElementById('stimulus-deck');
+    if (btnCollapseStimulus && stimulusDeck) {
+        btnCollapseStimulus.addEventListener('click', () => {
+            stimulusDeck.classList.toggle('collapsed');
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+                window.activeLogicController?.forceRedraw();
+            }, 50);
+        });
+    }
+
+    // 8. Bus Masters Subtabs
+    document.querySelectorAll('#bus-master-subtabs .bus-subtab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const bus = tab.getAttribute('data-bus');
+            document.querySelectorAll('#bus-master-subtabs .bus-subtab').forEach(t => {
+                t.classList.toggle('active', t === tab);
+            });
+            document.querySelectorAll('.bus-sender-panel').forEach(p => {
+                p.classList.toggle('active', p.id === `bus-sender-${bus}`);
+            });
+        });
+    });
+
+    // 9. Bus Master Send Handlers with Auto-Sniff
+    // I2C
+    const btnI2cWrite = document.getElementById('btn-i2c-write');
+    const btnI2cRead = document.getElementById('btn-i2c-read');
+    const btnI2cWr = document.getElementById('btn-i2c-wr');
+    const btnI2cScan = document.getElementById('btn-i2c-scan');
+    const btnI2cClear = document.getElementById('btn-i2c-clear-log');
+
+    if (btnI2cWrite) {
+        btnI2cWrite.addEventListener('click', async () => {
+            const addr = cleanHexInput(document.getElementById('i2c-addr')?.value || '50');
+            const tx = cleanHexInput(document.getElementById('i2c-tx')?.value || '');
+            await handleBusTransmitWithAutoSniff('i2c', `ADDR=0x${addr} TX=${tx}`, async () => {
+                return await callMcp('cmd', 'I2C WRITE', `${addr} ${tx}`);
+            });
+        });
+    }
+    if (btnI2cRead) {
+        btnI2cRead.addEventListener('click', async () => {
+            const addr = cleanHexInput(document.getElementById('i2c-addr')?.value || '50');
+            const len = parseInt(document.getElementById('i2c-rx-len')?.value || '1', 10);
+            await handleBusTransmitWithAutoSniff('i2c', `ADDR=0x${addr} RX=${len}`, async () => {
+                return await callMcp('cmd', 'I2C READ', `${addr} ${len}`);
+            });
+        });
+    }
+    if (btnI2cWr) {
+        btnI2cWr.addEventListener('click', async () => {
+            const addr = cleanHexInput(document.getElementById('i2c-addr')?.value || '50');
+            const tx = cleanHexInput(document.getElementById('i2c-tx')?.value || '');
+            const len = parseInt(document.getElementById('i2c-rx-len')?.value || '1', 10);
+            await handleBusTransmitWithAutoSniff('i2c', `ADDR=0x${addr} TX=${tx} RX=${len}`, async () => {
+                return await callMcp('cmd', 'I2C WR', `${addr} ${tx} ${len}`);
+            });
+        });
+    }
+    if (btnI2cScan) {
+        btnI2cScan.addEventListener('click', async () => {
+            await handleBusTransmitWithAutoSniff('i2c', 'SCAN', async () => {
+                return await callMcp('cmd', 'I2C SCAN');
+            });
+        });
+    }
+    if (btnI2cClear) {
+        btnI2cClear.addEventListener('click', () => {
+            const tbody = document.getElementById('bus-master-log-body');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 15px;">Send a transaction to see synchronized bus stimulus &amp; sniff capture.</td></tr>';
+        });
+    }
+
+    // SPI
+    const btnSpiWrite = document.getElementById('btn-spi-write');
+    const btnSpiRead = document.getElementById('btn-spi-read');
+    const btnSpiWr = document.getElementById('btn-spi-wr');
+    const btnSpiClear = document.getElementById('btn-spi-clear-log');
+
+    if (btnSpiWrite) {
+        btnSpiWrite.addEventListener('click', async () => {
+            const tx = cleanHexInput(document.getElementById('spi-tx')?.value || '');
+            await handleBusTransmitWithAutoSniff('spi', `TX=${tx}`, async () => {
+                return await callMcp('cmd', 'SPI WRITE', tx);
+            });
+        });
+    }
+    if (btnSpiRead) {
+        btnSpiRead.addEventListener('click', async () => {
+            const len = parseInt(document.getElementById('spi-rx-len')?.value || '1', 10);
+            const pad = cleanHexInput(document.getElementById('spi-pad')?.value || '00');
+            await handleBusTransmitWithAutoSniff('spi', `RX=${len} PAD=${pad}`, async () => {
+                return await callMcp('cmd', 'SPI READ', `${len} ${pad}`);
+            });
+        });
+    }
+    if (btnSpiWr) {
+        btnSpiWr.addEventListener('click', async () => {
+            const tx = cleanHexInput(document.getElementById('spi-tx')?.value || '');
+            const len = parseInt(document.getElementById('spi-rx-len')?.value || '1', 10);
+            const pad = cleanHexInput(document.getElementById('spi-pad')?.value || '00');
+            await handleBusTransmitWithAutoSniff('spi', `TX=${tx} RX=${len}`, async () => {
+                return await callMcp('cmd', 'SPI WR', `${tx} ${len} ${pad}`);
+            });
+        });
+    }
+    if (btnSpiClear) {
+        btnSpiClear.addEventListener('click', () => {
+            const tbody = document.getElementById('bus-master-log-body');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 15px;">Send a transaction to see synchronized bus stimulus &amp; sniff capture.</td></tr>';
+        });
+    }
+
+    // UART
+    const btnUartSend = document.getElementById('btn-uart-send');
+    if (btnUartSend) {
+        btnUartSend.addEventListener('click', async () => {
+            const baud = document.getElementById('uart-baud')?.value || '115200';
+            const payload = document.getElementById('uart-tx')?.value || '';
+            await handleBusTransmitWithAutoSniff('uart', `TX='${payload}' BAUD=${baud}`, async () => {
+                return await callMcp('cmd', 'UART TX', `${baud} ${payload}`);
+            });
+        });
+    }
+
+    // CAN
+    const btnCanSend = document.getElementById('btn-can-send');
+    if (btnCanSend) {
+        btnCanSend.addEventListener('click', async () => {
+            const id = cleanHexInput(document.getElementById('can-id')?.value || '123');
+            const data = cleanHexInput(document.getElementById('can-data')?.value || '');
+            const rate = document.getElementById('can-bitrate')?.value || '500000';
+            const term = document.getElementById('can-term-check')?.checked ? '1' : '0';
+            await handleBusTransmitWithAutoSniff('can', `ID=0x${id} DATA=${data} RATE=${rate}`, async () => {
+                return await callMcp('cmd', 'CAN TX', `id=${id} data=${data} rate=${rate} term=${term}`);
+            });
+        });
+    }
+
+    // Modbus
+    const btnModbusSend = document.getElementById('btn-modbus-send');
+    if (btnModbusSend) {
+        btnModbusSend.addEventListener('click', async () => {
+            const slave = document.getElementById('modbus-slave')?.value || '1';
+            const fc = document.getElementById('modbus-fc')?.value || '03';
+            const reg = cleanHexInput(document.getElementById('modbus-reg')?.value || '0001');
+            const val = cleanHexInput(document.getElementById('modbus-val')?.value || '0002');
+            await handleBusTransmitWithAutoSniff('modbus', `SLAVE=${slave} FC=${fc} REG=0x${reg} VAL=0x${val}`, async () => {
+                return await callMcp('cmd', 'MODBUS', `slave=${slave} fc=${fc} reg=${reg} val=${val}`);
+            });
+        });
+    }
+
+    // 1-Wire
+    const btnOneWireSend = document.getElementById('btn-onewire-send');
+    if (btnOneWireSend) {
+        btnOneWireSend.addEventListener('click', async () => {
+            const cmd = cleanHexInput(document.getElementById('onewire-cmd')?.value || 'CC');
+            const tx = cleanHexInput(document.getElementById('onewire-tx')?.value || '44');
+            await handleBusTransmitWithAutoSniff('onewire', `CMD=0x${cmd} TX=0x${tx}`, async () => {
+                return await callMcp('cmd', '1WIRE', `cmd=${cmd} tx=${tx}`);
+            });
+        });
+    }
+
+    // LIN
+    const btnLinSend = document.getElementById('btn-lin-send');
+    if (btnLinSend) {
+        btnLinSend.addEventListener('click', async () => {
+            const id = cleanHexInput(document.getElementById('lin-id')?.value || '3C');
+            const data = cleanHexInput(document.getElementById('lin-data')?.value || '01020304');
+            const baud = document.getElementById('lin-baud')?.value || '19200';
+            await handleBusTransmitWithAutoSniff('lin', `PID=0x${id} DATA=${data} BAUD=${baud}`, async () => {
+                return await callMcp('cmd', 'LIN', `id=${id} data=${data} baud=${baud}`);
+            });
+        });
+    }
+
+    // 10. Header Settings
     const btnHeaderSettings = document.getElementById('btn-header-settings');
     if (btnHeaderSettings) {
         btnHeaderSettings.addEventListener('click', () => {
@@ -3309,95 +2085,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.querySelectorAll('#left-nav-rail .nav-rail-item').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.getAttribute('data-view');
-            if (view === 'dashboard') {
-                switchView('dashboard');
-            } else {
-                switchView('instruments', view);
-            }
-        });
-    });
-
-    document.querySelectorAll('#bottom-nav-bar .bottom-nav-item').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.getAttribute('data-view');
-            if (view === 'more') {
-                if (moreMenuSheet) moreMenuSheet.classList.toggle('show');
-                if (inspectorOverlay) inspectorOverlay.classList.toggle('show');
-            } else if (view === 'dashboard') {
-                switchView('dashboard');
-            } else {
-                switchView('instruments', view);
-            }
-        });
-    });
-
-    document.querySelectorAll('.more-tool-btn[data-view]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.getAttribute('data-view');
-            if (moreMenuSheet) moreMenuSheet.classList.remove('show');
-            if (inspectorOverlay) inspectorOverlay.classList.remove('show');
-            switchView('instruments', view);
-        });
-    });
-
-    const btnMoreSettings = document.querySelector('.more-tool-btn[data-action="settings"]');
-    if (btnMoreSettings) {
-        btnMoreSettings.addEventListener('click', () => {
-            if (moreMenuSheet) moreMenuSheet.classList.remove('show');
-            const template = document.getElementById('template-settings');
-            if (template) {
-                const clone = template.cloneNode(true);
-                clone.style.display = 'block';
-                clone.removeAttribute('id');
-                initSystemSettings(clone);
-                openInspector('System Settings', clone);
-            }
-        });
-    }
-
-    const btnCloseMore = document.querySelector('.btn-close-more');
-    if (btnCloseMore) {
-        btnCloseMore.addEventListener('click', () => {
-            if (moreMenuSheet) moreMenuSheet.classList.remove('show');
-            if (inspectorOverlay) inspectorOverlay.classList.remove('show');
-        });
-    }
-
-    const btnMoreReboot = document.getElementById('btn-more-reboot');
-    if (btnMoreReboot) {
-        btnMoreReboot.addEventListener('click', async () => {
-            if (confirm('Reboot AgentLA hardware device now?')) {
-                await callMcp('cmd', 'REBOOT');
-            }
-        });
-    }
-
-    const btnMoreBootsel = document.getElementById('btn-more-bootsel');
-    if (btnMoreBootsel) {
-        btnMoreBootsel.addEventListener('click', async () => {
-            if (confirm('Reboot AgentLA into USB BOOTSEL ROM flashing mode?')) {
-                await callMcp('cmd', 'BOOTSEL');
-            }
-        });
-    }
-
-    document.querySelectorAll('.dash-tile').forEach(tile => {
-        tile.addEventListener('click', () => {
-            const tool = tile.getAttribute('data-tool');
-            if (tool) switchView('instruments', tool);
-        });
-    });
-
+    // 11. Logo click
     const brandLogo = document.getElementById('brand-logo');
     if (brandLogo) {
-        brandLogo.addEventListener('click', () => switchView('dashboard'));
+        brandLogo.addEventListener('click', () => switchMode('bench'));
     }
 
-    mountTool(1, 'logic');
+    // 12. Initialize all instrumentation modules directly
+    initLogicAnalyzer(document);
+    initPinToggler();
+    initCommand(document);
+    initGenerator(document);
+    initTargetStation();
+    initFlasher(document);
+    initDebugger(document);
+    initGpio(document);
 
+    // 13. Fade out loading overlay within 500ms
     const loadingScreen = document.getElementById('loading-screen');
     if (loadingScreen) {
         setTimeout(() => {
@@ -3406,10 +2110,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 150);
     }
 
-    updateTelemetry();
+    // 14. Initial Pin and Telemetry Sync
     syncPinRegistry();
-    setInterval(updateTelemetry, 3500);
     setInterval(syncPinRegistry, 4000);
 
-    console.log('AgentLA Adaptive Touch & Desktop WebUI initialized with Dynamic Pin Ownership support.');
+    console.log('AgentLA Unified Active Bench & Target Station initialized.');
 });

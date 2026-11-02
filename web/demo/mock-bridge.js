@@ -309,6 +309,81 @@
                 }
             };
         }
+        else if (cleanName.includes('VTARGET') || cleanName.includes('POWER')) {
+            const v = cleanArgs.includes('5') ? '5.0V' : (cleanArgs.includes('OFF') ? 'OFF' : '3.3V');
+            const meas = v === 'OFF' ? '0.02V' : (v === '5.0V' ? '5.03V' : '3.31V');
+            const curr = v === 'OFF' ? '0mA' : '14mA';
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: `OK VTARGET SET ${v} (MEASURED: ${meas}, ${curr})`,
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('CAN')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "OK CAN TX ID=0x123 DLC=8 DATA=11 22 33 44 55 66 77 88 ACK (TCAN334 ACTIVE)",
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('UART')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "OK UART TX LEN=4 DATA='PING' RX LEN=4 DATA='PONG'",
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('MODBUS')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "OK MODBUS SLAVE=1 FC=3 ADDR=0x0001 RESP=0400010002 CRC_OK (0x4B3A)",
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('ONEWIRE') || cleanName.includes('1WIRE')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "OK 1WIRE RESET_PULSE_ACK ROM=28FF1234567800A1 DATA=4B014B467FFF0C101C (20.68°C)",
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('LIN')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "OK LIN BREAK_DELIM_SYNC PID=0x3C DATA=01 02 03 04 CHECKSUM_ENHANCED_OK",
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('REGISTERS') || cleanName.includes('REGS')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "R0=0x20000000 R1=0x00000001 R2=0x00000002 R3=0x00000003 R4=0x00000000 R5=0x00000000 R6=0x00000000 R7=0x00000000 R8=0x00000000 R9=0x00000000 R10=0x00000000 R11=0x00000000 R12=0x00000000 SP=0x20004000 LR=0x0800018D PC=0x08000244 xPSR=0x01000000",
+                    status: 0
+                }
+            };
+        }
+        else if (cleanName.includes('GPIO') || cleanName.includes('PINSET')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: `OK GPIO ${cleanArgs}`,
+                    status: 0
+                }
+            };
+        }
         else if (cleanName.includes('DEBUG')) {
             responsePayload = {
                 ok: true,
