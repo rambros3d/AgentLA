@@ -47,6 +47,11 @@ const APP_CLEANUPS = {
     logic: null
 };
 
+// Target Station power state
+let targetPowerOn = false;
+let targetVoltage = '3.31V';
+let targetCurrent = '14mA';
+
 // UI Settings storage
 const UI_SETTINGS_STORAGE_KEY = 'agentla-ui-settings';
 const DEFAULT_UI_SETTINGS = Object.freeze({
@@ -220,6 +225,24 @@ function closeSettingsModal() {
     }
 }
 
+function openAgentGuideModal() {
+    const modal = document.getElementById('modal-agent-guide');
+    if (modal) {
+        modal.classList.add('open');
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+    }
+}
+
+function closeAgentGuideModal() {
+    const modal = document.getElementById('modal-agent-guide');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
 function switchMode(mode) {
     if (mode === 'adapters' || mode === 'adapter') {
         primaryMode = 'adapters';
@@ -256,6 +279,19 @@ function switchMode(mode) {
     if (btnTarget) btnTarget.classList.toggle('active', primaryMode === 'target');
     if (btnPins) btnPins.classList.toggle('active', primaryMode === 'pins');
     if (btnConsole) btnConsole.classList.toggle('active', primaryMode === 'console');
+
+    // Synchronize both desktop vertical sidebar tabs and mobile bottom nav tabs
+    ['bench', 'adapters', 'target', 'pins', 'console'].forEach(m => {
+        document.querySelectorAll(`[data-mode="${m}"]`).forEach(btn => {
+            btn.classList.toggle('active', primaryMode === m);
+        });
+    });
+
+    if (primaryMode === 'adapters') {
+        if (typeof selectAdapter === 'function') {
+            selectAdapter(selectedAdapter || getDefaultAdapter());
+        }
+    }
 
     if (primaryMode === 'pins') {
         updatePinMatrix();
@@ -574,6 +610,14 @@ function renderDynamicPinMatrix(manifest) {
         container.appendChild(card);
     });
 
+    // Telemetry Sync for Top-Bar Target Power Pill
+    if (typeof targetPowerOn !== 'undefined' && targetPowerOn) {
+        const vEl = document.getElementById('top-bar-voltage-val');
+        const iEl = document.getElementById('top-bar-current-val');
+        if (vEl && typeof targetVoltage !== 'undefined') vEl.textContent = targetVoltage;
+        if (iEl && typeof targetCurrent !== 'undefined') iEl.textContent = targetCurrent;
+    }
+
     renderAllZonePins();
 }
 
@@ -690,6 +734,14 @@ async function syncPinRegistry() {
             conflictBadge.className = 'pin-conflict-badge ok';
             conflictBadge.innerHTML = `<svg class="solar-icon solar-icon-sm" width="14" height="14" viewBox="0 0 24 24" fill="none"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M16.0303 10.0303C16.3232 9.73744 16.3232 9.26256 16.0303 8.96967C15.7374 8.67678 15.2626 8.67678 14.9697 8.96967L10.5 13.4393L9.03033 11.9697C8.73744 11.6768 8.26256 11.6768 7.96967 11.9697C7.67678 12.2626 7.67678 12.7374 7.96967 13.0303L9.96967 15.0303C10.2626 15.3232 10.7374 15.3232 11.0303 15.0303L16.0303 10.0303Z" fill="currentColor"/></svg><span>All Pins Conflict-Free</span>`;
         }
+    }
+
+    // Telemetry Sync for Top-Bar Target Power Pill
+    if (typeof targetPowerOn !== 'undefined' && targetPowerOn) {
+        const vEl = document.getElementById('top-bar-voltage-val');
+        const iEl = document.getElementById('top-bar-current-val');
+        if (vEl && typeof targetVoltage !== 'undefined') vEl.textContent = targetVoltage;
+        if (iEl && typeof targetCurrent !== 'undefined') iEl.textContent = targetCurrent;
     }
 
     renderAllZonePins();
@@ -1786,40 +1838,67 @@ function initDebugger(container) {
 }
 
 // --------------------------------------------------------------------------
-// Debugger Surface Controller
+// Debugger Surface & Target Power Controller
 // --------------------------------------------------------------------------
-function initTargetStation() {
-    const btnOn = document.getElementById('btn-vtarget-on');
-    const btnOff = document.getElementById('btn-vtarget-off');
-    const vVal = document.getElementById('vtarget-voltage-val');
-    const iVal = document.getElementById('vtarget-current-val');
-    const badge = document.getElementById('vtarget-status-badge');
+function updateTargetPowerUI(isOn, voltage, current) {
+    targetPowerOn = isOn;
+    if (voltage) targetVoltage = voltage;
+    if (current) targetCurrent = current;
 
-    async function setVTarget(enabled) {
-        if (btnOn) btnOn.classList.toggle('active-on', enabled);
-        if (btnOff) btnOff.classList.toggle('active-off', !enabled);
+    const pill = document.getElementById('btn-target-power-pill');
+    const dot = document.getElementById('top-bar-power-dot');
+    const text = document.getElementById('top-bar-power-text');
+    const voltVal = document.getElementById('top-bar-voltage-val');
+    const currVal = document.getElementById('top-bar-current-val');
 
-        if (enabled) {
-            await callMcp('cmd', 'POWER', 'ON');
-            if (vVal) vVal.textContent = '3.31 V';
-            if (iVal) iVal.textContent = '14 mA';
-            if (badge) {
-                badge.className = 'dynamic-registry-pill';
-                badge.innerHTML = '<span class="status-dot green"></span> RAIL ENABLED';
-            }
+    if (pill) {
+        pill.classList.toggle('active-on', isOn);
+    }
+    if (dot) {
+        dot.classList.toggle('green', isOn);
+    }
+    if (text) {
+        if (isOn) {
+            text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${targetVoltage}</span> / <span id="top-bar-current-val">${targetCurrent}</span>`;
         } else {
-            await callMcp('cmd', 'POWER', 'OFF');
-            if (vVal) vVal.textContent = '0.00 V';
-            if (iVal) iVal.textContent = '0 mA';
-            if (badge) {
-                badge.className = 'dynamic-registry-pill';
-                badge.innerHTML = '<span class="status-dot"></span> RAIL DISABLED';
-            }
+            text.innerHTML = `VTarget: <span class="power-standby">POWER OFF</span>`;
         }
+    } else if (voltVal && currVal && isOn) {
+        voltVal.textContent = targetVoltage;
+        currVal.textContent = targetCurrent;
     }
 
-    if (btnOn) btnOn.addEventListener('click', () => setVTarget(true));
-    if (btnOff) btnOff.addEventListener('click', () => setVTarget(false));
+    const summary = document.getElementById('target-detect-summary');
+    if (summary) {
+        if (isOn) {
+            summary.innerHTML = `<span class="status-dot green"></span> VTarget Active (${targetVoltage})`;
+        } else {
+            summary.innerHTML = `<span class="status-dot"></span> VTarget Standby (0.00V)`;
+        }
+    }
+}
+
+async function toggleTargetPower() {
+    const newState = !targetPowerOn;
+    try {
+        if (newState) {
+            await callMcp('cmd', 'POWER', 'ON');
+            updateTargetPowerUI(true, '3.31V', '14mA');
+        } else {
+            await callMcp('cmd', 'POWER', 'OFF');
+            updateTargetPowerUI(false, '0.00V', '0mA');
+        }
+    } catch (e) {
+        console.error('Failed to toggle target power:', e);
+    }
+}
+
+function initTargetStation() {
+    const pill = document.getElementById('btn-target-power-pill');
+    if (pill) {
+        pill.addEventListener('click', toggleTargetPower);
+    }
+    updateTargetPowerUI(targetPowerOn, targetVoltage, targetCurrent);
 }
 
 // --------------------------------------------------------------------------
@@ -1970,10 +2049,65 @@ function initCommand(container) {
     const btnSubmit = $(container, '#btn-cmd-submit');
     const btnClear = $(container, '#btn-cmd-clear');
 
+    function createConsoleLine(text) {
+        const lineEl = document.createElement('div');
+        let lineClass = 'console-line-output';
+        const trimmed = text.trim();
+        if (trimmed.startsWith('>')) {
+            lineClass = 'console-line-input';
+        } else if (trimmed.startsWith('OK') || trimmed.includes('PASS') || trimmed.startsWith('SUCCESS')) {
+            lineClass = 'console-line-success';
+        } else if (trimmed.startsWith('ERROR') || trimmed.includes('FAIL')) {
+            lineClass = 'console-line-error';
+        }
+        lineEl.className = `console-line ${lineClass}`;
+        lineEl.textContent = text;
+
+        lineEl.addEventListener('click', () => {
+            const selection = window.getSelection ? window.getSelection().toString() : '';
+            if (selection && selection.length > 0) return;
+
+            let textToCopy = text;
+            if (textToCopy.startsWith('> ')) {
+                textToCopy = textToCopy.slice(2);
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).catch(err => {
+                    console.error('Clipboard copy failed:', err);
+                });
+            }
+
+            let badge = lineEl.querySelector('.line-copied-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'line-copied-badge';
+                badge.textContent = 'Copied!';
+                lineEl.appendChild(badge);
+            }
+            badge.classList.remove('fade-out');
+            clearTimeout(badge._timer);
+            badge._timer = setTimeout(() => {
+                badge.classList.add('fade-out');
+                setTimeout(() => badge.remove(), 200);
+            }, 1200);
+        });
+
+        return lineEl;
+    }
+
     function appendLog(line) {
         if (!output) return;
-        output.textContent = output.textContent ? (output.textContent + '\n' + line) : line;
+        const textStr = String(line);
+        const lines = textStr.split('\n');
+        lines.forEach(l => {
+            const el = createConsoleLine(l);
+            output.appendChild(el);
+        });
         output.scrollTop = output.scrollHeight;
+        if (output.parentElement) {
+            output.parentElement.scrollTop = output.parentElement.scrollHeight;
+        }
     }
 
     async function sendCommand(cmd) {
@@ -1997,7 +2131,35 @@ function initCommand(container) {
     }
 
     if (btnClear && output) {
-        btnClear.addEventListener('click', () => { output.textContent = ''; });
+        btnClear.addEventListener('click', () => { output.innerHTML = ''; });
+    }
+
+    // Attach click-to-copy to any initial lines present in output
+    if (output) {
+        output.querySelectorAll('.console-line').forEach(el => {
+            el.addEventListener('click', () => {
+                const selection = window.getSelection ? window.getSelection().toString() : '';
+                if (selection && selection.length > 0) return;
+                let textToCopy = el.textContent.replace('Copied!', '').trim();
+                if (textToCopy.startsWith('> ')) textToCopy = textToCopy.slice(2);
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(textToCopy).catch(() => {});
+                }
+                let badge = el.querySelector('.line-copied-badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'line-copied-badge';
+                    badge.textContent = 'Copied!';
+                    el.appendChild(badge);
+                }
+                badge.classList.remove('fade-out');
+                clearTimeout(badge._timer);
+                badge._timer = setTimeout(() => {
+                    badge.classList.add('fade-out');
+                    setTimeout(() => badge.remove(), 200);
+                }, 1200);
+            });
+        });
     }
 
     document.querySelectorAll('.chip-btn').forEach(chip => {
@@ -2136,22 +2298,46 @@ function initSystemSettings(container) {
 // --------------------------------------------------------------------------
 // Synchronized Send & Sniff Bus Master Engine
 // --------------------------------------------------------------------------
+function appendProtocolLog(proto, text) {
+    const map = {
+        'uart': 'uart-log-content',
+        'i2c': 'i2c-log-content',
+        'i3c': 'i3c-log-content',
+        'spi': 'spi-log-content',
+        'can': 'can-log-content',
+        'industrial': 'industrial-log-content',
+        'modbus': 'industrial-log-content',
+        'lin': 'industrial-log-content',
+        '1wire': 'industrial-log-content',
+        'onewire': 'industrial-log-content'
+    };
+    const logId = map[proto?.toLowerCase()];
+    if (!logId) return;
+    const logElem = document.getElementById(logId);
+    if (!logElem) return;
+    const line = `[${nowTimeString()}] ${text}\n`;
+    logElem.textContent += line;
+    logElem.scrollTop = logElem.scrollHeight;
+}
+
 function logBusMasterTransaction(bus, req, resp, status) {
     const tbody = document.getElementById('bus-master-log-body');
-    if (!tbody) return;
-    if (tbody.children.length === 1 && tbody.children[0].textContent.includes('Send a transaction')) {
-        tbody.innerHTML = '';
+    if (tbody) {
+        if (tbody.children.length === 1 && tbody.children[0].textContent.includes('Send a transaction')) {
+            tbody.innerHTML = '';
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-family: monospace; font-size: 11px;">${nowTimeString()}</td>
+            <td><strong style="color: var(--accent-cyan);">${bus.toUpperCase()}</strong></td>
+            <td style="font-family: monospace; font-size: 11px;">${req}</td>
+            <td style="font-family: monospace; font-size: 11px;">${resp}</td>
+            <td><span class="status-badge" style="font-size: 10px; font-weight: 600; color: ${status.toLowerCase().includes('ok') ? 'var(--accent-green)' : 'var(--accent-amber)'};">${status}</span></td>
+        `;
+        tbody.prepend(tr);
+        if (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
     }
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td style="font-family: monospace; font-size: 11px;">${nowTimeString()}</td>
-        <td><strong style="color: var(--accent-cyan);">${bus.toUpperCase()}</strong></td>
-        <td style="font-family: monospace; font-size: 11px;">${req}</td>
-        <td style="font-family: monospace; font-size: 11px;">${resp}</td>
-        <td><span class="status-badge" style="font-size: 10px; font-weight: 600; color: ${status.toLowerCase().includes('ok') ? 'var(--accent-green)' : 'var(--accent-amber)'};">${status}</span></td>
-    `;
-    tbody.prepend(tr);
-    if (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
+    appendProtocolLog(bus, `${req} -> ${resp} (${status})`);
 }
 
 function isAutoSniffEnabled() {
@@ -2278,6 +2464,7 @@ async function triggerEmergencySafeState() {
         await callMcp('profile_safe', '');
         activeProfileSlot = 0;
         renderProfileMenu('Safe State (Hi-Z)');
+        updateTargetPowerUI(false, '0.00V', '0mA');
         syncPinRegistry();
         alert('Emergency Safe State Asserted: All outputs tri-stated to High-Z, target power disconnected.');
     } catch (e) {
@@ -2414,6 +2601,155 @@ function initProfileManager() {
 }
 
 // --------------------------------------------------------------------------
+// Master-Detail Protocol Adapters Controller
+// --------------------------------------------------------------------------
+function selectAdapter(adapterName) {
+    if (!adapterName) return;
+    document.querySelectorAll('.adapter-master-item').forEach(item => {
+        item.classList.toggle('active', item.getAttribute('data-adapter') === adapterName);
+    });
+    document.querySelectorAll('.adapter-detail-section').forEach(sec => {
+        sec.classList.toggle('active', sec.getAttribute('data-adapter') === adapterName);
+    });
+}
+
+function getDefaultAdapter() {
+    return 'uart';
+}
+
+function formatRateLabel(val) {
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+        if (num >= 1000000) return (num / 1000000).toFixed(num % 1000000 === 0 ? 0 : 1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(num % 1000 === 0 ? 0 : 1) + 'k';
+    }
+    return String(val);
+}
+
+function initAdaptersMasterDetail() {
+    // Master item selection click handlers
+    document.querySelectorAll('.adapter-master-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const proto = item.getAttribute('data-adapter');
+            if (proto) selectAdapter(proto);
+        });
+    });
+
+    // Dynamic rate sync listeners
+    const uartBaud = document.getElementById('uart-baud');
+    if (uartBaud) {
+        const updateUartRate = () => {
+            const el = document.getElementById('master-rate-uart');
+            if (el) el.textContent = formatRateLabel(uartBaud.value);
+        };
+        uartBaud.addEventListener('change', updateUartRate);
+        updateUartRate();
+    }
+
+    const i2cBaud = document.getElementById('i2c-baud');
+    if (i2cBaud) {
+        const updateI2cRate = () => {
+            const el = document.getElementById('master-rate-i2c');
+            if (el) el.textContent = formatRateLabel(i2cBaud.value);
+        };
+        i2cBaud.addEventListener('change', updateI2cRate);
+        updateI2cRate();
+    }
+
+    const i3cFreq = document.getElementById('i3c-freq');
+    if (i3cFreq) {
+        const updateI3cRate = () => {
+            const el = document.getElementById('master-rate-i3c');
+            if (el) {
+                const optText = i3cFreq.options[i3cFreq.selectedIndex]?.text || '';
+                const match = optText.match(/^([0-9.]+\s*MHz)/i);
+                el.textContent = match ? match[1].replace(' ', '') : formatRateLabel(parseInt(i3cFreq.value, 10) * 1000);
+            }
+        };
+        i3cFreq.addEventListener('change', updateI3cRate);
+        updateI3cRate();
+    }
+
+    const spiBaud = document.getElementById('spi-baud');
+    if (spiBaud) {
+        const updateSpiRate = () => {
+            const el = document.getElementById('master-rate-spi');
+            if (el) el.textContent = formatRateLabel(spiBaud.value);
+        };
+        spiBaud.addEventListener('change', updateSpiRate);
+        updateSpiRate();
+    }
+
+    const canBitrate = document.getElementById('can-bitrate');
+    if (canBitrate) {
+        const updateCanRate = () => {
+            const el = document.getElementById('master-rate-can');
+            if (el) el.textContent = formatRateLabel(canBitrate.value);
+        };
+        canBitrate.addEventListener('change', updateCanRate);
+        updateCanRate();
+    }
+
+    // Quick presets bar
+    const presetI2cScan = document.getElementById('preset-i2c-scan');
+    if (presetI2cScan) {
+        presetI2cScan.addEventListener('click', () => {
+            selectAdapter('i2c');
+            const btn = document.getElementById('btn-i2c-scan');
+            if (btn) btn.click();
+        });
+    }
+
+    const presetI2cEeprom = document.getElementById('preset-i2c-eeprom');
+    if (presetI2cEeprom) {
+        presetI2cEeprom.addEventListener('click', () => {
+            selectAdapter('i2c');
+            const addr = document.getElementById('i2c-addr');
+            const len = document.getElementById('i2c-rx-len');
+            if (addr) addr.value = '50';
+            if (len) len.value = '16';
+            const btn = document.getElementById('btn-i2c-read');
+            if (btn) btn.click();
+        });
+    }
+
+    const presetCanObd = document.getElementById('preset-can-obd');
+    if (presetCanObd) {
+        presetCanObd.addEventListener('click', () => {
+            selectAdapter('can');
+            const id = document.getElementById('can-id');
+            const data = document.getElementById('can-data');
+            if (id) id.value = '7DF';
+            if (data) data.value = '02 01 0C 00 00 00 00 00';
+            const btn = document.getElementById('btn-can-send');
+            if (btn) btn.click();
+        });
+    }
+
+    // Clear log buttons per protocol
+    const clearMap = [
+        { btn: 'btn-uart-clear-log', log: 'uart-log-content' },
+        { btn: 'btn-i2c-clear-log', log: 'i2c-log-content' },
+        { btn: 'btn-i3c-clear-log', log: 'i3c-log-content' },
+        { btn: 'btn-spi-clear-log', log: 'spi-log-content' },
+        { btn: 'btn-can-clear-log', log: 'can-log-content' },
+        { btn: 'btn-industrial-clear-log', log: 'industrial-log-content' }
+    ];
+    clearMap.forEach(({ btn, log }) => {
+        const btnEl = document.getElementById(btn);
+        if (btnEl) {
+            btnEl.addEventListener('click', () => {
+                const logEl = document.getElementById(log);
+                if (logEl) logEl.textContent = '';
+            });
+        }
+    });
+
+    // Default to active adapter
+    selectAdapter(getDefaultAdapter());
+}
+
+// --------------------------------------------------------------------------
 // Shell Bootstrapping & Event Wire-Up
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2432,11 +2768,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnPins = document.getElementById('nav-mode-pins');
     const btnConsole = document.getElementById('nav-mode-console');
 
-    if (btnBench) btnBench.addEventListener('click', () => switchMode('bench'));
-    if (btnAdapters) btnAdapters.addEventListener('click', () => switchMode('adapters'));
-    if (btnTarget) btnTarget.addEventListener('click', () => switchMode('target'));
-    if (btnPins) btnPins.addEventListener('click', () => switchMode('pins'));
-    if (btnConsole) btnConsole.addEventListener('click', () => switchMode('console'));
+    // Wire all mode buttons (desktop vertical rail & mobile bottom dock)
+    document.querySelectorAll('.sub-btn[data-mode]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-mode');
+            if (mode) switchMode(mode);
+        });
+    });
 
     const btnMatrixDiscover = document.getElementById('btn-matrix-safediscover');
     if (btnMatrixDiscover) {
@@ -2464,6 +2802,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             switchMode('console');
         } else if (e.key === 'Escape') {
             closeSettingsModal();
+            closeAgentGuideModal();
         }
     });
 
@@ -2781,6 +3120,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Agent Guide Modal & MCP Configuration Copy
+    const btnAgentGuide = document.getElementById('btn-agent-guide');
+    const btnCloseAgentGuide = document.getElementById('btn-close-agent-guide');
+    const btnAckAgentGuide = document.getElementById('btn-ack-agent-guide');
+    const modalAgentGuide = document.getElementById('modal-agent-guide');
+
+    if (btnAgentGuide) {
+        btnAgentGuide.addEventListener('click', openAgentGuideModal);
+    }
+    if (btnCloseAgentGuide) {
+        btnCloseAgentGuide.addEventListener('click', closeAgentGuideModal);
+    }
+    if (btnAckAgentGuide) {
+        btnAckAgentGuide.addEventListener('click', closeAgentGuideModal);
+    }
+    if (modalAgentGuide) {
+        modalAgentGuide.addEventListener('click', (e) => {
+            if (e.target === modalAgentGuide) closeAgentGuideModal();
+        });
+    }
+
+    const btnCopyMcp = document.getElementById('btn-copy-mcp-config');
+    if (btnCopyMcp) {
+        btnCopyMcp.addEventListener('click', () => {
+            const configSnippet = document.getElementById('mcp-config-snippet');
+            const configText = configSnippet ? configSnippet.textContent.trim() : JSON.stringify({
+                "mcpServers": {
+                    "agentla": {
+                        "url": "http://192.168.7.1/mcp"
+                    }
+                }
+            }, null, 2);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(configText).then(() => {
+                    const copyBtnText = document.getElementById('btn-copy-mcp-text');
+                    if (copyBtnText) {
+                        const original = copyBtnText.textContent;
+                        copyBtnText.textContent = 'Copied!';
+                        setTimeout(() => { copyBtnText.textContent = original; }, 1500);
+                    }
+                }).catch(err => {
+                    console.error('Failed to copy MCP config:', err);
+                });
+            }
+        });
+    }
+
     const selTheme = document.getElementById('settings-theme-select');
     if (selTheme) {
         selTheme.value = getCurrentTheme();
@@ -2822,6 +3208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initDebugger(document);
     initGpio(document);
     initProfileManager();
+    initAdaptersMasterDetail();
 
     // 13. Fade out loading overlay within 500ms
     const loadingScreen = document.getElementById('loading-screen');

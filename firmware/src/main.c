@@ -22,6 +22,7 @@
 #include "loopback.pio.h"
 #include "analyzer/capture.h"
 #include "pin_owner.h"
+#include "profile_manager.h"
 #include "analyzer/decode.h"
 #include "analyzer/decode_can.h"
 #include "analyzer/decode_modbus.h"
@@ -4235,6 +4236,7 @@ int main() {
 
     /* Initialize pin ownership with a blank flexible registry. */
     pin_owner_init();
+    profile_manager_init();
     pwm_generator_init();
 
     /* Initialize adapter I2C only - skip UART init to avoid GPIO 4/5 conflict with SWD */

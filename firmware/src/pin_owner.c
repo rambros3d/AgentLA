@@ -79,6 +79,29 @@ void pin_owner_init(void) {
     initialize_capability_table();
 }
 
+void pin_owner_quiesce_and_reset(void) {
+    memset(claims, 0, sizeof(claims));
+    for (uint8_t i = 0; i < (uint8_t)(PIN_OWNER_FLEX_MAX - PIN_OWNER_FLEX_MIN + 1); i++) {
+        pin_driver_index[i] = -1;
+        pin_observer_counts[i] = 0;
+    }
+
+    for (uint8_t pin = PIN_OWNER_FLEX_MIN; pin <= PIN_OWNER_FLEX_MAX; pin++) {
+        gpio_set_irq_enabled(pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL | GPIO_IRQ_LEVEL_LOW | GPIO_IRQ_LEVEL_HIGH, false);
+        gpio_set_function(pin, GPIO_FUNC_SIO);
+        gpio_set_dir(pin, GPIO_IN);
+        gpio_disable_pulls(pin);
+    }
+
+#ifdef NUM_GPIOS
+    for (uint8_t pin = 30; pin < NUM_GPIOS; pin++) {
+        gpio_set_function(pin, GPIO_FUNC_SIO);
+        gpio_set_dir(pin, GPIO_IN);
+        gpio_disable_pulls(pin);
+    }
+#endif
+}
+
 bool pin_owner_is_fixed(uint8_t pin) {
     return pin < PIN_OWNER_FLEX_MIN;
 }

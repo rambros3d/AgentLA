@@ -1,7 +1,7 @@
 # Change: Decoupled High-Speed Capture Engine
 
 ## Why
-The RP2350's integrated USB 1.1 Full-Speed PHY is physically limited to ~1.1 MB/s bulk throughput, while embedded logic buses (I2C, SPI, UART, CAN, JTAG) require 20–150 MS/s sampling resolution ($40 - 300\,\text{MB/s}$ raw data). Because digital buses are static for 95%–99.9% of sample ticks, transmitting uncompressed samples wastes bus bandwidth and overflows buffers in milliseconds. Decoupling the sampling rate from the physical wire rate via microcode RLE, multi-core compression, and oscilloscope-style circular acquisition enables continuous, lossless logic capture on Siling Probe and Pico 2.
+The RP2350's integrated USB 1.1 Full-Speed PHY is physically limited to ~1.1 MB/s bulk throughput, while embedded logic buses (I2C, SPI, UART, CAN, JTAG) require 20–150 MS/s sampling resolution ($40 - 300\,\text{MB/s}$ raw data). Because digital buses are static for 95%–99.9% of sample ticks, transmitting uncompressed samples wastes bus bandwidth and overflows buffers in milliseconds. Decoupling the sampling rate from the physical wire rate via microcode RLE, multi-core compression, and oscilloscope-style circular acquisition enables continuous, lossless logic capture on BakuProbe and Pico 2.
 
 ## What Changes
 - Add **Mode A: In-Hardware PIO RLE Streaming (`pio-rle-streaming`)**: Zero-CPU microcode encoder emitting 32-bit `[RunLength:16 | PinState:16]` packets directly into DMA, enabling indefinite continuous streaming of I2C, UART, CAN-FD, and 1-Wire without host memory limits.

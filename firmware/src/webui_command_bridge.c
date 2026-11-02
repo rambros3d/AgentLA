@@ -1,4 +1,5 @@
 #include "webui_command_bridge.h"
+#include "profile_manager.h"
 extern void network_cancel_job(uint32_t handle);
 extern const char *webui_job_status(uint32_t handle);
 
@@ -300,6 +301,87 @@ void webui_dispatch_json(const char *json_body, char *response, size_t response_
                  extracted_id);
         return;
     }
+
+    if (strcmp(name, "profile_list") == 0 || strcmp(name, "profile.list") == 0) {
+        char list_json[1536];
+        profile_list_to_json(list_json, sizeof(list_json));
+        snprintf(response, response_capacity,
+                 "{\"jsonrpc\":\"2.0\",\"result\":%s,\"id\":%d}",
+                 list_json, extracted_id);
+        return;
+    }
+    if (strcmp(name, "profile_safe") == 0 || strcmp(name, "safe_state") == 0 || strcmp(name, "profile.safe") == 0) {
+        profile_emergency_safe_state();
+        snprintf(response, response_capacity,
+                 "{\"jsonrpc\":\"2.0\",\"result\":{\"status\":\"safe_state\",\"active_slot\":0},\"id\":%d}",
+                 extracted_id);
+        return;
+    }
+    if (strcmp(name, "profile_apply") == 0 || strcmp(name, "profile.apply") == 0) {
+        int slot = atoi(args);
+        char err[64] = {0};
+        bool ok = profile_apply_slot((uint8_t)slot, err, sizeof(err));
+        if (ok) {
+            snprintf(response, response_capacity,
+                     "{\"jsonrpc\":\"2.0\",\"result\":{\"applied\":true,\"slot\":%d,\"name\":\"%s\"},\"id\":%d}",
+                     slot, profile_manager_get_active_name(), extracted_id);
+        } else {
+            snprintf(response, response_capacity,
+                     "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"%s\"},\"id\":%d}",
+                     err[0] ? err : "Apply failed", extracted_id);
+        }
+        return;
+    }
+    if (strcmp(name, "profile_boot") == 0 || strcmp(name, "profile.boot") == 0) {
+        int slot = atoi(args);
+        bool ok = profile_set_boot_default((uint8_t)slot);
+        snprintf(response, response_capacity,
+                 "{\"jsonrpc\":\"2.0\",\"result\":{\"boot_default\":%d,\"success\":%s},\"id\":%d}",
+                 slot, ok ? "true" : "false", extracted_id);
+        return;
+    }
+    if (strcmp(name, "profile_delete") == 0 || strcmp(name, "profile.delete") == 0) {
+        int slot = atoi(args);
+        bool ok = profile_delete_slot((uint8_t)slot);
+        snprintf(response, response_capacity,
+                 "{\"jsonrpc\":\"2.0\",\"result\":{\"deleted\":%s,\"slot\":%d},\"id\":%d}",
+                 ok ? "true" : "false", slot, extracted_id);
+        return;
+    }
+    if (strcmp(name, "profile_save") == 0 || strcmp(name, "profile.save") == 0) {
+        char slot_str[16] = {0};
+        char prof_name[36] = {0};
+        char is_boot_str[16] = {0};
+        char payload[1536] = {0};
+        extract_json_string(json_body, "slot", slot_str, sizeof(slot_str));
+        extract_json_string(json_body, "profile_name", prof_name, sizeof(prof_name));
+        extract_json_string(json_body, "is_boot", is_boot_str, sizeof(is_boot_str));
+        extract_json_string(json_body, "payload", payload, sizeof(payload));
+
+        int slot = atoi(slot_str);
+        if (slot <= 0 || slot >= PROFILE_TOTAL_SLOTS) {
+            for (uint8_t s = 1; s < PROFILE_TOTAL_SLOTS; s++) {
+                profile_slot_t test_slot;
+                if (!profile_get_slot(s, &test_slot) || !(test_slot.flags & PROFILE_FLAG_IN_USE)) {
+                    slot = s;
+                    break;
+                }
+            }
+        }
+        if (prof_name[0] == '\0') {
+            snprintf(prof_name, sizeof(prof_name), "Profile %d", slot);
+        }
+        if (payload[0] == '\0' && args[0] != '\0') {
+            strncpy(payload, args, sizeof(payload) - 1);
+        }
+        bool is_boot = (strcmp(is_boot_str, "true") == 0 || strcmp(is_boot_str, "1") == 0);
+        bool ok = profile_save_slot((uint8_t)slot, prof_name, is_boot, payload[0] ? payload : "{}");
+        snprintf(response, response_capacity,
+                 "{\"jsonrpc\":\"2.0\",\"result\":{\"saved\":%s,\"slot\":%d,\"name\":\"%s\"},\"id\":%d}",
+                 ok ? "true" : "false", slot, prof_name, extracted_id);
+        return;
+    }
+
     snprintf(command, sizeof(command), "%s", name);
     if (args[0] != '\0') {
         strncat(command, " ", sizeof(command) - strlen(command) - 1);

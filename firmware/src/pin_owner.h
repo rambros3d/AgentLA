@@ -60,6 +60,7 @@ typedef struct {
 } pin_owner_inventory_t;
 
 void pin_owner_init(void);
+void pin_owner_quiesce_and_reset(void);
 bool pin_owner_is_fixed(uint8_t pin);
 bool pin_owner_is_flexible(uint8_t pin);
 bool pin_owner_function_supported(uint8_t pin, uint8_t function);

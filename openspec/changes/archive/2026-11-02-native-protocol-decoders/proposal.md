@@ -1,7 +1,7 @@
 # Proposal: Native Protocol Decoders (Phases 1–5)
 
 ## Why
-While AgentLA currently supports basic in-firmware decoders for I2C, SPI, UART, and PWM, modern embedded, industrial, and automotive development relies on specialized protocols (CAN-FD, Modbus RTU, DMX-512, Addressable LEDs, 1-Wire, and ARM SWD/SWO trace). Siling Probe features dedicated on-board physical transceivers (CAN-FD TCAN334 and RS-485 SN65HVD3082) and 16-channel 100/150 MS/s capture pins that currently require external tools like PulseView or Sigrok for higher-layer decoding.
+While AgentLA currently supports basic in-firmware decoders for I2C, SPI, UART, and PWM, modern embedded, industrial, and automotive development relies on specialized protocols (CAN-FD, Modbus RTU, DMX-512, Addressable LEDs, 1-Wire, and ARM SWD/SWO trace). BakuProbe features dedicated on-board physical transceivers (CAN-FD TCAN334 and RS-485 SN65HVD3082) and 16-channel 100/150 MS/s capture pins that currently require external tools like PulseView or Sigrok for higher-layer decoding.
 
 Implementing native, zero-heap C decoders directly in the RP2350 firmware provides immediate real-time protocol analysis over the serial CLI, WebUI Server-Sent Events (`/events`), and interactive browser Canvas waveforms without external software dependencies or PC host bottlenecks.
 

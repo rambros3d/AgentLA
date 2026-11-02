@@ -39,4 +39,4 @@ By unifying Observe and Interact into a cohesive **Active Bench** (with responsi
   - `firmware/html/style.css` & `web/demo/style.css`: Responsive CSS grid/flex styles, drawer transitions, and Send & Sniff visual indicators.
   - `firmware/html/app.js` & `web/demo/app.js`: Unified state management, mode switching, Send & Sniff auto-trigger hooks, and pin drawer event listeners.
 - **Embedded Firmware**:
-  - Regenerated `generated/pico_fsdata.inc` to serve the modernized WebUI from Pico 2 / Siling Probe flash without exceeding SRAM/Flash limits.
+  - Regenerated `generated/pico_fsdata.inc` to serve the modernized WebUI from Pico 2 / BakuProbe flash without exceeding SRAM/Flash limits.

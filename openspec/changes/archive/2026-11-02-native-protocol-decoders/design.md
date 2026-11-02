@@ -1,7 +1,7 @@
 # Design: Native Protocol Decoders (Phases 1–5)
 
 ## Context
-AgentLA currently provides embedded decoders for I2C, SPI, UART, and PWM. However, embedded systems, automotive engineering, and industrial robotics demand deeper protocol inspection. Siling Probe has dedicated transceivers for CAN-FD and RS-485, and 16-channel logic pins capable of capturing 1-Wire, I3C, and addressable LED streams. This design establishes a high-performance, modular C decoding subsystem running entirely within the RP2350 firmware without external dependencies.
+AgentLA currently provides embedded decoders for I2C, SPI, UART, and PWM. However, embedded systems, automotive engineering, and industrial robotics demand deeper protocol inspection. BakuProbe has dedicated transceivers for CAN-FD and RS-485, and 16-channel logic pins capable of capturing 1-Wire, I3C, and addressable LED streams. This design establishes a high-performance, modular C decoding subsystem running entirely within the RP2350 firmware without external dependencies.
 
 ## Goals / Non-Goals
 

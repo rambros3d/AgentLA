@@ -180,17 +180,15 @@ openocd -f interface/cmsis-dap.cfg -f target/stm32f1x.cfg
 
 ## Attribution
 
-AgentLA builds upon and integrates several open-source libraries, firmware drivers, and tools:
-
-| Project / Library | Primary Role in AgentLA | License | Author / Upstream |
-| :--- | :--- | :--- | :--- |
-| **[Pico SDK](https://github.com/raspberrypi/pico-sdk)** | Core hardware abstraction layer, clocks, DMA, PIO, and multicore runtime for RP2040 / RP2350 | BSD-3-Clause | Raspberry Pi (Trading) Ltd. |
-| **[Raspberry Pi Debugprobe](https://github.com/raspberrypi/debugprobe)** | High-speed PIO-based SWD transfer engine and CMSIS-DAP packet handling | MIT / Apache-2.0 | Raspberry Pi (Trading) Ltd. & ARM Limited |
-| **[TinyUSB](https://github.com/hathach/tinyusb)** | USB device stack for CDC serial, CMSIS-DAP HID / WinUSB, and RNDIS / CDC-ECM networking | MIT | Ha Thach & TinyUSB Contributors |
-| **[lwIP (Lightweight IP)](https://savannah.nongnu.org/projects/lwip/)** | Embedded TCP/IP stack, sockets, and HTTP server for Web UI and JSON-RPC API backend | BSD-3-Clause | Adam Dunkels & Swedish Institute of Computer Science |
-| **[ARM CMSIS-DAP / Core](https://github.com/ARM-software/CMSIS_5)** | Standard Cortex-M debug access port definitions and protocol registers | Apache-2.0 | ARM Limited |
-| **[RVSWD_pico](https://github.com/Nicolai-Electronics/RVSWD_pico)** | 2-wire RISC-V debug protocol (`rvswd.pio`) for WCH QingKe V4 cores (CH32V20x/V30x, CH59x) | MIT | Nicolai-Electronics |
-| **[PicoRVD](https://github.com/aappleby/picorvd)** | 1-wire SWIO PIO driver and PROGBUF memory access routines for WCH RISC-V targets | MIT | Andrew Appleby |
-| **[gusmanb/logicanalyzer](https://github.com/gusmanb/logicanalyzer)** | PIO-accelerated high-speed digital logic capture routines (`capture.pio`) and trigger engine | GPL-3.0 | Bernardo Guasconi |
-| **[lrndis](https://github.com/fetisov/lrndis)** | Embedded DHCP (`dhserver.c`), DNS (`dnserver.c`), and RNDIS packet processing | MIT | Sergey Fetisov |
-| **[WinBox.js](https://github.com/nextapps-de/winbox)** | Window manager powering the embedded Web Desktop multitool interface | Apache-2.0 | Thomas Wilkerling (Nextapps GmbH) |
+| Project - Author | primary role in agentla |
+| :--- | :--- |
+| **[Pico SDK](https://github.com/raspberrypi/pico-sdk)** — Raspberry Pi (Trading) Ltd. | Core hardware abstraction layer, clocks, DMA, PIO, and multicore runtime for RP2040 / RP2350 |
+| **[Raspberry Pi Debugprobe](https://github.com/raspberrypi/debugprobe)** — Raspberry Pi (Trading) Ltd. & ARM Limited | High-speed PIO-based SWD transfer engine and CMSIS-DAP packet handling |
+| **[TinyUSB](https://github.com/hathach/tinyusb)** — Ha Thach & TinyUSB Contributors | USB device stack for CDC serial, CMSIS-DAP HID / WinUSB, and RNDIS / CDC-ECM networking |
+| **[lwIP (Lightweight IP)](https://savannah.nongnu.org/projects/lwip/)** — Adam Dunkels & Swedish Institute of Computer Science | Embedded TCP/IP stack, sockets, and HTTP server for Web UI and JSON-RPC API backend |
+| **[ARM CMSIS-DAP / Core](https://github.com/ARM-software/CMSIS_5)** — ARM Limited | Standard Cortex-M debug access port definitions and protocol registers |
+| **[RVSWD_pico](https://github.com/Nicolai-Electronics/RVSWD_pico)** — Nicolai-Electronics | 2-wire RISC-V debug protocol (`rvswd.pio`) for WCH QingKe V4 cores (CH32V20x/V30x, CH59x) |
+| **[PicoRVD](https://github.com/aappleby/picorvd)** — Andrew Appleby | 1-wire SWIO PIO driver and PROGBUF memory access routines for WCH RISC-V targets |
+| **[gusmanb/logicanalyzer](https://github.com/gusmanb/logicanalyzer)** — Bernardo Guasconi | PIO-accelerated high-speed digital logic capture routines (`capture.pio`) and trigger engine |
+| **[lrndis](https://github.com/fetisov/lrndis)** — Sergey Fetisov | Embedded DHCP (`dhserver.c`), DNS (`dnserver.c`), and RNDIS packet processing |
+| **[WinBox.js](https://github.com/nextapps-de/winbox)** — Thomas Wilkerling (Nextapps GmbH) | Window manager powering the embedded Web Desktop multitool interface |
