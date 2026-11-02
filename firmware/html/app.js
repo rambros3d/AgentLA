@@ -1847,8 +1847,22 @@ function logBusMasterTransaction(bus, req, resp, status) {
     if (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
 }
 
+function isAutoSniffEnabled() {
+    const saved = localStorage.getItem('agentla_auto_sniff');
+    if (saved !== null) return saved === 'true';
+    const firstChk = document.querySelector('.chk-auto-sniff');
+    return firstChk ? firstChk.checked : true;
+}
+
+function setAutoSniffEnabled(enabled) {
+    localStorage.setItem('agentla_auto_sniff', String(enabled));
+    document.querySelectorAll('.chk-auto-sniff').forEach(chk => {
+        chk.checked = enabled;
+    });
+}
+
 async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
-    const autoSniff = document.getElementById('chk-auto-sniff')?.checked ?? true;
+    const autoSniff = isAutoSniffEnabled();
     const isRunning = window.activeLogicController?.isCaptureRunning();
 
     if (autoSniff) {
@@ -1949,13 +1963,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. Auto-Sniff Checkbox
-    const chkAutoSniff = document.getElementById('chk-auto-sniff');
-    if (chkAutoSniff) {
-        const savedSniff = localStorage.getItem('agentla_auto_sniff');
-        if (savedSniff !== null) chkAutoSniff.checked = (savedSniff === 'true');
-        chkAutoSniff.addEventListener('change', () => {
-            localStorage.setItem('agentla_auto_sniff', String(chkAutoSniff.checked));
+    // 4. Synchronized Auto-Sniff Checkboxes (Active Bench Toolbar & Adapters Header)
+    const autoSniffBoxes = document.querySelectorAll('.chk-auto-sniff');
+    if (autoSniffBoxes.length > 0) {
+        const initialSniff = isAutoSniffEnabled();
+        autoSniffBoxes.forEach(chk => {
+            chk.checked = initialSniff;
+            chk.addEventListener('change', () => {
+                setAutoSniffEnabled(chk.checked);
+            });
         });
     }
 

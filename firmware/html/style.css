@@ -613,10 +613,6 @@ body.no-transparency {
     .quick-presets {
         display: none;
     }
-
-    .auto-sniff-pill span {
-        display: none;
-    }
 }
 
 /* --------------------------------------------------------------------------
