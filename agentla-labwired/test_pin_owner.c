@@ -65,8 +65,21 @@ int main(void) {
                       record_before_release->pin_count == 2 &&
                       record_before_release->function == GPIO_FUNC_I2C);
 
+    failures += check("attach irq to claimed pin succeeds",
+                      pin_owner_attach_irq(handle_a, 10, 0x4, NULL, NULL));
+    failures += check("has_irq reports true", pin_owner_has_irq(handle_a, 10));
+    failures += check("attach irq to unclaimed pin fails",
+                      !pin_owner_attach_irq(handle_a, 20, 0x4, NULL, NULL));
+    failures += check("detach irq succeeds", pin_owner_detach_irq(handle_a, 10));
+    failures += check("has_irq reports false after detach", !pin_owner_has_irq(handle_a, 10));
+
+    failures += check("attach irq before release", pin_owner_attach_irq(handle_a, 10, 0x4, NULL, NULL));
+    failures += check("release claim auto-cleans irq",
+                      pin_owner_release_claim(handle_a, &result) &&
+                      !pin_owner_has_irq(handle_a, 10));
+
     if (failures == 0) {
-        printf("PASS: all %d ownership checks passed\n", 14);
+        printf("PASS: all %d ownership checks passed\n", 20);
     } else {
         printf("FAIL: %d ownership checks failed\n", failures);
     }

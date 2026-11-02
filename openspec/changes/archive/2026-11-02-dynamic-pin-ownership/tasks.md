@@ -37,7 +37,7 @@
 - [x] 5.4 Implement capture initialization only from claimed pins and metadata.
 - [x] 5.5 Implement capture release and automatic quiesce.
 - [x] 5.7 Enforce the initial 8-pin capture width limit and report safe maximum span.
-- [ ] 5.8 Test smaller and larger banks against the documented width bounds.
+- [x] 5.8 Test smaller and larger banks against the documented width bounds.
 
 ## 6. ADC and Scope Migration
 
@@ -56,11 +56,11 @@
 
 ## 8. Test Compatibility
 
-- [ ] 8.1 Update Adapter tests to claim flexible pins explicitly instead of assuming defaults.
-- [ ] 8.2 Update Capture tests to declare bank spans, masks, and locations.
-- [ ] 8.3 Add conflict tests for overlapping capture spans and Adapter claims.
-- [ ] 8.4 Add ADC validity tests for analog-enabled and analog-disabled pins.
-- [ ] 8.5 Verify Programmer regression tests without ownership state active.
+- [x] 8.1 Update Adapter tests to claim flexible pins explicitly instead of assuming defaults.
+- [x] 8.2 Update Capture tests to declare bank spans, masks, and locations.
+- [x] 8.3 Add conflict tests for overlapping capture spans and Adapter claims.
+- [x] 8.4 Add ADC validity tests for analog-enabled and analog-disabled pins.
+- [x] 8.5 Verify Programmer regression tests without ownership state active.
 
 ## 9. Documentation
 
@@ -75,16 +75,16 @@
 - [x] 11.2 Add runtime pin and analog capability inventory reporting.
 - [x] 11.3 Add explicit safe read-only discovery mode.
 - [x] 11.4 Add SDK transparent bundles that expand only into explicit handles.
-- [ ] 11.5 Test observer roles for input pins and verify output conflicts.
-- [ ] 11.6 Document shared observation and discovery constraints.
+- [x] 11.5 Test observer roles for input pins and verify output conflicts.
+- [x] 11.6 Document shared observation and discovery constraints.
 - [x] 11.7 Implement idempotent release handling.
 - [x] 11.8 Implement all-or-nothing transparent bundles.
 - [x] 11.9 Implement report-only capability inventory and discovery.
-- [ ] 11.10 Implement interrupt and edge callback lifecycle resources.
+- [x] 11.10 Implement interrupt and edge callback lifecycle resources.
 - [x] 11.11 Implement initial 8-pin capture span limit and later performance-capacity hook.
 
 - [x] 10.1 Build firmware with ownership subsystem enabled.
-- [ ] 10.2 Run Programmer regression suite.
-- [ ] 10.3 Run Adapter and Capture ownership tests.
-- [ ] 10.4 Run host SDK regression tests.
+- [x] 10.2 Run Programmer regression suite.
+- [x] 10.3 Run Adapter and Capture ownership tests.
+- [x] 10.4 Run host SDK regression tests.
 - [x] 10.5 Validate that Programmer pins cannot be claimed through flexible commands.

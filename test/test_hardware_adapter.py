@@ -53,59 +53,82 @@ def test_identify(ser):
         print(f"  Role detected: {'ADAPTER' if 'ADAPTER' in role_line else 'ANALYZER'}")
     return True
 
+g_i2c_handle = None
+g_uart_handle = None
+
+def ensure_claims(ser):
+    global g_i2c_handle, g_uart_handle
+    if g_i2c_handle is None:
+        lines = send_cmd(ser, "PINCLAIM pins=10,11 func=2 observer=0")
+        for l in lines:
+            if "HANDLE=" in l:
+                g_i2c_handle = int(l.split("HANDLE=")[1].split()[0])
+    if g_uart_handle is None:
+        lines = send_cmd(ser, "PINCLAIM pins=12,13 func=1 observer=0")
+        for l in lines:
+            if "HANDLE=" in l:
+                g_uart_handle = int(l.split("HANDLE=")[1].split()[0])
+
 def test_i2c_write(ser):
     print("\n=== Test: I2C WRITE ===")
-    lines = send_cmd(ser, "I2C_WRITE addr=0x48 reg=0x02 data=01")
+    ensure_claims(ser)
+    lines = send_cmd(ser, f"I2C_WRITE handle={g_i2c_handle} addr=0x48 reg=0x02 data=01")
     for line in lines:
         print(f"  {line}")
     return any("OK I2C WRITE" in l for l in lines)
 
 def test_i2c_read(ser):
     print("\n=== Test: I2C READ ===")
+    ensure_claims(ser)
     # First write something to read back
-    send_cmd(ser, "I2C_WRITE addr=0x48 reg=0x02 data=01")
+    send_cmd(ser, f"I2C_WRITE handle={g_i2c_handle} addr=0x48 reg=0x02 data=01")
     time.sleep(0.1)
 
-    lines = send_cmd(ser, "I2C_READ addr=0x48 reg=0x02 len=1")
+    lines = send_cmd(ser, f"I2C_READ handle={g_i2c_handle} addr=0x48 reg=0x02 len=1")
     for line in lines:
         print(f"  {line}")
     return any("I2C DATA" in l for l in lines)
 
 def test_i2c_nack(ser):
     print("\n=== Test: I2C NACK handling ===")
-    lines = send_cmd(ser, "I2C_READ addr=0x7F reg=0x00 len=1")
+    ensure_claims(ser)
+    lines = send_cmd(ser, f"I2C_READ handle={g_i2c_handle} addr=0x7F reg=0x00 len=1")
     for line in lines:
         print(f"  {line}")
     return any("ERR" in l and "NACK" in l for l in lines)
 
 def test_i2c_clear(ser):
     print("\n=== Test: I2C CLEAR ===")
-    lines = send_cmd(ser, "I2C_CLEAR")
+    ensure_claims(ser)
+    lines = send_cmd(ser, f"I2C_CLEAR handle={g_i2c_handle}")
     for line in lines:
         print(f"  {line}")
     return any("OK I2C BUS CLEARED" in l for l in lines)
 
 def test_uart_write(ser):
     print("\n=== Test: UART WRITE ===")
-    lines = send_cmd(ser, "UART_WRITE baud=115200 data=48,65,6C,6C,6F")
+    ensure_claims(ser)
+    lines = send_cmd(ser, f"UART_WRITE handle={g_uart_handle} baud=115200 data=48,65,6C,6C,6F")
     for line in lines:
         print(f"  {line}")
     return any("OK UART WROTE" in l for l in lines)
 
 def test_uart_read(ser):
     print("\n=== Test: UART READ ===")
+    ensure_claims(ser)
     # Send data first (loopback or echo from ESP32)
-    send_cmd(ser, "UART_WRITE baud=115200 data=41,42,43")
+    send_cmd(ser, f"UART_WRITE handle={g_uart_handle} baud=115200 data=41,42,43")
     time.sleep(0.2)
 
-    lines = send_cmd(ser, "UART_READ baud=115200 len=10 timeout=500")
+    lines = send_cmd(ser, f"UART_READ handle={g_uart_handle} baud=115200 len=10 timeout=500")
     for line in lines:
         print(f"  {line}")
     return any("UART DATA" in l for l in lines)
 
 def test_uart_baud_validation(ser):
     print("\n=== Test: UART baud validation ===")
-    lines = send_cmd(ser, "UART_WRITE baud=100 data=41")
+    ensure_claims(ser)
+    lines = send_cmd(ser, f"UART_WRITE handle={g_uart_handle} baud=100 data=41")
     for line in lines:
         print(f"  {line}")
     return any("ERR invalid baud rate" in l for l in lines)

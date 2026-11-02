@@ -16,6 +16,7 @@ typedef struct {
     uint8_t release_state;
     uint8_t release_result;
     uint8_t active;
+    pin_owner_irq_resource_t irqs[PIN_OWNER_MAX_PIN_RESOURCES];
 } pin_owner_claim_record_t;
 
 static pin_owner_claim_record_t claims[PIN_OWNER_MAX_CLAIMS];
@@ -264,6 +265,11 @@ bool pin_owner_release_claim(uint32_t claim_id, pin_owner_result_t *result) {
         } else if (pin_observer_counts[index] > 0u) {
             pin_observer_counts[index]--;
         }
+        /* Auto-detach and disable any active IRQ attached to this pin under this claim */
+        if (record->irqs[i].active) {
+            gpio_set_irq_enabled(record->irqs[i].pin, record->irqs[i].event_mask, false);
+            record->irqs[i].active = false;
+        }
     }
 
     record->active = 0;
@@ -273,6 +279,67 @@ bool pin_owner_release_claim(uint32_t claim_id, pin_owner_result_t *result) {
         *result = PIN_OWNER_OK;
     }
     return true;
+}
+
+bool pin_owner_attach_irq(uint32_t claim_id, uint8_t pin, uint32_t event_mask,
+                          pin_owner_irq_callback_t callback, void *user_data) {
+    const int8_t slot = find_claim_index(claim_id);
+    if (slot < 0 || !claims[slot].active) {
+        return false;
+    }
+
+    pin_owner_claim_record_t *record = &claims[slot];
+    int pin_slot = -1;
+    for (uint8_t i = 0; i < record->pin_count; i++) {
+        if (record->pins[i] == pin) {
+            pin_slot = i;
+            break;
+        }
+    }
+    if (pin_slot < 0) {
+        return false; /* Pin not in claim */
+    }
+
+    record->irqs[pin_slot].pin = pin;
+    record->irqs[pin_slot].event_mask = event_mask;
+    record->irqs[pin_slot].callback = callback;
+    record->irqs[pin_slot].user_data = user_data;
+    record->irqs[pin_slot].active = true;
+
+    gpio_set_irq_enabled(pin, event_mask, true);
+    return true;
+}
+
+bool pin_owner_detach_irq(uint32_t claim_id, uint8_t pin) {
+    const int8_t slot = find_claim_index(claim_id);
+    if (slot < 0 || !claims[slot].active) {
+        return false;
+    }
+
+    pin_owner_claim_record_t *record = &claims[slot];
+    for (uint8_t i = 0; i < record->pin_count; i++) {
+        if (record->pins[i] == pin && record->irqs[i].active) {
+            gpio_set_irq_enabled(pin, record->irqs[i].event_mask, false);
+            record->irqs[i].active = false;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool pin_owner_has_irq(uint32_t claim_id, uint8_t pin) {
+    const int8_t slot = find_claim_index(claim_id);
+    if (slot < 0 || !claims[slot].active) {
+        return false;
+    }
+
+    const pin_owner_claim_record_t *record = &claims[slot];
+    for (uint8_t i = 0; i < record->pin_count; i++) {
+        if (record->pins[i] == pin) {
+            return record->irqs[i].active;
+        }
+    }
+    return false;
 }
 
 const pin_owner_claim_t *pin_owner_get_claim(uint32_t claim_id) {

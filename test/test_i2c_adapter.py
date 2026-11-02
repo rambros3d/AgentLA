@@ -15,6 +15,7 @@ def test_i2c_read():
             return False
 
         _, i2c = device.adapter()
+        i2c.claim(pins=(10, 11), function=2)
 
         # Read from register 0x00 of slave at addr 0x48
         data = i2c.read(addr=0x48, reg=0x00, length=4, timeout_ms=100)
@@ -32,6 +33,7 @@ def test_i2c_write():
             return False
 
         _, i2c = device.adapter()
+        i2c.claim(pins=(10, 11), function=2)
 
         # Write 2 bytes to register 0x00 of slave at addr 0x48
         data = b"\x01\x02"
@@ -50,6 +52,7 @@ def test_i2c_nack():
             return False
 
         _, i2c = device.adapter()
+        i2c.claim(pins=(10, 11), function=2)
 
         try:
             # 0x7F is typically not a valid I2C address - should NACK
@@ -70,6 +73,7 @@ def test_i2c_clear_bus():
             return False
 
         _, i2c = device.adapter()
+        i2c.claim(pins=(10, 11), function=2)
         ok = i2c.clear_bus()
         print(f"I2C bus clear: {'OK' if ok else 'FAILED'}")
         return ok

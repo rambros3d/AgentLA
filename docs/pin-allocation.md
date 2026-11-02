@@ -232,3 +232,11 @@ The firmware now reserves `GPIO0–9` for Programmer resources in all modes. Rol
 - `PINOWNER` reports only structured runtime capability.
 - Release requests are idempotent; any remaining dependent observers may block release.
 - Discovery mode is intended to report only and never mutate functions or claims.
+
+### Shared Observation & Discovery Constraints (Task 11.6)
+
+- **Driver Exclusivity**: A physical pin supports at most one active output driver claim at a time.
+- **Shared Input Observers**: Multiple read-only observers (`observer=1`) may attach to a flexible input pin (`GPIO_FUNC_SIO`) simultaneously without creating driver conflicts.
+- **Observer Blocking on Driver Release**: An active driver claim cannot be released while downstream observer claims remain attached, preventing dangling observation states.
+- **Safe Read-Only Discovery**: The `SAFEDISCOVER` command provides non-intrusive runtime reporting of pin state (`used:driver:observers`) without changing GPIO functions, modifying registers, or acquiring claims.
+- **Interrupt Lifecycle Management**: Edge interrupts attached to a claim via `pin_owner_attach_irq()` are bound to the claim's lifecycle; releasing the claim automatically unmasks and cleans up all associated interrupts.

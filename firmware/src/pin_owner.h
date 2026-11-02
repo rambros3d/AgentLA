@@ -16,7 +16,18 @@ typedef enum {
     PIN_OWNER_RESOURCE_INSTANCE = 1,
     PIN_OWNER_RESOURCE_STREAM_BUFFER = 2,
     PIN_OWNER_RESOURCE_CAPTURE_BANK = 3,
+    PIN_OWNER_RESOURCE_INTERRUPT = 4,
 } pin_owner_resource_kind_t;
+
+typedef void (*pin_owner_irq_callback_t)(uint8_t pin, uint32_t events, void *user_data);
+
+typedef struct {
+    uint8_t pin;
+    uint32_t event_mask;
+    pin_owner_irq_callback_t callback;
+    void *user_data;
+    bool active;
+} pin_owner_irq_resource_t;
 
 typedef enum {
     PIN_OWNER_OK = 0,
@@ -62,5 +73,10 @@ bool pin_owner_release_in_progress(uint32_t claim_id);
 uint8_t pin_owner_observer_count(uint8_t pin);
 uint8_t pin_owner_has_driver(uint8_t pin);
 const pin_owner_inventory_t *pin_owner_get_inventory(void);
+
+bool pin_owner_attach_irq(uint32_t claim_id, uint8_t pin, uint32_t event_mask,
+                          pin_owner_irq_callback_t callback, void *user_data);
+bool pin_owner_detach_irq(uint32_t claim_id, uint8_t pin);
+bool pin_owner_has_irq(uint32_t claim_id, uint8_t pin);
 
 #endif /* __AGENTLA_PIN_OWNER__ */

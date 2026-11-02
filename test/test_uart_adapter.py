@@ -15,6 +15,7 @@ def test_uart_write_read():
             return False
 
         i2c, uart = device.adapter()
+        uart.claim(pins=(12, 13), function=1)
 
         # Test 1: UART write 'HELLO' at 115200
         test_data = b"HELLO"
@@ -40,6 +41,7 @@ def test_uart_invalid_baud():
             return False
 
         _, uart = device.adapter()
+        uart.claim(pins=(12, 13), function=1)
 
         try:
             uart.write(b"TEST", baud=100)

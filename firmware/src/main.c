@@ -3395,15 +3395,15 @@ static void cmd_pin_owner_status(char* args) {
 
 
 static void cmd_capture_claim(char* args) {
-    uint8_t pins[8];
+    uint8_t pins[32];
     uint8_t count = 0;
     uint8_t trigger = 255;
 
     char* token = strtok(args, " ");
-    while (token != NULL && count < 8) {
+    while (token != NULL && count < 32) {
         if (strncmp(token, "pins=", 5) == 0) {
             char* pos = token + 5;
-            while (*pos != '\0' && count < 8) {
+            while (*pos != '\0' && count < 32) {
                 char* end = NULL;
                 uint8_t p = (uint8_t)strtol(pos, &end, 0);
                 if (end != pos) {
