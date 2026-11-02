@@ -558,16 +558,16 @@ body.no-transparency {
         left: 0;
         right: 0;
         width: 100%;
-        height: var(--bottom-nav-height, 56px);
+        height: var(--bottom-nav-height, 50px);
         background: var(--bg-surface);
         border-top: 1px solid var(--border-color);
         border-left: none;
         border-right: none;
         border-bottom: none;
         border-radius: 0;
-        padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px)) 6px;
+        padding: 2px 4px calc(2px + env(safe-area-inset-bottom, 0px)) 4px;
         margin: 0;
-        gap: 4px;
+        gap: 3px;
         z-index: 9999;
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
         display: flex;
@@ -581,24 +581,24 @@ body.no-transparency {
         justify-content: center;
         align-items: center;
         flex-direction: row;
-        padding: 4px 3px;
-        gap: 4px;
-        font-size: 10px;
+        padding: 2px 3px;
+        gap: 5px;
         border-radius: 6px;
-        height: 38px;
+        height: calc(100% - 4px);
+        max-height: 44px;
         min-width: 0;
     }
 
     .primary-mode-nav .solar-icon {
-        width: 15px;
-        height: 15px;
+        width: 18px;
+        height: 18px;
         flex-shrink: 0;
         margin-right: 0;
     }
 
     .primary-mode-nav .btn-label-desktop {
         display: inline !important;
-        font-size: 10px;
+        font-size: 11.5px;
         font-weight: 600;
         letter-spacing: 0.1px;
         white-space: nowrap;
