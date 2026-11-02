@@ -309,6 +309,15 @@
                 }
             };
         }
+        else if (cleanName.includes('I3C')) {
+            responsePayload = {
+                ok: true,
+                result: {
+                    stdout: "OK I3C_OP addr=0x08 pid=023500A1BC06 bcr=0x06 dcr=0xE0 (MIPI I3C BASIC MASTER READY)",
+                    status: 0
+                }
+            };
+        }
         else if (cleanName.includes('VTARGET') || cleanName.includes('POWER')) {
             const isOn = !cleanArgs.includes('OFF') && !cleanArgs.includes('0');
             const meas = isOn ? '3.31V' : '0.00V';

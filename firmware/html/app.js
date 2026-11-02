@@ -10,6 +10,7 @@ const host = window.location.hostname || "192.168.7.1";
 
 const APP_TITLES = Object.freeze({
     bench: "Active Bench",
+    adapters: "USB Protocol Adapters",
     target: "Debugger",
     logic: "Logic Analyzer",
     generator: "Signal Generator",
@@ -219,7 +220,9 @@ function closeSettingsModal() {
 }
 
 function switchMode(mode) {
-    if (mode === 'target') {
+    if (mode === 'adapters' || mode === 'adapter') {
+        primaryMode = 'adapters';
+    } else if (mode === 'target') {
         primaryMode = 'target';
     } else if (mode === 'pins' || mode === 'matrix') {
         primaryMode = 'pins';
@@ -228,18 +231,22 @@ function switchMode(mode) {
     }
 
     const viewBench = document.getElementById('view-active-bench');
+    const viewAdapters = document.getElementById('view-adapters');
     const viewTarget = document.getElementById('view-target-station');
     const viewPins = document.getElementById('view-pin-matrix');
 
     const btnBench = document.getElementById('nav-mode-bench');
+    const btnAdapters = document.getElementById('nav-mode-adapters');
     const btnTarget = document.getElementById('nav-mode-target');
     const btnPins = document.getElementById('nav-mode-pins');
 
     if (viewBench) viewBench.classList.toggle('active', primaryMode === 'bench');
+    if (viewAdapters) viewAdapters.classList.toggle('active', primaryMode === 'adapters');
     if (viewTarget) viewTarget.classList.toggle('active', primaryMode === 'target');
     if (viewPins) viewPins.classList.toggle('active', primaryMode === 'pins');
 
     if (btnBench) btnBench.classList.toggle('active', primaryMode === 'bench');
+    if (btnAdapters) btnAdapters.classList.toggle('active', primaryMode === 'adapters');
     if (btnTarget) btnTarget.classList.toggle('active', primaryMode === 'target');
     if (btnPins) btnPins.classList.toggle('active', primaryMode === 'pins');
 
@@ -1893,12 +1900,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btnThemeToggle.addEventListener('click', toggleTheme);
     }
 
-    // 2. Primary Mode Navigation (3 Full Screen Tabs)
+    // 2. Primary Mode Navigation (4 Full Screen Tabs: Active Bench, Adapters, Debugger, Pin Matrix)
     const btnBench = document.getElementById('nav-mode-bench');
+    const btnAdapters = document.getElementById('nav-mode-adapters');
     const btnTarget = document.getElementById('nav-mode-target');
     const btnPins = document.getElementById('nav-mode-pins');
 
     if (btnBench) btnBench.addEventListener('click', () => switchMode('bench'));
+    if (btnAdapters) btnAdapters.addEventListener('click', () => switchMode('adapters'));
     if (btnTarget) btnTarget.addEventListener('click', () => switchMode('target'));
     if (btnPins) btnPins.addEventListener('click', () => switchMode('pins'));
 
@@ -1914,10 +1923,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === '1') {
             e.preventDefault();
             switchMode('bench');
-        } else if (e.key === '2') {
+        } else if (e.key === '2' || e.key === 'a' || e.key === 'A') {
+            e.preventDefault();
+            switchMode('adapters');
+        } else if (e.key === '3' || e.key === 'd' || e.key === 'D') {
             e.preventDefault();
             switchMode('target');
-        } else if (e.key === '3' || e.key === 'p' || e.key === 'P') {
+        } else if (e.key === '4' || e.key === 'p' || e.key === 'P') {
             e.preventDefault();
             switchMode('pins');
         } else if (e.key === 'Escape') {
@@ -2160,6 +2172,62 @@ document.addEventListener('DOMContentLoaded', () => {
             const baud = document.getElementById('lin-baud')?.value || '19200';
             await handleBusTransmitWithAutoSniff('lin', `PID=0x${id} DATA=${data} BAUD=${baud}`, async () => {
                 return await callMcp('cmd', 'LIN', `id=${id} data=${data} baud=${baud}`);
+            });
+        });
+    }
+
+    // I3C Basic Master Handlers
+    const btnI3cInit = document.getElementById('btn-i3c-init');
+    const btnI3cEntdaa = document.getElementById('btn-i3c-entdaa');
+    const btnI3cRstdaa = document.getElementById('btn-i3c-rstdaa');
+    const btnI3cWrite = document.getElementById('btn-i3c-write');
+    const btnI3cRead = document.getElementById('btn-i3c-read');
+    const btnI3cPoll = document.getElementById('btn-i3c-poll');
+
+    if (btnI3cInit) {
+        btnI3cInit.addEventListener('click', async () => {
+            const freq = document.getElementById('i3c-freq')?.value || '1000';
+            await handleBusTransmitWithAutoSniff('i3c', `INIT freq=${freq}kHz`, async () => {
+                return await callMcp('cmd', 'I3C_INIT', freq);
+            });
+        });
+    }
+    if (btnI3cEntdaa) {
+        btnI3cEntdaa.addEventListener('click', async () => {
+            await handleBusTransmitWithAutoSniff('i3c', 'ENTDAA', async () => {
+                return await callMcp('cmd', 'I3C_ENTDAA');
+            });
+        });
+    }
+    if (btnI3cRstdaa) {
+        btnI3cRstdaa.addEventListener('click', async () => {
+            await handleBusTransmitWithAutoSniff('i3c', 'RSTDAA', async () => {
+                return await callMcp('cmd', 'I3C_RSTDAA');
+            });
+        });
+    }
+    if (btnI3cWrite) {
+        btnI3cWrite.addEventListener('click', async () => {
+            const addr = cleanHexInput(document.getElementById('i3c-addr')?.value || '08');
+            const tx = cleanHexInput(document.getElementById('i3c-tx')?.value || '');
+            await handleBusTransmitWithAutoSniff('i3c', `ADDR=0x${addr} TX=${tx}`, async () => {
+                return await callMcp('cmd', 'I3C_WRITE', `${addr} ${tx}`);
+            });
+        });
+    }
+    if (btnI3cRead) {
+        btnI3cRead.addEventListener('click', async () => {
+            const addr = cleanHexInput(document.getElementById('i3c-addr')?.value || '08');
+            const len = parseInt(document.getElementById('i3c-rx-len')?.value || '1', 10);
+            await handleBusTransmitWithAutoSniff('i3c', `ADDR=0x${addr} RX=${len}`, async () => {
+                return await callMcp('cmd', 'I3C_READ', `${addr} ${len}`);
+            });
+        });
+    }
+    if (btnI3cPoll) {
+        btnI3cPoll.addEventListener('click', async () => {
+            await handleBusTransmitWithAutoSniff('i3c', 'POLL IBI', async () => {
+                return await callMcp('cmd', 'I3C_POLL');
             });
         });
     }

@@ -226,7 +226,7 @@ void webui_dispatch_mcp(char **pcParam, char **pcValue, int iNumParams,
 
     if (strcmp(method, "list") == 0) {
         snprintf(response, response_capacity,
-                 "{\"tools\":[\"cmd\",\"IDENTIFY\",\"VERSION\",\"STATUS\",\"POWER\",\"VTARGET\",\"CONFIGURE\",\"CAPTURE\",\"CAPTUREMODE\",\"RLETHRESHOLD\",\"TRIGGERCONFIG\",\"ADC\",\"ADCSCOPE\",\"MEASURE\",\"I2C_READ\",\"I2C_WRITE\",\"UART_READ\",\"UART_WRITE\",\"FLASH\",\"DEBUG\",\"SWD\",\"PINCLAIM\",\"PINRELEASE\",\"SAFEDISCOVER\",\"CAPTURECLAIM\",\"CAPTURERELEASE\",\"OUTCLAIM\",\"OUTSET\",\"OUTRELEASE\",\"MASSERASE\",\"PROG\",\"CH32\",\"RVSWD\",\"SWIO\"]}");
+                 "{\"tools\":[\"cmd\",\"IDENTIFY\",\"VERSION\",\"STATUS\",\"POWER\",\"VTARGET\",\"CONFIGURE\",\"CAPTURE\",\"CAPTUREMODE\",\"RLETHRESHOLD\",\"TRIGGERCONFIG\",\"ADC\",\"ADCSCOPE\",\"MEASURE\",\"I2C_READ\",\"I2C_WRITE\",\"I3C_INIT\",\"I3C_SCAN\",\"I3C_ENTDAA\",\"I3C_RSTDAA\",\"I3C_READ\",\"I3C_WRITE\",\"UART_READ\",\"UART_WRITE\",\"FLASH\",\"DEBUG\",\"SWD\",\"PINCLAIM\",\"PINRELEASE\",\"SAFEDISCOVER\",\"CAPTURECLAIM\",\"CAPTURERELEASE\",\"OUTCLAIM\",\"OUTSET\",\"OUTRELEASE\",\"MASSERASE\",\"PROG\",\"CH32\",\"RVSWD\",\"SWIO\"]}");
         return;
     }
 
