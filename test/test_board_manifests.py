@@ -29,14 +29,14 @@ from tools.gen_board_assets import (
 
 def test_board_directories_exist():
     assert BOARDS_DIR.exists() and BOARDS_DIR.is_dir()
-    expected_boards = ["pico2", "bakuprobe"]
+    expected_boards = ["pico2", "bakuprobe", "demo"]
     for b in expected_boards:
         b_path = BOARDS_DIR / b
         assert b_path.exists(), f"Expected board directory {b} missing"
         assert (b_path / "board.json").exists(), f"board.json missing for {b}"
 
 
-@pytest.mark.parametrize("board_name", ["pico2", "bakuprobe"])
+@pytest.mark.parametrize("board_name", ["pico2", "bakuprobe", "demo"])
 def test_manifest_schema_and_assets(board_name):
     board_dir = BOARDS_DIR / board_name
     manifest_file = board_dir / "board.json"
@@ -88,6 +88,28 @@ def test_bakuprobe_manifest_specifics():
     assert data["features"]["has_hardware_can"] is True
     assert data["features"]["has_hardware_rs485"] is True
     assert data["features"]["target_current_sense"] is True
+    assert "zone1_programmer" in data["zones"]
+    assert "zone2_transceivers" in data["zones"]
+    assert "zone3_bus_masters" in data["zones"]
+    assert "zone4_logic_analyzer" in data["zones"]
+    assert "zone5_analog_scope" in data["zones"]
+    assert data["zones"]["zone5_analog_scope"]["gpio_range"] == [40, 47]
+
+
+def test_demo_manifest_specifics():
+    board_dir = BOARDS_DIR / "demo"
+    with open(board_dir / "board.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert data["board_id"] == "demo"
+    assert "Demo" in data["name"]
+    assert data["mcu"]["chip"] == "RP2350B"
+    assert data["gpio_range"] == [0, 47]
+    assert data["features"]["has_hardware_can"] is True
+    assert data["features"]["has_hardware_rs485"] is True
+    assert data["features"]["target_current_sense"] is True
+    assert data["features"]["target_power_control"] is True
+    assert data["features"]["qwiic_stemma_qt"] is True
     assert "zone1_programmer" in data["zones"]
     assert "zone2_transceivers" in data["zones"]
     assert "zone3_bus_masters" in data["zones"]

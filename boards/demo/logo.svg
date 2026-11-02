@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="200" height="40">
+  <rect width="200" height="40" rx="6" fill="#090d16"/>
+  <polygon points="16,10 32,20 16,30" fill="#3b82f6" />
+  <circle cx="24" cy="20" r="4" fill="#60a5fa" />
+  <text x="44" y="22" font-family="system-ui, sans-serif" font-size="14" font-weight="800" fill="#f8fafc" letter-spacing="0.5">BAKU</text>
+  <text x="90" y="22" font-family="system-ui, sans-serif" font-size="14" font-weight="300" fill="#38bdf8" letter-spacing="1">PROBE</text>
+  <text x="44" y="32" font-family="monospace, sans-serif" font-size="8" fill="#64748b">RP2350B • 48-GPIO • CAN/485</text>
+</svg>

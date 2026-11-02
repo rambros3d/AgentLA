@@ -358,7 +358,7 @@ const FeatureRegistry = {
 
         const brandLogo = document.getElementById('brand-logo');
         if (brandLogo) {
-            brandLogo.innerHTML = `<img src="/logo.svg?v=${Date.now()}" alt="${name}" class="brand-logo-img" style="height: 20px; width: 20px; object-fit: contain; margin-right: 6px; vertical-align: middle;"> <span class="brand-title">${name}</span>`;
+            brandLogo.innerHTML = `<img src="logo.svg?v=${Date.now()}" alt="${name}" class="brand-logo-img" style="height: 20px; width: 20px; object-fit: contain; margin-right: 6px; vertical-align: middle;"> <span class="brand-title">${name}</span>`;
         }
 
         let link = document.querySelector("link[rel*='icon']");
@@ -367,7 +367,7 @@ const FeatureRegistry = {
             link.rel = 'icon';
             document.head.appendChild(link);
         }
-        link.href = `/favicon.svg?v=${Date.now()}`;
+        link.href = `favicon.svg?v=${Date.now()}`;
 
         const pinoutBoardLabel = document.getElementById('pinout-board-label');
         if (pinoutBoardLabel) {
@@ -626,7 +626,7 @@ async function mountInteractivePinout() {
     if (!canvas) return;
 
     try {
-        const res = await fetch(`/pinout.svg?v=${Date.now()}`);
+        const res = await fetch(`pinout.svg?v=${Date.now()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const svgText = await res.text();
         canvas.innerHTML = svgText;
@@ -744,7 +744,7 @@ async function syncPinRegistry() {
 
 async function fetchBoardManifest() {
     try {
-        const res = await fetch(`/board.json?v=${Date.now()}`);
+        const res = await fetch(`board.json?v=${Date.now()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         BOARD_MANIFEST = await res.json();
         FeatureRegistry.init(BOARD_MANIFEST);
@@ -2263,6 +2263,203 @@ async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
     }
 }
 
+// =============================================================================
+// Hardware Profiles & Emergency Safe State Manager
+// =============================================================================
+
+let activeProfileSlot = 0;
+let cachedProfileSlots = [];
+
+async function refreshProfilesList() {
+    try {
+        const res = await callMcp('profile_list', '');
+        if (res && res.result && res.result.slots) {
+            activeProfileSlot = res.result.active_slot || 0;
+            cachedProfileSlots = res.result.slots || [];
+            renderProfileMenu(res.result.active_name || 'Safe State (Hi-Z)');
+        }
+    } catch (e) {
+        console.warn('Profile list fetch error:', e);
+    }
+}
+
+function renderProfileMenu(activeName) {
+    const nameEl = document.getElementById('active-profile-name');
+    const dotEl = document.getElementById('profile-status-dot');
+    if (nameEl) nameEl.textContent = activeName;
+    if (dotEl) {
+        dotEl.className = 'profile-dot ' + (activeProfileSlot === 0 ? 'safe' : 'active');
+    }
+
+    const listEl = document.getElementById('profile-menu-slots');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    cachedProfileSlots.forEach(slot => {
+        const item = document.createElement('div');
+        item.className = 'profile-slot-item' + (slot.id === activeProfileSlot ? ' active-slot' : '');
+        item.innerHTML = `
+            <span><strong>${slot.id === 0 ? '🔒 ' : ''}${slot.name}</strong></span>
+            <div>
+                ${slot.is_boot ? '<span class="profile-boot-badge">BOOT</span>' : ''}
+                <span style="font-size: 10px; opacity: 0.5; margin-left: 6px;">Slot ${slot.id}</span>
+            </div>
+        `;
+        item.addEventListener('click', () => {
+            applyHardwareProfile(slot.id);
+            toggleProfileMenu(false);
+        });
+        listEl.appendChild(item);
+    });
+}
+
+function toggleProfileMenu(forceState) {
+    const menu = document.getElementById('profile-dropdown-menu');
+    if (!menu) return;
+    const shouldShow = forceState !== undefined ? forceState : (menu.style.display === 'none');
+    menu.style.display = shouldShow ? 'block' : 'none';
+}
+
+async function triggerEmergencySafeState() {
+    try {
+        await callMcp('profile_safe', '');
+        activeProfileSlot = 0;
+        renderProfileMenu('Safe State (Hi-Z)');
+        syncPinRegistry();
+        alert('Emergency Safe State Asserted: All outputs tri-stated to High-Z, target power disconnected.');
+    } catch (e) {
+        console.error('Safe state trigger failed:', e);
+    }
+}
+
+async function applyHardwareProfile(slotId) {
+    if (slotId === 0) {
+        await triggerEmergencySafeState();
+        return;
+    }
+    try {
+        const res = await callMcp('profile_apply', String(slotId));
+        if (res && res.result && res.result.applied) {
+            activeProfileSlot = slotId;
+            renderProfileMenu(res.result.name || `Profile ${slotId}`);
+            syncPinRegistry();
+        } else if (res && res.error) {
+            alert('Apply profile error: ' + res.error.message);
+        }
+    } catch (e) {
+        console.error('Apply profile exception:', e);
+    }
+}
+
+function openSaveProfileModal() {
+    const modal = document.getElementById('modal-save-profile');
+    const select = document.getElementById('select-profile-slot');
+    const input = document.getElementById('input-profile-name');
+    if (!modal || !select) return;
+
+    select.innerHTML = '';
+    for (let i = 1; i < 32; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        const existing = cachedProfileSlots.find(s => s.id === i);
+        opt.textContent = `Slot ${i}: ${existing ? existing.name : '(Empty Slot)'}`;
+        select.appendChild(opt);
+    }
+
+    if (input) input.value = '';
+    modal.style.display = 'flex';
+}
+
+function closeSaveProfileModal() {
+    const modal = document.getElementById('modal-save-profile');
+    if (modal) modal.style.display = 'none';
+}
+
+async function confirmSaveProfile() {
+    const input = document.getElementById('input-profile-name');
+    const select = document.getElementById('select-profile-slot');
+    const checkBoot = document.getElementById('check-profile-boot');
+    if (!input || !select) return;
+
+    const name = input.value.trim() || `Profile ${select.value}`;
+    const slot = parseInt(select.value, 10);
+    const isBoot = checkBoot ? checkBoot.checked : false;
+
+    const payload = JSON.stringify({
+        name: name,
+        board: activeBoardManifest ? activeBoardManifest.board_id : 'pico2',
+        timestamp: new Date().toISOString()
+    });
+
+    try {
+        await callMcp('profile_save', {
+            slot: slot,
+            profile_name: name,
+            is_boot: isBoot ? '1' : '0',
+            payload: payload
+        });
+        closeSaveProfileModal();
+        await refreshProfilesList();
+        activeProfileSlot = slot;
+        renderProfileMenu(name);
+    } catch (e) {
+        alert('Save profile failed: ' + e);
+    }
+}
+
+function initProfileManager() {
+    const btnToggle = document.getElementById('btn-profile-toggle');
+    if (btnToggle) {
+        btnToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleProfileMenu();
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        const wrapper = document.getElementById('profile-dropdown-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            toggleProfileMenu(false);
+        }
+    });
+
+    const btnSafe = document.getElementById('btn-emergency-safe');
+    if (btnSafe) {
+        btnSafe.addEventListener('click', triggerEmergencySafeState);
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && e.shiftKey) {
+            e.preventDefault();
+            triggerEmergencySafeState();
+        }
+    });
+
+    const btnOpenSave = document.getElementById('btn-profile-save-current');
+    if (btnOpenSave) {
+        btnOpenSave.addEventListener('click', () => {
+            toggleProfileMenu(false);
+            openSaveProfileModal();
+        });
+    }
+
+    const btnCloseSave = document.getElementById('btn-close-save-profile');
+    const btnCancelSave = document.getElementById('btn-cancel-save-profile');
+    if (btnCloseSave) btnCloseSave.addEventListener('click', closeSaveProfileModal);
+    if (btnCancelSave) btnCancelSave.addEventListener('click', closeSaveProfileModal);
+
+    const btnConfirmSave = document.getElementById('btn-confirm-save-profile');
+    if (btnConfirmSave) btnConfirmSave.addEventListener('click', confirmSaveProfile);
+
+    const btnCloseCompat = document.getElementById('btn-close-compat-modal');
+    const btnAckCompat = document.getElementById('btn-ack-compat');
+    const modalCompat = document.getElementById('modal-profile-compat');
+    if (btnCloseCompat && modalCompat) btnCloseCompat.addEventListener('click', () => modalCompat.style.display = 'none');
+    if (btnAckCompat && modalCompat) btnAckCompat.addEventListener('click', () => modalCompat.style.display = 'none');
+
+    refreshProfilesList();
+}
+
 // --------------------------------------------------------------------------
 // Shell Bootstrapping & Event Wire-Up
 // --------------------------------------------------------------------------
@@ -2672,6 +2869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initFlasher(document);
     initDebugger(document);
     initGpio(document);
+    initProfileManager();
 
     // 13. Fade out loading overlay within 500ms
     const loadingScreen = document.getElementById('loading-screen');

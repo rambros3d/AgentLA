@@ -89,10 +89,203 @@
     simState.activeClaims.set('HNDL_SPI', { pins: [18, 19, 20, 21], func: 1, observer: 0 }); // Bus Master SPI
     simState.activeClaims.set('HNDL_LA', { pins: [24, 25, 26, 27], func: 6, observer: 1 }); // 100MS/s Logic Analyzer
 
-    // BakuProbe Flagship Manifest for Web Demo (All Hardware Options Enabled)
+    // Demo Manifest (All Flagship Hardware Options Enabled)
+    const DEMO_PINOUT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 680" width="100%" height="100%" class="board-pinout-svg">
+  <defs>
+    <style>
+      .board-bg { fill: #0b1120; stroke: #1e293b; stroke-width: 2; rx: 14px; }
+      .pcb-zone { fill: #0f172a; stroke: #334155; stroke-width: 1.5; rx: 8px; }
+      .zone-accent-1 { stroke: #38bdf8; }
+      .zone-accent-2 { stroke: #f59e0b; }
+      .zone-accent-3 { stroke: #10b981; }
+      .zone-accent-4 { stroke: #818cf8; }
+      .zone-accent-5 { stroke: #ec4899; }
+      .pin-pad { fill: #1e293b; stroke: #64748b; stroke-width: 1.5; cursor: pointer; transition: all 0.2s ease; }
+      .pin-pad:hover { fill: #38bdf8; stroke: #ffffff; stroke-width: 2.5; }
+      .board-pin:hover text { fill: #38bdf8; font-weight: bold; }
+      .zone-title { font-family: system-ui, sans-serif; font-size: 11px; font-weight: 700; fill: #f8fafc; letter-spacing: 0.5; }
+      .pin-label { font-family: monospace, sans-serif; font-size: 10px; fill: #cbd5e1; user-select: none; }
+      .pin-fn { font-family: sans-serif; font-size: 9px; fill: #94a3b8; }
+      .mcu-box { fill: #020617; stroke: #3b82f6; stroke-width: 2; rx: 6px; }
+    </style>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect x="10" y="10" width="720" height="660" class="board-bg" />
+
+  <!-- Central RP2350B MCU -->
+  <rect x="290" y="270" width="160" height="130" class="mcu-box" />
+  <text x="370" y="325" font-family="system-ui, sans-serif" font-size="14" font-weight="900" fill="#38bdf8" text-anchor="middle">RP2350B</text>
+  <text x="370" y="345" font-family="monospace, sans-serif" font-size="10" fill="#94a3b8" text-anchor="middle">QFN-80 • 48 GPIOs</text>
+  <text x="370" y="365" font-family="sans-serif" font-size="9" fill="#10b981" text-anchor="middle">16MB Flash • 8MB PSRAM</text>
+
+  <!-- ZONE 1: Target Programmer Header (Top Left) -->
+  <g id="zone-1" class="board-zone">
+    <rect x="30" y="30" width="310" height="210" class="pcb-zone zone-accent-1" />
+    <text x="45" y="55" class="zone-title" fill="#38bdf8">ZONE 1: TARGET PROGRAMMER (1.2V - 5.0V)</text>
+    
+    <g id="pin-gp4" class="board-pin">
+      <rect x="45" y="75" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="72" y="90" class="pin-label" text-anchor="middle">GP4</text>
+      <text x="110" y="90" class="pin-fn">SWCLK</text>
+    </g>
+    <g id="pin-gp5" class="board-pin">
+      <rect x="45" y="105" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="72" y="120" class="pin-label" text-anchor="middle">GP5</text>
+      <text x="110" y="120" class="pin-fn">SWDIO</text>
+    </g>
+    <g id="pin-gp6" class="board-pin">
+      <rect x="45" y="135" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="72" y="150" class="pin-label" text-anchor="middle">GP6</text>
+      <text x="110" y="150" class="pin-fn">nRESET</text>
+    </g>
+    <g id="pin-gp2" class="board-pin">
+      <rect x="45" y="165" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="72" y="180" class="pin-label" text-anchor="middle">GP2</text>
+      <text x="110" y="180" class="pin-fn">BOOT0</text>
+    </g>
+    <g id="pin-gp8" class="board-pin">
+      <rect x="195" y="75" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="222" y="90" class="pin-label" text-anchor="middle">GP8</text>
+      <text x="260" y="90" class="pin-fn">UART TX</text>
+    </g>
+    <g id="pin-gp9" class="board-pin">
+      <rect x="195" y="105" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="222" y="120" class="pin-label" text-anchor="middle">GP9</text>
+      <text x="260" y="120" class="pin-fn">UART RX</text>
+    </g>
+    <g id="pin-gp3" class="board-pin">
+      <rect x="195" y="135" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="222" y="150" class="pin-label" text-anchor="middle">GP3</text>
+      <text x="260" y="150" class="pin-fn">TGT_PWR</text>
+    </g>
+  </g>
+
+  <!-- ZONE 2: Industrial Transceivers (Top Right) -->
+  <g id="zone-2" class="board-zone">
+    <rect x="400" y="30" width="310" height="210" class="pcb-zone zone-accent-2" />
+    <text x="415" y="55" class="zone-title" fill="#f59e0b">ZONE 2: CAN-FD &amp; RS-485 TRANSCEIVERS</text>
+    
+    <g id="pin-gp10" class="board-pin">
+      <rect x="415" y="75" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="442" y="90" class="pin-label" text-anchor="middle">GP10</text>
+      <text x="480" y="90" class="pin-fn">CAN_TX (TCAN334)</text>
+    </g>
+    <g id="pin-gp11" class="board-pin">
+      <rect x="415" y="105" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="442" y="120" class="pin-label" text-anchor="middle">GP11</text>
+      <text x="480" y="120" class="pin-fn">CAN_RX (TCAN334)</text>
+    </g>
+    <g id="pin-gp12" class="board-pin">
+      <rect x="415" y="135" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="442" y="150" class="pin-label" text-anchor="middle">GP12</text>
+      <text x="480" y="150" class="pin-fn">120Ω Term Relay</text>
+    </g>
+    <g id="pin-gp13" class="board-pin">
+      <rect x="415" y="165" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="442" y="180" class="pin-label" text-anchor="middle">GP13</text>
+      <text x="480" y="180" class="pin-fn">RS485_TX (SN65HVD)</text>
+    </g>
+    <g id="pin-gp14" class="board-pin">
+      <rect x="580" y="165" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="607" y="180" class="pin-label" text-anchor="middle">GP14</text>
+      <text x="645" y="180" class="pin-fn">RS485_RX</text>
+    </g>
+    <g id="pin-gp15" class="board-pin">
+      <rect x="580" y="135" width="55" height="22" rx="3" class="pin-pad" />
+      <text x="607" y="150" class="pin-label" text-anchor="middle">GP15</text>
+      <text x="645" y="150" class="pin-fn">RS485_DE</text>
+    </g>
+  </g>
+
+  <!-- ZONE 3: Bus Masters (Mid Left) -->
+  <g id="zone-3" class="board-zone">
+    <rect x="30" y="260" width="230" height="150" class="pcb-zone zone-accent-3" />
+    <text x="45" y="285" class="zone-title" fill="#10b981">ZONE 3: BUS MASTER POD</text>
+    <g id="pin-gp16" class="board-pin">
+      <rect x="45" y="300" width="50" height="20" rx="3" class="pin-pad" />
+      <text x="70" y="314" class="pin-label" text-anchor="middle">GP16</text>
+      <text x="105" y="314" class="pin-fn">SDA (Qwiic)</text>
+    </g>
+    <g id="pin-gp17" class="board-pin">
+      <rect x="45" y="325" width="50" height="20" rx="3" class="pin-pad" />
+      <text x="70" y="339" class="pin-label" text-anchor="middle">GP17</text>
+      <text x="105" y="339" class="pin-fn">SCL (Qwiic)</text>
+    </g>
+    <g id="pin-gp18" class="board-pin">
+      <rect x="45" y="350" width="50" height="20" rx="3" class="pin-pad" />
+      <text x="70" y="364" class="pin-label" text-anchor="middle">GP18</text>
+      <text x="105" y="364" class="pin-fn">SPI SCK</text>
+    </g>
+    <g id="pin-gp19" class="board-pin">
+      <rect x="45" y="375" width="50" height="20" rx="3" class="pin-pad" />
+      <text x="70" y="389" class="pin-label" text-anchor="middle">GP19</text>
+      <text x="105" y="389" class="pin-fn">SPI MOSI</text>
+    </g>
+  </g>
+
+  <!-- ZONE 4: 16-Channel Logic Analyzer (Bottom Left) -->
+  <g id="zone-4" class="board-zone">
+    <rect x="30" y="430" width="350" height="220" class="pcb-zone zone-accent-4" />
+    <text x="45" y="455" class="zone-title" fill="#818cf8">ZONE 4: 16-CH LOGIC ANALYZER (GP24 - GP39)</text>
+    <g id="pin-gp24" class="board-pin">
+      <rect x="45" y="470" width="45" height="18" rx="2" class="pin-pad" />
+      <text x="67" y="483" class="pin-label" text-anchor="middle">D0 (24)</text>
+    </g>
+    <g id="pin-gp25" class="board-pin">
+      <rect x="95" y="470" width="45" height="18" rx="2" class="pin-pad" />
+      <text x="117" y="483" class="pin-label" text-anchor="middle">D1 (25)</text>
+    </g>
+    <g id="pin-gp26" class="board-pin">
+      <rect x="145" y="470" width="45" height="18" rx="2" class="pin-pad" />
+      <text x="167" y="483" class="pin-label" text-anchor="middle">D2 (26)</text>
+    </g>
+    <g id="pin-gp27" class="board-pin">
+      <rect x="195" y="470" width="45" height="18" rx="2" class="pin-pad" />
+      <text x="217" y="483" class="pin-label" text-anchor="middle">D3 (27)</text>
+    </g>
+    <g id="pin-gp32" class="board-pin">
+      <rect x="45" y="500" width="45" height="18" rx="2" class="pin-pad" />
+      <text x="67" y="513" class="pin-label" text-anchor="middle">D8 (32)</text>
+    </g>
+    <g id="pin-gp39" class="board-pin">
+      <rect x="195" y="500" width="45" height="18" rx="2" class="pin-pad" />
+      <text x="217" y="513" class="pin-label" text-anchor="middle">D15 (39)</text>
+    </g>
+    <text x="45" y="550" class="pin-fn" fill="#94a3b8">150 MHz Continuous DMA Sampling with Alternating GND</text>
+  </g>
+
+  <!-- ZONE 5: 8-Channel Scope & Target Current Sense (Bottom Right) -->
+  <g id="zone-5" class="board-zone">
+    <rect x="400" y="430" width="310" height="220" class="pcb-zone zone-accent-5" />
+    <text x="415" y="455" class="zone-title" fill="#ec4899">ZONE 5: OSCILLOSCOPE &amp; POWER (GP40 - GP47)</text>
+    <g id="pin-gp40" class="board-pin">
+      <rect x="415" y="470" width="55" height="20" rx="3" class="pin-pad" />
+      <text x="442" y="484" class="pin-label" text-anchor="middle">GP40</text>
+      <text x="480" y="484" class="pin-fn">Scope CH1 (ADC0)</text>
+    </g>
+    <g id="pin-gp41" class="board-pin">
+      <rect x="415" y="495" width="55" height="20" rx="3" class="pin-pad" />
+      <text x="442" y="509" class="pin-label" text-anchor="middle">GP41</text>
+      <text x="480" y="509" class="pin-fn">Scope CH2 (ADC1)</text>
+    </g>
+    <g id="pin-gp46" class="board-pin">
+      <rect x="415" y="535" width="55" height="20" rx="3" class="pin-pad" fill="#3b0764" stroke="#c084fc" />
+      <text x="442" y="549" class="pin-label" text-anchor="middle" fill="#e9d5ff">GP46</text>
+      <text x="480" y="549" class="pin-fn" fill="#d8b4fe">INA180 Current Sense</text>
+    </g>
+    <g id="pin-gp47" class="board-pin">
+      <rect x="415" y="560" width="55" height="20" rx="3" class="pin-pad" fill="#3b0764" stroke="#c084fc" />
+      <text x="442" y="574" class="pin-label" text-anchor="middle" fill="#e9d5ff">GP47</text>
+      <text x="480" y="574" class="pin-fn" fill="#d8b4fe">VTARGET Voltage Sense</text>
+    </g>
+    <text x="415" y="615" class="pin-fn" fill="#94a3b8">REF3030 Precision 3.000V Analog Reference</text>
+  </g>
+</svg>`;
+
     const BAKUPROBE_DEMO_MANIFEST = {
-        board_id: "bakuprobe",
-        name: "BakuProbe RP2350 Logic & Debug Probe",
+        board_id: "demo",
+        name: "AgentLA Demo (All Options Enabled)",
         vendor: "AgentLA",
         version: "1.0.0",
         assets: {
@@ -181,8 +374,16 @@
             });
         }
 
-        // 3. Intercept board.json to guarantee all BakuProbe flagship options enabled in Web Demo
+        // 3. Intercept board.json to guarantee all flagship options enabled in Web Demo
         if (urlStr.includes('board.json')) {
+            try {
+                let reqUrl = resource;
+                if (typeof reqUrl === 'string' && reqUrl.startsWith('/')) {
+                    reqUrl = reqUrl.substring(1);
+                }
+                const res = await originalFetch.call(this, reqUrl, init);
+                if (res.ok) return res;
+            } catch (e) {}
             try {
                 const res = await originalFetch.apply(this, arguments);
                 if (res.ok) return res;
@@ -193,7 +394,27 @@
             });
         }
 
-        // 4. Fallback to normal fetch (for static local files)
+        // 4. Intercept pinout.svg to guarantee vector graphic preview is always available
+        if (urlStr.includes('pinout.svg')) {
+            try {
+                let reqUrl = resource;
+                if (typeof reqUrl === 'string' && reqUrl.startsWith('/')) {
+                    reqUrl = reqUrl.substring(1);
+                }
+                const res = await originalFetch.call(this, reqUrl, init);
+                if (res.ok) return res;
+            } catch (e) {}
+            try {
+                const res = await originalFetch.apply(this, arguments);
+                if (res.ok) return res;
+            } catch (e) {}
+            return new Response(DEMO_PINOUT_SVG, {
+                status: 200,
+                headers: { 'Content-Type': 'image/svg+xml' }
+            });
+        }
+
+        // 5. Fallback to normal fetch (for static local files)
         return originalFetch.apply(this, arguments);
     };
 
