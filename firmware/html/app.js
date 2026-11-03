@@ -5,6 +5,17 @@
  * Fully compliant with Dynamic Pin Ownership Architecture (GPIO 0-9 Fixed, GPIO 10-29 Flexible)
  */
 
+// HTML Escaping Utility
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // Host and API configuration
 const host = window.location.hostname || "10.10.10.10";
 
@@ -3046,7 +3057,7 @@ let cachedProfileSlots = [];
 
 async function refreshProfilesList() {
     try {
-        const res = await callMcp('profile_list', '');
+        const res = await callMcp('cmd', 'profile_list');
         if (res && res.result && res.result.slots) {
             activeProfileSlot = res.result.active_slot || 0;
             cachedProfileSlots = res.result.slots || [];
@@ -3092,7 +3103,7 @@ function toggleProfileMenu(forceState) {
 
 async function triggerEmergencySafeState() {
     try {
-        await callMcp('profile_safe', '');
+        await callMcp('cmd', 'profile_safe');
         activeProfileSlot = 0;
         renderProfileMenu('Safe State (Hi-Z)');
         updateTargetPowerUI(false, '0.00V', '0mA');
@@ -3109,7 +3120,7 @@ async function applyHardwareProfile(slotId) {
         return;
     }
     try {
-        const res = await callMcp('profile_apply', String(slotId));
+        const res = await callMcp('cmd', 'profile_apply', String(slotId));
         if (res && res.result && res.result.applied) {
             activeProfileSlot = slotId;
             renderProfileMenu(res.result.name || `Profile ${slotId}`);
@@ -3163,12 +3174,12 @@ async function confirmSaveProfile() {
     });
 
     try {
-        await callMcp('profile_save', {
+        await callMcp('cmd', 'profile_save', JSON.stringify({
             slot: slot,
             profile_name: name,
             is_boot: isBoot ? '1' : '0',
             payload: payload
-        });
+        }));
         closeSaveProfileModal();
         await refreshProfilesList();
         activeProfileSlot = slot;
@@ -3829,24 +3840,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         brandLogo.addEventListener('click', () => switchMode('scope'));
     }
 
-    // 12. Initialize board manifest, capabilities, and instrumentation modules
-    await fetchBoardManifest();
-    initScopePinConfigs();
-    renderScopePinsBar();
-    initPinConfigModal();
-    initMsoSplitter();
-    updateMsoDynamicVisibility();
-    initLogicAnalyzer(document);
-    initAnalogScope(document);
-    initPinToggler();
-    initCommand(document);
-    initGenerator(document);
-    initTargetStation();
-    initFlasher(document);
-    initDebugger(document);
-    initGpio(document);
-    initProfileManager();
-    initAdaptersMasterDetail();
+    // 12. Initialize board manifest, capabilities, and instrumentation modules (with individual error boundaries)
+    try { await fetchBoardManifest(); } catch (err) { console.error('[Init] Error in fetchBoardManifest:', err); }
+    try { initScopePinConfigs(); } catch (err) { console.error('[Init] Error in initScopePinConfigs:', err); }
+    try { renderScopePinsBar(); } catch (err) { console.error('[Init] Error in renderScopePinsBar:', err); }
+    try { initPinConfigModal(); } catch (err) { console.error('[Init] Error in initPinConfigModal:', err); }
+    try { initMsoSplitter(); } catch (err) { console.error('[Init] Error in initMsoSplitter:', err); }
+    try { updateMsoDynamicVisibility(); } catch (err) { console.error('[Init] Error in updateMsoDynamicVisibility:', err); }
+    try { initLogicAnalyzer(document); } catch (err) { console.error('[Init] Error in initLogicAnalyzer:', err); }
+    try { initAnalogScope(document); } catch (err) { console.error('[Init] Error in initAnalogScope:', err); }
+    try { initPinToggler(); } catch (err) { console.error('[Init] Error in initPinToggler:', err); }
+    try { initCommand(document); } catch (err) { console.error('[Init] Error in initCommand:', err); }
+    try { initGenerator(document); } catch (err) { console.error('[Init] Error in initGenerator:', err); }
+    try { initTargetStation(); } catch (err) { console.error('[Init] Error in initTargetStation:', err); }
+    try { initFlasher(document); } catch (err) { console.error('[Init] Error in initFlasher:', err); }
+    try { initDebugger(document); } catch (err) { console.error('[Init] Error in initDebugger:', err); }
+    try { initGpio(document); } catch (err) { console.error('[Init] Error in initGpio:', err); }
+    try { initProfileManager(); } catch (err) { console.error('[Init] Error in initProfileManager:', err); }
+    try { initAdaptersMasterDetail(); } catch (err) { console.error('[Init] Error in initAdaptersMasterDetail:', err); }
 
     // 13. Fade out loading overlay within 500ms
     const loadingScreen = document.getElementById('loading-screen');
@@ -3858,8 +3869,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 14. Initial Pin and Telemetry Sync
-    syncPinRegistry();
-    setInterval(syncPinRegistry, 4000);
+    try { syncPinRegistry(); } catch (err) { console.error('[Init] Error in syncPinRegistry:', err); }
+    setInterval(() => {
+        try { syncPinRegistry(); } catch (err) { console.error('[Sync] Error in periodic syncPinRegistry:', err); }
+    }, 4000);
 
     console.log('AgentLA Unified Scope & Debugger initialized.');
 });

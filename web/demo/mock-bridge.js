@@ -15,6 +15,11 @@
         probeState: 'SIM_IDLE',
         activeClaims: new Map(), // handle -> { pins: [], func: 0, observer: 0 }
         claimCounter: 100,
+        activeProfileSlot: 0,
+        profiles: [
+            { id: 0, name: "Safe State (Hi-Z)", is_boot: false, read_only: true, payload: "{}" },
+            { id: 1, name: "Default Lab Bench", is_boot: true, read_only: false, payload: "{}" }
+        ],
         i2cRegisters: {
             0x58: 0x58, // BMP280 chip ID
             0x68: 0x71, // MPU6050 WHO_AM_I
@@ -429,7 +434,101 @@
 
         let responsePayload = { ok: true, result: { stdout: "OK", status: 0 } };
 
-        if (cleanName === 'STATUS') {
+        if (cleanName === 'PROFILE_LIST' || cleanName === 'PROFILE.LIST') {
+            const activeProf = simState.profiles.find(p => p.id === simState.activeProfileSlot) || simState.profiles[0];
+            responsePayload = {
+                ok: true,
+                result: {
+                    active_slot: simState.activeProfileSlot,
+                    active_name: activeProf ? activeProf.name : "Safe State (Hi-Z)",
+                    slots: simState.profiles.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        is_boot: !!p.is_boot,
+                        read_only: !!p.read_only
+                    }))
+                }
+            };
+        }
+        else if (cleanName === 'PROFILE_SAFE' || cleanName === 'SAFE_STATE' || cleanName === 'PROFILE.SAFE') {
+            simState.activeProfileSlot = 0;
+            responsePayload = {
+                ok: true,
+                result: {
+                    status: "safe_state",
+                    active_slot: 0
+                }
+            };
+        }
+        else if (cleanName === 'PROFILE_APPLY' || cleanName === 'PROFILE.APPLY') {
+            const slot = parseInt(cleanArgs, 10);
+            const prof = simState.profiles.find(p => p.id === slot);
+            if (prof) {
+                simState.activeProfileSlot = slot;
+                responsePayload = {
+                    ok: true,
+                    result: {
+                        applied: true,
+                        slot: slot,
+                        name: prof.name
+                    }
+                };
+            } else {
+                responsePayload = {
+                    ok: false,
+                    error: {
+                        code: -32000,
+                        message: `Slot ${slot} empty or invalid`
+                    }
+                };
+            }
+        }
+        else if (cleanName === 'PROFILE_SAVE' || cleanName === 'PROFILE.SAVE') {
+            let slot = 1;
+            let profName = '';
+            let isBoot = false;
+            let payload = '{}';
+            try {
+                const parsed = JSON.parse(cleanArgs);
+                slot = parseInt(parsed.slot, 10) || 1;
+                profName = parsed.profile_name || `Profile ${slot}`;
+                isBoot = (parsed.is_boot === '1' || parsed.is_boot === true);
+                payload = parsed.payload || '{}';
+            } catch (e) {
+                slot = parseInt(cleanArgs, 10) || 1;
+                profName = `Profile ${slot}`;
+            }
+
+            if (isBoot) {
+                simState.profiles.forEach(p => { p.is_boot = false; });
+            }
+
+            const existingIdx = simState.profiles.findIndex(p => p.id === slot);
+            const profileObj = {
+                id: slot,
+                name: profName,
+                is_boot: isBoot,
+                read_only: false,
+                payload: payload
+            };
+
+            if (existingIdx >= 0) {
+                simState.profiles[existingIdx] = profileObj;
+            } else {
+                simState.profiles.push(profileObj);
+                simState.profiles.sort((a, b) => a.id - b.id);
+            }
+
+            responsePayload = {
+                ok: true,
+                result: {
+                    saved: true,
+                    slot: slot,
+                    name: profName
+                }
+            };
+        }
+        else if (cleanName === 'STATUS') {
             const voltageJitter = (simState.coreVoltage + (Math.random() * 0.02 - 0.01)).toFixed(2);
             responsePayload = {
                 ok: true,
