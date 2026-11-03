@@ -66,8 +66,8 @@
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/themes.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
 </head>
 <body>
 
@@ -1861,16 +1861,15 @@
                          (window.location.hostname === 'localhost' && window.location.port !== '80');
             if (isDemo) {
                 document.title = "AgentLA - Interactive Online Demo (Scope & Debugger)";
-                var s = document.createElement('script');
-                s.src = 'mock-bridge.js';
-                s.onload = function() {
-                    console.log("[AgentLA] Demo mock hardware simulator loaded");
-                };
-                document.head.appendChild(s);
+                document.write('<script src="mock-bridge.js"><\/script>');
+                window.addEventListener('DOMContentLoaded', function() {
+                    var brandLogo = document.getElementById('brand-logo');
+                    if (brandLogo) brandLogo.href = 'apps.html';
+                });
             }
         })();
     </script>
-    <script src="/app.js"></script>
+    <script src="app.js"></script>
     <script>
         // Failsafe fallback to ensure loading screen never blocks the UI indefinitely
         setTimeout(function() {

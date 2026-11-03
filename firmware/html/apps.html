@@ -30,8 +30,8 @@
         })();
     </script>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/themes.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
     <style>
         /* OS-Style App Launcher Enhanced Tactile Styles */
         body {
@@ -504,7 +504,7 @@
             <!-- Tactile Squircle Grid -->
             <div class="squircle-grid" id="installed-apps-grid">
                 <!-- Flagship AgentLA Lab Tile is always primary tile #1 -->
-                <div class="squircle-card flagship-card" onclick="window.location.href='/lab'" data-app-id="lab" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols" data-desc="Flagship embedded logic analyzer, digital storage oscilloscope, bus decoders and adapters">
+                <div class="squircle-card flagship-card" onclick="openLab()" data-app-id="lab" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols" data-desc="Flagship embedded logic analyzer, digital storage oscilloscope, bus decoders and adapters">
                     <div>
                         <div class="squircle-card-top">
                             <div class="squircle-icon">
@@ -727,6 +727,14 @@
     </div>
 
     <script>
+        function openLab() {
+            var isDemo = window.location.protocol === 'https:' || 
+                         window.location.hostname.includes('github.io') ||
+                         window.location.search.includes('demo=1') ||
+                         (window.location.hostname === 'localhost' && window.location.port !== '80');
+            window.location.href = isDemo ? 'index.html' : '/lab';
+        }
+
         // State
         let deviceStorage = { total_bytes: 2539520, used_bytes: 0, free_bytes: 2539520 };
         let deviceSystem = { board_id: "pico2", board_name: "Raspberry Pi Pico 2", flash_bytes: 4194304, firmware_version: "v1.0" };
@@ -1010,7 +1018,7 @@
 
             // Flagship card HTML
             const labCard = `
-                <div class="squircle-card flagship-card" onclick="window.location.href='/lab'" data-app-id="lab" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols" data-desc="Flagship embedded logic analyzer, digital storage oscilloscope, bus decoders and adapters">
+                <div class="squircle-card flagship-card" onclick="openLab()" data-app-id="lab" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols" data-desc="Flagship embedded logic analyzer, digital storage oscilloscope, bus decoders and adapters">
                     <div>
                         <div class="squircle-card-top">
                             <div class="squircle-icon">

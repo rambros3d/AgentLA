@@ -251,6 +251,23 @@ int fs_open_custom(struct fs_file *file, const char *name) {
         return 0;
     }
 
+    /* 5b. Static assets requested relative to /apps/ (e.g. /apps/style.css -> /style.css) */
+    if (strncmp(name, "/apps/", 6) == 0) {
+        const char *after = name + 6;
+        if (strcmp(after, "style.css") == 0 ||
+            strcmp(after, "themes.css") == 0 ||
+            strcmp(after, "themes.json") == 0 ||
+            strcmp(after, "favicon.svg") == 0 ||
+            strcmp(after, "logo.svg") == 0 ||
+            strcmp(after, "agentla-bridge.js") == 0) {
+            char rom_target[32];
+            snprintf(rom_target, sizeof(rom_target), "/%s", after);
+            if (fs_open(file, rom_target) == ERR_OK) {
+                return 1;
+            }
+        }
+    }
+
     /* If /apps.html was requested directly, allow ROM fsdata to serve it */
     if (strcmp(name, "/apps.html") == 0) {
         return 0;

@@ -58,10 +58,10 @@ def test_index_html_clean_header_and_landing_setting():
     assert 'value="/lab"' in content
     assert 'value="/apps"' in content
 
-    # 4. Uses absolute asset links
-    assert 'href="/style.css"' in content
-    assert 'href="/themes.css"' in content
-    assert 'src="/app.js"' in content
+    # 4. Uses relative asset links compatible with both firmware and GitHub Pages
+    assert 'href="style.css"' in content
+    assert 'href="themes.css"' in content
+    assert 'src="app.js"' in content
 
 
 def test_apps_html_unified_os_launcher():
@@ -72,12 +72,12 @@ def test_apps_html_unified_os_launcher():
 
     # 1. No legacy #0d1117 block
     assert "background-color: var(--bg-canvas" in content
-    assert 'href="/style.css"' in content
-    assert 'href="/themes.css"' in content
+    assert 'href="style.css"' in content
+    assert 'href="themes.css"' in content
 
     # 2. Flagship tile for AgentLA Lab
     assert "AgentLA Lab" in content
-    assert 'onclick="window.location.href=\'/lab\'"' in content
+    assert 'onclick="openLab()"' in content
     assert "FLAGSHIP" in content
 
     # 3. Spotlight search bar
