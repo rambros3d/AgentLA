@@ -28,17 +28,18 @@
 <body>
 
     <!-- Header Navigation -->
-    <header class="site-header">
+    <header class="site-header navbar">
         <div class="nav-container">
-            <div class="brand">
-                <span class="brand-chip">RP2350</span>
+            <div class="brand navbar-start">
+                <span class="brand-chip badge badge-primary badge-sm">RP2350</span>
                 <span class="brand-name">AgentLA</span>
+                <span class="status status-success status-xs" title="Live Engine" aria-label="Online"></span>
             </div>
-            <nav class="nav-links">
+            <nav class="nav-links navbar-end">
                 <a href="#features">Features</a>
                 <a href="#pinout">Pin Matrix</a>
                 <a href="#connect">Connect Device</a>
-                <a href="demo/" class="btn-nav-demo">Launch Demo →</a>
+                <a href="demo/" class="btn-nav-demo btn btn-sm btn-outline">Launch Demo →</a>
                 <button class="theme-toggle-btn mode-system" id="landing-theme-toggle" data-mode="system" title="Toggle Theme (System / Light / Dark)" aria-label="Toggle Theme">
                     <svg class="solar-icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M18 12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12Z" fill="currentColor"/>
@@ -61,9 +62,9 @@
 
     <!-- Hero Section -->
     <main>
-        <section class="hero-section">
-            <div class="hero-container">
-                <div class="hero-badge">OPEN HARDWARE &amp; FIRMWARE FOR EMBEDDED ENGINEERS</div>
+        <section class="hero-section hero">
+            <div class="hero-container hero-content">
+                <div class="hero-badge badge badge-neutral badge-sm">OPEN HARDWARE &amp; FIRMWARE FOR EMBEDDED ENGINEERS</div>
                 <h1 class="hero-title">High-Speed Multi-Tool Bench Engine</h1>
                 <p class="hero-subtitle">
                     Touch-first 100 MS/s Logic Analyzer, SWD / RV-SWD / WCH-SDI Flasher &amp; Debugger, Bus Masters, and Dynamic Pin Allocation powered by the Raspberry Pi RP2350.
@@ -88,7 +89,7 @@
                 </div>
 
                 <!-- Live Subnet Discovery Card -->
-                <div class="discovery-card" id="discovery-card">
+                <div class="discovery-card card card-border" id="discovery-card">
                     <div class="discovery-header">
                         <span class="status-indicator-dot" id="discovery-dot"></span>
                         <span class="discovery-title" id="discovery-title">Subnet Probe Discovery</span>
@@ -123,7 +124,7 @@
                 </div>
 
                 <div class="features-grid">
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #00e5ff;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <path d="m 2.25,21 h 4.5 v -5.25 h 9 V 21 h 6"/>
@@ -134,7 +135,7 @@
                         <p>10-Channel PIO0 capture engine with multi-touch pinch-to-zoom, nanosecond resolution, and real-time SPI, I2C, and UART protocol decoding.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #ff9f0a;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
@@ -144,7 +145,7 @@
                         <p>High-speed target flashing supporting standard ARM SWD, RISC-V RV-SWD, and WCH QingKe 1-wire SDI with hardware memory verify.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #34c759;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <circle cx="12" cy="12" r="9"/>
@@ -155,7 +156,7 @@
                         <p>Halt, step, run, and live RAM memory hex inspection for Cortex-M0+/M33 and RISC-V RV32EC cores directly inside your browser.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #af52de;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -166,7 +167,7 @@
                         <p>Strict driver/observer arbitration: GPIO 0–9 fixed programmer block; GPIO 10–29 flexible dynamic pool with conflict protection.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #0d84fa;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <rect x="2.5" y="3.5" width="19" height="17" rx="3"/>
@@ -177,7 +178,7 @@
                         <p>Hardware bus controllers with automated peripheral scanning, register read/write sequences, and live protocol transaction logs.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #cba6f7;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <polyline points="4 17 10 11 4 5"/>
@@ -188,7 +189,7 @@
                         <p>Native Model Context Protocol (MCP) server endpoints allowing AI coding agents to control instruments and analyze signals autonomously.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #ff9500;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <path d="M2 12h3l2-6 4 12 4-12 2 6h5"/>
@@ -198,7 +199,7 @@
                         <p>Slice-accurate hardware PWM and clock synthesis from 1 Hz to 50 MHz across GPIO 10–29 with duty cycle and pulse controls.</p>
                     </div>
 
-                    <div class="feature-card">
+                    <div class="feature-card card card-border">
                         <div class="feature-icon" style="--accent: #00e5ff;">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
                                 <path d="M3 12h4l3 8 4-16 3 8h4"/>
@@ -220,7 +221,7 @@
                     <p class="section-desc">Click any pin to inspect runtime ownership domains, hardware roles, and allocation rules.</p>
                 </div>
 
-                <div class="pinout-visualizer">
+                <div class="pinout-visualizer card card-border">
                     <div class="pin-legend">
                         <div class="legend-item"><span class="legend-color fixed"></span> Fixed Programmer (GP0–9)</div>
                         <div class="legend-item"><span class="legend-color flexible"></span> Flexible Dynamic Pool (GP10–25)</div>
@@ -231,7 +232,7 @@
                         <!-- Populated by JavaScript -->
                     </div>
 
-                    <div class="pin-detail-box" id="pin-detail-box">
+                    <div class="pin-detail-box card card-border" id="pin-detail-box">
                         <div class="detail-header">
                             <span class="detail-pin-name" id="detail-pin-name">Select a pin</span>
                             <span class="detail-badge" id="detail-badge">Info</span>
@@ -251,17 +252,17 @@
                 </div>
 
                 <div class="connect-grid">
-                    <div class="connect-step">
+                    <div class="connect-step card card-border">
                         <div class="step-num">1</div>
                         <h3>Plug in USB-C</h3>
                         <p>Connect your AgentLA RP2350 probe to your workstation. The device enumerates as a USB Composite Device with CDC-ACM serial and RNDIS Ethernet.</p>
                     </div>
-                    <div class="connect-step">
+                    <div class="connect-step card card-border">
                         <div class="step-num">2</div>
                         <h3>Auto-IP Network</h3>
                         <p>AgentLA hosts an embedded DHCP server allocating your host machine an address on the <code>192.168.7.0/24</code> subnet.</p>
                     </div>
-                    <div class="connect-step">
+                    <div class="connect-step card card-border">
                         <div class="step-num">3</div>
                         <h3>Open WebUI</h3>
                         <p>Navigate to <a href="http://agentla.local" target="_blank">http://agentla.local</a> or <a href="http://10.10.10.10" target="_blank">http://10.10.10.10</a> in any modern browser for full zero-install control.</p>
@@ -272,7 +273,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="site-footer">
+    <footer class="site-footer footer">
         <div class="footer-container">
             <div class="footer-left">
                 <p>AgentLA — High-Speed Open Bench Engine</p>

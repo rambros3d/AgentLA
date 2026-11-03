@@ -125,6 +125,90 @@ function getCurrentTheme() {
     return document.documentElement.getAttribute('data-theme') || getEffectiveTheme();
 }
 
+// --------------------------------------------------------------------------
+// Dynamic Waveform Canvas Token Binding Helper
+// Resolves live DaisyUI semantic custom properties from the computed DOM
+// and caches palette colors for high-throughput 60 FPS Canvas 2D loops.
+// --------------------------------------------------------------------------
+let cachedCanvasPalette = null;
+
+function invalidateCanvasPalette() {
+    cachedCanvasPalette = null;
+}
+
+function getCanvasPalette() {
+    if (cachedCanvasPalette) return cachedCanvasPalette;
+
+    const style = getComputedStyle(document.documentElement);
+    const getVal = (prop, fallback) => (style.getPropertyValue(prop) || '').trim() || fallback;
+
+    const bg = getVal('--canvas-bg', getVal('--color-base-100', 'oklch(18% 0 0)'));
+    const grid = getVal('--color-base-300', getVal('--border-color', 'rgba(255, 255, 255, 0.1)'));
+    const text = getVal('--text-secondary', getVal('--color-base-content', 'rgba(255, 255, 255, 0.7)'));
+    const textMuted = getVal('--text-muted', 'rgba(255, 255, 255, 0.4)');
+
+    const primary = getVal('--color-primary', '#00e5ff');
+    const secondary = getVal('--color-secondary', '#ffd60a');
+    const accent = getVal('--color-accent', '#ff2a6d');
+    const info = getVal('--color-info', '#00e5ff');
+    const success = getVal('--color-success', '#34c759');
+    const warning = getVal('--color-warning', '#ff9500');
+    const error = getVal('--color-error', '#ff453a');
+    const purple = getVal('--accent-purple', '#af52de');
+
+    cachedCanvasPalette = {
+        bg,
+        grid,
+        text,
+        textMuted,
+        primary,
+        secondary,
+        accent,
+        info,
+        success,
+        warning,
+        error,
+        scopeColors: [
+            primary,
+            secondary,
+            accent,
+            info
+        ],
+        logicColors: [
+            primary,
+            secondary,
+            accent,
+            info,
+            success,
+            warning,
+            error,
+            purple
+        ]
+    };
+    return cachedCanvasPalette;
+}
+
+function onThemePaletteChanged() {
+    invalidateCanvasPalette();
+    window.activeLogicController?.forceRedraw();
+    if (window.redrawScope) window.redrawScope();
+    if (window.redrawGenPreview) window.redrawGenPreview();
+}
+
+window.addEventListener('agentla-theme-changed', onThemePaletteChanged);
+
+if (typeof MutationObserver !== 'undefined') {
+    const themeObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            if (m.type === 'attributes' && (m.attributeName === 'data-theme' || m.attributeName === 'data-theme-scheme')) {
+                onThemePaletteChanged();
+                break;
+            }
+        }
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-theme-scheme'] });
+}
+
 function applyTheme() {
     const effectiveTheme = getEffectiveTheme();
     document.documentElement.setAttribute('data-theme', effectiveTheme);
@@ -141,6 +225,9 @@ function applyTheme() {
         localStorage.setItem('agentla-theme', effectiveTheme);
         localStorage.setItem('agentla-theme-mode', themeState.mode);
     } catch (_) {}
+
+    invalidateCanvasPalette();
+    window.dispatchEvent(new CustomEvent('agentla-theme-changed', { detail: { theme: effectiveTheme, scheme: isLight ? 'light' : 'dark' } }));
 
     const btnToggle = document.getElementById('btn-theme-toggle');
     if (btnToggle) {
@@ -2161,24 +2248,21 @@ function initLogicAnalyzer(container) {
             canvas.height = parentH;
         }
 
+        const palette = getCanvasPalette();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = palette.bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
         const margin = { left: 70, right: 20, top: 25, bottom: 25 };
         const graphW = canvas.width - margin.left - margin.right;
         const graphH = canvas.height - margin.top - margin.bottom;
         if (graphW <= 0 || graphH <= 0 || activeChannels.length === 0) return;
 
-        const isDark = getCurrentTheme() === 'dark';
-        const colors = isDark ? [
-            '#ff9500', '#ff2a6d', '#af52de', '#00e5ff', 
-            '#cba6f7', '#5856d6', '#d1f534', '#ff8a65'
-        ] : [
-            '#ea580c', '#e11d48', '#9333ea', '#0284c7',
-            '#7c3aed', '#4f46e5', '#65a30d', '#c2410c'
-        ];
+        const colors = palette.logicColors;
 
         const hDivs = 10;
         const dx = graphW / hDivs;
-        ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+        ctx.strokeStyle = palette.grid;
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (let i = 0; i <= hDivs; i++) {
@@ -2254,7 +2338,7 @@ function initLogicAnalyzer(container) {
                     if (right <= left) return;
 
                     const width = right - left;
-                    ctx.fillStyle = frame.color || '#ffeb3b';
+                    ctx.fillStyle = frame.color || palette.secondary;
                     ctx.beginPath();
                     if (ctx.roundRect) ctx.roundRect(left, labelY, width, labelH, 3);
                     else ctx.rect(left, labelY, width, labelH);
@@ -2276,7 +2360,7 @@ function initLogicAnalyzer(container) {
                     const x = margin.left + ((marker.sample - xOffsetSamples) / visibleSamples) * graphW;
 
                     ctx.save();
-                    ctx.strokeStyle = marker.color || '#00e5ff';
+                    ctx.strokeStyle = marker.color || palette.info;
                     ctx.lineWidth = 1.5;
                     ctx.setLineDash([4, 4]);
                     ctx.beginPath();
@@ -2616,18 +2700,19 @@ function initAnalogScope(container) {
             canvas.height = parentH;
         }
 
+        const palette = getCanvasPalette();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = palette.bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
         const pad = { left: 55, right: 20, top: 28, bottom: 25 };
         const graphW = canvas.width - pad.left - pad.right;
         const graphH = canvas.height - pad.top - pad.bottom;
         if (graphW <= 0 || graphH <= 0) return;
 
-        const isDark = getCurrentTheme() === 'dark';
-        const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
-        const textColor = isDark ? 'rgba(255, 255, 255, 0.70)' : 'rgba(0, 0, 0, 0.65)';
-        const chColors = isDark 
-            ? ['#00e5ff', '#ffd60a', '#ff2a6d', '#34c759']
-            : ['#0284c7', '#d97706', '#dc2626', '#16a34a'];
+        const gridColor = palette.grid;
+        const textColor = palette.text;
+        const chColors = palette.scopeColors;
 
         // Draw grid
         ctx.strokeStyle = gridColor;
@@ -2705,7 +2790,7 @@ function initAnalogScope(container) {
             : 1.65;
         const trigY = Math.round(pad.top + graphH - (trigV / 3.3) * graphH) + 0.5;
 
-        ctx.strokeStyle = isDark ? 'rgba(255, 214, 10, 0.45)' : 'rgba(217, 119, 6, 0.45)';
+        ctx.strokeStyle = palette.warning;
         ctx.setLineDash([3, 3]);
         ctx.beginPath();
         ctx.moveTo(pad.left, trigY);
@@ -2713,7 +2798,7 @@ function initAnalogScope(container) {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = isDark ? '#ffd60a' : '#d97706';
+        ctx.fillStyle = palette.warning;
         ctx.font = 'bold 9px ui-monospace, SFMono-Regular, monospace';
         ctx.textAlign = 'left';
         ctx.fillText(`◀ Trig ${trigV.toFixed(2)}V`, pad.left + graphW + 3, trigY + 3);
@@ -3297,8 +3382,11 @@ function initGenerator(container) {
             canvas.width = canvas.clientWidth;
             canvas.height = canvas.clientHeight;
         }
+        const palette = getCanvasPalette();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = '#ff9500';
+        ctx.fillStyle = palette.bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = palette.warning;
         ctx.lineWidth = 2;
         ctx.beginPath();
         const w = canvas.width, h = canvas.height;

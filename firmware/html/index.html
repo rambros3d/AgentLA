@@ -80,15 +80,16 @@
     </div>
 
     <!-- Top Application Bar -->
-    <header id="top-bar" class="app-header">
-        <div class="bar-left">
-            <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Apps)" style="text-decoration:none; color:inherit; cursor:pointer;">
+    <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
+        <div class="bar-left navbar-start">
+            <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Apps)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
+                <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
             </a>
         </div>
 
-        <div class="bar-right">
+        <div class="bar-right navbar-end">
             <!-- Target Power Rail Toggle Pill -->
             <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
                 <svg class="solar-icon power-bolt-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -325,18 +326,20 @@
                     <div id="scope-mso-container" class="scope-mso-container">
                         
                         <!-- Top Subwindow: Digital Scope (Multi-Lane Stacked) -->
-                        <div id="scope-digital-subwindow" class="scope-subwindow">
-                            <canvas id="logic-canvas"></canvas>
-                            
-                            <!-- Floating Zoom Controls -->
-                            <div class="floating-zoom-controls" id="scope-floating-zoom">
-                                <button class="action-btn outline icon-btn" id="btn-zoom-in" title="Zoom In (+)">+</button>
-                                <button class="action-btn outline icon-btn" id="btn-zoom-out" title="Zoom Out (−)">−</button>
-                                <button class="action-btn outline icon-btn" id="btn-zoom-fit" title="Zoom to Fit All Samples">Fit</button>
-                            </div>
+                        <div id="scope-digital-subwindow" class="scope-subwindow card card-border">
+                            <div class="card-body" style="padding: 6px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; position: relative;">
+                                <canvas id="logic-canvas" style="flex: 1; min-height: 0; width: 100%; display: block;"></canvas>
+                                
+                                <!-- Floating Zoom Controls -->
+                                <div class="floating-zoom-controls join" id="scope-floating-zoom">
+                                    <button class="action-btn outline icon-btn join-item" id="btn-zoom-in" title="Zoom In (+)">+</button>
+                                    <button class="action-btn outline icon-btn join-item" id="btn-zoom-out" title="Zoom Out (−)">−</button>
+                                    <button class="action-btn outline icon-btn join-item" id="btn-zoom-fit" title="Zoom to Fit All Samples">Fit</button>
+                                </div>
 
-                            <!-- In-Canvas Packet Hover Tooltip -->
-                            <div id="scope-packet-tooltip" class="scope-packet-tooltip" style="display: none;"></div>
+                                <!-- In-Canvas Packet Hover Tooltip -->
+                                <div id="scope-packet-tooltip" class="scope-packet-tooltip" style="display: none;"></div>
+                            </div>
                         </div>
 
                         <!-- Draggable Horizontal Splitter Divider -->
@@ -345,8 +348,33 @@
                         </div>
 
                         <!-- Bottom Subwindow: Analog Scope (Shared 8x10 Graticule) -->
-                        <div id="scope-analog-subwindow" class="scope-subwindow">
-                            <canvas id="scope-canvas"></canvas>
+                        <div id="scope-analog-subwindow" class="scope-subwindow card card-border">
+                            <div class="card-body" style="padding: 6px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column;">
+                                <!-- DSO Telemetry Measurement Stats Chips -->
+                                <div class="stats stats-horizontal scope-telemetry-stats" id="scope-telemetry-stats" style="margin-bottom: 6px; flex-shrink: 0;">
+                                    <div class="stat" style="padding: 4px 10px;">
+                                        <div class="stat-title">Vpp</div>
+                                        <div class="stat-value" id="scope-stat-vpp" style="color: var(--color-primary); font-size: 13px;">3.30V</div>
+                                        <div class="stat-desc">Peak-to-Peak</div>
+                                    </div>
+                                    <div class="stat" style="padding: 4px 10px;">
+                                        <div class="stat-title">Vrms</div>
+                                        <div class="stat-value" id="scope-stat-vrms" style="color: var(--color-secondary); font-size: 13px;">1.65V</div>
+                                        <div class="stat-desc">True RMS</div>
+                                    </div>
+                                    <div class="stat" style="padding: 4px 10px;">
+                                        <div class="stat-title">Frequency</div>
+                                        <div class="stat-value" id="scope-stat-freq" style="color: var(--color-accent); font-size: 13px;">1.00 kHz</div>
+                                        <div class="stat-desc">Calibrated</div>
+                                    </div>
+                                    <div class="stat" style="padding: 4px 10px;">
+                                        <div class="stat-title">Duty</div>
+                                        <div class="stat-value" id="scope-stat-duty" style="color: var(--color-info); font-size: 13px;">50.0%</div>
+                                        <div class="stat-desc">Square Wave</div>
+                                    </div>
+                                </div>
+                                <canvas id="scope-canvas" style="flex: 1; min-height: 0; width: 100%; display: block;"></canvas>
+                            </div>
                         </div>
 
                         <!-- Slide-Out Decoded Packet Table Drawer -->
@@ -363,7 +391,7 @@
                                 </div>
                             </div>
                             <div class="packet-drawer-body">
-                                <table class="packet-table" id="packet-table">
+                                <table class="packet-table table table-zebra table-pin-rows table-sm" id="packet-table">
                                     <thead>
                                         <tr>
                                             <th>#</th>
@@ -979,7 +1007,7 @@
                         </div>
 
                         <!-- Synchronized Bus Log Table Card -->
-                        <div class="bento-card" style="margin-top: 14px;">
+                        <div class="bento-card card card-border" style="margin-top: 14px;">
                             <div class="domain-header">
                                 <div class="domain-header-left">
                                     <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -988,10 +1016,10 @@
                                     </svg>
                                     <h4>Synchronized Bus Stimulus &amp; Sniff Log</h4>
                                 </div>
-                                <span class="domain-tag">Bidirectional Request / Response Trace</span>
+                                <span class="domain-tag badge badge-neutral">Bidirectional Request / Response Trace</span>
                             </div>
                             <div class="bus-table-wrap terminal-display" style="min-height: 140px; max-height: 240px; overflow-y: auto;">
-                                <table class="bus-log-table">
+                                <table class="bus-log-table table table-zebra table-pin-rows table-sm">
                                     <thead>
                                         <tr>
                                             <th style="width: 75px;">Time</th>
@@ -1328,12 +1356,12 @@
 
                     <!-- Main Console Bento Grid -->
                     <div class="console-main-grid">
-                        <div class="bento-card console-terminal-card">
-                            <div class="panel terminal-display" style="flex: 1; min-height: 280px; position: relative; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px;">
+                        <div class="bento-card card card-border console-terminal-card">
+                            <div class="panel terminal-display mockup-code" style="flex: 1; min-height: 280px; position: relative; border-radius: 6px; padding: 12px;">
                                 <div class="output-content" id="cmd-output-content">
-                                    <div class="console-line console-line-output">AgentLA Stimulus &amp; Firmware REPL ready. Type firmware or MCP commands.</div>
+                                    <div class="console-line console-line-output"><pre data-prefix="$"><code>AgentLA Stimulus &amp; Firmware REPL ready. Type firmware or MCP commands.</code></pre></div>
                                 </div>
-                                <button class="terminal-clear-badge-btn" id="btn-cmd-clear" title="Clear Console Output" aria-label="Clear Console Output">
+                                <button class="terminal-clear-badge-btn btn btn-xs btn-ghost" id="btn-cmd-clear" title="Clear Console Output" aria-label="Clear Console Output">
                                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
                                     </svg>

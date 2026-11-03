@@ -110,5 +110,62 @@ def test_agentla_bridge_fab_asset():
     assert "backdrop-filter" in content, "Must have backdrop-filter blur"
 
 
+def test_pure_daisyui_stylesheet_and_token_invariants():
+    """Verify style.css completely eliminates neumorphic shadows/rim highlights, drafting grid, and adds pure DaisyUI classes."""
+    style_css_path = HTML_DIR / "style.css"
+    assert style_css_path.exists()
+    content = style_css_path.read_text(encoding="utf-8")
+
+    # 1. Zero neumorphic and specular bevel tokens
+    assert "--card-neumorphic-shadow" not in content, "Lingering neumorphic shadow token found in style.css"
+    assert "--card-rim-highlight" not in content, "Lingering card rim highlight token found in style.css"
+    assert "body::before" not in content, "Lingering body noise overlay pseudo-element found in style.css"
+    assert "var(--grid-line)" not in content, "Lingering drafting grid reference found in style.css"
+
+    # 2. Pure DaisyUI component classes present
+    assert ".navbar" in content, "DaisyUI .navbar component class missing in style.css"
+    assert ".navbar-start" in content, "DaisyUI .navbar-start missing in style.css"
+    assert ".navbar-end" in content, "DaisyUI .navbar-end missing in style.css"
+    assert ".card-border" in content, "DaisyUI .card-border missing in style.css"
+    assert ".stats" in content, "DaisyUI .stats component class missing in style.css"
+    assert ".stat" in content, "DaisyUI .stat component class missing in style.css"
+    assert ".stat-title" in content, "DaisyUI .stat-title missing in style.css"
+    assert ".stat-value" in content, "DaisyUI .stat-value missing in style.css"
+    assert ".stat-desc" in content, "DaisyUI .stat-desc missing in style.css"
+    assert ".table-zebra" in content, "DaisyUI .table-zebra modifier class missing in style.css"
+    assert ".table-pin-rows" in content, "DaisyUI .table-pin-rows modifier class missing in style.css"
+    assert ".mockup-code" in content, "DaisyUI .mockup-code component class missing in style.css"
+    assert ".progress" in content, "DaisyUI .progress component class missing in style.css"
+    assert ".status" in content, "DaisyUI .status indicator dot class missing in style.css"
+
+
+def test_index_html_daisyui_markup_components():
+    """Verify index.html adopts DaisyUI navbar, telemetry stats, table zebra, and mockup-code."""
+    index_html_path = HTML_DIR / "index.html"
+    assert index_html_path.exists()
+    content = index_html_path.read_text(encoding="utf-8")
+
+    assert "navbar" in content, "index.html top bar must use DaisyUI .navbar"
+    assert "navbar-start" in content, "index.html navbar must include .navbar-start"
+    assert "navbar-end" in content, "index.html navbar must include .navbar-end"
+    assert "scope-telemetry-stats" in content, "index.html scope telemetry container missing"
+    assert "stats-horizontal" in content, "index.html scope telemetry must use DaisyUI .stats-horizontal"
+    assert "stat-title" in content, "index.html scope telemetry must use .stat-title"
+    assert "stat-value" in content, "index.html scope telemetry must use .stat-value"
+    assert "table-zebra" in content, "index.html packet/log table must use DaisyUI .table-zebra"
+    assert "mockup-code" in content, "index.html terminal display must use DaisyUI .mockup-code"
+
+
+def test_app_js_dynamic_canvas_token_binding():
+    """Verify app.js implements dynamic CSS token caching and theme change listener for canvases."""
+    app_js_path = HTML_DIR / "app.js"
+    assert app_js_path.exists()
+    content = app_js_path.read_text(encoding="utf-8")
+
+    assert "getCanvasPalette" in content, "app.js must provide getCanvasPalette() helper"
+    assert "invalidateCanvasPalette" in content, "app.js must provide invalidateCanvasPalette() helper"
+    assert "agentla-theme-changed" in content, "app.js must listen for and dispatch agentla-theme-changed"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

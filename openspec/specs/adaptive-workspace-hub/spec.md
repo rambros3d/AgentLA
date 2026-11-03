@@ -15,10 +15,10 @@ The WebUI SHALL provide an adaptive viewport shell that presents navigation cont
 - **THEN** the primary observation tab displays the text `Scope` with the waveform icon and switches to the Scope view
 
 ### Requirement: Unified Dashboard Overview
-The WebUI SHALL display a Unified Dashboard as the default landing view upon loading, displaying probe health telemetry, an interactive 30-pin domain allocation map (`GPIO 0–29`), and 1-tap launcher tiles.
+The WebUI SHALL display a Unified Dashboard as the default landing view upon loading `/lab`, displaying probe health telemetry, an interactive 30-pin domain allocation map (`GPIO 0–29`), and 1-tap launcher tiles.
 
 #### Scenario: Landing view display
-- **WHEN** a user navigates to `http://agentla.lab`
+- **WHEN** a user navigates to `http://10.10.10.10/lab`
 - **THEN** the Dashboard workspace opens, showing probe CPU frequency, voltage status, USB mode, active target detection, and instrument launch tiles.
 
 #### Scenario: Real-time pin domain allocation visualization
@@ -46,4 +46,15 @@ The Logic Analyzer canvas SHALL support native touch gestures using `touch-actio
 #### Scenario: Mouse wheel zoom and drag
 - **WHEN** a user uses mouse wheel or drag on desktop
 - **THEN** the waveform zooms centered at the cursor and pans horizontally.
+
+### Requirement: Top-Left Brand Launcher Navigation
+The WebUI workbench header SHALL render the top-left AgentLA brand logo and title as a navigational link pointing to `/apps`, without redundant "Workbench" or "App Launcher" navigation pills in the top bar.
+
+#### Scenario: User clicks brand logo
+- **WHEN** the user clicks the top-left brand logo in the workbench
+- **THEN** the browser navigates to the App Launcher at `/apps`.
+
+#### Scenario: Uncluttered top bar
+- **WHEN** the workbench header renders
+- **THEN** no redundant text navigation pills for "Workbench" or "App Launcher" are displayed.
 
