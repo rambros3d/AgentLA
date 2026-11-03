@@ -93,11 +93,38 @@ def compile_themes(themes_dir: Path, output_css: Path, output_json: Path) -> lis
         ""
     ]
 
+    parsed_themes = []
+    default_theme_entry = None
+
     for tf in theme_files:
         content = tf.read_text(encoding="utf-8")
         meta, props = parse_theme_css(content)
+        parsed_themes.append((meta, props))
         themes_meta.append(meta)
+        if meta.get("default") and meta.get("prefersdark"):
+            default_theme_entry = (meta, props)
 
+    if not default_theme_entry and parsed_themes:
+        default_theme_entry = parsed_themes[0]
+
+    # Emit standalone :root fallback at the very top of themes.css
+    if default_theme_entry:
+        d_meta, d_props = default_theme_entry
+        d_name = d_meta["name"]
+        d_scheme = d_meta["color-scheme"]
+        root_lines = [
+            f"/* Fallback Root Variables (Default Dark Theme: {d_name}) */",
+            ":root {"
+        ]
+        root_lines.append(f"    color-scheme: {d_scheme};")
+        for k, v in d_props.items():
+            if k == "color-scheme":
+                continue
+            root_lines.append(f"    {k}: {v};")
+        root_lines.append("}\n")
+        css_blocks.append("\n".join(root_lines))
+
+    for meta, props in parsed_themes:
         name = meta["name"]
         color_scheme = meta["color-scheme"]
         is_default = meta["default"]
@@ -107,7 +134,7 @@ def compile_themes(themes_dir: Path, output_css: Path, output_json: Path) -> lis
         selectors = [f'[data-theme="{name}"]']
         if is_default:
             if prefers_dark:
-                selectors = [':root', '[data-theme="dark"]', f'[data-theme="{name}"]']
+                selectors = ['[data-theme="dark"]', f'[data-theme="{name}"]']
             else:
                 selectors = ['[data-theme="light"]', f'[data-theme="{name}"]']
 

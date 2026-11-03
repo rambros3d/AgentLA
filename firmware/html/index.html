@@ -8,11 +8,18 @@
     <script>
         // Restore theme immediately to avoid flash of wrong palette
         (function() {
+            var savedMode = localStorage.getItem('agentla-theme-mode');
             var saved = localStorage.getItem('agentla-theme');
             if (saved) {
                 document.documentElement.setAttribute('data-theme', saved);
                 var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
                 document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+            } else if (savedMode === 'light') {
+                document.documentElement.setAttribute('data-theme', 'emerald');
+                document.documentElement.setAttribute('data-theme-scheme', 'light');
+            } else if (savedMode === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme-scheme', 'dark');
             } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
                 document.documentElement.setAttribute('data-theme', 'emerald');
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
@@ -59,8 +66,8 @@
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="themes.css">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/themes.css">
 </head>
 <body>
 
@@ -75,13 +82,10 @@
     <!-- Top Application Bar -->
     <header id="top-bar" class="app-header">
         <div class="bar-left">
-            <div class="brand-item" id="brand-logo" title="AgentLA Unified Workbench">
+            <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Apps)" style="text-decoration:none; color:inherit; cursor:pointer;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
-            </div>
-            <nav class="header-nav-links" style="display:inline-flex; gap:6px; margin-left:14px; align-items:center;">
-                <a href="apps.html" data-route="/apps" class="preset-pill" style="padding:4px 10px; text-decoration:none; color:var(--text-secondary); background:var(--bg-surface); border:1px solid var(--border-color); font-size:12px; font-weight:600;">App Launcher</a>
-            </nav>
+            </a>
         </div>
 
         <div class="bar-right">
@@ -1595,6 +1599,18 @@
                     </div>
                     <div class="settings-row">
                         <div>
+                            <div class="settings-label">Default Landing Page</div>
+                            <div class="settings-subtext">Route automatically served when navigating to device root (/)</div>
+                        </div>
+                        <div class="settings-control-group">
+                            <select class="compact-select" id="settings-default-home-route-select">
+                                <option value="/lab">AgentLA Lab (/lab)</option>
+                                <option value="/apps">App Store &amp; Hub (/apps)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div>
                             <div class="settings-label">Custom Themes</div>
                             <div class="settings-subtext">Import raw DaisyUI @plugin themes to device flash</div>
                         </div>
@@ -1854,7 +1870,7 @@
             }
         })();
     </script>
-    <script src="app.js"></script>
+    <script src="/app.js"></script>
     <script>
         // Failsafe fallback to ensure loading screen never blocks the UI indefinitely
         setTimeout(function() {

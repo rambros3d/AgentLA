@@ -1,6 +1,6 @@
 /**
  * @file app_routing.c
- * @brief URL Routing Engine, Trailing Slash Normalization & SPA Fallback for AgentLA
+ * @brief URL Routing Engine, Trailing Slash Normalization, SPA Fallback & Script Injection for AgentLA
  */
 
 #include "app_routing.h"
@@ -12,18 +12,26 @@
 
 #define MAX_CUSTOM_FILE_SLOTS 2
 
+static const char BRIDGE_INJECTION[] = "<script src=\"/agentla-bridge.js\" defer></script>";
+#define BRIDGE_INJECTION_LEN (sizeof(BRIDGE_INJECTION) - 1)
+
 typedef struct {
     bool in_use;
     lfs_file_t file;
-    char header[160];
+    char header[192];
     size_t header_len;
     size_t header_sent;
     uint32_t file_size;
     uint32_t file_read;
+    bool inject_bridge;
+    size_t inject_sent;
 } custom_file_slot_t;
 
 static custom_file_slot_t custom_slots[MAX_CUSTOM_FILE_SLOTS];
 static char redirect_buffer[256];
+
+static char cached_default_home_route[64] = "/lab";
+static bool route_initialized = false;
 
 static const char HTTP_404_BODY[] =
     "HTTP/1.1 404 Not Found\r\n"
@@ -32,6 +40,58 @@ static const char HTTP_404_BODY[] =
     "Content-Length: 13\r\n"
     "Connection: close\r\n\r\n"
     "404 Not Found";
+
+void app_routing_init(void) {
+    lfs_t *lfs = littlefs_get_instance();
+    if (lfs) {
+        lfs_file_t sf;
+        if (lfs_file_open(lfs, &sf, "/settings.json", LFS_O_RDONLY) >= 0) {
+            char buf[512];
+            lfs_ssize_t n = lfs_file_read(lfs, &sf, buf, sizeof(buf) - 1);
+            lfs_file_close(lfs, &sf);
+            if (n > 0) {
+                buf[n] = '\0';
+                char *pos = strstr(buf, "\"default_home_route\"");
+                if (pos) {
+                    char *col = strchr(pos, ':');
+                    if (col) {
+                        char *q1 = strchr(col, '"');
+                        if (q1) {
+                            char *q2 = strchr(q1 + 1, '"');
+                            if (q2 && (size_t)(q2 - q1 - 1) < sizeof(cached_default_home_route)) {
+                                size_t len = (size_t)(q2 - q1 - 1);
+                                memcpy(cached_default_home_route, q1 + 1, len);
+                                cached_default_home_route[len] = '\0';
+                                route_initialized = true;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    strncpy(cached_default_home_route, "/lab", sizeof(cached_default_home_route) - 1);
+    cached_default_home_route[sizeof(cached_default_home_route) - 1] = '\0';
+    route_initialized = true;
+}
+
+void app_routing_set_default_home_route(const char *route) {
+    if (!route || route[0] == '\0') {
+        strncpy(cached_default_home_route, "/lab", sizeof(cached_default_home_route) - 1);
+    } else {
+        strncpy(cached_default_home_route, route, sizeof(cached_default_home_route) - 1);
+    }
+    cached_default_home_route[sizeof(cached_default_home_route) - 1] = '\0';
+    route_initialized = true;
+}
+
+const char* app_routing_get_default_home_route(void) {
+    if (!route_initialized) {
+        app_routing_init();
+    }
+    return cached_default_home_route[0] ? cached_default_home_route : "/lab";
+}
 
 static const char* get_mime_type(const char *path) {
     const char *dot = strrchr(path, '.');
@@ -85,13 +145,21 @@ static int open_littlefs_file(struct fs_file *file, const char *lfs_path) {
     slot->file_read = 0;
     slot->header_sent = 0;
 
+    /* Detect HTML file served under /apps/ to inject launcher FAB bridge script */
+    bool is_app_html = (strncmp(lfs_path, "/apps/", 6) == 0) &&
+                       (strstr(lfs_path, ".html") != NULL || strstr(lfs_path, ".htm") != NULL);
+    slot->inject_bridge = is_app_html;
+    slot->inject_sent = 0;
+
+    uint32_t content_len = slot->file_size + (slot->inject_bridge ? (uint32_t)BRIDGE_INJECTION_LEN : 0);
+
     int hlen = snprintf(slot->header, sizeof(slot->header),
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: %s\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Length: %lu\r\n"
         "Connection: close\r\n\r\n",
-        mime, (unsigned long)slot->file_size);
+        mime, (unsigned long)content_len);
 
     if (hlen < 0 || (size_t)hlen >= sizeof(slot->header)) {
         lfs_file_close(lfs, &slot->file);
@@ -102,7 +170,7 @@ static int open_littlefs_file(struct fs_file *file, const char *lfs_path) {
     slot->header_len = (size_t)hlen;
 
     file->data = NULL; /* signals dynamic reading via fs_read_custom */
-    file->len = (int)(slot->header_len + slot->file_size);
+    file->len = (int)(slot->header_len + content_len);
     file->index = 0;
     file->flags = FS_FILE_FLAGS_CUSTOM | FS_FILE_FLAGS_HEADER_INCLUDED;
     file->pextension = slot;
@@ -117,9 +185,42 @@ int fs_open_custom(struct fs_file *file, const char *name) {
         return rest_api_handle(file, name);
     }
 
-    /* 2. Root factory WebUI files -> return 0 to let lwIP serve from ROM fsdata */
-    if (strcmp(name, "/") == 0 ||
-        strcmp(name, "/index.html") == 0 ||
+    /* 2. Device Root (/) -> HTTP 302 Found Redirect to configured default_home_route */
+    if (strcmp(name, "/") == 0) {
+        const char *dest = app_routing_get_default_home_route();
+        snprintf(redirect_buffer, sizeof(redirect_buffer),
+            "HTTP/1.1 302 Found\r\n"
+            "Location: %s\r\n"
+            "Cache-Control: no-cache, no-store, must-revalidate\r\n"
+            "Content-Length: 0\r\n"
+            "Connection: close\r\n\r\n",
+            dest);
+        file->data = redirect_buffer;
+        file->len = (int)strlen(redirect_buffer);
+        file->index = file->len;
+        file->flags = FS_FILE_FLAGS_CUSTOM | FS_FILE_FLAGS_HEADER_INCLUDED;
+        file->pextension = NULL;
+        return 1;
+    }
+
+    /* 3. Dedicated Lab Route (/lab, /lab/, /lab/index.html) -> serve /index.html from ROM fsdata */
+    if (strcmp(name, "/lab") == 0 || strcmp(name, "/lab/") == 0 || strcmp(name, "/lab/index.html") == 0) {
+        if (fs_open(file, "/index.html") == ERR_OK) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /* 3b. Static assets requested under /lab/ (e.g. /lab/style.css -> /style.css) */
+    if (strncmp(name, "/lab/", 5) == 0) {
+        const char *sub = name + 4; /* preserves leading slash */
+        if (fs_open(file, sub) == ERR_OK) {
+            return 1;
+        }
+    }
+
+    /* 4. Root factory WebUI files -> return 0 to let lwIP serve from ROM fsdata */
+    if (strcmp(name, "/index.html") == 0 ||
         strcmp(name, "/style.css") == 0 ||
         strcmp(name, "/app.js") == 0 ||
         strcmp(name, "/themes.css") == 0 ||
@@ -130,20 +231,20 @@ int fs_open_custom(struct fs_file *file, const char *name) {
         strcmp(name, "/wallpaper.svg") == 0 ||
         strcmp(name, "/mcp.json") == 0 ||
         strcmp(name, "/ok.json") == 0 ||
-        strcmp(name, "/board.json") == 0) {
+        strcmp(name, "/board.json") == 0 ||
+        strcmp(name, "/agentla-bridge.js") == 0) {
         return 0;
     }
 
-    /* 2b. Custom Themes (/themes/<custom>.css) from LittleFS */
+    /* 4b. Custom Themes (/themes/<custom>.css) from LittleFS */
     if (strncmp(name, "/themes/", 8) == 0) {
         if (open_littlefs_file(file, name)) {
             return 1;
         }
     }
 
-    /* 3. App Launcher (/apps or /apps/) -> serve apps.html from ROM fsdata */
+    /* 5. App Launcher (/apps or /apps/) -> serve apps.html from ROM fsdata */
     if (strcmp(name, "/apps") == 0 || strcmp(name, "/apps/") == 0) {
-        /* Open /apps.html from ROM fsdata */
         if (fs_open(file, "/apps.html") == ERR_OK) {
             return 1;
         }
@@ -155,12 +256,12 @@ int fs_open_custom(struct fs_file *file, const char *name) {
         return 0;
     }
 
-    /* 4. Custom Apps under /apps/{app-name}/... */
+    /* 6. Custom Apps under /apps/{app-name}/... */
     if (strncmp(name, "/apps/", 6) == 0) {
         const char *after = name + 6;
         const char *slash = strchr(after, '/');
 
-        /* Case 4A: Missing trailing slash redirect (/apps/{app-name} -> /apps/{app-name}/) */
+        /* Case 6A: Missing trailing slash redirect (/apps/{app-name} -> /apps/{app-name}/) */
         if (slash == NULL) {
             snprintf(redirect_buffer, sizeof(redirect_buffer),
                 "HTTP/1.1 301 Moved Permanently\r\n"
@@ -175,7 +276,7 @@ int fs_open_custom(struct fs_file *file, const char *name) {
             return 1;
         }
 
-        /* Case 4B: Inside app */
+        /* Case 6B: Inside app */
         char app_name[64];
         size_t app_len = (size_t)(slash - after);
         if (app_len == 0 || app_len >= sizeof(app_name)) {
@@ -253,8 +354,22 @@ int fs_read_custom(struct fs_file *file, char *buffer, int count) {
                 slot->file_read += (uint32_t)n;
                 file->index += (int)n;
                 total_read += (int)n;
+                buffer += (size_t)n;
+                count -= (int)n;
             }
         }
+    }
+
+    /* 3. Stream injected bridge script tag for custom app HTML files */
+    if (count > 0 && slot->file_read >= slot->file_size && slot->inject_bridge && slot->inject_sent < BRIDGE_INJECTION_LEN) {
+        size_t avail = BRIDGE_INJECTION_LEN - slot->inject_sent;
+        size_t take = ((size_t)count < avail) ? (size_t)count : avail;
+        memcpy(buffer, BRIDGE_INJECTION + slot->inject_sent, take);
+        slot->inject_sent += take;
+        file->index += (int)take;
+        total_read += (int)take;
+        buffer += take;
+        count -= (int)take;
     }
 
     if (total_read > 0) {

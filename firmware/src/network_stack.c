@@ -18,6 +18,7 @@
 #include "littlefs_driver.h"
 #include "tar_unpacker.h"
 #include "rest_api.h"
+#include "app_routing.h"
 #include "profile_manager.h"
 #include <string.h>
 void sse_push(const char *data);
@@ -383,6 +384,7 @@ void sse_push(const char *data) {
 }
 void network_init(void) {
     littlefs_init();
+    app_routing_init();
     init_lwip();
     while (!netif_is_up(&netif_data)) { }
     // dhcp/dns server init:
@@ -646,6 +648,23 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
             snprintf(response_uri, (size_t)response_uri_len, "/api/v1/pins/safe");
         }
     } else if (current_post_type == POST_TYPE_SETTINGS) {
+        char *route_pos = strstr(httpd_post_body, "\"default_home_route\"");
+        if (route_pos) {
+            char *col = strchr(route_pos, ':');
+            if (col) {
+                char *q1 = strchr(col, '"');
+                if (q1) {
+                    char *q2 = strchr(q1 + 1, '"');
+                    if (q2 && (size_t)(q2 - q1 - 1) < 64) {
+                        char new_route[64];
+                        size_t rlen = (size_t)(q2 - q1 - 1);
+                        memcpy(new_route, q1 + 1, rlen);
+                        new_route[rlen] = '\0';
+                        app_routing_set_default_home_route(new_route);
+                    }
+                }
+            }
+        }
         lfs_t *lfs = littlefs_get_instance();
         if (lfs && httpd_post_body_len > 0) {
             lfs_file_t sf;

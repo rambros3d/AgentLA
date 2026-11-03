@@ -158,17 +158,21 @@ def test_streaming_tar_unpacker_header_parsing():
 
 
 def test_url_routing_and_spa_fallback():
-    """Verify URL routing engine decisions, trailing slash redirect, and SPA fallback rules."""
-    def route_request(path, lfs_existing_files):
-        # 1. Root and factory ROM assets
-        if path in ["/", "/index.html", "/style.css", "/app.js", "/favicon.svg", "/board.json"]:
+    """Verify URL routing engine decisions, root 302 redirect, lab routes, trailing slash redirect, and SPA fallback rules."""
+    def route_request(path, lfs_existing_files, default_home="/lab"):
+        # 1. Root redirect (HTTP 302)
+        if path == "/":
+            return {"status": 302, "location": default_home}
+
+        # 2. Dedicated Lab route (/lab, /lab/, /lab/index.html) and factory ROM assets
+        if path in ["/lab", "/lab/", "/lab/index.html", "/index.html", "/style.css", "/app.js", "/agentla-bridge.js", "/favicon.svg", "/board.json"]:
             return {"status": 200, "handler": "ROM_FSDATA"}
 
-        # 2. App Launcher
+        # 3. App Launcher
         if path in ["/apps", "/apps/"]:
             return {"status": 200, "handler": "ROM_APPS_HTML"}
 
-        # 3. Custom App Routing
+        # 4. Custom App Routing
         if path.startswith("/apps/"):
             sub = path[6:]
             if "/" not in sub:
@@ -180,8 +184,9 @@ def test_url_routing_and_spa_fallback():
                 relpath = "index.html"
 
             full_target = f"/apps/{app_name}/{relpath}"
+            is_html = full_target.endswith(".html") or full_target.endswith(".htm")
             if full_target in lfs_existing_files:
-                return {"status": 200, "file": full_target}
+                return {"status": 200, "file": full_target, "inject_bridge": is_html}
 
             # Check SPA fallback vs 404
             filename = relpath.rsplit("/", 1)[-1]
@@ -192,11 +197,11 @@ def test_url_routing_and_spa_fallback():
             else:
                 spa_index = f"/apps/{app_name}/index.html"
                 if spa_index in lfs_existing_files:
-                    return {"status": 200, "file": spa_index, "spa_fallback": True}
+                    return {"status": 200, "file": spa_index, "spa_fallback": True, "inject_bridge": True}
                 else:
                     return {"status": 404, "error": "App index missing"}
 
-        # 4. REST API
+        # 5. REST API
         if path.startswith("/api/v1/"):
             return {"status": 200, "handler": "REST_API"}
 
@@ -208,9 +213,21 @@ def test_url_routing_and_spa_fallback():
         "/apps/can-sniffer/assets/logo.svg",
     ]
 
-    # Test root invariants
-    assert route_request("/", files)["handler"] == "ROM_FSDATA"
+    # Test root 302 redirection
+    root_res = route_request("/", files, default_home="/lab")
+    assert root_res["status"] == 302
+    assert root_res["location"] == "/lab"
+
+    custom_root = route_request("/", files, default_home="/apps")
+    assert custom_root["status"] == 302
+    assert custom_root["location"] == "/apps"
+
+    # Test lab route and factory assets
+    assert route_request("/lab", files)["handler"] == "ROM_FSDATA"
+    assert route_request("/lab/", files)["handler"] == "ROM_FSDATA"
+    assert route_request("/lab/index.html", files)["handler"] == "ROM_FSDATA"
     assert route_request("/index.html", files)["handler"] == "ROM_FSDATA"
+    assert route_request("/agentla-bridge.js", files)["handler"] == "ROM_FSDATA"
     assert route_request("/apps", files)["handler"] == "ROM_APPS_HTML"
     assert route_request("/apps/", files)["handler"] == "ROM_APPS_HTML"
 
@@ -219,10 +236,16 @@ def test_url_routing_and_spa_fallback():
     assert redirect["status"] == 301
     assert redirect["location"] == "/apps/can-sniffer/"
 
-    # Test custom app file serving
+    # Test custom app file serving and bridge injection
     res_index = route_request("/apps/can-sniffer/", files)
     assert res_index["status"] == 200
     assert res_index["file"] == "/apps/can-sniffer/index.html"
+    assert res_index["inject_bridge"] is True
+
+    res_js = route_request("/apps/can-sniffer/assets/bundle.js", files)
+    assert res_js["status"] == 200
+    assert res_js["file"] == "/apps/can-sniffer/assets/bundle.js"
+    assert res_js["inject_bridge"] is False
 
     res_js = route_request("/apps/can-sniffer/assets/bundle.js", files)
     assert res_js["status"] == 200
@@ -320,12 +343,19 @@ def test_apps_html_assets_and_integration():
     assert "parseTarMetadata" in apps_html
     assert "/api/v1/apps/storage" in apps_html
     assert "/api/v1/apps/install" in apps_html
+    assert "AgentLA Lab" in apps_html
+    assert "spotlight-search" in apps_html
+    assert "modal-settings" in apps_html
 
     # 2. Navigation toggle in index.html
     assert "/apps" in index_html, "index.html must include navigation link to /apps"
+    assert "settings-default-home-route-select" in index_html, "index.html settings modal must include landing route selector"
 
-    # 3. CMake integration
+    # 3. Injected bridge script and CMake integration
+    bridge_path = REPO_ROOT / "firmware" / "html" / "agentla-bridge.js"
+    assert bridge_path.exists(), "firmware/html/agentla-bridge.js must exist"
     assert "apps.html" in cmake_text, "CMakeLists.txt must include apps.html in staging outputs and fsdata"
+    assert "agentla-bridge.js" in cmake_text, "CMakeLists.txt must include agentla-bridge.js in fsdata"
 
 
 if __name__ == "__main__":

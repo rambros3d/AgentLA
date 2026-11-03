@@ -4,6 +4,7 @@
  */
 
 #include "rest_api.h"
+#include "app_routing.h"
 #include "littlefs_driver.h"
 #include "profile_manager.h"
 #include "pico/time.h"
@@ -122,11 +123,19 @@ int rest_api_handle(struct fs_file *file, const char *uri) {
             lfs_file_close(lfs, &sf);
             if (n > 0) {
                 json_scratch[n] = '\0';
-                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)n);
+                if (strstr(json_scratch, "\"default_home_route\"") == NULL) {
+                    char *brace = strrchr(json_scratch, '}');
+                    if (brace) {
+                        snprintf(brace, json_capacity - (size_t)(brace - json_scratch),
+                            ",\"default_home_route\":\"%s\"}", app_routing_get_default_home_route());
+                    }
+                }
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, strlen(json_scratch));
             }
         }
         int len = snprintf(json_scratch, json_capacity,
-            "{\"theme_mode\":\"system\",\"default_light_theme\":\"emerald\",\"default_dark_theme\":\"forest\",\"active_profile\":\"Safe State\"}");
+            "{\"theme_mode\":\"system\",\"default_light_theme\":\"emerald\",\"default_dark_theme\":\"forest\",\"default_home_route\":\"%s\",\"active_profile\":\"Safe State\"}",
+            app_routing_get_default_home_route());
         return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
     }
 

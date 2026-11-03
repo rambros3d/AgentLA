@@ -102,6 +102,7 @@ const themeState = {
     mode: 'system', // 'system' | 'light' | 'dark'
     defaultLightTheme: 'emerald',
     defaultDarkTheme: 'forest',
+    defaultHomeRoute: '/lab',
     availableThemes: [
         { name: 'forest', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: true, custom: false },
         { name: 'emerald', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: true, custom: false },
@@ -186,6 +187,7 @@ async function saveSettings() {
         theme_mode: themeState.mode,
         default_light_theme: themeState.defaultLightTheme,
         default_dark_theme: themeState.defaultDarkTheme,
+        default_home_route: themeState.defaultHomeRoute || '/lab',
         active_profile: "Default Lab Bench"
     };
     try {
@@ -278,6 +280,35 @@ function closeAddThemeModal() {
     }
 }
 
+async function populateLandingPageDropdown() {
+    const selRoute = document.getElementById('settings-default-home-route-select');
+    if (!selRoute) return;
+
+    const currentVal = themeState.defaultHomeRoute || '/lab';
+    selRoute.innerHTML = `
+        <option value="/lab">AgentLA Lab (/lab)</option>
+        <option value="/apps">App Store &amp; Hub (/apps)</option>
+    `;
+
+    try {
+        const resp = await fetch('/api/v1/apps');
+        if (resp.ok) {
+            const apps = await resp.json();
+            if (Array.isArray(apps)) {
+                apps.forEach(app => {
+                    const opt = document.createElement('option');
+                    const appPath = app.path || `/apps/${app.id}/`;
+                    opt.value = appPath;
+                    opt.textContent = `${app.name || app.id} (${appPath})`;
+                    selRoute.appendChild(opt);
+                });
+            }
+        }
+    } catch (_) {}
+
+    selRoute.value = currentVal;
+}
+
 async function initThemeEngine() {
     // 1. Check initial data-theme from SSI
     const docTheme = document.documentElement.getAttribute('data-theme');
@@ -295,16 +326,29 @@ async function initThemeEngine() {
             if (data.theme_mode) themeState.mode = data.theme_mode;
             if (data.default_light_theme) themeState.defaultLightTheme = data.default_light_theme;
             if (data.default_dark_theme) themeState.defaultDarkTheme = data.default_dark_theme;
+            if (data.default_home_route) themeState.defaultHomeRoute = data.default_home_route;
         }
     } catch (e) {
-        const saved = localStorage.getItem('agentla-theme');
-        if (saved === 'light' || saved === 'dark') {
-            themeState.mode = saved;
+        const savedMode = localStorage.getItem('agentla-theme-mode');
+        if (savedMode === 'system' || savedMode === 'light' || savedMode === 'dark') {
+            themeState.mode = savedMode;
+        } else {
+            const saved = localStorage.getItem('agentla-theme');
+            if (saved === 'light' || saved === 'dark') {
+                themeState.mode = saved;
+            }
+        }
+        const savedTheme = localStorage.getItem('agentla-theme');
+        if (savedTheme === 'emerald' || savedTheme === 'caramellatte') {
+            themeState.defaultLightTheme = savedTheme;
+        } else if (savedTheme === 'forest') {
+            themeState.defaultDarkTheme = savedTheme;
         }
     }
 
     await loadAvailableThemes();
     applyTheme();
+    populateLandingPageDropdown();
 
     // 3. Listen to OS prefers-color-scheme changes
     if (window.matchMedia) {
@@ -349,6 +393,14 @@ async function initThemeEngine() {
         selDark.addEventListener('change', async () => {
             themeState.defaultDarkTheme = selDark.value;
             applyTheme();
+            await saveSettings();
+        });
+    }
+
+    const selDefaultHome = document.getElementById('settings-default-home-route-select');
+    if (selDefaultHome) {
+        selDefaultHome.addEventListener('change', async () => {
+            themeState.defaultHomeRoute = selDefaultHome.value;
             await saveSettings();
         });
     }
@@ -586,6 +638,7 @@ function openSettingsModal() {
     if (modal) {
         modal.classList.add('open');
         modal.setAttribute('aria-hidden', 'false');
+        populateLandingPageDropdown();
         const selTheme = document.getElementById('settings-theme-select');
         if (selTheme) selTheme.value = getCurrentTheme();
     }

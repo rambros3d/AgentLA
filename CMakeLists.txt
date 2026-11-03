@@ -127,6 +127,7 @@ add_custom_command(
         ${WEB_STAGED_DIR}/mcp.json
         ${WEB_STAGED_DIR}/ok.json
         ${WEB_STAGED_DIR}/apps.html
+        ${WEB_STAGED_DIR}/agentla-bridge.js
         ${WEB_STAGED_DIR}/themes.css
         ${WEB_STAGED_DIR}/themes.json
     COMMAND ${CMAKE_COMMAND} -E make_directory ${WEB_STAGED_DIR}
@@ -152,6 +153,7 @@ add_custom_command(
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/pinout.svg
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/index.html
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/apps.html
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/agentla-bridge.js
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/app.js
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/style.css
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/wallpaper.svg
@@ -165,6 +167,7 @@ pico_add_library(pico_httpd_content NOFLAG)
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
     ${WEB_STAGED_DIR}/index.html
     ${WEB_STAGED_DIR}/apps.html
+    ${WEB_STAGED_DIR}/agentla-bridge.js
     ${WEB_STAGED_DIR}/app.js
     ${WEB_STAGED_DIR}/style.css
     ${WEB_STAGED_DIR}/wallpaper.svg

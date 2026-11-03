@@ -387,10 +387,13 @@
 
         // 2b. Intercept /api/v1/settings
         if (urlStr.includes('/api/v1/settings')) {
-            if (init && init.method === 'POST') {
+            if (init && (init.method === 'POST' || init.method === 'PUT')) {
                 try {
                     const parsed = JSON.parse(init.body);
-                    localStorage.setItem('agentla_sim_settings', JSON.stringify(parsed));
+                    const prev = localStorage.getItem('agentla_sim_settings');
+                    const merged = Object.assign({}, prev ? JSON.parse(prev) : {}, parsed);
+                    if (!merged.default_home_route) merged.default_home_route = "/lab";
+                    localStorage.setItem('agentla_sim_settings', JSON.stringify(merged));
                 } catch(e) {}
                 return new Response(JSON.stringify({ status: "ok", settings_saved: true }), {
                     status: 200,
@@ -402,8 +405,12 @@
                 theme_mode: "system",
                 default_light_theme: "emerald",
                 default_dark_theme: "forest",
+                default_home_route: "/lab",
                 active_profile: "Default Lab Bench"
             };
+            if (!data.default_home_route) {
+                data.default_home_route = "/lab";
+            }
             return new Response(JSON.stringify(data), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }

@@ -1,0 +1,1 @@
+../firmware/html/agentla-bridge.js
