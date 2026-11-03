@@ -126,6 +126,7 @@ add_custom_command(
         ${WEB_STAGED_DIR}/wallpaper.svg
         ${WEB_STAGED_DIR}/mcp.json
         ${WEB_STAGED_DIR}/ok.json
+        ${WEB_STAGED_DIR}/apps.html
     COMMAND ${CMAKE_COMMAND} -E make_directory ${WEB_STAGED_DIR}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_board_assets.py
         --board ${BOARD_ID}
@@ -140,6 +141,7 @@ add_custom_command(
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/favicon.svg
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/pinout.svg
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/index.html
+        ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/apps.html
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/app.js
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/style.css
         ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/wallpaper.svg
@@ -152,6 +154,7 @@ add_custom_command(
 pico_add_library(pico_httpd_content NOFLAG)
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
     ${WEB_STAGED_DIR}/index.html
+    ${WEB_STAGED_DIR}/apps.html
     ${WEB_STAGED_DIR}/app.js
     ${WEB_STAGED_DIR}/style.css
     ${WEB_STAGED_DIR}/wallpaper.svg

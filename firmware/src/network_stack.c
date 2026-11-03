@@ -15,6 +15,10 @@
 #include "netif/ethernet.h"
 #include "dhserver.h"
 #include "dnserver.h"
+#include "littlefs_driver.h"
+#include "tar_unpacker.h"
+#include "rest_api.h"
+#include "profile_manager.h"
 #include <string.h>
 void sse_push(const char *data);
 uint32_t network_enqueue_job(const char *command);
@@ -164,6 +168,25 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
         struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
         if (p == NULL) { tud_network_recv_renew(); return true; }
         pbuf_take(p, src, size);
+
+        /* Intercept HTTP DELETE /api/v1/apps/ and translate to GET /api/v1/del/app/ (exact 19 bytes) */
+        if (size >= 54) {
+            uint8_t *payload = (uint8_t *)p->payload;
+            if (payload[12] == 0x08 && payload[13] == 0x00 && payload[23] == 6) { /* IPv4 TCP */
+                uint8_t ip_hl = (payload[14] & 0x0F) * 4;
+                uint16_t tcp_offset = 14 + ip_hl;
+                if (tcp_offset + 20 <= size) {
+                    uint8_t tcp_hl = (payload[tcp_offset + 12] >> 4) * 4;
+                    uint16_t data_offset = tcp_offset + tcp_hl;
+                    if (data_offset + 19 <= size) {
+                        if (memcmp(payload + data_offset, "DELETE /api/v1/apps/", 19) == 0) {
+                            memcpy(payload + data_offset, "GET /api/v1/del/app/", 19);
+                        }
+                    }
+                }
+            }
+        }
+
         if (netif_input(p, n) != ERR_OK) pbuf_free(p);
         tud_network_recv_renew();
     }
@@ -298,6 +321,7 @@ void sse_push(const char *data) {
     }
 }
 void network_init(void) {
+    littlefs_init();
     init_lwip();
     while (!netif_is_up(&netif_data)) { }
     // dhcp/dns server init:
@@ -340,54 +364,193 @@ uint32_t sys_now(void) {
 static char httpd_post_body[2048];
 static size_t httpd_post_body_len = 0;
 
+typedef enum {
+    POST_TYPE_NONE = 0,
+    POST_TYPE_MCP,
+    POST_TYPE_INSTALL_TAR,
+    POST_TYPE_INSTALL_HTML,
+    POST_TYPE_PINS_SAFE
+} post_type_t;
+
+static post_type_t current_post_type = POST_TYPE_NONE;
+static tar_unpacker_t current_tar_unpacker;
+static lfs_file_t current_html_file;
+static bool current_html_open = false;
+static char current_install_app_name[64];
+
 err_t httpd_post_begin(void *connection, const char *uri,
                        const char *http_request, u16_t http_request_len,
                        int content_len, char *response_uri, u16_t response_uri_len,
                        u8_t *post_auto_wnd) {
     (void)connection; (void)http_request; (void)http_request_len; (void)content_len;
-    if (uri == NULL || strcmp(uri, "/mcp") != 0) return ERR_CONN;
+    if (uri == NULL) return ERR_CONN;
     if (post_auto_wnd != NULL) *post_auto_wnd = 1;
-    httpd_post_body_len = 0;
-    httpd_post_body[0] = '\0';
-    if (content_len < 0 || content_len >= (int)sizeof(httpd_post_body) - 1) {
+
+    current_post_type = POST_TYPE_NONE;
+
+    /* 1. /mcp JSON-RPC endpoint */
+    if (strcmp(uri, "/mcp") == 0) {
+        current_post_type = POST_TYPE_MCP;
+        httpd_post_body_len = 0;
+        httpd_post_body[0] = '\0';
+        if (content_len < 0 || content_len >= (int)sizeof(httpd_post_body) - 1) {
+            if (response_uri != NULL && response_uri_len > 0) {
+                snprintf(response_uri, response_uri_len, "/mcp.json");
+            }
+            return ERR_BUF;
+        }
         if (response_uri != NULL && response_uri_len > 0) {
             snprintf(response_uri, response_uri_len, "/mcp.json");
         }
-        return ERR_BUF;
+        return ERR_OK;
     }
-    if (response_uri != NULL && response_uri_len > 0) {
-        snprintf(response_uri, response_uri_len, "/mcp.json");
+
+    /* 2. POST /api/v1/pins/safe */
+    if (strncmp(uri, "/api/v1/pins/safe", 17) == 0) {
+        current_post_type = POST_TYPE_PINS_SAFE;
+        profile_emergency_safe_state();
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, response_uri_len, "/api/v1/pins/safe");
+        }
+        return ERR_OK;
     }
-    return ERR_OK;
+
+    /* 3. POST /api/v1/apps/install?name={app-name} */
+    if (strncmp(uri, "/api/v1/apps/install", 20) == 0) {
+        const char *name_param = strstr(uri, "name=");
+        if (!name_param) {
+            return ERR_ARG;
+        }
+        name_param += 5;
+        size_t len = 0;
+        while (name_param[len] && name_param[len] != '&' && name_param[len] != ' ' && len < sizeof(current_install_app_name) - 1) {
+            current_install_app_name[len] = name_param[len];
+            len++;
+        }
+        current_install_app_name[len] = '\0';
+        if (len == 0) return ERR_ARG;
+
+        rest_api_set_last_installed_app(current_install_app_name);
+
+        /* Inspect Content-Type in http_request */
+        bool is_html = false;
+        if (http_request != NULL && strstr(http_request, "text/html") != NULL) {
+            is_html = true;
+        }
+
+        if (is_html) {
+            current_post_type = POST_TYPE_INSTALL_HTML;
+            lfs_t *lfs = littlefs_get_instance();
+            if (!lfs) return ERR_MEM;
+            lfs_mkdir(lfs, "/apps");
+            char app_dir[128];
+            snprintf(app_dir, sizeof(app_dir), "/apps/%s", current_install_app_name);
+            lfs_mkdir(lfs, app_dir);
+
+            char index_path[128];
+            snprintf(index_path, sizeof(index_path), "/apps/%s/index.html", current_install_app_name);
+            if (lfs_file_open(lfs, &current_html_file, index_path, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) < 0) {
+                return ERR_MEM;
+            }
+            current_html_open = true;
+        } else {
+            current_post_type = POST_TYPE_INSTALL_TAR;
+            if (!tar_unpacker_init(&current_tar_unpacker, current_install_app_name)) {
+                return ERR_MEM;
+            }
+        }
+
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, response_uri_len, "/api/v1/apps/install_done");
+        }
+        return ERR_OK;
+    }
+
+    return ERR_CONN;
 }
 
 err_t httpd_post_receive_data(void *connection, struct pbuf *p) {
     (void)connection;
     if (p == NULL) return ERR_OK;
-    if (httpd_post_body_len < sizeof(httpd_post_body) - 1) {
-        size_t available = sizeof(httpd_post_body) - httpd_post_body_len - 1;
-        if (available > 0) {
-            size_t copied = pbuf_copy_partial(p, httpd_post_body + httpd_post_body_len, available, 0);
-            httpd_post_body_len += copied;
-            httpd_post_body[httpd_post_body_len] = '\0';
-            if (httpd_post_body_len + 1 >= sizeof(httpd_post_body) &&
-                copied == available) {
-                pbuf_free(p);
-                return ERR_BUF;
+
+    if (current_post_type == POST_TYPE_MCP) {
+        if (httpd_post_body_len < sizeof(httpd_post_body) - 1) {
+            size_t available = sizeof(httpd_post_body) - httpd_post_body_len - 1;
+            if (available > 0) {
+                size_t copied = pbuf_copy_partial(p, httpd_post_body + httpd_post_body_len, available, 0);
+                httpd_post_body_len += copied;
+                httpd_post_body[httpd_post_body_len] = '\0';
+                if (httpd_post_body_len + 1 >= sizeof(httpd_post_body) &&
+                    copied == available) {
+                    pbuf_free(p);
+                    return ERR_BUF;
+                }
+            }
+        }
+    } else if (current_post_type == POST_TYPE_INSTALL_TAR) {
+        for (struct pbuf *q = p; q != NULL; q = q->next) {
+            if (q->len > 0) {
+                tar_unpacker_feed(&current_tar_unpacker, (const uint8_t *)q->payload, q->len);
+            }
+        }
+    } else if (current_post_type == POST_TYPE_INSTALL_HTML) {
+        if (current_html_open) {
+            lfs_t *lfs = littlefs_get_instance();
+            for (struct pbuf *q = p; q != NULL; q = q->next) {
+                if (q->len > 0 && lfs) {
+                    lfs_file_write(lfs, &current_html_file, q->payload, q->len);
+                }
             }
         }
     }
+
     pbuf_free(p);
     return ERR_OK;
 }
 
 void httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len) {
     (void)connection;
-    if (response_uri != NULL && response_uri_len > 0) {
-        snprintf(response_uri, (size_t)response_uri_len, "/mcp.json");
+    if (current_post_type == POST_TYPE_MCP) {
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, (size_t)response_uri_len, "/mcp.json");
+        }
+        webui_dispatch_json(httpd_post_body, mcp_response, sizeof(mcp_response));
+        httpd_post_body_len = sizeof(httpd_post_body);
+    } else if (current_post_type == POST_TYPE_INSTALL_TAR) {
+        tar_unpacker_finish(&current_tar_unpacker);
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, (size_t)response_uri_len, "/api/v1/apps/install_done");
+        }
+    } else if (current_post_type == POST_TYPE_INSTALL_HTML) {
+        if (current_html_open) {
+            lfs_t *lfs = littlefs_get_instance();
+            if (lfs) {
+                lfs_file_close(lfs, &current_html_file);
+                /* Create default app.json if missing */
+                char manifest_path[128];
+                snprintf(manifest_path, sizeof(manifest_path), "/apps/%s/app.json", current_install_app_name);
+                lfs_file_t mf;
+                if (lfs_file_open(lfs, &mf, manifest_path, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) >= 0) {
+                    char default_json[256];
+                    int len = snprintf(default_json, sizeof(default_json),
+                        "{\"id\":\"%s\",\"name\":\"%s\",\"version\":\"1.0.0\",\"description\":\"Standalone HTML App\",\"author\":\"User\"}",
+                        current_install_app_name, current_install_app_name);
+                    lfs_file_write(lfs, &mf, default_json, len);
+                    lfs_file_close(lfs, &mf);
+                }
+            }
+            current_html_open = false;
+        }
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, (size_t)response_uri_len, "/api/v1/apps/install_done");
+        }
+    } else if (current_post_type == POST_TYPE_PINS_SAFE) {
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, (size_t)response_uri_len, "/api/v1/pins/safe");
+        }
     }
-    webui_dispatch_json(httpd_post_body, mcp_response, sizeof(mcp_response));
-    httpd_post_body_len = sizeof(httpd_post_body);
+
+    current_post_type = POST_TYPE_NONE;
 }
 
 #endif /* LWIP_HTTPD_SUPPORT_POST */

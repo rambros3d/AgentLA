@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AgentLA - App Store &amp; Launcher</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        :root {
+            --bg-canvas: #0d1117;
+            --bg-card: #161b22;
+            --border-card: #30363d;
+            --text-main: #f0f6fc;
+            --text-muted: #8b949e;
+            --cyan: #00e5ff;
+            --cyan-glow: rgba(0, 229, 255, 0.2);
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+        }
+        body {
+            background-color: var(--bg-canvas);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(22, 27, 34, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-card);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .brand-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--cyan);
+            text-decoration: none;
+        }
+        .nav-links {
+            display: flex;
+            gap: 6px;
+        }
+        .nav-pill {
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .nav-pill:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .nav-pill.active {
+            color: var(--cyan);
+            background: var(--cyan-glow);
+            border-color: rgba(0, 229, 255, 0.4);
+        }
+        .action-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-card);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .action-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #8b949e;
+        }
+        .action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: #238636;
+            border-color: #2ea043;
+            color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: #2ea043;
+        }
+        .btn-danger {
+            background: rgba(248, 81, 73, 0.15);
+            border-color: rgba(248, 81, 73, 0.4);
+            color: var(--red);
+        }
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(248, 81, 73, 0.3);
+        }
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 20px;
+        }
+        .bento-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .storage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .storage-bar-bg {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            height: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .storage-bar-fill {
+            background: linear-gradient(90deg, var(--cyan), #388bfd);
+            height: 100%;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+        .tab-bar {
+            display: flex;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-card);
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 15px;
+            font-weight: 600;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -9px;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            color: var(--text-main);
+        }
+        .tab-btn.active {
+            color: var(--cyan);
+            border-bottom-color: var(--cyan);
+        }
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 18px;
+        }
+        .app-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-card);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .app-card:hover {
+            transform: translateY(-2px);
+            border-color: #58a6ff;
+        }
+        .app-card-top {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 12px;
+        }
+        .app-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            background: rgba(0, 229, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid rgba(0, 229, 255, 0.2);
+        }
+        .app-icon img, .app-icon svg {
+            width: 28px;
+            height: 28px;
+        }
+        .app-info h3 {
+            margin: 0 0 4px 0;
+            font-size: 15px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .version-badge {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+        .app-desc {
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.4;
+            margin: 0 0 14px 0;
+            flex-grow: 1;
+        }
+        .app-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 12px;
+        }
+        .app-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .dropzone {
+            border: 2px dashed var(--border-card);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 24px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+        .dropzone:hover, .dropzone.dragover {
+            border-color: var(--cyan);
+            background: rgba(0, 229, 255, 0.03);
+        }
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 14px;
+            width: 90%;
+            max-width: 520px;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-card);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .alert-box {
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .alert-error {
+            background: rgba(248, 81, 73, 0.15);
+            border: 1px solid rgba(248, 81, 73, 0.4);
+            color: #ff7b72;
+        }
+        .alert-warning {
+            background: rgba(210, 153, 34, 0.15);
+            border: 1px solid rgba(210, 153, 34, 0.4);
+            color: #d29922;
+        }
+        .alert-success {
+            background: rgba(63, 185, 80, 0.15);
+            border: 1px solid rgba(63, 185, 80, 0.4);
+            color: #56d364;
+        }
+        .tag-pill {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background: var(--cyan);
+            width: 0%;
+            transition: width 0.2s;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <a href="/" class="brand-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                AgentLA
+            </a>
+            <nav class="nav-links">
+                <a href="/" class="nav-pill">Console</a>
+                <a href="/apps" class="nav-pill active">App Launcher</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <button class="action-btn btn-danger" id="btn-emergency-safe" title="Emergency Safe State: High-Z all GPIO pins">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                SAFE STATE
+            </button>
+            <div id="system-badge" style="font-size: 12px; color: var(--text-muted);">RP2350</div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+
+        <!-- Flash Storage Bento Card -->
+        <div class="bento-card">
+            <div class="storage-header">
+                <div>
+                    <h2 style="margin: 0 0 4px 0; font-size: 16px;">Flash Partition Storage</h2>
+                    <div style="font-size: 12px; color: var(--text-muted);" id="storage-detail-text">LittleFS Partition Loading...</div>
+                </div>
+                <button class="action-btn" id="btn-refresh-storage" title="Refresh Storage Statistics">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+            <div class="storage-bar-bg">
+                <div class="storage-bar-fill" id="storage-bar"></div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tab-bar">
+            <button class="tab-btn active" id="tab-my-apps">My Apps (<span id="installed-count">0</span>)</button>
+            <button class="tab-btn" id="tab-store">Community App Store</button>
+        </div>
+
+        <!-- Tab Content 1: My Apps -->
+        <section id="section-my-apps">
+            <!-- Dropzone for Local Install -->
+            <div class="dropzone" id="dropzone" onclick="document.getElementById('file-picker').click();">
+                <input type="file" id="file-picker" accept=".tar,.html" style="display: none;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" style="margin-bottom: 8px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                </svg>
+                <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Install App Package or Dashboard</div>
+                <div style="font-size: 12px; color: var(--text-muted);">Drag and drop a <code>.tar</code> app archive or standalone <code>.html</code> file here, or click to browse</div>
+            </div>
+
+            <!-- Installed Apps Grid -->
+            <div class="apps-grid" id="installed-apps-grid">
+                <!-- Dynamically populated -->
+            </div>
+        </section>
+
+        <!-- Tab Content 2: App Store -->
+        <section id="section-store" style="display: none;">
+            <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="store-search" placeholder="Search community apps..." style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-card); border-radius: 8px; padding: 8px 14px; color: #fff; font-size: 13px; flex-grow: 1; min-width: 200px;">
+                <button class="action-btn" id="btn-configure-catalog" title="Configure Catalog URL">Settings</button>
+            </div>
+
+            <div class="apps-grid" id="store-apps-grid">
+                <!-- Dynamically populated from catalog -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Installation Confirmation Modal -->
+    <div class="modal-overlay" id="install-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 style="margin: 0; font-size: 16px;" id="modal-title">App Installation Confirmation</h3>
+                <button style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:18px;" onclick="closeInstallModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; gap: 14px; align-items: center;">
+                    <div class="app-icon" id="modal-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; font-size: 16px;" id="modal-app-name">App Name</div>
+                        <div style="font-size: 12px; color: var(--text-muted);" id="modal-app-meta">v1.0.0 · Author</div>
+                    </div>
+                </div>
+
+                <div style="font-size: 13px; color: var(--text-muted);" id="modal-app-desc">Description of the application...</div>
+
+                <!-- Storage Capacity Check Alert -->
+                <div class="alert-box" id="modal-storage-alert">
+                    <div id="modal-storage-text">Checking available flash storage...</div>
+                </div>
+
+                <!-- Hardware Compatibility Warning Alert -->
+                <div class="alert-box alert-warning" id="modal-hw-alert" style="display: none;">
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 2px;">Hardware Requirement Notice</div>
+                        <div id="modal-hw-text" style="margin-bottom: 8px;">This app requires hardware not detected on your board.</div>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
+                            <input type="checkbox" id="modal-hw-override"> Install anyway despite hardware incompatibility
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Overwrite notice -->
+                <div class="alert-box alert-warning" id="modal-overwrite-alert" style="display: none;">
+                    <div>This application is already installed. Confirming will overwrite existing files.</div>
+                </div>
+
+                <!-- Upload Progress -->
+                <div id="modal-progress-container" style="display: none;">
+                    <div style="font-size: 12px; color: var(--text-muted);" id="modal-progress-status">Uploading package to flash...</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-inner" id="modal-progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn" onclick="closeInstallModal()" id="btn-modal-cancel">Cancel</button>
+                <button class="action-btn btn-primary" id="btn-modal-confirm">Confirm &amp; Install</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let deviceStorage = { total_bytes: 0, used_bytes: 0, free_bytes: 0 };
+        let deviceSystem = { board_id: "pico2", board_name: "Raspberry Pi Pico 2", flash_bytes: 4194304 };
+        let installedApps = [];
+        let catalogApps = [];
+        let pendingInstallPayload = null; // { name, type: 'tar'|'html', data: ArrayBuffer|string, appJson: {} }
+
+        // Default Catalog URL
+        let catalogUrl = localStorage.getItem('agentla_catalog_url') || 'https://raw.githubusercontent.com/rambros3d/AgentLA/catalog/apps.json';
+
+        // Sample fallback catalog if offline
+        const fallbackCatalog = [
+            {
+                id: "can-sniffer",
+                name: "CAN Bus Analyzer",
+                version: "1.1.0",
+                author: "AgentLA Team",
+                description: "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, and DBC decoder.",
+                requires: ["has_hardware_can"],
+                tags: ["Automotive", "CAN"],
+                size_bytes: 45120
+            },
+            {
+                id: "battery-profiler",
+                name: "Battery Discharge Profiler",
+                version: "1.0.2",
+                author: "AgentLA Team",
+                description: "Continuous voltage & current profiling curves with mWh calculations and CSV export.",
+                requires: [],
+                tags: ["Power", "ADC"],
+                size_bytes: 28400
+            },
+            {
+                id: "i3c-sensor-hub",
+                name: "I3C Sensor Hub",
+                version: "1.0.0",
+                author: "AgentLA Team",
+                description: "Interactive I3C SDR/HDR explorer, DAA dynamic address assignment and register monitor.",
+                requires: [],
+                tags: ["Sensors", "I3C"],
+                size_bytes: 36800
+            }
+        ];
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes <= 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+        }
+
+        async function fetchSystemInfo() {
+            try {
+                const res = await fetch('/api/v1/system');
+                if (res.ok) {
+                    deviceSystem = await res.json();
+                    document.getElementById('system-badge').innerText = `${deviceSystem.board_name} (${formatBytes(deviceSystem.flash_bytes)})`;
+                }
+            } catch (e) {
+                console.warn('System info query failed:', e);
+            }
+        }
+
+        async function fetchStorage() {
+            try {
+                const res = await fetch('/api/v1/apps/storage');
+                if (res.ok) {
+                    deviceStorage = await res.json();
+                    const usedPct = deviceStorage.total_bytes > 0 
+                        ? Math.round((deviceStorage.used_bytes / deviceStorage.total_bytes) * 100) 
+                        : 0;
+                    document.getElementById('storage-bar').style.width = usedPct + '%';
+                    document.getElementById('storage-detail-text').innerText = 
+                        `${formatBytes(deviceStorage.used_bytes)} used of ${formatBytes(deviceStorage.total_bytes)} (${formatBytes(deviceStorage.free_bytes)} free · ${usedPct}%)`;
+                }
+            } catch (e) {
+                console.warn('Storage query failed:', e);
+            }
+        }
+
+        async function fetchInstalledApps() {
+            try {
+                const res = await fetch('/api/v1/apps');
+                if (res.ok) {
+                    installedApps = await res.json();
+                    document.getElementById('installed-count').innerText = installedApps.length;
+                    renderInstalledApps();
+                }
+            } catch (e) {
+                console.warn('Installed apps query failed:', e);
+            }
+        }
+
+        function renderInstalledApps() {
+            const grid = document.getElementById('installed-apps-grid');
+            if (installedApps.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 8px;">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        <div>No custom apps installed yet.</div>
+                        <div style="font-size: 12px; margin-top: 4px;">Install an app from the App Store or drag and drop a package above.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = installedApps.map(app => `
+                <div class="app-card">
+                    <div>
+                        <div class="app-card-top">
+                            <div class="app-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
+                                    <rect x="2" y="2" width="20" height="20" rx="4"/>
+                                    <path d="M7 10h10M7 14h10"/>
+                                </svg>
+                            </div>
+                            <div class="app-info">
+                                <h3>${escapeHtml(app.name || app.id)} <span class="version-badge">v${escapeHtml(app.version || '1.0.0')}</span></h3>
+                                <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(app.author || 'Installed')}</div>
+                            </div>
+                        </div>
+                        <div class="app-desc">${escapeHtml(app.description || 'Custom Web Application')}</div>
+                    </div>
+                    <div class="app-meta">
+                        <span>${formatBytes(app.size)} on flash</span>
+                        <div class="app-actions">
+                            <button class="action-btn btn-danger" onclick="deleteApp('${escapeHtml(app.id)}')">Delete</button>
+                            <a class="action-btn btn-primary" href="/apps/${encodeURIComponent(app.id)}/" target="_self">Launch</a>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function fetchCatalog() {
+            const grid = document.getElementById('store-apps-grid');
+            grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted);">Loading Community Catalog...</div>`;
+
+            try {
+                const res = await fetch(catalogUrl, { cache: 'no-cache' });
+                if (res.ok) {
+                    const data = await res.json();
+                    catalogApps = data.apps || data;
+                } else {
+                    throw new Error('Catalog fetch returned HTTP ' + res.status);
+                }
+            } catch (e) {
+                console.warn('Remote catalog offline, using fallback:', e);
+                catalogApps = fallbackCatalog;
+            }
+
+            renderCatalog();
+        }
+
+        function renderCatalog() {
+            const grid = document.getElementById('store-apps-grid');
+            const search = document.getElementById('store-search').value.toLowerCase();
+
+            const filtered = catalogApps.filter(app => {
+                const name = (app.name || '').toLowerCase();
+                const desc = (app.description || '').toLowerCase();
+                const tags = (app.tags || []).join(' ').toLowerCase();
+                return name.includes(search) || desc.includes(search) || tags.includes(search);
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 30px;">No matching apps found in catalog.</div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(app => {
+                const installed = installedApps.find(a => a.id === app.id);
+                let actionBtn = `<button class="action-btn btn-primary" onclick="initiateCatalogInstall('${escapeHtml(app.id)}')">Install</button>`;
+                
+                if (installed) {
+                    if (installed.version && app.version && compareVersions(app.version, installed.version) > 0) {
+                        actionBtn = `<button class="action-btn btn-primary" onclick="initiateCatalogInstall('${escapeHtml(app.id)}')">Update (v${escapeHtml(app.version)})</button>`;
+                    } else {
+                        actionBtn = `<a class="action-btn" href="/apps/${encodeURIComponent(app.id)}/" target="_self">Launch</a>`;
+                    }
+                }
+
+                return `
+                    <div class="app-card">
+                        <div>
+                            <div class="app-card-top">
+                                <div class="app-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
+                                        <rect x="2" y="2" width="20" height="20" rx="4"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </div>
+                                <div class="app-info">
+                                    <h3>${escapeHtml(app.name)} <span class="version-badge">v${escapeHtml(app.version)}</span></h3>
+                                    <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(app.author || 'Community')}</div>
+                                </div>
+                            </div>
+                            <div class="app-desc">${escapeHtml(app.description || '')}</div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
+                                ${(app.tags || []).map(t => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
+                            </div>
+                        </div>
+                        <div class="app-meta">
+                            <span>${formatBytes(app.size_bytes || 32768)} needed</span>
+                            <div class="app-actions">
+                                ${actionBtn}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function compareVersions(v1, v2) {
+            const p1 = (v1 || '').split('.').map(Number);
+            const p2 = (v2 || '').split('.').map(Number);
+            for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+                const n1 = p1[i] || 0;
+                const n2 = p2[i] || 0;
+                if (n1 > n2) return 1;
+                if (n1 < n2) return -1;
+            }
+            return 0;
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        }
+
+        // Client-Side TAR Header Extraction
+        function parseTarMetadata(arrayBuffer) {
+            const view = new DataView(arrayBuffer);
+            let offset = 0;
+            let appJson = null;
+            let iconSvg = null;
+            let totalUncompressedSize = 0;
+
+            while (offset + 512 <= arrayBuffer.byteLength) {
+                // Read filename (100 bytes)
+                let name = '';
+                for (let i = 0; i < 100; i++) {
+                    const c = view.getUint8(offset + i);
+                    if (c === 0) break;
+                    name += String.fromCharCode(c);
+                }
+
+                if (!name) break; // End of archive blocks
+
+                // Read octal size (bytes 124..135)
+                let sizeStr = '';
+                for (let i = 124; i < 136; i++) {
+                    const c = view.getUint8(offset + i);
+                    if (c === 0 || c === 32) continue;
+                    sizeStr += String.fromCharCode(c);
+                }
+                const fileSize = parseInt(sizeStr, 8) || 0;
+                totalUncompressedSize += fileSize;
+
+                const fileStart = offset + 512;
+                if (name.endsWith('app.json') && fileSize > 0 && fileSize < 65536) {
+                    try {
+                        const jsonBytes = new Uint8Array(arrayBuffer, fileStart, fileSize);
+                        const jsonStr = new TextDecoder().decode(jsonBytes);
+                        appJson = JSON.parse(jsonStr);
+                    } catch (e) {
+                        console.warn('Failed to parse in-memory app.json:', e);
+                    }
+                }
+
+                if (name.endsWith('icon.svg') && fileSize > 0 && fileSize < 65536) {
+                    const svgBytes = new Uint8Array(arrayBuffer, fileStart, fileSize);
+                    iconSvg = new TextDecoder().decode(svgBytes);
+                }
+
+                // Advance to next 512-byte boundary
+                offset += 512 + Math.ceil(fileSize / 512) * 512;
+            }
+
+            return { appJson, iconSvg, totalSize: totalUncompressedSize };
+        }
+
+        async function openInstallModal(payload) {
+            pendingInstallPayload = payload;
+            const modal = document.getElementById('install-modal');
+            const confirmBtn = document.getElementById('btn-modal-confirm');
+            const storageAlert = document.getElementById('modal-storage-alert');
+            const hwAlert = document.getElementById('modal-hw-alert');
+            const overwriteAlert = document.getElementById('modal-overwrite-alert');
+            const hwOverride = document.getElementById('modal-hw-override');
+
+            // Set app details
+            const app = payload.appJson || { id: payload.name, name: payload.name, version: "1.0.0" };
+            document.getElementById('modal-app-name').innerText = app.name || app.id || payload.name;
+            document.getElementById('modal-app-meta').innerText = `v${app.version || '1.0.0'} · ${app.author || 'User Upload'}`;
+            document.getElementById('modal-app-desc').innerText = app.description || 'Custom Web Dashboard';
+
+            // Refresh storage capacity
+            await fetchStorage();
+            const requiredBytes = payload.estimatedSize || 32768;
+            const freeBytes = deviceStorage.free_bytes || 0;
+
+            let spaceOk = true;
+            if (requiredBytes > freeBytes) {
+                spaceOk = false;
+                storageAlert.className = 'alert-box alert-error';
+                document.getElementById('modal-storage-text').innerText = 
+                    `Insufficient Flash Space: Requires ${formatBytes(requiredBytes)}, only ${formatBytes(freeBytes)} available.`;
+            } else {
+                storageAlert.className = 'alert-box alert-success';
+                document.getElementById('modal-storage-text').innerText = 
+                    `Flash Space Sufficient: ${formatBytes(requiredBytes)} needed, ${formatBytes(freeBytes)} available.`;
+            }
+
+            // Check hardware compatibility
+            let hwOk = true;
+            hwAlert.style.display = 'none';
+            hwOverride.checked = false;
+
+            if (app.requires && Array.isArray(app.requires) && app.requires.length > 0) {
+                const missing = app.requires.filter(req => {
+                    // Check against board features if defined
+                    if (req === 'has_hardware_can' && deviceSystem.board_id === 'pico2') return true; // standard pico2 has no transceiver
+                    return false;
+                });
+
+                if (missing.length > 0) {
+                    hwOk = false;
+                    hwAlert.style.display = 'flex';
+                    document.getElementById('modal-hw-text').innerText = 
+                        `This app declares hardware requirement (${missing.join(', ')}) not detected on this board.`;
+                }
+            }
+
+            // Overwrite check
+            const alreadyExists = installedApps.some(a => a.id === (app.id || payload.name));
+            overwriteAlert.style.display = alreadyExists ? 'flex' : 'none';
+
+            function updateConfirmBtnState() {
+                if (!spaceOk) {
+                    confirmBtn.disabled = true;
+                } else if (!hwOk && !hwOverride.checked) {
+                    confirmBtn.disabled = true;
+                } else {
+                    confirmBtn.disabled = false;
+                }
+            }
+
+            hwOverride.onchange = updateConfirmBtnState;
+            updateConfirmBtnState();
+
+            // Progress reset
+            document.getElementById('modal-progress-container').style.display = 'none';
+            document.getElementById('modal-progress-bar').style.width = '0%';
+            confirmBtn.style.display = 'inline-flex';
+            document.getElementById('btn-modal-cancel').disabled = false;
+
+            modal.classList.add('open');
+        }
+
+        function closeInstallModal() {
+            document.getElementById('install-modal').classList.remove('open');
+            pendingInstallPayload = null;
+        }
+
+        // Install confirm button
+        document.getElementById('btn-modal-confirm').addEventListener('click', async () => {
+            if (!pendingInstallPayload) return;
+
+            const confirmBtn = document.getElementById('btn-modal-confirm');
+            const cancelBtn = document.getElementById('btn-modal-cancel');
+            const progContainer = document.getElementById('modal-progress-container');
+            const progBar = document.getElementById('modal-progress-bar');
+            const progText = document.getElementById('modal-progress-status');
+
+            confirmBtn.disabled = true;
+            cancelBtn.disabled = true;
+            progContainer.style.display = 'block';
+            progBar.style.width = '30%';
+            progText.innerText = 'Writing application to LittleFS flash...';
+
+            const appName = pendingInstallPayload.appJson?.id || pendingInstallPayload.name;
+            const url = `/api/v1/apps/install?name=${encodeURIComponent(appName)}`;
+
+            try {
+                let res;
+                if (pendingInstallPayload.type === 'tar') {
+                    res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-tar' },
+                        body: pendingInstallPayload.data
+                    });
+                } else {
+                    res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/html' },
+                        body: pendingInstallPayload.data
+                    });
+                }
+
+                progBar.style.width = '100%';
+                if (res.status === 201 || res.ok) {
+                    progText.innerText = 'Installation successful!';
+                    setTimeout(async () => {
+                        closeInstallModal();
+                        await fetchStorage();
+                        await fetchInstalledApps();
+                    }, 600);
+                } else {
+                    throw new Error('Install failed with HTTP ' + res.status);
+                }
+            } catch (e) {
+                progText.innerText = 'Error: ' + e.message;
+                cancelBtn.disabled = false;
+            }
+        });
+
+        // Local file drop / pick
+        const filePicker = document.getElementById('file-picker');
+        filePicker.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            handleFileSelect(file);
+        });
+
+        const dropzone = document.getElementById('dropzone');
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        async function handleFileSelect(file) {
+            const name = file.name.replace(/\.[^/.]+$/, "");
+            if (file.name.endsWith('.tar')) {
+                const buffer = await file.arrayBuffer();
+                const meta = parseTarMetadata(buffer);
+                openInstallModal({
+                    name: meta.appJson?.id || name,
+                    type: 'tar',
+                    data: buffer,
+                    appJson: meta.appJson || { id: name, name: name, version: '1.0.0' },
+                    estimatedSize: meta.totalSize || file.size
+                });
+            } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+                const text = await file.text();
+                openInstallModal({
+                    name: name,
+                    type: 'html',
+                    data: text,
+                    appJson: { id: name, name: name, version: '1.0.0', description: 'Standalone HTML Dashboard' },
+                    estimatedSize: file.size
+                });
+            } else {
+                alert('Unsupported package format. Please select a .tar archive or .html file.');
+            }
+        }
+
+        async function initiateCatalogInstall(appId) {
+            const app = catalogApps.find(a => a.id === appId);
+            if (!app) return;
+
+            // Create placeholder payload
+            // For community catalog apps, if download_url is present, browser fetches it:
+            if (app.download_url) {
+                try {
+                    const res = await fetch(app.download_url);
+                    if (!res.ok) throw new Error('Download failed: ' + res.statusText);
+                    const buf = await res.arrayBuffer();
+                    const meta = parseTarMetadata(buf);
+                    openInstallModal({
+                        name: app.id,
+                        type: 'tar',
+                        data: buf,
+                        appJson: meta.appJson || app,
+                        estimatedSize: meta.totalSize || app.size_bytes || buf.byteLength
+                    });
+                } catch (e) {
+                    alert('Could not download package from registry: ' + e.message);
+                }
+            } else {
+                // Simulated install package for built-in catalog entries
+                // Construct a minimal tar in-memory with app.json and index.html
+                const demoHtml = `<!DOCTYPE html><html><head><title>${app.name}</title><link rel="stylesheet" href="/style.css"></head><body style="padding:40px; text-align:center;"><h2>${app.name}</h2><p>${app.description}</p><p><a href="/apps" class="action-btn">Back to Apps</a></p></body></html>`;
+                openInstallModal({
+                    name: app.id,
+                    type: 'html',
+                    data: demoHtml,
+                    appJson: app,
+                    estimatedSize: demoHtml.length + 512
+                });
+            }
+        }
+
+        async function deleteApp(appId) {
+            if (!confirm(`Are you sure you want to delete '${appId}' and free up flash storage?`)) return;
+            try {
+                const res = await fetch(`/api/v1/apps/${encodeURIComponent(appId)}`, { method: 'DELETE' });
+                if (res.ok) {
+                    await fetchStorage();
+                    await fetchInstalledApps();
+                    renderCatalog();
+                } else {
+                    alert('Failed to delete application.');
+                }
+            } catch (e) {
+                alert('Delete error: ' + e.message);
+            }
+        }
+
+        // Emergency Safe State
+        document.getElementById('btn-emergency-safe').addEventListener('click', async () => {
+            if (!confirm('Activate Emergency Safe State? All GPIO pins will be quiesced to High-Z.')) return;
+            try {
+                const res = await fetch('/api/v1/pins/safe', { method: 'POST' });
+                if (res.ok) {
+                    alert('Safe state activated: All pins quiesced.');
+                }
+            } catch (e) {
+                alert('Emergency safe state request error: ' + e.message);
+            }
+        });
+
+        // Tabs
+        const tabMyApps = document.getElementById('tab-my-apps');
+        const tabStore = document.getElementById('tab-store');
+        const secMyApps = document.getElementById('section-my-apps');
+        const secStore = document.getElementById('section-store');
+
+        tabMyApps.addEventListener('click', () => {
+            tabMyApps.classList.add('active');
+            tabStore.classList.remove('active');
+            secMyApps.style.display = 'block';
+            secStore.style.display = 'none';
+        });
+
+        tabStore.addEventListener('click', () => {
+            tabStore.classList.add('active');
+            tabMyApps.classList.remove('active');
+            secStore.style.display = 'block';
+            secMyApps.style.display = 'none';
+            if (catalogApps.length === 0) {
+                fetchCatalog();
+            }
+        });
+
+        document.getElementById('store-search').addEventListener('input', renderCatalog);
+
+        document.getElementById('btn-refresh-storage').addEventListener('click', async () => {
+            await fetchStorage();
+            await fetchInstalledApps();
+        });
+
+        document.getElementById('btn-configure-catalog').addEventListener('click', () => {
+            const url = prompt('Enter Community App Catalog JSON URL:', catalogUrl);
+            if (url && url !== catalogUrl) {
+                catalogUrl = url;
+                localStorage.setItem('agentla_catalog_url', catalogUrl);
+                fetchCatalog();
+            }
+        });
+
+        // Initialize
+        (async function init() {
+            await fetchSystemInfo();
+            await fetchStorage();
+            await fetchInstalledApps();
+        })();
+    </script>
+</body>
+</html>
