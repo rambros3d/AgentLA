@@ -67,8 +67,7 @@ let targetCurrent = '14mA';
 // UI Settings storage
 const UI_SETTINGS_STORAGE_KEY = 'agentla-ui-settings';
 const DEFAULT_UI_SETTINGS = Object.freeze({
-    wallpaperHue: 0,
-    transparency: 'transparent'
+    transparency: 'solid'
 });
 
 function loadUiSettings() {
@@ -77,8 +76,7 @@ function loadUiSettings() {
         if (!raw) return { ...DEFAULT_UI_SETTINGS };
         const parsed = JSON.parse(raw);
         return {
-            wallpaperHue: typeof parsed.wallpaperHue === 'number' ? parsed.wallpaperHue : DEFAULT_UI_SETTINGS.wallpaperHue,
-            transparency: parsed.transparency === 'solid' ? 'solid' : 'transparent'
+            transparency: parsed.transparency === 'solid' ? 'solid' : 'solid'
         };
     } catch (e) {
         return { ...DEFAULT_UI_SETTINGS };
@@ -94,39 +92,390 @@ function saveUiSettings() {
 }
 
 function applyUiSettings() {
-    // Solid state theme - no wallpaper hue or transparency effects
     document.body.classList.add('no-transparency');
 }
 
 // --------------------------------------------------------------------------
-// Theme Engine
+// Theme Engine (Tri-State: system -> light -> dark -> system)
 // --------------------------------------------------------------------------
-const THEME_STORAGE_KEY = 'agentla-theme';
+const themeState = {
+    mode: 'system', // 'system' | 'light' | 'dark'
+    defaultLightTheme: 'emerald',
+    defaultDarkTheme: 'forest',
+    availableThemes: [
+        { name: 'forest', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: true, custom: false },
+        { name: 'emerald', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: true, custom: false },
+        { name: 'caramellatte', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: false, custom: false }
+    ]
+};
 
-function getCurrentTheme() {
-    return document.documentElement.getAttribute('data-theme') || 'dark';
+function getEffectiveTheme() {
+    if (themeState.mode === 'light') {
+        return themeState.defaultLightTheme || 'emerald';
+    } else if (themeState.mode === 'dark') {
+        return themeState.defaultDarkTheme || 'forest';
+    } else {
+        const prefersDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return prefersDark ? (themeState.defaultDarkTheme || 'forest') : (themeState.defaultLightTheme || 'emerald');
+    }
 }
 
-function setTheme(theme) {
-    const validTheme = (theme === 'light') ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', validTheme);
-    try {
-        localStorage.setItem(THEME_STORAGE_KEY, validTheme);
-    } catch (e) { /* ignore */ }
+function getCurrentTheme() {
+    return document.documentElement.getAttribute('data-theme') || getEffectiveTheme();
+}
 
-    document.querySelectorAll('.settings-theme-select').forEach(sel => {
-        sel.value = validTheme;
-    });
+function applyTheme() {
+    const effectiveTheme = getEffectiveTheme();
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
 
-    // Notify active scopes and canvases to immediately redraw with matching theme colors
+    const btnToggle = document.getElementById('btn-theme-toggle');
+    if (btnToggle) {
+        btnToggle.setAttribute('data-mode', themeState.mode);
+        btnToggle.className = `theme-toggle-btn mode-${themeState.mode}`;
+        const label = themeState.mode === 'system'
+            ? `Theme Mode: System (${effectiveTheme})`
+            : themeState.mode === 'light'
+                ? `Theme Mode: Light (${effectiveTheme})`
+                : `Theme Mode: Dark (${effectiveTheme})`;
+        btnToggle.setAttribute('title', label);
+        btnToggle.setAttribute('aria-label', label);
+    }
+
+    const selMode = document.getElementById('settings-theme-mode-select');
+    if (selMode) selMode.value = themeState.mode;
+
+    const selLight = document.getElementById('select-default-light-theme');
+    if (selLight) selLight.value = themeState.defaultLightTheme;
+
+    const selDark = document.getElementById('select-default-dark-theme');
+    if (selDark) selDark.value = themeState.defaultDarkTheme;
+
+    // Redraw scopes and canvases
     window.activeLogicController?.forceRedraw();
     if (window.redrawScope) window.redrawScope();
     if (window.redrawGenPreview) window.redrawGenPreview();
 }
 
+async function cycleThemeMode() {
+    if (themeState.mode === 'system') {
+        themeState.mode = 'light';
+    } else if (themeState.mode === 'light') {
+        themeState.mode = 'dark';
+    } else {
+        themeState.mode = 'system';
+    }
+    applyTheme();
+    await saveSettings();
+}
+
+async function saveSettings() {
+    const payload = {
+        theme_mode: themeState.mode,
+        default_light_theme: themeState.defaultLightTheme,
+        default_dark_theme: themeState.defaultDarkTheme,
+        active_profile: "Default Lab Bench"
+    };
+    try {
+        await fetch('/api/v1/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        console.warn('[ThemeEngine] Note: saveSettings failed or offline', e);
+    }
+}
+
+function populateThemeDropdowns() {
+    const selLight = document.getElementById('select-default-light-theme');
+    const selDark = document.getElementById('select-default-dark-theme');
+
+    if (selLight) {
+        const curVal = selLight.value || themeState.defaultLightTheme;
+        selLight.innerHTML = '';
+        themeState.availableThemes
+            .filter(t => (t.color_scheme || t.colorScheme) === 'light')
+            .forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.name;
+                opt.textContent = `${t.name.charAt(0).toUpperCase() + t.name.slice(1)}${t.custom ? ' (Custom)' : ''}`;
+                if (t.name === curVal) opt.selected = true;
+                selLight.appendChild(opt);
+            });
+    }
+
+    if (selDark) {
+        const curVal = selDark.value || themeState.defaultDarkTheme;
+        selDark.innerHTML = '';
+        themeState.availableThemes
+            .filter(t => (t.color_scheme || t.colorScheme) === 'dark')
+            .forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.name;
+                opt.textContent = `${t.name.charAt(0).toUpperCase() + t.name.slice(1)}${t.custom ? ' (Custom)' : ''}`;
+                if (t.name === curVal) opt.selected = true;
+                selDark.appendChild(opt);
+            });
+    }
+}
+
+async function loadAvailableThemes() {
+    let list = [];
+    try {
+        const resp = await fetch('/api/v1/themes');
+        if (resp.ok) {
+            list = await resp.json();
+        } else {
+            const resp2 = await fetch('themes.json');
+            if (resp2.ok) list = await resp2.json();
+        }
+    } catch (e) {
+        try {
+            const resp2 = await fetch('themes.json');
+            if (resp2.ok) list = await resp2.json();
+        } catch (err) {}
+    }
+
+    if (Array.isArray(list) && list.length > 0) {
+        themeState.availableThemes = list;
+    }
+    populateThemeDropdowns();
+}
+
+function openAddThemeModal() {
+    const modal = document.getElementById('modal-add-theme');
+    if (modal) {
+        modal.classList.add('open');
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        const statusMsg = document.getElementById('custom-theme-status-msg');
+        if (statusMsg) {
+            statusMsg.textContent = '';
+            statusMsg.style.color = '';
+        }
+    }
+}
+
+function closeAddThemeModal() {
+    const modal = document.getElementById('modal-add-theme');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+async function initThemeEngine() {
+    // 1. Check initial data-theme from SSI
+    const docTheme = document.documentElement.getAttribute('data-theme');
+    if (docTheme && docTheme !== '<!--#THEME-->' && docTheme !== 'dark' && docTheme !== 'light') {
+        if (docTheme === 'forest') themeState.defaultDarkTheme = 'forest';
+        else if (docTheme === 'emerald') themeState.defaultLightTheme = 'emerald';
+        else if (docTheme === 'caramellatte') themeState.defaultLightTheme = 'caramellatte';
+    }
+
+    // 2. Fetch /api/v1/settings
+    try {
+        const resp = await fetch('/api/v1/settings');
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.theme_mode) themeState.mode = data.theme_mode;
+            if (data.default_light_theme) themeState.defaultLightTheme = data.default_light_theme;
+            if (data.default_dark_theme) themeState.defaultDarkTheme = data.default_dark_theme;
+        }
+    } catch (e) {
+        const saved = localStorage.getItem('agentla-theme');
+        if (saved === 'light' || saved === 'dark') {
+            themeState.mode = saved;
+        }
+    }
+
+    await loadAvailableThemes();
+    applyTheme();
+
+    // 3. Listen to OS prefers-color-scheme changes
+    if (window.matchMedia) {
+        const mql = window.matchMedia('(prefers-color-scheme: dark)');
+        mql.addEventListener('change', () => {
+            if (themeState.mode === 'system') {
+                applyTheme();
+            }
+        });
+    }
+
+    // 4. Hook Theme Switcher Button
+    const btnToggle = document.getElementById('btn-theme-toggle');
+    if (btnToggle) {
+        btnToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            cycleThemeMode();
+        });
+    }
+
+    // 5. Hook Settings Modal Theme Dropdowns
+    const selMode = document.getElementById('settings-theme-mode-select');
+    if (selMode) {
+        selMode.addEventListener('change', async () => {
+            themeState.mode = selMode.value;
+            applyTheme();
+            await saveSettings();
+        });
+    }
+
+    const selLight = document.getElementById('select-default-light-theme');
+    if (selLight) {
+        selLight.addEventListener('change', async () => {
+            themeState.defaultLightTheme = selLight.value;
+            applyTheme();
+            await saveSettings();
+        });
+    }
+
+    const selDark = document.getElementById('select-default-dark-theme');
+    if (selDark) {
+        selDark.addEventListener('change', async () => {
+            themeState.defaultDarkTheme = selDark.value;
+            applyTheme();
+            await saveSettings();
+        });
+    }
+
+    // 6. Hook Add Custom Theme Modal
+    const btnOpenAddTheme = document.getElementById('btn-open-add-theme');
+    const btnCloseAddTheme = document.getElementById('btn-close-add-theme');
+    const btnCancelAddTheme = document.getElementById('btn-cancel-add-theme');
+    const btnPreviewTheme = document.getElementById('btn-preview-custom-theme');
+    const btnSaveTheme = document.getElementById('btn-save-custom-theme');
+    const modalAddTheme = document.getElementById('modal-add-theme');
+
+    if (btnOpenAddTheme) btnOpenAddTheme.addEventListener('click', openAddThemeModal);
+    if (btnCloseAddTheme) btnCloseAddTheme.addEventListener('click', closeAddThemeModal);
+    if (btnCancelAddTheme) btnCancelAddTheme.addEventListener('click', closeAddThemeModal);
+    if (modalAddTheme) {
+        modalAddTheme.addEventListener('click', (e) => {
+            if (e.target === modalAddTheme) closeAddThemeModal();
+        });
+    }
+
+    if (btnPreviewTheme) {
+        btnPreviewTheme.addEventListener('click', () => {
+            const rawCss = document.getElementById('custom-theme-css-input')?.value || '';
+            const statusMsg = document.getElementById('custom-theme-status-msg');
+            const nameMatch = rawCss.match(/name\s*:\s*["']([^"']+)["']/);
+            const blockMatch = rawCss.match(/@plugin\s+["']daisyui\/theme["']\s*\{([^}]+)\}/);
+
+            if (!nameMatch || !blockMatch) {
+                if (statusMsg) {
+                    statusMsg.textContent = 'Error: Invalid DaisyUI theme CSS. Missing name or @plugin block.';
+                    statusMsg.style.color = 'var(--color-error, #ff3b30)';
+                }
+                return;
+            }
+
+            const thName = nameMatch[1];
+            let previewStyle = document.getElementById('dynamic-theme-preview');
+            if (!previewStyle) {
+                previewStyle = document.createElement('style');
+                previewStyle.id = 'dynamic-theme-preview';
+                document.head.appendChild(previewStyle);
+            }
+            previewStyle.textContent = `[data-theme="${thName}"] {\n${blockMatch[1]}\n}`;
+            document.documentElement.setAttribute('data-theme', thName);
+            if (statusMsg) {
+                statusMsg.textContent = `Preview active for theme "${thName}"!`;
+                statusMsg.style.color = 'var(--color-success, #34c759)';
+            }
+            window.activeLogicController?.forceRedraw();
+            if (window.redrawScope) window.redrawScope();
+        });
+    }
+
+    if (btnSaveTheme) {
+        btnSaveTheme.addEventListener('click', async () => {
+            const rawCss = document.getElementById('custom-theme-css-input')?.value || '';
+            const statusMsg = document.getElementById('custom-theme-status-msg');
+            const nameMatch = rawCss.match(/name\s*:\s*["']([^"']+)["']/);
+            const blockMatch = rawCss.match(/@plugin\s+["']daisyui\/theme["']\s*\{([^}]+)\}/);
+
+            if (!nameMatch || !blockMatch) {
+                if (statusMsg) {
+                    statusMsg.textContent = 'Error: Invalid DaisyUI theme CSS. Missing name or @plugin block.';
+                    statusMsg.style.color = 'var(--color-error, #ff3b30)';
+                }
+                return;
+            }
+
+            const thName = nameMatch[1];
+            const isDark = rawCss.includes('"dark"') || rawCss.includes("'dark'");
+            try {
+                const resp = await fetch(`/api/v1/themes?name=${encodeURIComponent(thName)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/css' },
+                    body: rawCss
+                });
+                if (resp.ok) {
+                    let previewStyle = document.getElementById('dynamic-theme-preview');
+                    if (!previewStyle) {
+                        previewStyle = document.createElement('style');
+                        previewStyle.id = 'dynamic-theme-preview';
+                        document.head.appendChild(previewStyle);
+                    }
+                    previewStyle.textContent += `\n[data-theme="${thName}"] {\n${blockMatch[1]}\n}`;
+
+                    if (!themeState.availableThemes.some(t => t.name === thName)) {
+                        themeState.availableThemes.push({
+                            name: thName,
+                            color_scheme: isDark ? 'dark' : 'light',
+                            colorScheme: isDark ? 'dark' : 'light',
+                            prefersdark: isDark,
+                            prefersDark: isDark,
+                            custom: true
+                        });
+                    }
+                    populateThemeDropdowns();
+                    if (isDark) themeState.defaultDarkTheme = thName;
+                    else themeState.defaultLightTheme = thName;
+
+                    applyTheme();
+                    await saveSettings();
+                    closeAddThemeModal();
+                } else {
+                    if (statusMsg) {
+                        statusMsg.textContent = `Save failed: HTTP ${resp.status}`;
+                        statusMsg.style.color = 'var(--color-error, #ff3b30)';
+                    }
+                }
+            } catch (err) {
+                if (statusMsg) {
+                    statusMsg.textContent = `Save error: ${err.message}`;
+                    statusMsg.style.color = 'var(--color-error, #ff3b30)';
+                }
+            }
+        });
+    }
+}
+
+function setTheme(theme) {
+    if (theme === 'system' || theme === 'light' || theme === 'dark') {
+        themeState.mode = theme;
+    } else {
+        const found = themeState.availableThemes.find(t => t.name === theme);
+        if (found) {
+            if ((found.color_scheme || found.colorScheme) === 'dark') {
+                themeState.defaultDarkTheme = theme;
+                themeState.mode = 'dark';
+            } else {
+                themeState.defaultLightTheme = theme;
+                themeState.mode = 'light';
+            }
+        }
+    }
+    applyTheme();
+    saveSettings();
+}
+
 function toggleTheme() {
-    const current = getCurrentTheme();
-    setTheme(current === 'dark' ? 'light' : 'dark');
+    cycleThemeMode();
 }
 
 // --------------------------------------------------------------------------
@@ -879,7 +1228,7 @@ function renderScopePinsBar() {
         if (!cfg) continue;
 
         const btn = document.createElement('button');
-        btn.className = `scope-pin-btn ${cfg.mode === 'digital' ? 'configured-digital' : cfg.mode === 'analog' ? 'configured-analog' : 'unconfigured'}`;
+        btn.className = `scope-pin-btn ${cfg.mode === 'digital' ? 'active-digital' : cfg.mode === 'analog' ? 'active-analog' : 'unconfigured'}`;
         btn.setAttribute('data-pin', pin);
         btn.setAttribute('title', `Click to configure GP${pin} (${cfg.mode.toUpperCase()})`);
 
@@ -996,7 +1345,7 @@ function renderColorSwatches(activeColor) {
 
     TRACE_PALETTE_18.forEach(color => {
         const swatch = document.createElement('button');
-        swatch.className = `color-swatch-btn ${color.toLowerCase() === activeColor.toLowerCase() ? 'selected' : ''}`;
+        swatch.className = `swatch-item ${color.toLowerCase() === activeColor.toLowerCase() ? 'selected' : ''}`;
         swatch.style.backgroundColor = color;
         swatch.setAttribute('type', 'button');
         swatch.setAttribute('data-color', color);
@@ -1193,6 +1542,7 @@ function initLogicAnalyzer(container) {
 
     let basePin = basePinSelect ? parseInt(basePinSelect.value, 10) : 20;
     let channelCount = channelCountSelect ? parseInt(channelCountSelect.value, 10) : 8;
+    let laneToPin = [];
     let trigEdgeRising = true;
     let activeChannels = [0, 1];
     let rawLogicData = null;
@@ -1248,6 +1598,10 @@ function initLogicAnalyzer(container) {
     function rebuildChannels(newBase, newCount) {
         basePin = newBase;
         channelCount = newCount;
+        laneToPin = [];
+        for (let i = 0; i < channelCount; i++) {
+            laneToPin[i] = basePin + i;
+        }
         activeChannels = [];
         for (let i = 0; i < Math.min(channelCount, 4); i++) activeChannels.push(i);
         if (activeChannels.length === 0) activeChannels.push(0);
@@ -1256,10 +1610,12 @@ function initLogicAnalyzer(container) {
         if (channelsContainer) {
             channelsContainer.innerHTML = '';
             for (let i = 0; i < channelCount; i++) {
+                const pinNum = laneToPin[i] !== undefined ? laneToPin[i] : (basePin + i);
+                const pinCfg = scopePinConfigs[pinNum];
                 const btn = document.createElement('button');
                 btn.className = `pin-select-btn ${activeChannels.includes(i) ? 'active' : ''}`;
                 btn.setAttribute('data-pin', i);
-                btn.textContent = `D${i} (GP${basePin + i})`;
+                btn.textContent = `${pinCfg?.label || ('D' + i)} (GP${pinNum})`;
                 btn.addEventListener('click', () => {
                     if (btn.classList.contains('active')) {
                         if (activeChannels.length > 1) {
@@ -1282,9 +1638,11 @@ function initLogicAnalyzer(container) {
             const curVal = trigSrcSelect.value;
             trigSrcSelect.innerHTML = '';
             for (let i = 0; i < channelCount; i++) {
+                const pinNum = laneToPin[i] !== undefined ? laneToPin[i] : (basePin + i);
+                const pinCfg = scopePinConfigs[pinNum];
                 const opt = document.createElement('option');
                 opt.value = i;
-                opt.textContent = `D${i}`;
+                opt.textContent = `${pinCfg?.label || ('D' + i)} (GP${pinNum})`;
                 if (String(i) === curVal) opt.selected = true;
                 trigSrcSelect.appendChild(opt);
             }
@@ -1312,9 +1670,12 @@ function initLogicAnalyzer(container) {
 
     function updateBankSpanLabel() {
         if (!bankText || activeChannels.length === 0) return;
-        const low = Math.min(...activeChannels);
-        const high = Math.max(...activeChannels);
-        bankText.textContent = `Bank: GP${basePin + low}–GP${basePin + high}${activeCaptureBankHandle ? ` (#${activeCaptureBankHandle})` : ''}`;
+        const activePins = activeChannels.map(ch => laneToPin[ch] !== undefined ? laneToPin[ch] : (basePin + ch));
+        const isContiguous = activePins.length > 1 && activePins.every((p, idx) => idx === 0 || p === activePins[idx - 1] + 1);
+        const pinDesc = isContiguous 
+            ? `GP${Math.min(...activePins)}–GP${Math.max(...activePins)}`
+            : activePins.map(p => `GP${p}`).join(', ');
+        bankText.textContent = `Pins: ${pinDesc}${activeCaptureBankHandle ? ` (#${activeCaptureBankHandle})` : ''}`;
     }
 
     if (trigEdgeBtn) {
@@ -1674,8 +2035,8 @@ function initLogicAnalyzer(container) {
         const rate = sampleRateSelect ? sampleRateSelect.value : '10000000';
         displayedSampleRate = parseFloat(rate);
 
-        const physicalPins = activeChannels.map(ch => basePin + ch);
-        const triggerPin = basePin + trigCh;
+        const physicalPins = activeChannels.map(ch => laneToPin[ch] !== undefined ? laneToPin[ch] : (basePin + ch));
+        const triggerPin = laneToPin[trigCh] !== undefined ? laneToPin[trigCh] : (basePin + trigCh);
 
         btnRunStop.classList.replace('stopped', 'running');
         btnRunStop.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 4px;"><path fill="currentColor" d="M6 6h12v12H6z"/></svg> Capturing...';
@@ -1770,7 +2131,7 @@ function initLogicAnalyzer(container) {
                 const baseY = margin.top + (laneIdx + 1) * laneH - gap;
                 const highY = margin.top + laneIdx * laneH + gap;
 
-                const chPin = basePin + chIdx;
+                const chPin = laneToPin[chIdx] !== undefined ? laneToPin[chIdx] : (basePin + chIdx);
                 const pinCfg = scopePinConfigs[chPin];
                 const traceColor = pinCfg ? pinCfg.color : colors[chIdx % colors.length];
                 const traceLabel = pinCfg ? pinCfg.label : `D${chIdx}`;
@@ -1919,7 +2280,8 @@ function initLogicAnalyzer(container) {
                 duty = (avgHighS / periodS) * 100;
             }
 
-            results.push({ ch, pin: basePin + ch, freq, periodUs, highUs, lowUs, duty });
+            const chPin = laneToPin[ch] !== undefined ? laneToPin[ch] : (basePin + ch);
+            results.push({ ch, pin: chPin, freq, periodUs, highUs, lowUs, duty });
         });
         return results;
     }
@@ -2050,20 +2412,50 @@ function initLogicAnalyzer(container) {
             }
         }
         if (configuredPins.length > 0) {
+            laneToPin = [...configuredPins];
             basePin = Math.min(...configuredPins);
-            const maxPin = Math.max(...configuredPins);
-            channelCount = Math.min(16, maxPin - basePin + 1);
-            activeChannels = configuredPins.map(p => p - basePin);
+            channelCount = Math.min(8, configuredPins.length);
+            activeChannels = Array.from({ length: channelCount }, (_, i) => i);
             if (basePinSelect) basePinSelect.value = String(basePin);
-            if (channelCountSelect) channelCountSelect.value = String(Math.min(8, channelCount));
+            if (channelCountSelect) channelCountSelect.value = String(channelCount);
+
+            const channelsContainer = document.getElementById('bench-logic-channels') || container.querySelector('.logic-channels');
+            if (channelsContainer) {
+                channelsContainer.innerHTML = '';
+                for (let i = 0; i < channelCount; i++) {
+                    const pinNum = laneToPin[i];
+                    const pinCfg = scopePinConfigs[pinNum];
+                    const btn = document.createElement('button');
+                    btn.className = `pin-select-btn ${activeChannels.includes(i) ? 'active' : ''}`;
+                    btn.setAttribute('data-pin', i);
+                    btn.textContent = `${pinCfg?.label || ('D' + i)} (GP${pinNum})`;
+                    btn.addEventListener('click', () => {
+                        if (btn.classList.contains('active')) {
+                            if (activeChannels.length > 1) {
+                                btn.classList.remove('active');
+                                activeChannels = activeChannels.filter(c => c !== i);
+                            }
+                        } else {
+                            btn.classList.add('active');
+                            activeChannels.push(i);
+                            activeChannels.sort((a, b) => a - b);
+                        }
+                        updateBankSpanLabel();
+                        forceRedraw();
+                    });
+                    channelsContainer.appendChild(btn);
+                }
+            }
+
             if (trigSrcSelect) {
                 const curVal = trigSrcSelect.value;
                 trigSrcSelect.innerHTML = '';
                 for (let i = 0; i < channelCount; i++) {
+                    const pinNum = laneToPin[i];
+                    const pinCfg = scopePinConfigs[pinNum];
                     const opt = document.createElement('option');
                     opt.value = i;
-                    const pinCfg = scopePinConfigs[basePin + i];
-                    opt.textContent = pinCfg ? `${pinCfg.label} (GP${basePin + i})` : `D${i}`;
+                    opt.textContent = `${pinCfg?.label || ('D' + i)} (GP${pinNum})`;
                     if (String(i) === curVal) opt.selected = true;
                     trigSrcSelect.appendChild(opt);
                 }
@@ -2123,6 +2515,7 @@ function initLogicAnalyzer(container) {
             visualTimebaseUs = Math.max(10, Math.round(((rawLogicData ? rawLogicData.length : 2048) / displayedSampleRate) * 1e5));
             forceRedraw();
         },
+        getLaneToPin: () => [...laneToPin],
         syncChannelsFromPins: () => syncChannelsFromPins(),
         forceRedraw: () => forceRedraw()
     };
@@ -2597,7 +2990,7 @@ function initPinToggler() {
                 <button class="btn-pin-act" data-pin="${p}" data-act="low" title="Drive Low (0V)">L</button>
                 <button class="btn-pin-act" data-pin="${p}" data-act="pullup" title="Pull Up">PU</button>
                 <button class="btn-pin-act" data-pin="${p}" data-act="pulldown" title="Pull Down">PD</button>
-                <button class="btn-pin-act" data-pin="${p}" data-act="hiz" title="High-Z Input">Z</button>
+                <button class="btn-pin-act active" data-pin="${p}" data-act="hiz" title="High-Z Input">Z</button>
             </div>
         `;
         grid.appendChild(card);
@@ -2606,6 +2999,11 @@ function initPinToggler() {
     grid.addEventListener('click', async (e) => {
         const btn = e.target.closest('.btn-pin-act');
         if (!btn) return;
+        const parentActions = btn.closest('.pin-toggle-actions');
+        if (parentActions) {
+            parentActions.querySelectorAll('.btn-pin-act').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
         const pin = parseInt(btn.getAttribute('data-pin'), 10);
         const act = btn.getAttribute('data-act');
         const stateEl = document.getElementById(`pin-state-${pin}`);
@@ -2896,32 +3294,12 @@ function initGenerator(container) {
 // --------------------------------------------------------------------------
 function initSystemSettings(container) {
     const selTheme = $(container, '#settings-theme-select');
-    const rangeHue = $(container, '.settings-theme-hue');
-    const selTransparency = $(container, '.settings-transparency-select');
     const btnReboot = $(container, '#btn-reboot');
     const btnBootsel = $(container, '#btn-bootsel-mode');
 
     if (selTheme) {
         selTheme.value = getCurrentTheme();
         selTheme.addEventListener('change', () => setTheme(selTheme.value));
-    }
-
-    if (rangeHue) {
-        rangeHue.value = UI_SETTINGS.wallpaperHue;
-        rangeHue.addEventListener('input', () => {
-            UI_SETTINGS.wallpaperHue = parseInt(rangeHue.value, 10) || 0;
-            applyUiSettings();
-            saveUiSettings();
-        });
-    }
-
-    if (selTransparency) {
-        selTransparency.value = UI_SETTINGS.transparency;
-        selTransparency.addEventListener('change', () => {
-            UI_SETTINGS.transparency = selTransparency.value;
-            applyUiSettings();
-            saveUiSettings();
-        });
     }
 
     if (btnReboot) {
@@ -2944,7 +3322,7 @@ function initSystemSettings(container) {
 // --------------------------------------------------------------------------
 // Synchronized Send & Sniff Bus Master Engine
 // --------------------------------------------------------------------------
-function appendProtocolLog(proto, text) {
+function appendAdapterLog(proto, text, dir = '') {
     const map = {
         'uart': 'uart-log-content',
         'i2c': 'i2c-log-content',
@@ -2961,9 +3339,36 @@ function appendProtocolLog(proto, text) {
     if (!logId) return;
     const logElem = document.getElementById(logId);
     if (!logElem) return;
-    const line = `[${nowTimeString()}] ${text}\n`;
+    const prefix = dir ? `[${dir.toUpperCase()}] ` : '';
+    const line = `\n[${nowTimeString()}] ${prefix}${text}`;
     logElem.textContent += line;
     logElem.scrollTop = logElem.scrollHeight;
+}
+
+function appendProtocolLog(proto, text, dir = '') {
+    appendAdapterLog(proto, text, dir);
+}
+
+function showAutoSniffBanner(msg) {
+    let banner = document.getElementById('auto-sniff-notification');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'auto-sniff-notification';
+        banner.className = 'auto-sniff-notification-banner';
+        document.body.appendChild(banner);
+    }
+    banner.innerHTML = `
+        <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+            <path opacity="0.5" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
+            <path d="M11.1256 6.82338C11.846 6.70116 12.6041 6.72817 13.3586 6.93033C16.1585 7.68056 17.8201 10.5585 17.0699 13.3584C16.3196 16.1583 13.4417 17.8199 10.6418 17.0697C7.84187 16.3194 6.18028 13.4415 6.93051 10.6416C7.05878 10.1629 7.24878 9.7184 7.48934 9.31389L8.19792 9.8874C7.84968 10.5131 7.65108 11.2339 7.65108 12C7.65108 14.4019 9.59824 16.3491 12.0002 16.3491C14.4021 16.3491 16.3493 14.4019 16.3493 12C16.3493 9.59805 14.4021 7.65089 12.0002 7.65089C11.586 7.65089 11.2502 7.98668 11.2502 8.40089C11.2502 8.81511 11.586 9.15089 12.0002 9.15089C13.5737 9.15089 14.8493 10.4265 14.8493 12C14.8493 13.5735 13.5737 14.8491 12.0002 14.8491C10.4267 14.8491 9.15108 13.5735 9.15108 12C9.15108 11.5916 9.23669 11.2038 9.3911 10.8531L11.5283 12.583C11.8503 12.8436 12.3226 12.7938 12.5832 12.4718C12.8438 12.1499 12.794 11.6776 12.472 11.417L8.27423 8.01941C7.7127 7.56491 6.80868 7.60723 6.3558 8.29795C5.97114 8.8846 5.67251 9.54098 5.48162 10.2534C4.51698 13.8535 6.65344 17.5539 10.2535 18.5186C13.8536 19.4832 17.5541 17.3467 18.5187 13.7466C19.4834 10.1465 17.3469 6.44608 13.7468 5.48144C12.7798 5.22232 11.8035 5.18693 10.8747 5.34452C10.4664 5.41381 10.1915 5.80103 10.2608 6.20941C10.33 6.61779 10.7173 6.89267 11.1256 6.82338Z" fill="currentColor"/>
+        </svg>
+        <span>${escapeHtml(msg)}</span>
+    `;
+    banner.classList.add('show');
+    clearTimeout(banner._hideTimer);
+    banner._hideTimer = setTimeout(() => {
+        banner.classList.remove('show');
+    }, 3200);
 }
 
 function logBusMasterTransaction(bus, req, resp, status) {
@@ -2975,7 +3380,7 @@ function logBusMasterTransaction(bus, req, resp, status) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="font-family: monospace; font-size: 11px;">${nowTimeString()}</td>
-            <td><strong style="color: var(--accent-cyan);">${bus.toUpperCase()}</strong></td>
+            <td><strong style="color: var(--color-primary);">${bus.toUpperCase()}</strong></td>
             <td style="font-family: monospace; font-size: 11px;">${req}</td>
             <td style="font-family: monospace; font-size: 11px;">${resp}</td>
             <td><span class="status-badge" style="font-size: 10px; font-weight: 600; color: ${status.toLowerCase().includes('ok') ? 'var(--accent-green)' : 'var(--accent-amber)'};">${status}</span></td>
@@ -3004,7 +3409,12 @@ async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
     const autoSniff = isAutoSniffEnabled();
     const isRunning = window.activeLogicController?.isCaptureRunning();
 
+    appendAdapterLog(protocol, txDesc, 'TX');
+
     if (autoSniff) {
+        showAutoSniffBanner(`Auto-Sniff: Capturing ${protocol.toUpperCase()} packet (${txDesc})`);
+        appendAdapterLog(protocol, `Auto-sniff capture armed on ${protocol.toUpperCase()} channels`, 'INFO');
+
         if (!isRunning) {
             window.activeLogicController?.setProtocol(protocol);
             
@@ -3030,6 +3440,7 @@ async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
 
             const txResult = await executeTxFn();
             const respStr = txResult?.stdout || (txResult?.ok ? 'OK ACK' : 'ERROR');
+            appendAdapterLog(protocol, respStr, 'RX');
             logBusMasterTransaction(protocol, txDesc, respStr, 'OK (Sniffed)');
             await capturePromise;
             return txResult;
@@ -3037,12 +3448,14 @@ async function handleBusTransmitWithAutoSniff(protocol, txDesc, executeTxFn) {
             window.activeLogicController?.addSendMarker(`TX: ${protocol.toUpperCase()}`, '#00e5ff');
             const res = await executeTxFn();
             const respStr = res?.stdout || (res?.ok ? 'OK ACK' : 'ERROR');
+            appendAdapterLog(protocol, respStr, 'RX');
             logBusMasterTransaction(protocol, txDesc, respStr, 'OK (Stream Mark)');
             return res;
         }
     } else {
         const res = await executeTxFn();
         const respStr = res?.stdout || (res?.ok ? 'OK ACK' : 'ERROR');
+        appendAdapterLog(protocol, respStr, 'RX');
         logBusMasterTransaction(protocol, txDesc, respStr, res?.ok ? 'OK' : 'ERROR');
         return res;
     }
@@ -3396,12 +3809,7 @@ function initAdaptersMasterDetail() {
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
     applyUiSettings();
-
-    // 1. Theme toggle
-    const btnThemeToggle = document.getElementById('btn-theme-toggle');
-    if (btnThemeToggle) {
-        btnThemeToggle.addEventListener('click', toggleTheme);
-    }
+    await initThemeEngine();
 
     // 2. Primary Mode Navigation (5 Full Screen Tabs: Active Bench, Adapters, Debugger, Pin Matrix, Console)
     const btnBench = document.getElementById('nav-mode-bench');
@@ -3444,6 +3852,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             switchMode('console');
         } else if (e.key === 'Escape') {
             closeSettingsModal();
+            closeAddThemeModal();
             closeAgentGuideModal();
         }
     });

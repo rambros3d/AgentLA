@@ -122,6 +122,8 @@ int fs_open_custom(struct fs_file *file, const char *name) {
         strcmp(name, "/index.html") == 0 ||
         strcmp(name, "/style.css") == 0 ||
         strcmp(name, "/app.js") == 0 ||
+        strcmp(name, "/themes.css") == 0 ||
+        strcmp(name, "/themes.json") == 0 ||
         strcmp(name, "/favicon.svg") == 0 ||
         strcmp(name, "/logo.svg") == 0 ||
         strcmp(name, "/pinout.svg") == 0 ||
@@ -130,6 +132,13 @@ int fs_open_custom(struct fs_file *file, const char *name) {
         strcmp(name, "/ok.json") == 0 ||
         strcmp(name, "/board.json") == 0) {
         return 0;
+    }
+
+    /* 2b. Custom Themes (/themes/<custom>.css) from LittleFS */
+    if (strncmp(name, "/themes/", 8) == 0) {
+        if (open_littlefs_file(file, name)) {
+            return 1;
+        }
     }
 
     /* 3. App Launcher (/apps or /apps/) -> serve apps.html from ROM fsdata */

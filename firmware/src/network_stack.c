@@ -233,6 +233,59 @@ static const char * mcp_cgi_handler(int iIndex, int iNumParams, char *pcParam[],
     return "/mcp.json";
 }
 
+static const char *get_active_theme_name(void) {
+    static char active_theme[32] = "forest";
+    lfs_t *lfs = littlefs_get_instance();
+    if (lfs) {
+        lfs_file_t sf;
+        if (lfs_file_open(lfs, &sf, "/settings.json", LFS_O_RDONLY) >= 0) {
+            char buf[512];
+            lfs_ssize_t n = lfs_file_read(lfs, &sf, buf, sizeof(buf) - 1);
+            lfs_file_close(lfs, &sf);
+            if (n > 0) {
+                buf[n] = '\0';
+                /* Parse theme_mode */
+                char *mode_pos = strstr(buf, "\"theme_mode\"");
+                if (mode_pos) {
+                    char *col = strchr(mode_pos, ':');
+                    if (col) {
+                        if (strstr(col, "\"light\"")) {
+                            char *dl = strstr(buf, "\"default_light_theme\"");
+                            if (dl) {
+                                char *q1 = strchr(dl + 21, '"');
+                                if (q1) {
+                                    char *q2 = strchr(q1 + 1, '"');
+                                    if (q2 && (size_t)(q2 - q1 - 1) < sizeof(active_theme)) {
+                                        memcpy(active_theme, q1 + 1, q2 - q1 - 1);
+                                        active_theme[q2 - q1 - 1] = '\0';
+                                        return active_theme;
+                                    }
+                                }
+                            }
+                            return "emerald";
+                        } else if (strstr(col, "\"dark\"")) {
+                            char *dd = strstr(buf, "\"default_dark_theme\"");
+                            if (dd) {
+                                char *q1 = strchr(dd + 20, '"');
+                                if (q1) {
+                                    char *q2 = strchr(q1 + 1, '"');
+                                    if (q2 && (size_t)(q2 - q1 - 1) < sizeof(active_theme)) {
+                                        memcpy(active_theme, q1 + 1, q2 - q1 - 1);
+                                        active_theme[q2 - q1 - 1] = '\0';
+                                        return active_theme;
+                                    }
+                                }
+                            }
+                            return "forest";
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return "forest";
+}
+
 static u16_t mcp_ssi_handler(int iIndex
 #if LWIP_HTTPD_SSI_RAW
 , const char* ssi_tag_name
@@ -245,7 +298,15 @@ static u16_t mcp_ssi_handler(int iIndex
 , void *connection_state
 #endif
 ) {
-    (void)iIndex;
+    if (iIndex == 1
+#if LWIP_HTTPD_SSI_RAW
+        || (ssi_tag_name && strcmp(ssi_tag_name, "THEME") == 0)
+#endif
+    ) {
+        const char *theme = get_active_theme_name();
+        int n = snprintf(pcInsert, iInsertLen, "%s", theme);
+        return (u16_t)n;
+    }
     int n = snprintf(pcInsert, iInsertLen, "%s", mcp_response);
     return (u16_t)n;
 }
@@ -331,8 +392,8 @@ void network_init(void) {
     sse_server_init();
     static const tCGI mcp_cgi[] = { { "/mcp", mcp_cgi_handler } };
     http_set_cgi_handlers(mcp_cgi, 1);
-    static const char *ssi_tags[] = { "MCP" };
-    http_set_ssi_handler(mcp_ssi_handler, ssi_tags, 1);
+    static const char *ssi_tags[] = { "MCP", "THEME" };
+    http_set_ssi_handler(mcp_ssi_handler, ssi_tags, 2);
     // add a board unique serial string no-op
 }
 
@@ -369,7 +430,9 @@ typedef enum {
     POST_TYPE_MCP,
     POST_TYPE_INSTALL_TAR,
     POST_TYPE_INSTALL_HTML,
-    POST_TYPE_PINS_SAFE
+    POST_TYPE_PINS_SAFE,
+    POST_TYPE_SETTINGS,
+    POST_TYPE_THEMES
 } post_type_t;
 
 static post_type_t current_post_type = POST_TYPE_NONE;
@@ -377,6 +440,7 @@ static tar_unpacker_t current_tar_unpacker;
 static lfs_file_t current_html_file;
 static bool current_html_open = false;
 static char current_install_app_name[64];
+static char current_custom_theme_name[64];
 
 err_t httpd_post_begin(void *connection, const char *uri,
                        const char *http_request, u16_t http_request_len,
@@ -466,6 +530,39 @@ err_t httpd_post_begin(void *connection, const char *uri,
         return ERR_OK;
     }
 
+    /* 4. POST /api/v1/settings */
+    if (strncmp(uri, "/api/v1/settings", 16) == 0) {
+        current_post_type = POST_TYPE_SETTINGS;
+        httpd_post_body_len = 0;
+        httpd_post_body[0] = '\0';
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, response_uri_len, "/api/v1/settings");
+        }
+        return ERR_OK;
+    }
+
+    /* 5. POST /api/v1/themes */
+    if (strncmp(uri, "/api/v1/themes", 14) == 0) {
+        current_post_type = POST_TYPE_THEMES;
+        httpd_post_body_len = 0;
+        httpd_post_body[0] = '\0';
+        current_custom_theme_name[0] = '\0';
+        const char *name_param = strstr(uri, "name=");
+        if (name_param) {
+            name_param += 5;
+            size_t len = 0;
+            while (name_param[len] && name_param[len] != '&' && name_param[len] != ' ' && len < sizeof(current_custom_theme_name) - 1) {
+                current_custom_theme_name[len] = name_param[len];
+                len++;
+            }
+            current_custom_theme_name[len] = '\0';
+        }
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, response_uri_len, "/api/v1/themes/saved");
+        }
+        return ERR_OK;
+    }
+
     return ERR_CONN;
 }
 
@@ -473,7 +570,7 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p) {
     (void)connection;
     if (p == NULL) return ERR_OK;
 
-    if (current_post_type == POST_TYPE_MCP) {
+    if (current_post_type == POST_TYPE_MCP || current_post_type == POST_TYPE_SETTINGS || current_post_type == POST_TYPE_THEMES) {
         if (httpd_post_body_len < sizeof(httpd_post_body) - 1) {
             size_t available = sizeof(httpd_post_body) - httpd_post_body_len - 1;
             if (available > 0) {
@@ -547,6 +644,59 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
     } else if (current_post_type == POST_TYPE_PINS_SAFE) {
         if (response_uri != NULL && response_uri_len > 0) {
             snprintf(response_uri, (size_t)response_uri_len, "/api/v1/pins/safe");
+        }
+    } else if (current_post_type == POST_TYPE_SETTINGS) {
+        lfs_t *lfs = littlefs_get_instance();
+        if (lfs && httpd_post_body_len > 0) {
+            lfs_file_t sf;
+            if (lfs_file_open(lfs, &sf, "/settings.json", LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) >= 0) {
+                lfs_file_write(lfs, &sf, httpd_post_body, httpd_post_body_len);
+                lfs_file_close(lfs, &sf);
+            }
+        }
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, (size_t)response_uri_len, "/api/v1/settings");
+        }
+    } else if (current_post_type == POST_TYPE_THEMES) {
+        lfs_t *lfs = littlefs_get_instance();
+        if (lfs && httpd_post_body_len > 0) {
+            lfs_mkdir(lfs, "/themes");
+            char th_name[64];
+            if (current_custom_theme_name[0] != '\0') {
+                snprintf(th_name, sizeof(th_name), "%s", current_custom_theme_name);
+            } else {
+                char *nptr = strstr(httpd_post_body, "name:");
+                if (!nptr) nptr = strstr(httpd_post_body, "name :");
+                if (nptr) {
+                    char *q1 = strpbrk(nptr + 5, "\"'");
+                    if (q1) {
+                        char quote = *q1;
+                        char *q2 = strchr(q1 + 1, quote);
+                        if (q2 && (size_t)(q2 - q1 - 1) < sizeof(th_name)) {
+                            memcpy(th_name, q1 + 1, q2 - q1 - 1);
+                            th_name[q2 - q1 - 1] = '\0';
+                        } else {
+                            snprintf(th_name, sizeof(th_name), "custom_%lu", (unsigned long)to_ms_since_boot(get_absolute_time()));
+                        }
+                    } else {
+                        snprintf(th_name, sizeof(th_name), "custom_%lu", (unsigned long)to_ms_since_boot(get_absolute_time()));
+                    }
+                } else {
+                    snprintf(th_name, sizeof(th_name), "custom_%lu", (unsigned long)to_ms_since_boot(get_absolute_time()));
+                }
+            }
+            rest_api_set_last_saved_theme(th_name);
+
+            char th_path[128];
+            snprintf(th_path, sizeof(th_path), "/themes/%s.css", th_name);
+            lfs_file_t tf;
+            if (lfs_file_open(lfs, &tf, th_path, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) >= 0) {
+                lfs_file_write(lfs, &tf, httpd_post_body, httpd_post_body_len);
+                lfs_file_close(lfs, &tf);
+            }
+        }
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, (size_t)response_uri_len, "/api/v1/themes/saved");
         }
     }
 

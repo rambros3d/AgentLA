@@ -190,6 +190,21 @@ def main() -> int:
     output_web_dir = Path(args.output_web_dir).resolve()
     base_html_dir = Path(args.base_html_dir).resolve() if args.base_html_dir else None
 
+    # Compile themes if themes directory exists
+    repo_root = Path(__file__).resolve().parent.parent
+    themes_dir = repo_root / "themes"
+    if themes_dir.is_dir() and base_html_dir:
+        compile_script = Path(__file__).resolve().parent / "compile_themes.py"
+        if compile_script.exists():
+            try:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("compile_themes", str(compile_script))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.compile_themes(themes_dir, base_html_dir / "themes.css", base_html_dir / "themes.json")
+            except Exception as e:
+                print(f"[gen_board_assets] Warning: Theme compilation error: {e}", file=sys.stderr)
+
     generate_header(manifest_data, output_header)
     stage_web_assets(manifest_data, board_dir, output_web_dir, base_html_dir=base_html_dir)
 

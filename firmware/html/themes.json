@@ -1,0 +1,29 @@
+[
+  {
+    "name": "caramellatte",
+    "default": false,
+    "isDefault": false,
+    "prefersdark": false,
+    "prefersDark": false,
+    "color-scheme": "light",
+    "colorScheme": "light"
+  },
+  {
+    "name": "emerald",
+    "default": true,
+    "isDefault": true,
+    "prefersdark": false,
+    "prefersDark": false,
+    "color-scheme": "light",
+    "colorScheme": "light"
+  },
+  {
+    "name": "forest",
+    "default": true,
+    "isDefault": true,
+    "prefersdark": true,
+    "prefersDark": true,
+    "color-scheme": "dark",
+    "colorScheme": "dark"
+  }
+]

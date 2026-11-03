@@ -127,7 +127,13 @@ add_custom_command(
         ${WEB_STAGED_DIR}/mcp.json
         ${WEB_STAGED_DIR}/ok.json
         ${WEB_STAGED_DIR}/apps.html
+        ${WEB_STAGED_DIR}/themes.css
+        ${WEB_STAGED_DIR}/themes.json
     COMMAND ${CMAKE_COMMAND} -E make_directory ${WEB_STAGED_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_themes.py
+        --themes-dir ${CMAKE_CURRENT_SOURCE_DIR}/themes
+        --output-css ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/themes.css
+        --output-json ${CMAKE_CURRENT_SOURCE_DIR}/firmware/html/themes.json
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_board_assets.py
         --board ${BOARD_ID}
         --boards-dir ${CMAKE_CURRENT_SOURCE_DIR}/boards
@@ -135,6 +141,10 @@ add_custom_command(
         --output-header ${GENERATED_BOARD_HEADER}
         --output-web-dir ${WEB_STAGED_DIR}
     DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_themes.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/themes/emerald.css
+        ${CMAKE_CURRENT_SOURCE_DIR}/themes/forest.css
+        ${CMAKE_CURRENT_SOURCE_DIR}/themes/caramellatte.css
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_board_assets.py
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/board.json
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_ID}/logo.svg
@@ -164,6 +174,8 @@ pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
     ${WEB_STAGED_DIR}/logo.svg
     ${WEB_STAGED_DIR}/favicon.svg
     ${WEB_STAGED_DIR}/pinout.svg
+    ${WEB_STAGED_DIR}/themes.css
+    ${WEB_STAGED_DIR}/themes.json
 )
 pico_add_extra_outputs(AgentLA)
 

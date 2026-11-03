@@ -1,0 +1,34 @@
+@plugin "daisyui/theme" {
+  name: "caramellatte";
+  default: false;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(98% 0.016 73.684);
+  --color-base-200: oklch(95% 0.025 73.684);
+  --color-base-300: oklch(90% 0.035 73.684);
+  --color-base-content: oklch(25% 0.03 50);
+  --color-primary: oklch(0% 0 0);
+  --color-primary-content: oklch(98% 0.016 73.684);
+  --color-secondary: oklch(65% 0.12 60);
+  --color-secondary-content: oklch(100% 0 0);
+  --color-accent: oklch(75% 0.14 75);
+  --color-accent-content: oklch(0% 0 0);
+  --color-neutral: oklch(35% 0.04 55);
+  --color-neutral-content: oklch(98% 0.016 73.684);
+  --color-info: oklch(65% 0.15 235);
+  --color-info-content: oklch(0% 0 0);
+  --color-success: oklch(65% 0.15 150);
+  --color-success-content: oklch(0% 0 0);
+  --color-warning: oklch(80% 0.18 80);
+  --color-warning-content: oklch(0% 0 0);
+  --color-error: oklch(65% 0.20 28);
+  --color-error-content: oklch(0% 0 0);
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 2px;
+  --depth: 1;
+  --noise: 1;
+}

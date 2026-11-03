@@ -34,10 +34,17 @@
 #define REST_HEADER_RESERVE 160
 static char rest_response_buffer[REST_BUFFER_SIZE];
 static char rest_last_installed_app[64] = "app";
+static char rest_last_saved_theme[64] = "custom";
 
 void rest_api_set_last_installed_app(const char *name) {
     if (name) {
         snprintf(rest_last_installed_app, sizeof(rest_last_installed_app), "%s", name);
+    }
+}
+
+void rest_api_set_last_saved_theme(const char *name) {
+    if (name) {
+        snprintf(rest_last_saved_theme, sizeof(rest_last_saved_theme), "%s", name);
     }
 }
 
@@ -97,6 +104,82 @@ int rest_api_handle(struct fs_file *file, const char *uri) {
         int len = snprintf(json_scratch, json_capacity,
             "{\"status\":\"installed\",\"app\":\"%s\"}", rest_last_installed_app);
         return build_http_response(file, 201, "Created", "application/json", json_scratch, (size_t)len);
+    }
+
+    /* 0b. POST /api/v1/themes/saved */
+    if (strcmp(path, "themes/saved") == 0) {
+        int len = snprintf(json_scratch, json_capacity,
+            "{\"status\":\"created\",\"theme\":\"%s\"}", rest_last_saved_theme);
+        return build_http_response(file, 201, "Created", "application/json", json_scratch, (size_t)len);
+    }
+
+    /* 0c. GET or POST /api/v1/settings */
+    if (strcmp(path, "settings") == 0 || strcmp(path, "settings/") == 0) {
+        lfs_t *lfs = littlefs_get_instance();
+        lfs_file_t sf;
+        if (lfs && lfs_file_open(lfs, &sf, "/settings.json", LFS_O_RDONLY) >= 0) {
+            lfs_ssize_t n = lfs_file_read(lfs, &sf, json_scratch, json_capacity - 1);
+            lfs_file_close(lfs, &sf);
+            if (n > 0) {
+                json_scratch[n] = '\0';
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)n);
+            }
+        }
+        int len = snprintf(json_scratch, json_capacity,
+            "{\"theme_mode\":\"system\",\"default_light_theme\":\"emerald\",\"default_dark_theme\":\"forest\",\"active_profile\":\"Safe State\"}");
+        return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+    }
+
+    /* 0d. GET /api/v1/themes */
+    if (strcmp(path, "themes") == 0 || strcmp(path, "themes/") == 0) {
+        int written = snprintf(json_scratch, json_capacity,
+            "["
+            "{\"name\":\"forest\",\"color_scheme\":\"dark\",\"colorScheme\":\"dark\",\"prefersdark\":true,\"prefersDark\":true,\"isDefault\":true,\"custom\":false},"
+            "{\"name\":\"emerald\",\"color_scheme\":\"light\",\"colorScheme\":\"light\",\"prefersdark\":false,\"prefersDark\":false,\"isDefault\":true,\"custom\":false},"
+            "{\"name\":\"caramellatte\",\"color_scheme\":\"light\",\"colorScheme\":\"light\",\"prefersdark\":false,\"prefersDark\":false,\"isDefault\":false,\"custom\":false}"
+        );
+        lfs_t *lfs = littlefs_get_instance();
+        if (lfs) {
+            lfs_dir_t dir;
+            if (lfs_dir_open(lfs, &dir, "/themes") >= 0) {
+                struct lfs_info info;
+                while (lfs_dir_read(lfs, &dir, &info) > 0) {
+                    if (info.type == LFS_TYPE_REG && strstr(info.name, ".css") != NULL) {
+                        char th_name[64];
+                        snprintf(th_name, sizeof(th_name), "%s", info.name);
+                        char *dot = strrchr(th_name, '.');
+                        if (dot) *dot = '\0';
+                        char scheme[16] = "dark";
+                        char th_path[128];
+                        snprintf(th_path, sizeof(th_path), "/themes/%s", info.name);
+                        lfs_file_t tf;
+                        if (lfs_file_open(lfs, &tf, th_path, LFS_O_RDONLY) >= 0) {
+                            char buf[256];
+                            lfs_ssize_t n = lfs_file_read(lfs, &tf, buf, sizeof(buf) - 1);
+                            lfs_file_close(lfs, &tf);
+                            if (n > 0) {
+                                buf[n] = '\0';
+                                if (strstr(buf, "\"light\"") || strstr(buf, "'light'") || strstr(buf, "light;")) {
+                                    strcpy(scheme, "light");
+                                }
+                            }
+                        }
+                        bool is_dark = (strcmp(scheme, "dark") == 0);
+                        if (written < (int)json_capacity - 140) {
+                            written += snprintf(json_scratch + written, json_capacity - written,
+                                ",{\"name\":\"%s\",\"color_scheme\":\"%s\",\"colorScheme\":\"%s\",\"prefersdark\":%s,\"prefersDark\":%s,\"isDefault\":false,\"custom\":true}",
+                                th_name, scheme, scheme, is_dark ? "true" : "false", is_dark ? "true" : "false");
+                        }
+                    }
+                }
+                lfs_dir_close(lfs, &dir);
+            }
+        }
+        if (written < (int)json_capacity - 2) {
+            json_scratch[written++] = ']';
+            json_scratch[written] = '\0';
+        }
+        return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)written);
     }
 
     /* 1. GET /api/v1/apps */

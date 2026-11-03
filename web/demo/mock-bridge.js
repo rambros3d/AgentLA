@@ -384,6 +384,52 @@
             });
         }
 
+        // 2b. Intercept /api/v1/settings
+        if (urlStr.includes('/api/v1/settings')) {
+            if (init && init.method === 'POST') {
+                try {
+                    const parsed = JSON.parse(init.body);
+                    localStorage.setItem('agentla_sim_settings', JSON.stringify(parsed));
+                } catch(e) {}
+                return new Response(JSON.stringify({ status: "ok", settings_saved: true }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            const saved = localStorage.getItem('agentla_sim_settings');
+            const data = saved ? JSON.parse(saved) : {
+                theme_mode: "system",
+                default_light_theme: "emerald",
+                default_dark_theme: "forest",
+                active_profile: "Default Lab Bench"
+            };
+            return new Response(JSON.stringify(data), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 2c. Intercept /api/v1/themes
+        if (urlStr.includes('/api/v1/themes')) {
+            if (init && init.method === 'POST') {
+                const url = new URL(urlStr, window.location.origin);
+                const thName = url.searchParams.get('name') || 'custom';
+                return new Response(JSON.stringify({ status: "created", theme: thName }), {
+                    status: 201,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            const list = [
+                { name: 'forest', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: true, custom: false },
+                { name: 'emerald', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: true, custom: false },
+                { name: 'caramellatte', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: false, custom: false }
+            ];
+            return new Response(JSON.stringify(list), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         // 3. Intercept board.json to guarantee all flagship options enabled in Web Demo
         if (urlStr.includes('board.json')) {
             try {
