@@ -4309,10 +4309,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 11. Logo click
+    // 11. Logo click (Portal to OS App Launcher)
     const brandLogo = document.getElementById('brand-logo');
     if (brandLogo) {
-        brandLogo.addEventListener('click', () => switchMode('scope'));
+        brandLogo.addEventListener('click', (e) => {
+            const isDemo = window.location.protocol === 'https:' || 
+                           window.location.hostname.includes('github.io') ||
+                           window.location.search.includes('demo=1') ||
+                           window.location.pathname.endsWith('.html');
+            if (isDemo) {
+                e.preventDefault();
+                window.location.href = 'apps.html';
+            }
+        });
     }
 
     // 12. Initialize board manifest, capabilities, and instrumentation modules (with individual error boundaries)

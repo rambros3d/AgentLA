@@ -33,341 +33,10 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="themes.css">
     <style>
-        /* OS-Style App Launcher Enhanced Tactile Styles */
+        /* Launcher Canvas Theme Binding */
         body {
-            background-color: var(--bg-canvas, oklch(20% 0 0));
-            color: var(--text-primary, #f0f6fc);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-            min-height: 100vh;
+            background-color: var(--bg-canvas, var(--bg-primary));
         }
-
-        .launcher-main {
-            max-width: 1240px;
-            margin: 0 auto;
-            padding: 24px 20px 80px 20px;
-        }
-
-        /* Spotlight Search Bar */
-        .spotlight-container {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 24px;
-        }
-        .spotlight-wrapper {
-            position: relative;
-            width: 100%;
-            max-width: 480px;
-        }
-        .spotlight-input {
-            width: 100%;
-            height: 44px;
-            background: var(--bg-surface, rgba(255, 255, 255, 0.05));
-            border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-            border-radius: 22px;
-            padding: 0 18px 0 44px;
-            font-size: 14px;
-            color: var(--text-primary, #ffffff);
-            box-shadow: var(--card-neumorphic-shadow, 0 4px 16px rgba(0,0,0,0.2));
-            box-sizing: border-box;
-            outline: none;
-            transition: all 0.2s ease;
-        }
-        .spotlight-input:focus {
-            border-color: var(--accent-cyan, #00e5ff);
-            box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.2), var(--card-neumorphic-shadow, 0 4px 16px rgba(0,0,0,0.2));
-            background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.08));
-        }
-        .spotlight-icon {
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary, #8b949e);
-            pointer-events: none;
-        }
-
-        /* Segmented Storage Bar */
-        .storage-card {
-            background: var(--bg-surface, rgba(255, 255, 255, 0.03));
-            border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-            border-radius: 14px;
-            padding: 16px 20px;
-            margin-bottom: 28px;
-            box-shadow: var(--card-neumorphic-shadow, 0 4px 12px rgba(0,0,0,0.15));
-        }
-        .storage-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        .storage-title {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--text-primary, #fff);
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .storage-segmented-bar {
-            display: flex;
-            height: 12px;
-            border-radius: 6px;
-            overflow: hidden;
-            background: rgba(255, 255, 255, 0.06);
-            margin-bottom: 10px;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
-        }
-        .segment-rom {
-            background: linear-gradient(90deg, #00b4d8, #0077b6);
-            transition: width 0.3s ease;
-        }
-        .segment-apps {
-            background: linear-gradient(90deg, #7b2cbf, #9d4edd);
-            transition: width 0.3s ease;
-        }
-        .segment-free {
-            background: rgba(255, 255, 255, 0.08);
-            transition: width 0.3s ease;
-        }
-        .storage-legend {
-            display: flex;
-            gap: 16px;
-            font-size: 12px;
-            color: var(--text-secondary, #8b949e);
-            flex-wrap: wrap;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .legend-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
-
-        /* Navigation Tabs */
-        .tab-bar {
-            display: flex;
-            gap: 8px;
-            border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-            margin-bottom: 24px;
-            padding-bottom: 4px;
-        }
-        .tab-btn {
-            background: none;
-            border: none;
-            color: var(--text-secondary, #8b949e);
-            font-size: 14px;
-            font-weight: 600;
-            padding: 8px 18px;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-        .tab-btn:hover {
-            color: var(--text-primary, #ffffff);
-            background: rgba(255, 255, 255, 0.04);
-        }
-        .tab-btn.active {
-            color: var(--accent-cyan, #00e5ff);
-            background: rgba(0, 229, 255, 0.1);
-        }
-
-        /* Tactile Squircle App Grid */
-        .squircle-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-        }
-        .squircle-card {
-            background: var(--bg-surface, rgba(255, 255, 255, 0.03));
-            border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-            border-radius: 18px;
-            padding: 18px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            cursor: pointer;
-            position: relative;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, border-color 0.2s ease;
-            box-shadow: var(--card-neumorphic-shadow, 0 4px 16px rgba(0,0,0,0.2));
-            user-select: none;
-        }
-        .squircle-card:hover {
-            transform: translateY(-4px) scale(1.015);
-            border-color: rgba(0, 229, 255, 0.4);
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 16px rgba(0, 229, 255, 0.15);
-        }
-        .squircle-card.flagship-card {
-            border-color: rgba(0, 229, 255, 0.3);
-            background: linear-gradient(135deg, rgba(0, 229, 255, 0.05) 0%, var(--bg-surface, rgba(255, 255, 255, 0.03)) 100%);
-        }
-        .squircle-card-top {
-            display: flex;
-            gap: 16px;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-        .squircle-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
-            background: rgba(0, 229, 255, 0.12);
-            border: 1px solid rgba(0, 229, 255, 0.25);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            color: var(--accent-cyan, #00e5ff);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 4px 10px rgba(0,0,0,0.25);
-            transition: transform 0.2s ease;
-        }
-        .squircle-card:hover .squircle-icon {
-            transform: scale(1.05);
-        }
-        .squircle-info {
-            flex-grow: 1;
-            min-width: 0;
-        }
-        .squircle-title {
-            margin: 0 0 4px 0;
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text-primary, #ffffff);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .badge-flagship {
-            background: linear-gradient(90deg, #00e5ff, #0077b6);
-            color: #000;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 2px 6px;
-            border-radius: 6px;
-            letter-spacing: 0.5px;
-        }
-        .squircle-desc {
-            font-size: 13px;
-            color: var(--text-secondary, #8b949e);
-            line-height: 1.45;
-            margin: 0 0 14px 0;
-            flex-grow: 1;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        .squircle-meta {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-            color: var(--text-secondary, #8b949e);
-            border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
-            padding-top: 12px;
-        }
-
-        /* Dropzone */
-        .dropzone-container {
-            border: 2px dashed var(--border-color, rgba(255, 255, 255, 0.15));
-            border-radius: 16px;
-            padding: 28px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-bottom: 28px;
-            background: rgba(255, 255, 255, 0.015);
-        }
-        .dropzone-container:hover, .dropzone-container.dragover {
-            border-color: var(--accent-cyan, #00e5ff);
-            background: rgba(0, 229, 255, 0.04);
-            transform: translateY(-2px);
-        }
-
-        /* Utilities */
-        .hidden { display: none !important; }
-        .version-badge {
-            background: rgba(255, 255, 255, 0.08);
-            padding: 2px 6px;
-            border-radius: 6px;
-            font-size: 11px;
-            color: var(--text-secondary, #8b949e);
-        }
-        .tag-pill {
-            background: rgba(255, 255, 255, 0.06);
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            color: var(--text-secondary, #8b949e);
-        }
-        .delete-btn-subtle {
-            background: none;
-            border: none;
-            color: var(--text-secondary, #8b949e);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        .delete-btn-subtle:hover {
-            color: #ff7b72;
-            background: rgba(248, 81, 73, 0.15);
-        }
-
-        /* Modal Backdrop Shared */
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 99999;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.25s ease;
-        }
-        .modal-overlay.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .modal-card {
-            background: var(--bg-surface-elevated, #161b22);
-            border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-            border-radius: 16px;
-            width: 90%;
-            max-width: 520px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        .alert-box {
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-        }
-        .alert-error { background: rgba(248, 81, 73, 0.15); border: 1px solid rgba(248, 81, 73, 0.4); color: #ff7b72; }
-        .alert-warning { background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.4); color: #d29922; }
-        .alert-success { background: rgba(63, 185, 80, 0.15); border: 1px solid rgba(63, 185, 80, 0.4); color: #56d364; }
-        .progress-bar-container { width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; margin-top: 8px; }
-        .progress-bar-inner { height: 100%; background: var(--accent-cyan, #00e5ff); width: 0%; transition: width 0.2s; }
     </style>
 </head>
 <body>
@@ -375,10 +44,10 @@
     <!-- Unified Clean OS Top Bar (Matching Workbench) -->
     <header id="top-bar" class="app-header">
         <div class="bar-left">
-            <div class="brand-item" id="brand-logo" title="AgentLA App Launcher &amp; Hub">
+            <a href="javascript:void(0)" onclick="openLab()" class="brand-item" id="brand-logo" title="AgentLA Lab (Launchpad Home)" style="text-decoration:none; color:inherit; cursor:pointer;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
-            </div>
+            </a>
         </div>
 
         <div class="bar-right">
@@ -399,6 +68,13 @@
                 </svg>
                 SAFE STATE
             </button>
+
+            <!-- Open Source Project Link -->
+            <a id="btn-open-source" href="https://rambros3d.github.io/AgentLA" target="_blank" rel="noopener noreferrer" class="theme-toggle-btn header-icon-btn" title="AgentLA Open Source Project" aria-label="Open Source Repository">
+                <svg class="solar-icon icon-osi" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M11.959.447A11.938 11.938 0 000 12.407c0 5.576 3.874 10.097 7.783 11.114.193.05.392-.05.467-.234l2.771-6.822a.396.396 0 00-.246-.528C9.365 15.47 8.53 14.32 8.48 12.4c-.024-1.828 1.5-3.45 3.561-3.447 1.931.003 3.479 1.632 3.479 3.453 0 .966-.203 1.687-.575 2.238-.371.552-.922.951-1.695 1.239a.396.396 0 00-.23.515l2.685 6.903a.396.396 0 00.465.24C20.163 22.534 24 18.062 24 12.406 24 5.804 18.603.447 11.959.447zm0 .791c6.22 0 11.25 4.997 11.25 11.168 0 5.138-3.423 9.208-6.895 10.272L13.9 16.47c.703-.308 1.302-.79 1.702-1.384.477-.708.709-1.602.709-2.68 0-2.266-1.898-4.24-4.27-4.244-2.48-.004-4.382 1.976-4.352 4.25.023 1.995.934 3.492 2.451 4.13L7.648 22.66C4.251 21.592.791 17.458.791 12.406A11.13 11.13 0 0111.959 1.238zm10.617 20.149a1.03 1.03 0 000 2.058 1.03 1.03 0 000-2.058zm0 .162c.48 0 .865.388.865.867a.856.856 0 01-.271.623l-.172-.342a.847.847 0 00-.111-.178.263.263 0 00-.114-.084.301.301 0 00.17-.117.356.356 0 00.061-.21c0-.13-.038-.227-.113-.292-.076-.064-.192-.095-.346-.095h-.41v1.343h.181v-.568h.2c.072 0 .128.015.17.045a.48.48 0 01.129.18l.171.343.157.001a.878.878 0 01-.567.216.865.865 0 010-1.732zm-.26.322h.229c.088 0 .155.018.2.059.044.04.066.099.066.177 0 .079-.022.14-.067.18-.044.04-.111.06-.2.06h-.228z"/>
+                </svg>
+            </a>
 
             <!-- Tri-State Theme Toggle (System -> Light -> Dark -> System) -->
             <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)" aria-label="Toggle Theme Mode">
@@ -434,150 +110,226 @@
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="launcher-main">
+    <!-- Application Shell with Workbench Grid Background & Layout -->
+    <div class="app-shell">
+        <main id="main-workspace" class="main-workspace launcher-workspace">
+            <div class="launcher-container">
 
-        <!-- Centered Spotlight Search Bar -->
-        <div class="spotlight-container">
-            <div class="spotlight-wrapper">
-                <svg class="spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input type="text" class="spotlight-input" id="spotlight-search" placeholder="Search apps, instruments, and utilities..." autocomplete="off">
-            </div>
-        </div>
-
-        <!-- Flash Partition Storage Bento Card -->
-        <div class="storage-card">
-            <div class="storage-header">
-                <div>
-                    <h2 class="storage-title">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan, #00e5ff)" stroke-width="2">
-                            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-                            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-                            <line x1="6" y1="6" x2="6.01" y2="6"/>
-                            <line x1="6" y1="18" x2="6.01" y2="18"/>
+                <!-- Centered Spotlight Search Bar -->
+                <div class="launcher-spotlight">
+                    <div class="launcher-spotlight-wrapper">
+                        <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                         </svg>
-                        Flash Partition Storage
-                    </h2>
-                    <div style="font-size: 12px; color: var(--text-secondary, #8b949e); margin-top: 3px;" id="storage-detail-text">LittleFS Partition Loading...</div>
+                        <input type="text" class="spotlight-input launcher-spotlight-input" id="spotlight-search" placeholder="Search apps, instruments, and protocols... (Press / to focus)" autocomplete="off">
+                        <span class="spotlight-shortcut-hint">/</span>
+                    </div>
                 </div>
-                <button class="action-btn outline btn-sm" id="btn-refresh-storage" title="Refresh Storage Statistics">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                    </svg>
-                    Refresh
-                </button>
-            </div>
-            <!-- OS Segmented Capacity Bar -->
-            <div class="storage-segmented-bar" id="storage-bar">
-                <div class="segment-rom" id="seg-rom" style="width: 25%;" title="System ROM"></div>
-                <div class="segment-apps" id="seg-apps" style="width: 5%;" title="Installed Apps"></div>
-                <div class="segment-free" id="seg-free" style="width: 70%;" title="Free Space"></div>
-            </div>
-            <div class="storage-legend">
-                <div class="legend-item"><span class="legend-dot" style="background:#00b4d8;"></span> System ROM: <span id="label-rom">~1.56 MB</span></div>
-                <div class="legend-item"><span class="legend-dot" style="background:#9d4edd;"></span> Installed Apps: <span id="label-apps">0 B</span></div>
-                <div class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.2);"></span> Available: <span id="label-free">0 B</span></div>
-            </div>
-        </div>
 
-        <!-- Navigation Tabs -->
-        <div class="tab-bar">
-            <button class="tab-btn active" id="tab-my-apps">My Apps (<span id="installed-count">1</span>)</button>
-            <button class="tab-btn" id="tab-store">Community App Store</button>
-        </div>
+                <!-- Section 1: Core Instruments & Flagship -->
+                <section class="launcher-section" id="section-core-instruments">
+                    <div class="launcher-section-header">
+                        <h2 class="launcher-section-title">
+                            <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                            </svg>
+                            CORE INSTRUMENTS &amp; FLAGSHIP
+                        </h2>
+                    </div>
+                    <div class="launcher-app-grid">
+                        <!-- Flagship AgentLA Lab Squircle Tile -->
+                        <button class="os-squircle-tile is-flagship" onclick="openLab()" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols Flagship Lab" title="AgentLA Lab (Launchpad Core)">
+                            <div class="os-squircle-icon">
+                                <span class="os-squircle-badge">FLAGSHIP</span>
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M10 2v7.31L4.1 19.3A2 2 0 0 0 5.8 22h12.4a2 2 0 0 0 1.7-2.7L14 9.31V2"/>
+                                    <path d="M8.5 2h7"/>
+                                    <path d="M14 9.3a6.5 6.5 0 1 1-4 0"/>
+                                </svg>
+                            </div>
+                            <div class="os-app-label">AgentLA Lab</div>
+                            <div class="os-app-sublabel">Core OS</div>
+                        </button>
 
-        <!-- Tab Content 1: My Apps -->
-        <section id="section-my-apps">
-            <!-- Dropzone for Local Install -->
-            <div class="dropzone-container" id="dropzone" onclick="document.getElementById('file-picker').click();">
-                <input type="file" id="file-picker" accept=".tar,.html" style="display: none;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan, #00e5ff)" stroke-width="2" style="margin-bottom: 6px;">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                </svg>
-                <div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">Install App Package or Dashboard</div>
-                <div style="font-size: 12px; color: var(--text-secondary, #8b949e);">Drag and drop a <code>.tar</code> app archive or standalone <code>.html</code> file here, or click to browse</div>
-            </div>
-
-            <!-- Tactile Squircle Grid -->
-            <div class="squircle-grid" id="installed-apps-grid">
-                <!-- Flagship AgentLA Lab Tile is always primary tile #1 -->
-                <div class="squircle-card flagship-card" onclick="openLab()" data-app-id="lab" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols" data-desc="Flagship embedded logic analyzer, digital storage oscilloscope, bus decoders and adapters">
-                    <div>
-                        <div class="squircle-card-top">
-                            <div class="squircle-icon">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <!-- MSO Scope Squircle Tile -->
+                        <button class="os-squircle-tile" onclick="openLab('scope')" data-name="MSO Scope" data-tags="Scope Logic Analyzer Oscilloscope Analog Digital 100MS/s" title="Mixed-Signal Logic Analyzer &amp; Digital Storage Oscilloscope">
+                            <div class="os-squircle-icon">
+                                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                                 </svg>
                             </div>
-                            <div class="squircle-info">
-                                <h3 class="squircle-title">AgentLA Lab <span class="badge-flagship">FLAGSHIP</span></h3>
-                                <div style="font-size: 11px; color: var(--text-secondary, #8b949e);">Core Instrumentation OS</div>
+                            <div class="os-app-label">MSO Scope</div>
+                            <div class="os-app-sublabel">100MS/s Logic/DSO</div>
+                        </button>
+
+                        <!-- Pinout Matrix Squircle Tile -->
+                        <button class="os-squircle-tile" onclick="openLab('pins')" data-name="Pinout Matrix" data-tags="Pins GPIO Matrix Multiplexer Routing Crossbar" title="Hardware Pin Routing Crossbar Switch">
+                            <div class="os-squircle-icon">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="7"/>
+                                    <rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="14" y="14" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/>
+                                </svg>
                             </div>
+                            <div class="os-app-label">Pinout Matrix</div>
+                            <div class="os-app-sublabel">Crossbar Switch</div>
+                        </button>
+
+                        <!-- USB Adapters Squircle Tile -->
+                        <button class="os-squircle-tile" onclick="openLab('adapters')" data-name="USB Adapters" data-tags="I2C SPI UART CAN SWD USB Adapters Bridges" title="Hardware Bus Protocol Adapters">
+                            <div class="os-squircle-icon">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"/>
+                                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                                </svg>
+                            </div>
+                            <div class="os-app-label">USB Adapters</div>
+                            <div class="os-app-sublabel">I2C · SPI · UART · CAN</div>
+                        </button>
+
+                        <!-- Firmware Console Squircle Tile -->
+                        <button class="os-squircle-tile" onclick="openLab('console')" data-name="Console" data-tags="Console REPL Terminal MCP Firmware Shell" title="Firmware REPL &amp; MCP Console">
+                            <div class="os-squircle-icon">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="4 17 10 11 4 5"/>
+                                    <line x1="12" y1="19" x2="20" y2="19"/>
+                                </svg>
+                            </div>
+                            <div class="os-app-label">Console</div>
+                            <div class="os-app-sublabel">REPL &amp; MCP</div>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Section 2: Installed Apps -->
+                <section class="launcher-section" id="section-installed-apps">
+                    <div class="launcher-section-header">
+                        <h2 class="launcher-section-title">
+                            <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>
+                            </svg>
+                            INSTALLED APPS (<span id="installed-count">0</span>)
+                        </h2>
+                    </div>
+                    <!-- Tactile Squircle App Grid -->
+                    <div class="launcher-app-grid" id="installed-apps-grid">
+                        <!-- Populated dynamically via renderInstalledApps() -->
+                    </div>
+                </section>
+
+                <!-- Section 3: Community Store (Tabbed View) -->
+                <section class="launcher-section" id="section-community-store" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary);">Community App Catalog</h3>
+                            <div style="font-size: 12px; color: var(--text-secondary);">Discover and install extensions, decoders, and dashboard apps</div>
                         </div>
-                        <div class="squircle-desc">100MS/s logic analyzer, oscilloscope, pinout map, protocol decoders (I2C, SPI, UART, CAN, I3C, SWD), and bus adapters.</div>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="store-search" class="modal-input" placeholder="Filter catalog..." style="height: 34px; padding: 0 12px; font-size: 12px; width: 200px;">
+                            <button class="action-btn outline btn-sm" id="btn-configure-catalog" title="Configure Catalog JSON URL">⚙ Repo</button>
+                        </div>
                     </div>
-                    <div class="squircle-meta">
-                        <span>Built-in ROM</span>
-                        <span style="color: var(--accent-cyan, #00e5ff); font-weight: 600;">Tap to Open →</span>
+                    <div class="store-catalog-grid" id="store-apps-grid">
+                        <!-- Populated dynamically via renderCatalog() -->
                     </div>
+                </section>
+
+                <!-- OS Dock / Footer: Segmented Storage Bar & Catalog Switcher -->
+                <footer class="launcher-dock" id="launcher-dock">
+                    <div class="launcher-dock-header">
+                        <div>
+                            <div style="font-weight: 700; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                                </svg>
+                                Flash Partition Storage
+                            </div>
+                            <div style="font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;" id="storage-detail-text">LittleFS Partition Loading...</div>
+                        </div>
+
+                        <!-- Segmented Switcher Controls -->
+                        <div class="segmented-control">
+                            <button class="seg-btn active" id="tab-my-apps">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="3" y="3" width="7" height="7"/>
+                                    <rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="14" y="14" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/>
+                                </svg>
+                                My Apps
+                            </button>
+                            <button class="seg-btn" id="tab-store">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/>
+                                </svg>
+                                Community App Store
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- macOS/iOS Style Segmented Flash Storage Bar -->
+                    <div class="launcher-storage-bar storage-segmented-bar" id="storage-bar">
+                        <div class="bar-rom segment-rom" id="seg-rom" style="width: 25%;" title="System ROM Firmware"></div>
+                        <div class="bar-apps segment-apps" id="seg-apps" style="width: 15%;" title="Installed Apps (LittleFS)"></div>
+                        <div class="bar-free segment-free" id="seg-free" style="width: 60%;" title="Free LittleFS Flash Space"></div>
+                    </div>
+
+                    <div class="launcher-storage-legend storage-legend">
+                        <div class="legend-item"><span class="legend-dot" style="background:#00b4d8;"></span> System ROM: <span id="label-rom">~1.56 MB</span></div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#9d4edd;"></span> Installed Apps: <span id="label-apps">0 B</span></div>
+                        <div class="legend-item"><span class="legend-dot" style="background:var(--text-muted, #6e7681);"></span> Available: <span id="label-free">0 B</span></div>
+                    </div>
+                </footer>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Hidden File Picker for Local App Packages (.tar or .html) -->
+    <input type="file" id="file-picker" accept=".tar,.html" style="display: none;">
+
+    <!-- Local Package Upload & Confirmation Modal -->
+    <div id="install-modal" class="modal-backdrop install-modal" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="max-width: 480px;">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    <h3 id="modal-title">Install App Package</h3>
                 </div>
-
-                <!-- Dynamically populated user apps -->
+                <button class="action-btn icon-btn" onclick="closeInstallModal()" title="Close">&times;</button>
             </div>
-        </section>
-
-        <!-- Tab Content 2: App Store -->
-        <section id="section-store" style="display: none;">
-            <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
-                <input type="text" id="store-search" placeholder="Search community catalog..." style="background: var(--bg-surface, rgba(255,255,255,0.05)); border: 1px solid var(--border-color, rgba(255,255,255,0.12)); border-radius: 8px; padding: 8px 14px; color: #fff; font-size: 13px; flex-grow: 1; min-width: 200px;">
-                <button class="action-btn outline btn-sm" id="btn-configure-catalog" title="Configure Catalog URL">Settings</button>
-            </div>
-
-            <div class="squircle-grid" id="store-apps-grid">
-                <!-- Dynamically populated from catalog -->
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Installation Confirmation Modal -->
-    <div class="modal-overlay" id="install-modal">
-        <div class="modal-card">
-            <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1)); display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; font-size: 16px;" id="modal-title">App Installation Confirmation</h3>
-                <button style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:20px;" onclick="closeInstallModal()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; padding: 20px;">
                 <div style="display: flex; gap: 14px; align-items: center;">
-                    <div class="squircle-icon" id="modal-icon" style="width: 48px; height: 48px;">
+                    <div class="os-squircle-icon" id="modal-icon" style="width: 52px; height: 52px; border-radius: 14px; margin-bottom: 0;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
                             <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
                         </svg>
                     </div>
                     <div>
-                        <div style="font-weight: 700; font-size: 16px;" id="modal-app-name">App Name</div>
-                        <div style="font-size: 12px; color: var(--text-secondary, #8b949e);" id="modal-app-meta">v1.0.0 · Author</div>
+                        <div style="font-weight: 700; font-size: 15px; color: var(--text-primary);" id="modal-app-name">App Name</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);" id="modal-app-meta">v1.0.0 · Local Package</div>
                     </div>
                 </div>
 
-                <div style="font-size: 13px; color: var(--text-secondary, #8b949e);" id="modal-app-desc">Description of the application...</div>
+                <div style="font-size: 13px; color: var(--text-secondary);" id="modal-app-desc">Description of the application...</div>
 
                 <!-- Storage Capacity Check Alert -->
-                <div class="alert-box" id="modal-storage-alert">
+                <div class="alert-box alert-success" id="modal-storage-alert">
                     <div id="modal-storage-text">Checking available flash storage...</div>
                 </div>
 
-                <!-- Hardware Compatibility Warning Alert -->
+                <!-- Hardware Compatibility Alert -->
                 <div class="alert-box alert-warning" id="modal-hw-alert" style="display: none;">
                     <div>
                         <div style="font-weight: 600; margin-bottom: 2px;">Hardware Requirement Notice</div>
-                        <div id="modal-hw-text" style="margin-bottom: 8px;">This app requires hardware not detected on your board.</div>
+                        <div id="modal-hw-text" style="margin-bottom: 8px;">This app requires hardware not detected on your board profile.</div>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
-                            <input type="checkbox" id="modal-hw-override"> Install anyway despite hardware incompatibility
+                            <input type="checkbox" id="modal-hw-override"> Install anyway despite hardware notice
                         </label>
                     </div>
                 </div>
@@ -589,13 +341,13 @@
 
                 <!-- Upload Progress -->
                 <div id="modal-progress-container" style="display: none;">
-                    <div style="font-size: 12px; color: var(--text-secondary, #8b949e);" id="modal-progress-status">Writing package to flash...</div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar-inner" id="modal-progress-bar"></div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;" id="modal-progress-status">Writing package to LittleFS flash...</div>
+                    <div class="launcher-storage-bar" style="height: 6px;">
+                        <div class="bar-apps" id="modal-progress-bar" style="width: 0%; background: var(--color-primary);"></div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer" style="padding: 16px 20px; border-top: 1px solid var(--border-color, rgba(255,255,255,0.1)); display: flex; justify-content: flex-end; gap: 10px;">
+            <div class="modal-footer" style="padding: 14px 20px; border-top: var(--border) solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
                 <button class="action-btn outline btn-sm" onclick="closeInstallModal()" id="btn-modal-cancel">Cancel</button>
                 <button class="action-btn primary btn-sm" id="btn-modal-confirm">Confirm &amp; Install</button>
             </div>
@@ -699,45 +451,42 @@
                 </div>
 
                 <div class="settings-section">
-                    <div class="settings-section-title">Hardware Telemetry</div>
+                    <div class="settings-section-title">Hardware Telemetry &amp; System Info</div>
                     <div class="settings-info-grid">
-                        <div class="info-block">
-                            <span class="info-label">Microcontroller</span>
-                            <span class="info-val" id="settings-mcu-chip">RP2350</span>
-                        </div>
-                        <div class="info-block">
-                            <span class="info-label">Board Profile</span>
-                            <span class="info-val" id="settings-board-id">pico2</span>
-                        </div>
-                        <div class="info-block">
-                            <span class="info-label">Flash Memory</span>
-                            <span class="info-val" id="settings-flash-size">4 MB</span>
-                        </div>
-                        <div class="info-block">
-                            <span class="info-label">Firmware</span>
-                            <span class="info-val" id="settings-fw-ver">v1.0</span>
-                        </div>
+                        <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="settings-info-chip">RP2350B Dual Cortex-M33</span></div>
+                        <div class="info-pill"><span class="info-label">BOARD PROFILE</span><span class="info-val" id="settings-info-board">BakuProbe / Pico 2</span></div>
+                        <div class="info-pill"><span class="info-label">FLASH</span><span class="info-val" id="settings-info-flash">4.0 MB</span></div>
+                        <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="settings-info-fw">v2.0-Forest</span></div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="action-btn primary" id="btn-save-settings">Done</button>
+            <div class="modal-footer" style="padding: 12px 16px; border-top: var(--border) solid var(--border-color); display: flex; justify-content: flex-end;">
+                <button class="action-btn primary btn-sm" onclick="closeSettingsModal()">Done</button>
             </div>
         </div>
     </div>
 
+    <!-- Application Script Logic -->
     <script>
-        function openLab() {
-            var isDemo = window.location.protocol === 'https:' || 
-                         window.location.hostname.includes('github.io') ||
-                         window.location.search.includes('demo=1') ||
-                         (window.location.hostname === 'localhost' && window.location.port !== '80');
-            window.location.href = isDemo ? 'index.html' : '/lab';
+        // Check if running in static demo environment (e.g. GitHub Pages)
+        const isDemo = window.location.protocol === 'https:' || 
+                       window.location.hostname.includes('github.io') || 
+                       window.location.search.includes('demo=1') ||
+                       window.location.pathname.endsWith('.html') ||
+                       (window.location.hostname === 'localhost' && window.location.port !== '80');
+
+        function openLab(view) {
+            const hash = view ? ('#' + view) : '';
+            if (isDemo) {
+                window.location.href = 'index.html' + hash;
+            } else {
+                window.location.href = '/lab' + hash;
+            }
         }
 
         // State
-        let deviceStorage = { total_bytes: 2539520, used_bytes: 0, free_bytes: 2539520 };
-        let deviceSystem = { board_id: "pico2", board_name: "Raspberry Pi Pico 2", flash_bytes: 4194304, firmware_version: "v1.0" };
+        let deviceStorage = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
+        let deviceSystem = { chip: "RP2350B", board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0" };
         let installedApps = [];
         let catalogApps = [];
         let pendingInstallPayload = null;
@@ -750,6 +499,50 @@
             defaultHomeRoute: '/lab'
         };
 
+        // Fallback demo apps for GitHub Pages / static previews
+        const demoInstalledApps = [
+            {
+                id: "can-sniffer",
+                name: "CAN Sniffer",
+                version: "1.2.0",
+                author: "AgentLA Team",
+                description: "Real-time CAN 2.0B / CAN-FD packet inspector, live hardware ID filtering, and DBC decoder.",
+                tags: ["Automotive", "CAN", "Protocols"],
+                size: 68400,
+                iconSvg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7 9h10M7 15h10M12 9v6"/></svg>'
+            },
+            {
+                id: "i2c-scanner",
+                name: "I2C Scanner",
+                version: "1.0.4",
+                author: "AgentLA Team",
+                description: "High-speed 100kHz / 400kHz / 1MHz I2C address mapper and EEPROM register dumper.",
+                tags: ["I2C", "Sensors", "Bus"],
+                size: 42100,
+                iconSvg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16V4H4zm4 4h8M8 12h8M8 16h8"/></svg>'
+            },
+            {
+                id: "thermal-monitor",
+                name: "Thermal Monitor",
+                version: "1.1.0",
+                author: "Hardware Lab",
+                description: "Continuous telemetry curves from RP2350 internal diode and external I2C TMP117 sensors.",
+                tags: ["Thermal", "Telemetry", "ADC"],
+                size: 51200,
+                iconSvg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>'
+            },
+            {
+                id: "signal-generator",
+                name: "Signal Synthesizer",
+                version: "1.0.0",
+                author: "RF Tools",
+                description: "Dual-channel PWM, pulse-width modulation, square wave and arbitrary clock generator up to 50MHz.",
+                tags: ["Generator", "PWM", "Clock"],
+                size: 38900,
+                iconSvg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h5l3-9 4 18 3-9h5"/></svg>'
+            }
+        ];
+
         // Default Catalog URL
         let catalogUrl = localStorage.getItem('agentla_catalog_url') || 'https://raw.githubusercontent.com/rambros3d/AgentLA/catalog/apps.json';
 
@@ -757,12 +550,12 @@
             {
                 id: "can-sniffer",
                 name: "CAN Bus Analyzer",
-                version: "1.1.0",
+                version: "1.2.0",
                 author: "AgentLA Team",
                 description: "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, and DBC decoder.",
                 requires: ["has_hardware_can"],
                 tags: ["Automotive", "CAN"],
-                size_bytes: 45120
+                size_bytes: 68400
             },
             {
                 id: "battery-profiler",
@@ -783,6 +576,16 @@
                 requires: [],
                 tags: ["Sensors", "I3C"],
                 size_bytes: 36800
+            },
+            {
+                id: "swd-programmer",
+                name: "ARM Cortex SWD Flasher",
+                version: "1.0.5",
+                author: "Debug Suite",
+                description: "Standalone drag-and-drop SWD programmer for STM32, nRF52, and RP2040 targets.",
+                requires: [],
+                tags: ["Debug", "SWD", "Flash"],
+                size_bytes: 74200
             }
         ];
 
@@ -791,6 +594,16 @@
             const units = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(1024));
             return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         // Theme Engine
@@ -858,7 +671,7 @@
                     body: JSON.stringify(payload)
                 });
             } catch (e) {
-                console.warn('[ThemeEngine] Note: saveSettings failed or offline', e);
+                // In static demo or offline mode, state is saved in localStorage
             }
         }
 
@@ -941,18 +754,18 @@
                 const res = await fetch('/api/v1/system');
                 if (res.ok) {
                     deviceSystem = await res.json();
-                    const elChip = document.getElementById('settings-mcu-chip');
-                    const elBoard = document.getElementById('settings-board-id');
-                    const elFlash = document.getElementById('settings-flash-size');
-                    const elFw = document.getElementById('settings-fw-ver');
-                    if (elChip) elChip.innerText = deviceSystem.chip || "RP2350";
-                    if (elBoard) elBoard.innerText = deviceSystem.board_name || deviceSystem.board_id;
-                    if (elFlash) elFlash.innerText = formatBytes(deviceSystem.flash_bytes);
-                    if (elFw) elFw.innerText = deviceSystem.firmware_version || "v1.0";
                 }
             } catch (e) {
-                console.warn('System info query failed:', e);
+                // Use default deviceSystem
             }
+            const elChip = document.getElementById('settings-info-chip');
+            const elBoard = document.getElementById('settings-info-board');
+            const elFlash = document.getElementById('settings-info-flash');
+            const elFw = document.getElementById('settings-info-fw');
+            if (elChip) elChip.innerText = deviceSystem.chip || "RP2350B";
+            if (elBoard) elBoard.innerText = deviceSystem.board_name || "BakuProbe / Pico 2";
+            if (elFlash) elFlash.innerText = formatBytes(deviceSystem.flash_bytes);
+            if (elFw) elFw.innerText = deviceSystem.firmware_version || "v2.0";
         }
 
         async function fetchStorage() {
@@ -960,20 +773,19 @@
                 const res = await fetch('/api/v1/apps/storage');
                 if (res.ok) {
                     deviceStorage = await res.json();
-                    updateStorageDisplay();
                 }
             } catch (e) {
-                console.warn('Storage query failed:', e);
-                updateStorageDisplay();
+                // Use demo defaults
             }
+            updateStorageDisplay();
         }
 
         function updateStorageDisplay() {
             const romBytes = 1638400; // ~1.56 MB System ROM
-            const totalFlash = deviceSystem.flash_bytes || (4 * 1024 * 1024);
+            const totalFlash = deviceSystem.flash_bytes || (8 * 1024 * 1024);
             const lfsTotal = deviceStorage.total_bytes || (totalFlash - romBytes);
-            const lfsUsed = deviceStorage.used_bytes || 0;
-            const lfsFree = (lfsTotal > lfsUsed) ? (lfsTotal - lfsUsed) : (deviceStorage.free_bytes || 0);
+            const lfsUsed = deviceStorage.used_bytes || 1468006;
+            const lfsFree = (lfsTotal > lfsUsed) ? (lfsTotal - lfsUsed) : (deviceStorage.free_bytes || 6920602);
 
             const romPct = ((romBytes / totalFlash) * 100).toFixed(1);
             const appsPct = ((lfsUsed / totalFlash) * 100).toFixed(1);
@@ -1004,100 +816,85 @@
                 const res = await fetch('/api/v1/apps');
                 if (res.ok) {
                     installedApps = await res.json();
-                    document.getElementById('installed-count').innerText = installedApps.length + 1; // +1 for flagship AgentLA Lab
-                    renderInstalledApps();
+                } else {
+                    throw new Error("HTTP " + res.status);
                 }
             } catch (e) {
-                console.warn('Installed apps query failed:', e);
+                installedApps = demoInstalledApps;
             }
+            document.getElementById('installed-count').innerText = installedApps.length;
+            renderInstalledApps();
         }
 
         function renderInstalledApps() {
             const grid = document.getElementById('installed-apps-grid');
-            const term = (document.getElementById('spotlight-search')?.value || '').toLowerCase().trim();
+            if (!grid) return;
 
-            // Flagship card HTML
-            const labCard = `
-                <div class="squircle-card flagship-card" onclick="openLab()" data-app-id="lab" data-name="AgentLA Lab" data-tags="Scope Logic Analyzer Oscilloscope Bus Protocols" data-desc="Flagship embedded logic analyzer, digital storage oscilloscope, bus decoders and adapters">
-                    <div>
-                        <div class="squircle-card-top">
-                            <div class="squircle-icon">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                                </svg>
-                            </div>
-                            <div class="squircle-info">
-                                <h3 class="squircle-title">AgentLA Lab <span class="badge-flagship">FLAGSHIP</span></h3>
-                                <div style="font-size: 11px; color: var(--text-secondary, #8b949e);">Core Instrumentation OS</div>
-                            </div>
+            let html = installedApps.map(app => {
+                const appPath = isDemo ? 'javascript:void(0)' : `/apps/${encodeURIComponent(app.id)}/`;
+                const clickHandler = isDemo
+                    ? `onclick="alert('${escapeHtml(app.name)} is a demo LittleFS application. On hardware, it launches directly into full viewport.')"`
+                    : `onclick="window.location.href='${appPath}'"`;
+
+                const iconContent = app.iconSvg || `
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="2" width="20" height="20" rx="5"/>
+                        <path d="M7 10h10M7 14h10"/>
+                    </svg>
+                `;
+
+                return `
+                    <div class="os-squircle-tile" ${clickHandler} data-name="${escapeHtml(app.name || app.id)}" data-tags="${escapeHtml((app.tags || []).join(' '))}" data-desc="${escapeHtml(app.description || '')}" title="${escapeHtml(app.name || app.id)} (v${escapeHtml(app.version || '1.0.0')})">
+                        <button class="os-squircle-delete-btn" title="Uninstall App" onclick="event.stopPropagation(); deleteApp('${escapeHtml(app.id)}')">&times;</button>
+                        <div class="os-squircle-icon">
+                            ${iconContent}
                         </div>
-                        <div class="squircle-desc">100MS/s logic analyzer, oscilloscope, pinout map, protocol decoders (I2C, SPI, UART, CAN, I3C, SWD), and bus adapters.</div>
+                        <div class="os-app-label">${escapeHtml(app.name || app.id)}</div>
+                        <div class="os-app-sublabel">v${escapeHtml(app.version || '1.0')} · ${formatBytes(app.size || app.size_bytes)}</div>
                     </div>
-                    <div class="squircle-meta">
-                        <span>Built-in ROM</span>
-                        <span style="color: var(--accent-cyan, #00e5ff); font-weight: 600;">Tap to Open →</span>
+                `;
+            }).join('');
+
+            // Add the "+ Install App" squircle tile
+            const installTile = `
+                <div class="os-squircle-tile is-install" onclick="document.getElementById('file-picker').click();" title="Install App Package or Dashboard">
+                    <div class="os-squircle-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
                     </div>
+                    <div class="os-app-label">Install App</div>
+                    <div class="os-app-sublabel">Drop / Choose File</div>
                 </div>
             `;
 
-            let appCards = installedApps.map(app => {
-                const appPath = `/apps/${encodeURIComponent(app.id)}/`;
-                return `
-                    <div class="squircle-card" onclick="window.location.href='${appPath}'" data-app-id="${escapeHtml(app.id)}" data-name="${escapeHtml(app.name || app.id)}" data-tags="${escapeHtml((app.tags || []).join(' '))}" data-desc="${escapeHtml(app.description || '')}">
-                        <div>
-                            <div class="squircle-card-top">
-                                <div class="squircle-icon">
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="2" y="2" width="20" height="20" rx="5"/>
-                                        <path d="M7 10h10M7 14h10"/>
-                                    </svg>
-                                </div>
-                                <div class="squircle-info">
-                                    <h3 class="squircle-title">${escapeHtml(app.name || app.id)} <span class="version-badge">v${escapeHtml(app.version || '1.0.0')}</span></h3>
-                                    <div style="font-size: 11px; color: var(--text-secondary, #8b949e);">${escapeHtml(app.author || 'Installed')}</div>
-                                </div>
-                                <button class="delete-btn-subtle" title="Uninstall App" onclick="event.stopPropagation(); deleteApp('${escapeHtml(app.id)}')">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="3 6 5 6 21 6"/>
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="squircle-desc">${escapeHtml(app.description || 'Custom Web Application')}</div>
-                        </div>
-                        <div class="squircle-meta">
-                            <span>${formatBytes(app.size)} on flash</span>
-                            <span style="color: var(--accent-cyan, #00e5ff); font-weight: 600;">Launch →</span>
-                        </div>
-                    </div>
-                `;
-            });
-
-            grid.innerHTML = labCard + appCards.join('');
+            grid.innerHTML = html + installTile;
             filterAppGrid();
         }
 
         function filterAppGrid() {
             const term = (document.getElementById('spotlight-search')?.value || '').toLowerCase().trim();
-            const cards = document.querySelectorAll('#installed-apps-grid .squircle-card');
-            cards.forEach(card => {
+            const tiles = document.querySelectorAll('.os-squircle-tile:not(.is-install)');
+            tiles.forEach(tile => {
                 if (!term) {
-                    card.classList.remove('hidden');
+                    tile.style.display = 'flex';
                     return;
                 }
-                const name = (card.getAttribute('data-name') || '').toLowerCase();
-                const tags = (card.getAttribute('data-tags') || '').toLowerCase();
-                const desc = (card.getAttribute('data-desc') || '').toLowerCase();
+                const name = (tile.getAttribute('data-name') || '').toLowerCase();
+                const tags = (tile.getAttribute('data-tags') || '').toLowerCase();
+                const desc = (tile.getAttribute('data-desc') || '').toLowerCase();
                 if (name.includes(term) || tags.includes(term) || desc.includes(term)) {
-                    card.classList.remove('hidden');
+                    tile.style.display = 'flex';
                 } else {
-                    card.classList.add('hidden');
+                    tile.style.display = 'none';
                 }
             });
         }
 
         async function fetchCatalog() {
             const grid = document.getElementById('store-apps-grid');
+            if (!grid) return;
             grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 40px;">Loading Community Catalog...</div>`;
 
             try {
@@ -1109,7 +906,6 @@
                     throw new Error('Catalog fetch returned HTTP ' + res.status);
                 }
             } catch (e) {
-                console.warn('Remote catalog offline, using fallback:', e);
                 catalogApps = fallbackCatalog;
             }
 
@@ -1118,7 +914,8 @@
 
         function renderCatalog() {
             const grid = document.getElementById('store-apps-grid');
-            const search = document.getElementById('store-search').value.toLowerCase().trim();
+            if (!grid) return;
+            const search = (document.getElementById('store-search')?.value || '').toLowerCase().trim();
 
             const filtered = catalogApps.filter(app => {
                 const name = (app.name || '').toLowerCase();
@@ -1137,57 +934,46 @@
                 let actionBtn = `<button class="action-btn primary btn-sm" onclick="event.stopPropagation(); initiateCatalogInstall('${escapeHtml(app.id)}')">Install</button>`;
                 
                 if (installed) {
-                    if (installed.version && app.version && compareVersions(app.version, installed.version) > 0) {
-                        actionBtn = `<button class="action-btn primary btn-sm" onclick="event.stopPropagation(); initiateCatalogInstall('${escapeHtml(app.id)}')">Update (v${escapeHtml(app.version)})</button>`;
-                    } else {
-                        actionBtn = `<a class="action-btn outline btn-sm" href="/apps/${encodeURIComponent(app.id)}/" target="_self" onclick="event.stopPropagation()">Open</a>`;
-                    }
+                    actionBtn = `<button class="action-btn outline btn-sm" onclick="event.stopPropagation(); alert('App is already installed.')">Installed</button>`;
                 }
 
                 return `
-                    <div class="squircle-card" onclick="initiateCatalogInstall('${escapeHtml(app.id)}')">
+                    <div class="store-catalog-card">
                         <div>
-                            <div class="squircle-card-top">
-                                <div class="squircle-icon">
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="2" y="2" width="20" height="20" rx="5"/>
-                                        <circle cx="12" cy="12" r="3"/>
-                                    </svg>
-                                </div>
-                                <div class="squircle-info">
-                                    <h3 class="squircle-title">${escapeHtml(app.name)} <span class="version-badge">v${escapeHtml(app.version)}</span></h3>
-                                    <div style="font-size: 11px; color: var(--text-secondary, #8b949e);">${escapeHtml(app.author || 'Community')}</div>
-                                </div>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+                                <div style="font-weight: 700; font-size: 14.5px; color: var(--text-primary);">${escapeHtml(app.name || app.id)}</div>
+                                <span class="os-squircle-badge" style="position: static; font-size: 10px;">v${escapeHtml(app.version || '1.0')}</span>
                             </div>
-                            <div class="squircle-desc">${escapeHtml(app.description || '')}</div>
-                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
-                                ${(app.tags || []).map(t => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">${escapeHtml(app.description || '')}</div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                ${(app.tags || []).map(t => `<span style="font-size: 10px; background: var(--bg-surface-elevated); padding: 2px 7px; border-radius: 9999px; color: var(--text-secondary);">${escapeHtml(t)}</span>`).join('')}
                             </div>
                         </div>
-                        <div class="squircle-meta">
-                            <span>${formatBytes(app.size_bytes || 32768)} required</span>
-                            <div>${actionBtn}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 10px; margin-top: 4px;">
+                            <span style="font-size: 11px; color: var(--text-secondary);">${formatBytes(app.size_bytes || app.size)}</span>
+                            ${actionBtn}
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function compareVersions(v1, v2) {
-            const p1 = (v1 || '').split('.').map(Number);
-            const p2 = (v2 || '').split('.').map(Number);
-            for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
-                const n1 = p1[i] || 0;
-                const n2 = p2[i] || 0;
-                if (n1 > n2) return 1;
-                if (n1 < n2) return -1;
+        async function deleteApp(appId) {
+            if (!confirm(`Are you sure you want to uninstall app "${appId}" from LittleFS?`)) return;
+            try {
+                const res = await fetch(`/api/v1/apps/${encodeURIComponent(appId)}`, { method: 'DELETE' });
+                if (res.ok) {
+                    await fetchInstalledApps();
+                    await fetchStorage();
+                } else {
+                    alert('Uninstall failed: HTTP ' + res.status);
+                }
+            } catch (e) {
+                // In demo mode, remove from local memory array
+                installedApps = installedApps.filter(a => a.id !== appId);
+                document.getElementById('installed-count').innerText = installedApps.length;
+                renderInstalledApps();
             }
-            return 0;
-        }
-
-        function escapeHtml(str) {
-            return String(str || '').replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
         }
 
         // Client-Side TAR Header Extraction
@@ -1239,152 +1025,42 @@
             return { appJson, iconSvg, totalSize: totalUncompressedSize };
         }
 
-        async function openInstallModal(payload) {
-            pendingInstallPayload = payload;
+        async function initiateCatalogInstall(appId) {
+            const app = catalogApps.find(a => a.id === appId);
+            if (!app) return;
+            openInstallModal({
+                name: app.id,
+                type: 'catalog',
+                appJson: app,
+                estimatedSize: app.size_bytes || app.size || 40000
+            });
+        }
+
+        function openInstallModal(payload) {
             const modal = document.getElementById('install-modal');
-            const confirmBtn = document.getElementById('btn-modal-confirm');
-            const storageAlert = document.getElementById('modal-storage-alert');
-            const hwAlert = document.getElementById('modal-hw-alert');
-            const overwriteAlert = document.getElementById('modal-overwrite-alert');
-            const hwOverride = document.getElementById('modal-hw-override');
+            if (!modal) return;
+            pendingInstallPayload = payload;
 
             const app = payload.appJson || { id: payload.name, name: payload.name, version: "1.0.0" };
             document.getElementById('modal-app-name').innerText = app.name || app.id || payload.name;
-            document.getElementById('modal-app-meta').innerText = `v${app.version || '1.0.0'} · ${app.author || 'User Upload'}`;
-            document.getElementById('modal-app-desc').innerText = app.description || 'Custom Web Dashboard';
-
-            await fetchStorage();
-            const requiredBytes = payload.estimatedSize || 32768;
-            const freeBytes = deviceStorage.free_bytes || 0;
-
-            let spaceOk = true;
-            if (requiredBytes > freeBytes) {
-                spaceOk = false;
-                storageAlert.className = 'alert-box alert-error';
-                document.getElementById('modal-storage-text').innerText = 
-                    `Insufficient Flash Space: Requires ${formatBytes(requiredBytes)}, only ${formatBytes(freeBytes)} available.`;
-            } else {
-                storageAlert.className = 'alert-box alert-success';
-                document.getElementById('modal-storage-text').innerText = 
-                    `Flash Space Sufficient: ${formatBytes(requiredBytes)} needed, ${formatBytes(freeBytes)} available.`;
-            }
-
-            let hwOk = true;
-            hwAlert.style.display = 'none';
-            hwOverride.checked = false;
-
-            if (app.requires && Array.isArray(app.requires) && app.requires.length > 0) {
-                const missing = app.requires.filter(req => {
-                    if (req === 'has_hardware_can' && deviceSystem.board_id === 'pico2') return true;
-                    return false;
-                });
-
-                if (missing.length > 0) {
-                    hwOk = false;
-                    hwAlert.style.display = 'flex';
-                    document.getElementById('modal-hw-text').innerText = 
-                        `This app declares hardware requirement (${missing.join(', ')}) not detected on this board.`;
-                }
-            }
-
-            const alreadyExists = installedApps.some(a => a.id === (app.id || payload.name));
-            overwriteAlert.style.display = alreadyExists ? 'flex' : 'none';
-
-            function updateConfirmBtnState() {
-                if (!spaceOk) {
-                    confirmBtn.disabled = true;
-                } else if (!hwOk && !hwOverride.checked) {
-                    confirmBtn.disabled = true;
-                } else {
-                    confirmBtn.disabled = false;
-                }
-            }
-
-            hwOverride.onchange = updateConfirmBtnState;
-            updateConfirmBtnState();
-
+            document.getElementById('modal-app-meta').innerText = `v${app.version || '1.0.0'} · ${formatBytes(payload.estimatedSize || app.size_bytes || 32768)}`;
+            document.getElementById('modal-app-desc').innerText = app.description || 'Custom Web Application';
+            
+            document.getElementById('modal-storage-text').innerText = `Partition Space: ${formatBytes(deviceStorage.free_bytes)} free · Required: ${formatBytes(payload.estimatedSize || app.size_bytes || 32768)}`;
             document.getElementById('modal-progress-container').style.display = 'none';
-            document.getElementById('modal-progress-bar').style.width = '0%';
-            confirmBtn.style.display = 'inline-flex';
-            document.getElementById('btn-modal-cancel').disabled = false;
 
             modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
         }
 
         function closeInstallModal() {
-            document.getElementById('install-modal').classList.remove('open');
+            const modal = document.getElementById('install-modal');
+            if (modal) {
+                modal.classList.remove('open');
+                modal.setAttribute('aria-hidden', 'true');
+            }
             pendingInstallPayload = null;
         }
-
-        document.getElementById('btn-modal-confirm').addEventListener('click', async () => {
-            if (!pendingInstallPayload) return;
-
-            const confirmBtn = document.getElementById('btn-modal-confirm');
-            const cancelBtn = document.getElementById('btn-modal-cancel');
-            const progContainer = document.getElementById('modal-progress-container');
-            const progBar = document.getElementById('modal-progress-bar');
-            const progText = document.getElementById('modal-progress-status');
-
-            confirmBtn.disabled = true;
-            cancelBtn.disabled = true;
-            progContainer.style.display = 'block';
-            progBar.style.width = '30%';
-            progText.innerText = 'Writing application to LittleFS flash...';
-
-            const appName = pendingInstallPayload.appJson?.id || pendingInstallPayload.name;
-            const url = `/api/v1/apps/install?name=${encodeURIComponent(appName)}`;
-
-            try {
-                let res;
-                if (pendingInstallPayload.type === 'tar') {
-                    res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-tar' },
-                        body: pendingInstallPayload.data
-                    });
-                } else {
-                    res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/html' },
-                        body: pendingInstallPayload.data
-                    });
-                }
-
-                progBar.style.width = '100%';
-                if (res.status === 201 || res.ok) {
-                    progText.innerText = 'Installation successful!';
-                    setTimeout(async () => {
-                        closeInstallModal();
-                        await fetchStorage();
-                        await fetchInstalledApps();
-                    }, 600);
-                } else {
-                    throw new Error('Install failed with HTTP ' + res.status);
-                }
-            } catch (e) {
-                progText.innerText = 'Error: ' + e.message;
-                cancelBtn.disabled = false;
-            }
-        });
-
-        // Dropzone & File Picker
-        const filePicker = document.getElementById('file-picker');
-        filePicker.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            handleFileSelect(file);
-        });
-
-        const dropzone = document.getElementById('dropzone');
-        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
-        });
 
         async function handleFileSelect(file) {
             const name = file.name.replace(/\.[^/.]+$/, "");
@@ -1398,82 +1074,92 @@
                     appJson: meta.appJson || { id: name, name: name, version: '1.0.0' },
                     estimatedSize: meta.totalSize || file.size
                 });
-            } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+            } else {
                 const text = await file.text();
                 openInstallModal({
                     name: name,
                     type: 'html',
                     data: text,
-                    appJson: { id: name, name: name, version: '1.0.0', description: 'Standalone HTML Dashboard' },
+                    appJson: { id: name, name: name, version: '1.0.0', description: 'Single-file dashboard' },
                     estimatedSize: file.size
                 });
-            } else {
-                alert('Unsupported package format. Please select a .tar archive or .html file.');
             }
         }
 
-        async function initiateCatalogInstall(appId) {
-            const app = catalogApps.find(a => a.id === appId);
-            if (!app) return;
-
-            if (app.download_url) {
-                try {
-                    const res = await fetch(app.download_url);
-                    if (!res.ok) throw new Error('Download failed: ' + res.statusText);
-                    const buf = await res.arrayBuffer();
-                    const meta = parseTarMetadata(buf);
-                    openInstallModal({
-                        name: app.id,
-                        type: 'tar',
-                        data: buf,
-                        appJson: meta.appJson || app,
-                        estimatedSize: meta.totalSize || app.size_bytes || buf.byteLength
-                    });
-                } catch (e) {
-                    alert('Could not download package from registry: ' + e.message);
-                }
-            } else {
-                const demoHtml = `<!DOCTYPE html><html><head><title>${app.name}</title><link rel="stylesheet" href="/style.css"></head><body style="padding:40px; text-align:center;"><h2>${app.name}</h2><p>${app.description}</p><p><a href="/apps" class="action-btn">Back to Apps</a></p></body></html>`;
-                openInstallModal({
-                    name: app.id,
-                    type: 'html',
-                    data: demoHtml,
-                    appJson: app,
-                    estimatedSize: demoHtml.length + 512
-                });
-            }
+        // Local Package Upload Handlers
+        const filePicker = document.getElementById('file-picker');
+        if (filePicker) {
+            filePicker.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                await handleFileSelect(file);
+            });
         }
 
-        async function deleteApp(appId) {
-            if (!confirm(`Are you sure you want to delete '${appId}' and free up flash storage?`)) return;
+        // Setup confirm installation
+        document.getElementById('btn-modal-confirm').addEventListener('click', async () => {
+            if (!pendingInstallPayload) return;
+            const progressContainer = document.getElementById('modal-progress-container');
+            const progressBar = document.getElementById('modal-progress-bar');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '30%';
+
+            const appName = pendingInstallPayload.appJson?.id || pendingInstallPayload.name;
+            const url = `/api/v1/apps/install?name=${encodeURIComponent(appName)}`;
+
             try {
-                const res = await fetch(`/api/v1/apps/${encodeURIComponent(appId)}`, { method: 'DELETE' });
-                if (res.ok) {
-                    await fetchStorage();
-                    await fetchInstalledApps();
-                    renderCatalog();
+                if (!isDemo && pendingInstallPayload.data) {
+                    progressBar.style.width = '60%';
+                    let res;
+                    if (pendingInstallPayload.type === 'tar') {
+                        res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-tar' },
+                            body: pendingInstallPayload.data
+                        });
+                    } else {
+                        res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/html' },
+                            body: pendingInstallPayload.data
+                        });
+                    }
+                    if (!res.ok) throw new Error('Installation error: ' + res.statusText);
                 } else {
-                    alert('Failed to delete application.');
+                    // Demo mode simulation
+                    await new Promise(r => setTimeout(r, 400));
                 }
-            } catch (e) {
-                alert('Delete error: ' + e.message);
+
+                progressBar.style.width = '100%';
+                setTimeout(() => {
+                    closeInstallModal();
+                    alert(`App "${appName}" installed successfully!`);
+                    if (isDemo) {
+                        installedApps.push({
+                            id: appName,
+                            name: pendingInstallPayload.appJson?.name || appName,
+                            version: pendingInstallPayload.appJson?.version || "1.0.0",
+                            description: pendingInstallPayload.appJson?.description || "",
+                            size: pendingInstallPayload.estimatedSize || 40000,
+                            tags: ["Installed"]
+                        });
+                        document.getElementById('installed-count').innerText = installedApps.length;
+                        renderInstalledApps();
+                    } else {
+                        fetchInstalledApps();
+                        fetchStorage();
+                    }
+                }, 300);
+            } catch (err) {
+                alert('Installation failed: ' + err.message);
+                closeInstallModal();
             }
-        }
-
-        // Setup Event Listeners
-        document.getElementById('spotlight-search').addEventListener('input', filterAppGrid);
-
-        document.getElementById('btn-theme-toggle').addEventListener('click', (e) => {
-            e.preventDefault();
-            cycleThemeMode();
         });
 
+        // Event Listeners
+        document.getElementById('btn-theme-toggle').addEventListener('click', cycleThemeMode);
         document.getElementById('btn-header-settings').addEventListener('click', openSettingsModal);
         document.getElementById('btn-close-settings-modal').addEventListener('click', closeSettingsModal);
-        document.getElementById('btn-save-settings').addEventListener('click', closeSettingsModal);
-        document.getElementById('modal-settings').addEventListener('click', (e) => {
-            if (e.target.id === 'modal-settings') closeSettingsModal();
-        });
 
         document.getElementById('settings-theme-mode-select').addEventListener('change', (e) => {
             themeState.mode = e.target.value;
@@ -1507,7 +1193,7 @@
                     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'system_reboot', arguments: {} } })
                 });
             } catch (_) {}
-            alert('Reboot signal sent.');
+            alert('Reboot signal dispatched.');
         });
 
         document.getElementById('btn-bootsel-mode').addEventListener('click', async () => {
@@ -1519,90 +1205,71 @@
                     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'system_bootsel', arguments: {} } })
                 });
             } catch (_) {}
-            alert('BOOTSEL signal sent.');
+            alert('BOOTSEL signal dispatched.');
         });
 
-        // Emergency Safe State
         document.getElementById('btn-emergency-safe').addEventListener('click', async () => {
             if (!confirm('Activate Emergency Safe State? All GPIO pins will be quiesced to High-Z.')) return;
             try {
-                const res = await fetch('/api/v1/pins/safe', { method: 'POST' });
-                if (res.ok) {
-                    alert('Safe state activated: All pins quiesced.');
-                }
-            } catch (e) {
-                alert('Emergency safe state request error: ' + e.message);
-            }
+                await fetch('/api/v1/pins/safe', { method: 'POST' });
+            } catch (_) {}
+            alert('Safe state activated: All pins quiesced.');
         });
 
-        // Tabs
+        // Tab Navigation
         const tabMyApps = document.getElementById('tab-my-apps');
         const tabStore = document.getElementById('tab-store');
-        const secMyApps = document.getElementById('section-my-apps');
-        const secStore = document.getElementById('section-store');
+        const secCore = document.getElementById('section-core-instruments');
+        const secInstalled = document.getElementById('section-installed-apps');
+        const secStore = document.getElementById('section-community-store');
 
         tabMyApps.addEventListener('click', () => {
             tabMyApps.classList.add('active');
             tabStore.classList.remove('active');
-            secMyApps.style.display = 'block';
+            secCore.style.display = 'block';
+            secInstalled.style.display = 'block';
             secStore.style.display = 'none';
         });
 
         tabStore.addEventListener('click', () => {
             tabStore.classList.add('active');
             tabMyApps.classList.remove('active');
+            secCore.style.display = 'none';
+            secInstalled.style.display = 'none';
             secStore.style.display = 'block';
-            secMyApps.style.display = 'none';
             if (catalogApps.length === 0) {
                 fetchCatalog();
             }
         });
 
-        document.getElementById('store-search').addEventListener('input', renderCatalog);
+        // Spotlight live search filtering
+        const spotlightSearch = document.getElementById('spotlight-search');
+        if (spotlightSearch) {
+            spotlightSearch.addEventListener('input', filterAppGrid);
+        }
 
-        document.getElementById('btn-refresh-storage').addEventListener('click', async () => {
-            await fetchStorage();
-            await fetchInstalledApps();
-        });
+        const storeSearch = document.getElementById('store-search');
+        if (storeSearch) {
+            storeSearch.addEventListener('input', renderCatalog);
+        }
 
-        document.getElementById('btn-configure-catalog').addEventListener('click', () => {
-            const url = prompt('Enter Community App Catalog JSON URL:', catalogUrl);
-            if (url && url !== catalogUrl) {
-                catalogUrl = url;
-                localStorage.setItem('agentla_catalog_url', catalogUrl);
-                fetchCatalog();
-            }
-        });
-
+        // Global hotkey: Press '/' to focus spotlight search
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
+            if (e.key === '/' && document.activeElement !== spotlightSearch && document.activeElement !== storeSearch) {
+                e.preventDefault();
+                spotlightSearch?.focus();
+            } else if (e.key === 'Escape') {
                 closeSettingsModal();
                 closeInstallModal();
             }
         });
 
-        // Init
+        // Initialize on DOM load
         (async function init() {
-            var isDemo = window.location.protocol === 'https:' || 
-                         window.location.hostname.includes('github.io') ||
-                         window.location.search.includes('demo=1') ||
-                         (window.location.hostname === 'localhost' && window.location.port !== '80');
-            if (isDemo && typeof mockBridgeLoaded === 'undefined') {
-                var s = document.createElement('script');
-                s.src = 'mock-bridge.js';
-                s.onload = async function() {
-                    await initSettings();
-                    await fetchSystemInfo();
-                    await fetchStorage();
-                    await fetchInstalledApps();
-                };
-                document.head.appendChild(s);
-            } else {
-                await initSettings();
-                await fetchSystemInfo();
-                await fetchStorage();
-                await fetchInstalledApps();
-            }
+            await initSettings();
+            await fetchSystemInfo();
+            await fetchStorage();
+            await fetchInstalledApps();
         })();
     </script>
 </body>

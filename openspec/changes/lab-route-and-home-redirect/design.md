@@ -39,8 +39,13 @@ Previously, `apps.html` had custom styling that diverged from `index.html` (the 
 - **Rationale**: In `/lab`, clicking the top-left `[❖ AgentLA]` brand takes the user to `/apps`. In `/apps`, the prominent "AgentLA Lab" squircle tile opens `/lab`. Having text pills in the menu bar cluttered the interface and contradicted real OS design patterns.
 
 ### 4. OS Squircle Grid & Spotlight Search Metaphor
-- **Choice**: App launcher renders 56×56px squircle tiles with smooth radius, `--card-rim-highlight`, spring hover animations, and direct tap-to-launch. Centered spotlight search filters tiles instantaneously.
-- **Rationale**: Transitions the launcher from a text-heavy directory listing into a tactile, responsive operating system interface.
+- **Choice**: App launcher renders 64×64px squircle tiles with smooth radius, `--card-rim-highlight`, spring hover animations, and direct tap-to-launch. Centered spotlight search filters tiles instantaneously across Core Instruments and Installed Apps.
+- **Visual Architecture**:
+  1. **Spotlight Search**: Centered floating pill with `/` hotkey for instant fuzzy filtering.
+  2. **Core Instruments & Flagship**: Prominent squircle tiles for AgentLA Lab, MSO Scope, Pinout Matrix, USB Adapters, and Console.
+  3. **Installed Apps**: Squircle grid of LittleFS apps with name, version, and hover uninstall button, plus an inline dashed `+ Install App` tile.
+  4. **OS Dock / Storage & Store**: Segmented LittleFS capacity bar and segmented switcher into the Community App Store.
+- **Rationale**: Transitions the launcher from a text-heavy directory listing into a tactile, responsive operating system interface that shares 100% of its visual styling and theme tokens with the workbench.
 
 ### 5. Stream Injection for Installed Apps (`/agentla-bridge.js`)
 - **Choice**: Firmware transparently appends `<script src="/agentla-bridge.js" defer></script>` to HTML responses under `/apps/*` during `fs_read_custom`.

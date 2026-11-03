@@ -20,11 +20,18 @@ Unifying both pages under a single cohesive embedded OS model gives AgentLA a cl
   - Requesting root `/` returns an HTTP 302 Found response pointing to `Location: <default_home_route>` (factory default: `/lab`).
   - Cached in RAM for microsecond zero-flash-read dispatch; persisted in LittleFS `/settings.json` via `/api/v1/settings`.
 - **OS-Style App Launcher (`/apps`)**:
-  - Replaces `apps.html`'s 350-line legacy `#0d1117` CSS with the unified DaisyUI design system (`style.css` + `themes.css`).
-  - **Tactile Squircle App Grid**: 56×56px smooth rounded squircle icons, depth shadows (`--card-neumorphic-shadow`), rim highlights, and spring hover animations. 1-tap on a tile launches the app immediately.
-  - **Spotlight Search**: Centered pill search bar with real-time fuzzy filtering across app names, tags, and descriptions.
-  - **OS Segmented Storage Bar**: Displays firmware ROM, installed apps, and free LittleFS flash.
-  - **Flagship Built-in App**: "AgentLA Lab" is the primary first tile in the app grid with a `FLAGSHIP` badge.
+  - Replaces `apps.html`'s 350-line legacy foreign CSS with the unified design system (`style.css` + `themes.css`) mounted inside `.app-shell` and `#main-workspace`.
+  - Shares the technical drafting grid background, fractal noise overlay, and DaisyUI tokens with the workbench.
+  - **Spotlight Search**: Centered floating pill search bar (`/` hotkey) with real-time live filtering across app names, tags, and tools.
+  - **Core Instruments & Flagship Section**: Tactile squircle app tiles for core instruments:
+    - **AgentLA Lab**: Primary flagship app tile with a `FLAGSHIP` badge and direct launch into the workbench.
+    - **MSO Scope**: Direct launch into Mixed-Signal Oscilloscope & Logic Analyzer mode.
+    - **Pinout Matrix**: Direct launch into Hardware Pinout Matrix mode.
+    - **USB Adapters**: Direct launch into Hardware Protocol Adapters mode.
+    - **Console**: Direct launch into Firmware REPL & MCP console.
+  - **Installed Apps Section**: Tactile squircle app tiles (64×64px squircle icons with rim highlights, titles, subtitles, hover uninstall buttons, and 1-tap direct launch into full viewport). Includes an inline **"Install App" (+)** tile for local package upload.
+  - **OS Dock & Community Store**: Segmented capacity bar (System ROM, Installed LittleFS apps, Free Flash) in a footer dock, paired with a sliding segmented control to switch instantly into the searchable Community App Store.
+  - **Demo Mode Resilience**: In static environments (GitHub Pages demo), seamlessly falls back to demo apps, mock LittleFS storage, and relative navigation (`index.html`) without 404 errors.
 - **Clean OS Top Bar & Unification**:
   - Removes redundant "Workbench" and "App Launcher" navigation pills from both `/lab` and `/apps`.
   - In `/lab`, clicking `[❖ AgentLA]` navigates to `/apps`.
