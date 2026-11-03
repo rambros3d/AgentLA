@@ -1,10 +1,27 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="forest">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>AgentLA — RP2350 High-Speed Multi-Tool Bench Engine</title>
     <meta name="description" content="AgentLA: Touch-first 100 MS/s Logic Analyzer, Multi-core Flasher, Debugger, Bus Masters, and Dynamic Pin Allocation on RP2350.">
+    <script>
+        (function() {
+            var saved = localStorage.getItem('agentla-theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+                var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+                document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                document.documentElement.setAttribute('data-theme', 'emerald');
+                document.documentElement.setAttribute('data-theme-scheme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme-scheme', 'dark');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="themes.css">
     <link rel="stylesheet" href="landing.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300e5ff'><rect x='3' y='3' width='7' height='7'/><rect x='14' y='3' width='7' height='7'/><rect x='14' y='14' width='7' height='7'/><rect x='3' y='14' width='7' height='7'/></svg>">
 </head>
@@ -22,6 +39,22 @@
                 <a href="#pinout">Pin Matrix</a>
                 <a href="#connect">Connect Device</a>
                 <a href="demo/" class="btn-nav-demo">Launch Demo →</a>
+                <button class="theme-toggle-btn mode-system" id="landing-theme-toggle" data-mode="system" title="Toggle Theme (System / Light / Dark)" aria-label="Toggle Theme">
+                    <svg class="solar-icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12Z" fill="currentColor"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C12.4142 1.25 12.75 1.58579 12.75 2V3C12.75 3.41421 12.4142 3.75 12 3.75C11.5858 3.75 11.25 3.41421 11.25 3V2C11.25 1.58579 11.5858 1.25 12 1.25ZM1.25 12C1.25 11.5858 1.58579 11.25 2 11.25H3C3.41421 11.25 3.75 11.5858 3.75 12C3.75 12.4142 3.41421 12.75 3 12.75H2C1.58579 12.75 1.25 12.4142 1.25 12ZM20.25 12C20.25 11.5858 20.5858 11.25 21 11.25H22C22.4142 11.25 22.75 11.5858 22.75 12C22.75 12.4142 22.4142 12.75 22 12.75H21C20.5858 12.75 20.25 12.4142 20.25 12ZM12 20.25C12.4142 20.25 12.75 20.5858 12.75 21V22C12.75 22.4142 12.4142 22.75 12 22.75C11.5858 22.75 11.25 22.4142 11.25 22V21C11.25 20.5858 11.5858 20.25 12 20.25Z" fill="currentColor"/>
+                    </svg>
+                    <svg class="solar-icon icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M22 12.0004C22 17.5232 17.5228 22.0004 12 22.0004C10.8358 22.0004 9.71801 21.8014 8.67887 21.4357C8.24138 20.3772 8 19.217 8 18.0004C8 15.7792 8.80467 13.7459 10.1384 12.1762C11.31 13.8818 13.2744 15.0004 15.5 15.0004C17.8615 15.0004 19.9289 13.741 21.0672 11.8572C21.3065 11.4612 22 11.5377 22 12.0004Z" fill="currentColor"/>
+                        <path d="M2 12C2 16.3586 4.78852 20.0659 8.67887 21.4353C8.24138 20.3768 8 19.2166 8 18C8 15.7788 8.80467 13.7455 10.1384 12.1758C9.42027 11.1303 9 9.86422 9 8.5C9 6.13845 10.2594 4.07105 12.1432 2.93276C12.5392 2.69347 12.4627 2 12 2C6.47715 2 2 6.47715 2 12Z" fill="currentColor"/>
+                    </svg>
+                    <svg class="solar-icon icon-sun-fog" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6V18Z" fill="currentColor"/>
+                        <path opacity="0.4" d="M12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18V6Z" fill="currentColor"/>
+                        <path opacity="0.5" d="M12 2V4M12 20V22M4 12H2M7.05 7.05L5.636 5.636M7.05 16.95L5.636 18.364" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path opacity="0.4" d="M12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 3"/>
+                    </svg>
+                </button>
             </nav>
         </div>
     </header>

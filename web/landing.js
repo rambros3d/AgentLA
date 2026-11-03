@@ -1,8 +1,61 @@
 // AgentLA Landing Page & Subnet Discovery Script
 document.addEventListener('DOMContentLoaded', () => {
+    initLandingThemeEngine();
     initPinoutVisualizer();
     initDeviceDiscovery();
 });
+
+function initLandingThemeEngine() {
+    let mode = localStorage.getItem('agentla-theme-mode') || 'system';
+    const btn = document.getElementById('landing-theme-toggle');
+
+    function apply() {
+        let effectiveTheme = 'forest';
+        if (mode === 'light') {
+            effectiveTheme = localStorage.getItem('agentla-default-light') || 'emerald';
+        } else if (mode === 'dark') {
+            effectiveTheme = localStorage.getItem('agentla-default-dark') || 'forest';
+        } else {
+            const prefersDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+            effectiveTheme = prefersDark ? 'forest' : 'emerald';
+        }
+
+        document.documentElement.setAttribute('data-theme', effectiveTheme);
+        const isLight = (effectiveTheme === 'emerald' || effectiveTheme === 'caramellatte' || effectiveTheme === 'light');
+        document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+
+        try {
+            localStorage.setItem('agentla-theme', effectiveTheme);
+        } catch (_) {}
+
+        if (btn) {
+            btn.setAttribute('data-mode', mode);
+            btn.className = `theme-toggle-btn mode-${mode}`;
+            btn.setAttribute('title', `Theme Mode: ${mode} (${effectiveTheme})`);
+        }
+    }
+
+    if (btn) {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (mode === 'system') mode = 'light';
+            else if (mode === 'light') mode = 'dark';
+            else mode = 'system';
+            try {
+                localStorage.setItem('agentla-theme-mode', mode);
+            } catch (_) {}
+            apply();
+        });
+    }
+
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (mode === 'system') apply();
+        });
+    }
+
+    apply();
+}
 
 // RP2350 30-Pin Definitions
 const PIN_MAP = [

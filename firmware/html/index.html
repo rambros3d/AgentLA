@@ -9,10 +9,16 @@
         // Restore theme immediately to avoid flash of wrong palette
         (function() {
             var saved = localStorage.getItem('agentla-theme');
-            if (saved === 'light' || saved === 'dark') {
+            if (saved) {
                 document.documentElement.setAttribute('data-theme', saved);
+                var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+                document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
             } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-                document.documentElement.setAttribute('data-theme', 'dark'); // Default to Deep Dark
+                document.documentElement.setAttribute('data-theme', 'emerald');
+                document.documentElement.setAttribute('data-theme-scheme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme-scheme', 'dark');
             }
         })();
     </script>
@@ -53,8 +59,8 @@
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="themes.css">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
 </head>
 <body>
 
@@ -74,8 +80,7 @@
                 <span class="brand-title">AgentLA</span>
             </div>
             <nav class="header-nav-links" style="display:inline-flex; gap:6px; margin-left:14px; align-items:center;">
-                <a href="/" class="preset-pill" style="padding:4px 10px; text-decoration:none; color:var(--cyan, #00e5ff); background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.3); font-size:12px; font-weight:600;">Console</a>
-                <a href="/apps" class="preset-pill" style="padding:4px 10px; text-decoration:none; color:#a0b0c0; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); font-size:12px; font-weight:600;">App Launcher</a>
+                <a href="apps.html" data-route="/apps" class="preset-pill" style="padding:4px 10px; text-decoration:none; color:var(--text-secondary); background:var(--bg-surface); border:1px solid var(--border-color); font-size:12px; font-weight:600;">App Launcher</a>
             </nav>
         </div>
 
@@ -115,9 +120,6 @@
                 </div>
             </div>
 
-            <div id="connection-status" class="status-indicator" title="Hardware Bridge Watchdog">
-                <span class="status-text">Connecting...</span>
-            </div>
 
             <!-- Open Source Project Link -->
             <a id="btn-open-source" href="https://rambros3d.github.io/AgentLA" target="_blank" rel="noopener noreferrer" class="theme-toggle-btn header-icon-btn" title="AgentLA Open Source Project" aria-label="Open Source Repository">
@@ -1846,8 +1848,7 @@
                 var s = document.createElement('script');
                 s.src = 'mock-bridge.js';
                 s.onload = function() {
-                    var statusText = document.querySelector('#connection-status .status-text');
-                    if (statusText) { statusText.textContent = 'Demo Mode'; statusText.style.color = 'var(--color-primary)'; }
+                    console.log("[AgentLA] Demo mock hardware simulator loaded");
                 };
                 document.head.appendChild(s);
             }

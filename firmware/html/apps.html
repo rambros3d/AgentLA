@@ -4,7 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>AgentLA - App Store &amp; Launcher</title>
-    <link rel="stylesheet" href="/style.css">
+    <script>
+        (function() {
+            var saved = localStorage.getItem('agentla-theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+                var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+                document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
     <style>
         :root {
             --bg-canvas: #0d1117;
@@ -361,7 +372,7 @@
     <!-- Header -->
     <header class="app-header">
         <div class="header-left">
-            <a href="/" class="brand-item">
+            <a href="index.html" class="brand-item">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
                     <line x1="8" y1="21" x2="16" y2="21"/>
@@ -370,8 +381,8 @@
                 AgentLA
             </a>
             <nav class="nav-links">
-                <a href="/" class="nav-pill">Console</a>
-                <a href="/apps" class="nav-pill active">App Launcher</a>
+                <a href="index.html" class="nav-pill">Workbench</a>
+                <a href="apps.html" class="nav-pill active">App Launcher</a>
             </nav>
         </div>
         <div class="header-right">
@@ -1079,9 +1090,24 @@
 
         // Initialize
         (async function init() {
-            await fetchSystemInfo();
-            await fetchStorage();
-            await fetchInstalledApps();
+            var isDemo = window.location.protocol === 'https:' || 
+                         window.location.hostname.includes('github.io') ||
+                         window.location.search.includes('demo=1') ||
+                         (window.location.hostname === 'localhost' && window.location.port !== '80');
+            if (isDemo && typeof mockBridgeLoaded === 'undefined') {
+                var s = document.createElement('script');
+                s.src = 'mock-bridge.js';
+                s.onload = async function() {
+                    await fetchSystemInfo();
+                    await fetchStorage();
+                    await fetchInstalledApps();
+                };
+                document.head.appendChild(s);
+            } else {
+                await fetchSystemInfo();
+                await fetchStorage();
+                await fetchInstalledApps();
+            }
         })();
     </script>
 </body>

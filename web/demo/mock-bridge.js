@@ -6,6 +6,7 @@
  */
 
 (function() {
+    window.mockBridgeLoaded = true;
     console.log("%c[AgentLA Demo]%c In-browser hardware simulator loaded", "color: #00e5ff; font-weight: bold;", "color: inherit;");
 
     // Virtual RP2350 State Machine
@@ -425,6 +426,73 @@
                 { name: 'caramellatte', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: false, custom: false }
             ];
             return new Response(JSON.stringify(list), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 2d. Intercept /api/v1/system
+        if (urlStr.includes('/api/v1/system')) {
+            return new Response(JSON.stringify({
+                board_id: "demo",
+                board_name: "AgentLA Demo Simulator (RP2350)",
+                flash_bytes: 4194304,
+                littlefs_bytes: 1572864
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 2e. Intercept /api/v1/apps/storage
+        if (urlStr.includes('/api/v1/apps/storage')) {
+            return new Response(JSON.stringify({
+                total_bytes: 1572864,
+                used_bytes: 284160,
+                free_bytes: 1288704
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 2f. Intercept /api/v1/apps
+        if (urlStr.includes('/api/v1/apps')) {
+            if (init && init.method === 'POST') {
+                return new Response(JSON.stringify({ status: "installed" }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            if (init && init.method === 'DELETE') {
+                return new Response(JSON.stringify({ status: "deleted" }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            const defaultInstalled = [
+                {
+                    id: "can-sniffer",
+                    name: "CAN Bus Analyzer",
+                    version: "1.1.0",
+                    author: "AgentLA Team",
+                    description: "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, and DBC decoder.",
+                    requires: ["has_hardware_can"],
+                    tags: ["Automotive", "CAN"],
+                    size_bytes: 45120
+                },
+                {
+                    id: "battery-profiler",
+                    name: "Battery Discharge Profiler",
+                    version: "1.0.2",
+                    author: "AgentLA Team",
+                    description: "Continuous voltage & current profiling curves with mWh calculations and CSV export.",
+                    requires: [],
+                    tags: ["Power", "ADC"],
+                    size_bytes: 28400
+                }
+            ];
+            return new Response(JSON.stringify(defaultInstalled), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
             });

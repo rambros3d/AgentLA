@@ -1,70 +1,20 @@
 /* AgentLA Marketing & Discovery Splash Stylesheet */
-:root, [data-theme="dark"] {
-    /* DaisyUI v5 "black" Design Tokens */
-    --color-base-100: oklch(0% 0 0);
-    --color-base-200: oklch(19% 0 0);
-    --color-base-300: oklch(22% 0 0);
-    --color-base-content: oklch(87.609% 0 0);
-    --color-primary: oklch(35% 0 0);
-    --color-primary-content: oklch(100% 0 0);
-    --color-secondary: oklch(35% 0 0);
-    --color-secondary-content: oklch(100% 0 0);
-    --color-accent: oklch(35% 0 0);
-    --color-accent-content: oklch(100% 0 0);
-    --color-neutral: oklch(35% 0 0);
-    --color-neutral-content: oklch(100% 0 0);
-    --color-info: oklch(45.201% 0.313 264.052);
-    --color-info-content: oklch(89.04% 0.062 264.052);
-    --color-success: oklch(51.975% 0.176 142.495);
-    --color-success-content: oklch(90.395% 0.035 142.495);
-    --color-warning: oklch(96.798% 0.211 109.769);
-    --color-warning-content: oklch(19.359% 0.042 109.769);
-    --color-error: oklch(62.795% 0.257 29.233);
-    --color-error-content: oklch(12.559% 0.051 29.233);
-
-    /* Semantic Component Variable Mappings */
-    --bg-page: var(--color-base-100);
-    --bg-surface: var(--color-base-200);
-    --bg-card: var(--color-base-200);
-    --bg-card-hover: var(--color-base-300);
-
-    --border-color: rgba(255, 255, 255, 0.12);
-    --border-hover: var(--color-info);
-    --text-primary: var(--color-base-content);
-    --text-secondary: oklch(70% 0 0);
-    --text-muted: oklch(50% 0 0);
-
-    --accent-cyan: var(--color-info);
-    --accent-blue: oklch(60% 0.20 260);
-    --accent-orange: var(--color-warning);
-    --accent-green: var(--color-success);
-    --accent-purple: oklch(62% 0.20 310);
-
-    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    --grid-line: rgba(255, 255, 255, 0.04);
-    --header-bg: rgba(0, 0, 0, 0.85);
-
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 16px;
-    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-
-[data-theme="light"] {
-    /* DaisyUI v5 "emerald" Design Tokens */
-    --color-base-100: oklch(100% 0 0);
-    --color-base-200: oklch(93% 0 0);
-    --color-base-300: oklch(86% 0 0);
-    --color-base-content: oklch(35.519% 0.032 262.988);
-    --color-primary: oklch(76.662% 0.135 153.45);
-    --color-primary-content: oklch(33.387% 0.04 162.24);
-    --color-secondary: oklch(61.302% 0.202 261.294);
-    --color-secondary-content: oklch(100% 0 0);
-    --color-accent: oklch(72.772% 0.149 33.2);
-    --color-accent-content: oklch(0% 0 0);
-    --color-neutral: oklch(35.519% 0.032 262.988);
-    --color-neutral-content: oklch(98.462% 0.001 247.838);
-    --color-info: oklch(72.06% 0.191 231.6);
+:root, [data-theme="dark"], [data-theme="forest"] {
+    /* DaisyUI v5 "forest" Design Tokens */
+    color-scheme: dark;
+    --color-base-100: oklch(20.84% 0.008 17.911);
+    --color-base-200: oklch(18.42% 0.007 17.911);
+    --color-base-300: oklch(16% 0.006 17.911);
+    --color-base-content: oklch(98% 0.022 95.277);
+    --color-primary: oklch(68.628% 0.185 148.958);
+    --color-primary-content: oklch(0% 0 0);
+    --color-secondary: oklch(69.776% 0.135 168.327);
+    --color-secondary-content: oklch(13.955% 0.027 168.327);
+    --color-accent: oklch(70.628% 0.119 185.713);
+    --color-accent-content: oklch(14.125% 0.023 185.713);
+    --color-neutral: oklch(30.698% 0.039 171.364);
+    --color-neutral-content: oklch(96% 0.059 95.617);
+    --color-info: oklch(70% 0.165 254.624);
     --color-info-content: oklch(0% 0 0);
     --color-success: oklch(64.8% 0.15 160);
     --color-success-content: oklch(0% 0 0);
@@ -73,21 +23,111 @@
     --color-error: oklch(71.76% 0.221 22.18);
     --color-error-content: oklch(0% 0 0);
 
+    --radius-selector: 1rem;
+    --radius-field: 0.5rem;
+    --radius-box: 1rem;
+    --border: 1px;
+    --depth: 1;
+    --noise: 1;
+
     /* Semantic Component Variable Mappings */
     --bg-page: var(--color-base-100);
     --bg-surface: var(--color-base-200);
-    --bg-card: var(--color-base-100);
-    --bg-card-hover: var(--color-base-200);
+    --bg-card: var(--color-base-200);
+    --bg-card-hover: var(--color-base-300);
 
-    --border-color: rgba(0, 0, 0, 0.12);
+    --border-color: rgba(255, 255, 255, 0.10);
     --border-hover: var(--color-primary);
     --text-primary: var(--color-base-content);
-    --text-secondary: oklch(48% 0.02 262.988);
-    --text-muted: oklch(62% 0.015 262.988);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 78%, transparent);
+    --text-muted: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+
+    --accent-cyan: var(--color-info);
+    --accent-blue: oklch(65% 0.18 250);
+    --accent-orange: var(--color-warning);
+    --accent-green: var(--color-success);
+    --accent-purple: oklch(68% 0.18 310);
+
+    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    --grid-line: color-mix(in oklch, var(--color-base-300) 40%, transparent);
+    --header-bg: color-mix(in oklch, var(--color-base-100) 85%, transparent);
+
+    --radius-sm: var(--radius-field, 0.5rem);
+    --radius-md: var(--radius-selector, 0.75rem);
+    --radius-lg: var(--radius-box, 1rem);
+    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+[data-theme-scheme="light"], [data-theme="light"], [data-theme="emerald"], [data-theme="caramellatte"] {
+    /* DaisyUI v5 Light Design Tokens */
+    color-scheme: light;
+
+    /* Semantic Component Variable Mappings */
+    --bg-page: var(--color-base-100);
+    --bg-surface: var(--color-base-200);
+    --bg-card: var(--color-base-200);
+    --bg-card-hover: var(--color-base-300);
+
+    --border-color: rgba(0, 0, 0, 0.10);
+    --border-hover: var(--color-primary);
+    --text-primary: var(--color-base-content);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
+    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, transparent);
 
     --accent-cyan: var(--color-info);
     --accent-blue: var(--color-secondary);
     --accent-orange: var(--color-warning);
+    --accent-green: var(--color-success);
+    --accent-purple: oklch(58% 0.18 310);
+
+    --card-rim-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    --grid-line: color-mix(in oklch, var(--color-base-300) 50%, transparent);
+    --header-bg: color-mix(in oklch, var(--color-base-100) 88%, transparent);
+}
+
+.theme-toggle-btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.theme-toggle-btn .icon-sun,
+.theme-toggle-btn .icon-moon,
+.theme-toggle-btn .icon-sun-fog {
+    display: none;
+}
+
+.theme-toggle-btn[data-mode="system"] .icon-sun-fog,
+.theme-toggle-btn.mode-system .icon-sun-fog {
+    display: block;
+}
+
+.theme-toggle-btn[data-mode="light"] .icon-sun,
+.theme-toggle-btn.mode-light .icon-sun {
+    display: block;
+}
+
+.theme-toggle-btn[data-mode="dark"] .icon-moon,
+.theme-toggle-btn.mode-dark .icon-moon {
+    display: block;
+}
+
+.theme-toggle-btn:not([data-mode]) .icon-sun-fog {
+    display: block;
+}
     --accent-green: var(--color-primary);
     --accent-purple: oklch(60% 0.20 310);
 

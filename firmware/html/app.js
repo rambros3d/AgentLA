@@ -128,6 +128,19 @@ function applyTheme() {
     const effectiveTheme = getEffectiveTheme();
     document.documentElement.setAttribute('data-theme', effectiveTheme);
 
+    const activeThemeObj = themeState.availableThemes.find(t => t.name === effectiveTheme);
+    const isLight = activeThemeObj 
+        ? (activeThemeObj.color_scheme === 'light' || activeThemeObj.colorScheme === 'light' || !activeThemeObj.prefersdark)
+        : (effectiveTheme === 'emerald' || effectiveTheme === 'caramellatte' || effectiveTheme === 'light');
+    
+    document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+
+    // Always keep localStorage in sync for instant reload & demo mode support
+    try {
+        localStorage.setItem('agentla-theme', effectiveTheme);
+        localStorage.setItem('agentla-theme-mode', themeState.mode);
+    } catch (_) {}
+
     const btnToggle = document.getElementById('btn-theme-toggle');
     if (btnToggle) {
         btnToggle.setAttribute('data-mode', themeState.mode);

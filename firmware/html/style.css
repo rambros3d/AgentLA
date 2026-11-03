@@ -101,7 +101,7 @@
     --bottom-nav-height: 66px;
 }
 
-[data-theme="light"] {
+[data-theme-scheme="light"], [data-theme="light"], [data-theme="emerald"], [data-theme="caramellatte"] {
     /* DaisyUI v5 "emerald" Design Tokens */
     color-scheme: "light";
     --color-base-100: oklch(100% 0 0);
@@ -526,18 +526,18 @@ body.no-transparency {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 8px 4px;
+    justify-content: flex-start;
+    padding: 12px 2px;
     width: 44px;
     min-height: 44px;
     border: 1px solid transparent;
-    border-radius: var(--radius-field, 0.5rem);
+    border-radius: var(--radius-selector, 0.75rem);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
     position: relative;
     box-sizing: border-box;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: min-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .desktop-vertical-nav .sub-btn .solar-icon {
@@ -545,22 +545,23 @@ body.no-transparency {
     height: 20px;
     flex-shrink: 0;
     margin-bottom: 0;
-    transition: transform 0.2s ease;
+    transition: margin-bottom 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s ease;
 }
 
 .desktop-vertical-nav .sub-btn .btn-label-vertical {
-    display: block;
+    display: inline-block;
     max-height: 0;
     opacity: 0;
     overflow: hidden;
-    transform: none;
-    margin-top: 0;
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
+    transform: rotate(-90deg);
+    transform-origin: center center;
     white-space: nowrap;
-    transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.2s ease;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    transition: opacity 0.22s ease, max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
 }
 
 .desktop-vertical-nav .sub-btn:hover {
@@ -574,17 +575,17 @@ body.no-transparency {
     border-color: color-mix(in oklch, var(--color-primary) 35%, transparent);
     border-radius: var(--radius-selector, 0.75rem);
     box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 25%, transparent);
-    min-height: 52px;
+    min-height: 112px;
 }
 
 .desktop-vertical-nav .sub-btn.active .solar-icon {
+    margin-bottom: 34px;
     transform: scale(1.05);
 }
 
 .desktop-vertical-nav .sub-btn.active .btn-label-vertical {
-    max-height: 18px;
+    max-height: 50px;
     opacity: 1;
-    margin-top: 3px;
 }
 
 /* Main Workspace */
@@ -1280,7 +1281,10 @@ body.no-transparency {
     color: var(--text-primary);
 }
 
-[data-theme="light"] .dash-pin-role-tag {
+[data-theme-scheme="light"] .dash-pin-role-tag,
+[data-theme="light"] .dash-pin-role-tag,
+[data-theme="emerald"] .dash-pin-role-tag,
+[data-theme="caramellatte"] .dash-pin-role-tag {
     background: rgba(0, 0, 0, 0.08);
 }
 
