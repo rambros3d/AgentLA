@@ -1,0 +1,31 @@
+[package]
+name = "firmware-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.5"
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "defmt"] }
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-time = { version = "0.5.1", features = ["defmt"] }
+embassy-sync = { version = "0.8.0", features = ["defmt"] }
+embassy-usb = { version = "0.6.0", features = ["defmt", "usbd-hid"] }
+embassy-net = { version = "0.9.1", features = ["defmt", "tcp", "udp", "proto-ipv4", "medium-ethernet", "auto-icmp-echo-reply", "icmp"] }
+embassy-net-driver-channel = "0.4.0"
+picoserve = { version = "0.20.1", features = ["defmt", "embassy"] }
+littlefs2 = { version = "0.8.1", default-features = false }
+generic-array = "0.14"
+defmt = "1.0.1"
+defmt-rtt = "1.0.1"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+static_cell = "2.1"
+embedded-io-async = "0.7.0"
+portable-atomic = { version = "1.11", features = ["critical-section"] }
+heapless = "0.9"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+debug = 2
