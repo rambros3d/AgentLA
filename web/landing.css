@@ -58,9 +58,29 @@
     --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-[data-theme-scheme="light"], [data-theme="light"], [data-theme="emerald"], [data-theme="caramellatte"] {
-    /* DaisyUI v5 Light Design Tokens */
+[data-theme-scheme="light"], [data-theme="light"], [data-theme="emerald"] {
+    /* DaisyUI v5 "emerald" Design Tokens */
     color-scheme: light;
+    --color-base-100: oklch(100% 0 0);
+    --color-base-200: oklch(93% 0 0);
+    --color-base-300: oklch(86% 0 0);
+    --color-base-content: oklch(35.519% 0.032 262.988);
+    --color-primary: oklch(76.662% 0.135 153.45);
+    --color-primary-content: oklch(33.387% 0.04 162.24);
+    --color-secondary: oklch(61.302% 0.202 261.294);
+    --color-secondary-content: oklch(100% 0 0);
+    --color-accent: oklch(72.772% 0.149 33.2);
+    --color-accent-content: oklch(0% 0 0);
+    --color-neutral: oklch(35.519% 0.032 262.988);
+    --color-neutral-content: oklch(98.462% 0.001 247.838);
+    --color-info: oklch(72.06% 0.191 231.6);
+    --color-info-content: oklch(0% 0 0);
+    --color-success: oklch(64.8% 0.15 160);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklch(84.71% 0.199 83.87);
+    --color-warning-content: oklch(0% 0 0);
+    --color-error: oklch(71.76% 0.221 22.18);
+    --color-error-content: oklch(0% 0 0);
 
     /* Semantic Component Variable Mappings */
     --bg-page: var(--color-base-100);
@@ -68,7 +88,7 @@
     --bg-card: var(--color-base-200);
     --bg-card-hover: var(--color-base-300);
 
-    --border-color: rgba(0, 0, 0, 0.10);
+    --border-color: rgba(0, 0, 0, 0.12);
     --border-hover: var(--color-primary);
     --text-primary: var(--color-base-content);
     --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
@@ -80,9 +100,50 @@
     --accent-green: var(--color-success);
     --accent-purple: oklch(58% 0.18 310);
 
-    
-    
-    --header-bg: color-mix(in oklch, var(--color-base-100) 88%, transparent);
+    --header-bg: color-mix(in oklch, var(--color-base-100) 90%, transparent);
+}
+
+[data-theme="caramellatte"] {
+    color-scheme: light;
+    --color-base-100: oklch(98% 0.016 73.684);
+    --color-base-200: oklch(95% 0.025 73.684);
+    --color-base-300: oklch(90% 0.035 73.684);
+    --color-base-content: oklch(25% 0.03 50);
+    --color-primary: oklch(0% 0 0);
+    --color-primary-content: oklch(98% 0.016 73.684);
+    --color-secondary: oklch(65% 0.12 60);
+    --color-secondary-content: oklch(100% 0 0);
+    --color-accent: oklch(75% 0.14 75);
+    --color-accent-content: oklch(0% 0 0);
+    --color-neutral: oklch(35% 0.04 55);
+    --color-neutral-content: oklch(98% 0.016 73.684);
+    --color-info: oklch(65% 0.15 235);
+    --color-info-content: oklch(0% 0 0);
+    --color-success: oklch(65% 0.15 150);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklch(80% 0.18 80);
+    --color-warning-content: oklch(0% 0 0);
+    --color-error: oklch(65% 0.20 28);
+    --color-error-content: oklch(0% 0 0);
+
+    --bg-page: var(--color-base-100);
+    --bg-surface: var(--color-base-200);
+    --bg-card: var(--color-base-200);
+    --bg-card-hover: var(--color-base-300);
+
+    --border-color: rgba(0, 0, 0, 0.14);
+    --border-hover: var(--color-primary);
+    --text-primary: var(--color-base-content);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
+    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+
+    --accent-cyan: var(--color-info);
+    --accent-blue: var(--color-secondary);
+    --accent-orange: var(--color-warning);
+    --accent-green: var(--color-success);
+    --accent-purple: oklch(58% 0.18 310);
+
+    --header-bg: color-mix(in oklch, var(--color-base-100) 90%, transparent);
 }
 
 .theme-toggle-btn {
@@ -127,13 +188,6 @@
 
 .theme-toggle-btn:not([data-mode]) .icon-sun-fog {
     display: block;
-}
-    --accent-green: var(--color-primary);
-    --accent-purple: oklch(60% 0.20 310);
-
-    
-    
-    --header-bg: rgba(255, 255, 255, 0.88);
 }
 
 * {
@@ -267,6 +321,15 @@ a:hover {
     line-height: 1.15;
     margin-bottom: 20px;
     background: linear-gradient(180deg, #ffffff 30%, #9cb0c9 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+[data-theme-scheme="light"] .hero-title,
+[data-theme="light"] .hero-title,
+[data-theme="emerald"] .hero-title,
+[data-theme="caramellatte"] .hero-title {
+    background: linear-gradient(180deg, oklch(25% 0.03 240) 30%, oklch(45% 0.03 240) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }

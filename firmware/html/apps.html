@@ -292,7 +292,7 @@
     <input type="file" id="file-picker" accept=".tar,.html" style="display: none;">
 
     <!-- Local Package Upload & Confirmation Modal -->
-    <div id="install-modal" class="modal-backdrop install-modal modal" aria-hidden="true">
+    <div id="install-modal" class="modal-backdrop install-modal modal" aria-hidden="true" style="display: none;">
         <div class="modal-card modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="max-width: 480px;">
             <div class="modal-header">
                 <div class="modal-title-group">
@@ -354,7 +354,7 @@
     </div>
 
     <!-- Centered System Settings Modal (#modal-settings) Shared with Workbench -->
-    <div id="modal-settings" class="modal-backdrop settings-modal modal" aria-hidden="true">
+    <div id="modal-settings" class="modal-backdrop settings-modal modal" aria-hidden="true" style="display: none;">
         <div class="modal-card modal-box" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
             <div class="modal-header">
                 <div class="modal-title-group">
@@ -734,6 +734,7 @@
             const modal = document.getElementById('modal-settings');
             if (modal) {
                 modal.classList.add('open');
+                modal.style.display = 'flex';
                 modal.setAttribute('aria-hidden', 'false');
                 populateLandingPageDropdown();
             }
@@ -743,6 +744,7 @@
             const modal = document.getElementById('modal-settings');
             if (modal) {
                 modal.classList.remove('open');
+                modal.style.display = 'none';
                 modal.setAttribute('aria-hidden', 'true');
             }
         }
@@ -1049,6 +1051,7 @@
             document.getElementById('modal-progress-container').style.display = 'none';
 
             modal.classList.add('open');
+            modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
         }
 
@@ -1056,6 +1059,7 @@
             const modal = document.getElementById('install-modal');
             if (modal) {
                 modal.classList.remove('open');
+                modal.style.display = 'none';
                 modal.setAttribute('aria-hidden', 'true');
             }
             pendingInstallPayload = null;

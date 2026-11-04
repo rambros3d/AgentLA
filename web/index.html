@@ -7,18 +7,23 @@
     <meta name="description" content="AgentLA: Touch-first 100 MS/s Logic Analyzer, Multi-core Flasher, Debugger, Bus Masters, and Dynamic Pin Allocation on RP2350.">
     <script>
         (function() {
-            var saved = localStorage.getItem('agentla-theme');
-            if (saved) {
-                document.documentElement.setAttribute('data-theme', saved);
-                var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
-                document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
-            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-                document.documentElement.setAttribute('data-theme', 'emerald');
-                document.documentElement.setAttribute('data-theme-scheme', 'light');
+            var mode = localStorage.getItem('agentla-theme-mode') || 'system';
+            var effectiveTheme = 'forest';
+            if (mode === 'light') {
+                effectiveTheme = localStorage.getItem('agentla-default-light') || 'emerald';
+            } else if (mode === 'dark') {
+                effectiveTheme = localStorage.getItem('agentla-default-dark') || 'forest';
             } else {
-                document.documentElement.setAttribute('data-theme', 'forest');
-                document.documentElement.setAttribute('data-theme-scheme', 'dark');
+                var saved = localStorage.getItem('agentla-theme');
+                if (saved) {
+                    effectiveTheme = saved;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    effectiveTheme = 'emerald';
+                }
             }
+            document.documentElement.setAttribute('data-theme', effectiveTheme);
+            var isLight = (effectiveTheme === 'emerald' || effectiveTheme === 'caramellatte' || effectiveTheme === 'light');
+            document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
         })();
     </script>
     <link rel="stylesheet" href="themes.css">

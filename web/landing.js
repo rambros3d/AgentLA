@@ -1,9 +1,15 @@
 // AgentLA Landing Page & Subnet Discovery Script
-document.addEventListener('DOMContentLoaded', () => {
+function bootLanding() {
     initLandingThemeEngine();
     initPinoutVisualizer();
     initDeviceDiscovery();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootLanding);
+} else {
+    bootLanding();
+}
 
 function initLandingThemeEngine() {
     let mode = localStorage.getItem('agentla-theme-mode') || 'system';

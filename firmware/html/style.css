@@ -5519,24 +5519,29 @@ body.no-transparency {
     position: fixed;
     inset: 0;
     margin: 0;
-    display: grid;
+    display: none;
     height: 100%;
     max-height: none;
     width: 100%;
     max-width: none;
+    align-items: center;
+    justify-content: center;
     justify-items: center;
-    padding: 0;
+    padding: 16px;
     opacity: 0;
+    visibility: hidden;
     overscroll-behavior: contain;
-    z-index: 999;
-    background-color: rgba(0, 0, 0, 0.4);
-    transition: opacity 0.2s ease;
+    z-index: 10000;
+    background-color: rgba(0, 0, 0, 0.75);
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    box-sizing: border-box;
 }
 
-.modal:not(dialog:not(.modal-open)),
 .modal.open,
 .modal.modal-open,
+.modal[open],
 .modal-backdrop.open {
+    display: flex;
     pointer-events: auto;
     visibility: visible;
     opacity: 1;

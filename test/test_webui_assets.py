@@ -167,5 +167,31 @@ def test_app_js_dynamic_canvas_token_binding():
     assert "agentla-theme-changed" in content, "app.js must listen for and dispatch agentla-theme-changed"
 
 
+def test_modal_hidden_by_default_and_no_bogus_selector():
+    """Verify style.css does not have bogus dialog selectors that permanently open div modals, and apps.html hides modals initially."""
+    style_css_path = HTML_DIR / "style.css"
+    content = style_css_path.read_text(encoding="utf-8")
+
+    assert ":not(dialog:not(.modal-open))" not in content, "Bogus selector found in style.css"
+    assert ".modal {" in content
+
+    apps_html_path = HTML_DIR / "apps.html"
+    apps_content = apps_html_path.read_text(encoding="utf-8")
+    assert 'id="modal-settings"' in apps_content
+    assert 'style="display: none;"' in apps_content
+
+
+def test_landing_page_light_theme_tokens_and_syntax():
+    """Verify web/landing.css defines light mode tokens and has no orphan declarations."""
+    landing_css_path = REPO_ROOT / "web" / "landing.css"
+    assert landing_css_path.exists()
+    content = landing_css_path.read_text(encoding="utf-8")
+
+    assert '[data-theme="emerald"]' in content
+    assert '--color-base-100: oklch(100% 0 0);' in content
+    assert '--color-base-200: oklch(93% 0 0);' in content
+    assert 'display: block;\n}\n    --accent-green' not in content, "Orphan syntax error in landing.css"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
