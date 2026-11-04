@@ -16,6 +16,7 @@ embassy-net-driver-channel = "0.4.0"
 picoserve = { version = "0.20.1", features = ["defmt", "embassy"] }
 littlefs2 = { version = "0.8.1", default-features = false }
 generic-array = "0.14"
+rp-pac = { version = "7.0.0", features = ["rp235x"] }
 defmt = "1.0.1"
 defmt-rtt = "1.0.1"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }

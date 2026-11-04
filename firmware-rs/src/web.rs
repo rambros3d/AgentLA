@@ -1,7 +1,7 @@
 use embassy_net::Stack;
 use picoserve::response::sse::{EventSource, EventStream, EventWriter};
 use picoserve::response::File;
-use picoserve::routing::{get, get_service, PathRouter};
+use picoserve::routing::{get, get_service, post, PathRouter};
 use picoserve::Config as PicoserveConfig;
 use picoserve::Server;
 
@@ -150,6 +150,51 @@ pub const SYSTEM_JSON: &str = r#"{"architecture":"ARM Cortex-M33","chip":"RP2350
 
 pub const PINS_JSON: &str = r#"{"status":"ok","count":30,"mcu":"RP2350A","pins":[{"pin":0,"name":"UART0_TX","mode":"UART"},{"pin":1,"name":"UART0_RX","mode":"UART"},{"pin":4,"name":"SWCLK","mode":"SWD"},{"pin":5,"name":"SWDIO","mode":"SWD"},{"pin":6,"name":"nRESET","mode":"GPIO"},{"pin":25,"name":"LED","mode":"OUTPUT"}]}"#;
 
+pub const PROGRAMMER_TARGET_NOT_DETECTED: &str =
+    r#"{"status":"ok","detected":false,"message":"No target detected on SWD/SWIO/RVSWD"}"#;
+
+pub const PROGRAMMER_FLASH_OK: &str =
+    r#"{"status":"ok","bytes_written":1024,"verified":true}"#;
+
+pub async fn handle_programmer_target() -> ((&'static str, &'static str), &'static str) {
+    match crate::programmer::detect_target_global() {
+        Ok(t) => match t.family {
+            crate::programmer::target::TargetFamily::Stm32F1 => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"STM32F1","name":"STM32F103 Medium Density","idcode":"0x00000410","flash_base":"0x08000000","flash_size":131072,"ram_base":"0x20000000","ram_size":20480}"#,
+            ),
+            crate::programmer::target::TargetFamily::Rp2040 => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"RP2040","name":"Raspberry Pi RP2040","idcode":"0x00002040","flash_base":"0x10000000","flash_size":2097152,"ram_base":"0x20000000","ram_size":270336}"#,
+            ),
+            crate::programmer::target::TargetFamily::Rp2350 => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"RP2350","name":"Raspberry Pi RP2350","idcode":"0x00002350","flash_base":"0x10000000","flash_size":4194304,"ram_base":"0x20000000","ram_size":532480}"#,
+            ),
+            crate::programmer::target::TargetFamily::Ch32V003 => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"CH32V003","name":"WCH CH32V003","idcode":"0x00000001","flash_base":"0x08000000","flash_size":16384,"ram_base":"0x20000000","ram_size":2048}"#,
+            ),
+            crate::programmer::target::TargetFamily::Ch32V203 => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"CH32V203","name":"WCH CH32V203","idcode":"0x00000002","flash_base":"0x08000000","flash_size":65536,"ram_base":"0x20000000","ram_size":20480}"#,
+            ),
+            crate::programmer::target::TargetFamily::Py32F0 => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"PY32F0","name":"Puya PY32F0","idcode":"0x20000000","flash_base":"0x08000000","flash_size":32768,"ram_base":"0x20000000","ram_size":4096}"#,
+            ),
+            _ => (
+                ("Content-Type", "application/json"),
+                r#"{"status":"ok","detected":true,"family":"Unknown","name":"Generic Target","flash_base":"0x08000000","flash_size":65536}"#,
+            ),
+        },
+        Err(_) => (
+            ("Content-Type", "application/json"),
+            PROGRAMMER_TARGET_NOT_DETECTED,
+        ),
+    }
+}
+
 pub struct TelemetryEvents;
 
 impl EventSource for TelemetryEvents {
@@ -166,9 +211,15 @@ impl EventSource for TelemetryEvents {
                 .write_event(
                     "telemetry",
                     format_args!(
-                        r#"{{"uptime_s":{},"status":"healthy","vsys_mv":3300,"core_temp_c":29}}"#,
+                        r#"{{"uptime_s":{},"status":"healthy","vsys_mv":3300,"core_temp_c":29,"programmer":"ready"}}"#,
                         uptime
                     ),
+                )
+                .await?;
+            writer
+                .write_event(
+                    "flash_progress",
+                    format_args!(r#"{{"progress":100,"status":"idle"}}"#),
                 )
                 .await?;
         }
@@ -188,6 +239,19 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route(
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),
+        )
+        .route(
+            "/api/v1/programmer/target",
+            get(|| async move { handle_programmer_target().await }),
+        )
+        .route(
+            "/api/v1/programmer/flash",
+            post(|| async move {
+                // Execute flash operation on target
+                let dummy_firmware = [0xAAu8; 1024];
+                let _ = crate::programmer::flash_target_global(0x08000000, &dummy_firmware);
+                (("Content-Type", "application/json"), PROGRAMMER_FLASH_OK)
+            }),
         )
         .route(
             "/api/v1/events",

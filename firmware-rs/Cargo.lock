@@ -811,6 +811,7 @@ dependencies = [
  "panic-probe",
  "picoserve",
  "portable-atomic",
+ "rp-pac",
  "static_cell",
 ]
 

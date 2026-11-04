@@ -125,87 +125,15 @@ pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
     }
 }
 
+static DAP_HANDLER: embassy_sync::blocking_mutex::Mutex<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    core::cell::RefCell<crate::programmer::dap::CmsisDapHandler>,
+> = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(
+    crate::programmer::dap::CmsisDapHandler::new(),
+));
+
 pub fn handle_dap_request(req: &[u8], resp: &mut [u8]) -> usize {
-    if req.is_empty() {
-        return 0;
-    }
-    match req[0] {
-        0x00 => {
-            // DAP_Info
-            resp[0] = 0x00;
-            if req.len() < 2 {
-                resp[1] = 0;
-                return 2;
-            }
-            match req[1] {
-                0x01 => {
-                    let v = b"AgentLA";
-                    resp[1] = v.len() as u8;
-                    resp[2..2 + v.len()].copy_from_slice(v);
-                    2 + v.len()
-                }
-                0x02 => {
-                    let p = b"AgentLA RP2350 Probe";
-                    resp[1] = p.len() as u8;
-                    resp[2..2 + p.len()].copy_from_slice(p);
-                    2 + p.len()
-                }
-                0x03 => {
-                    let s = b"00000001";
-                    resp[1] = s.len() as u8;
-                    resp[2..2 + s.len()].copy_from_slice(s);
-                    2 + s.len()
-                }
-                0x04 => {
-                    let ver = b"1.0";
-                    resp[1] = ver.len() as u8;
-                    resp[2..2 + ver.len()].copy_from_slice(ver);
-                    2 + ver.len()
-                }
-                0xF0 => {
-                    // Capabilities
-                    resp[1] = 1;
-                    resp[2] = 0x01; // SWD supported
-                    3
-                }
-                0xFE => {
-                    // Packet count
-                    resp[1] = 1;
-                    resp[2] = 1;
-                    3
-                }
-                0xFF => {
-                    // Packet size (64 bytes LE)
-                    resp[1] = 2;
-                    resp[2] = 64;
-                    resp[3] = 0;
-                    4
-                }
-                _ => {
-                    resp[1] = 0;
-                    2
-                }
-            }
-        }
-        0x02 => {
-            // DAP_Connect
-            resp[0] = 0x02;
-            resp[1] = 1; // SWD port connected
-            2
-        }
-        0x03 => {
-            // DAP_Disconnect
-            resp[0] = 0x03;
-            resp[1] = 0; // Success
-            2
-        }
-        cmd => {
-            // Generic command ACK
-            resp[0] = cmd;
-            resp[1] = 0x00;
-            2
-        }
-    }
+    DAP_HANDLER.lock(|h| h.borrow_mut().handle_packet(req, resp))
 }
 
 #[embassy_executor::task]
@@ -243,7 +171,7 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                     match cmd {
                         "help" | "HELP" => {
                             let _ = class
-                                .write_packet(b"Commands:\r\n  help     - Show command list\r\n  status   - System and core status\r\n  version  - Firmware version\r\n  identify - MCU identity\r\n")
+                                .write_packet(b"Commands:\r\n  help          - Show command list\r\n  status        - System and core status\r\n  version       - Firmware version\r\n  identify      - MCU identity\r\n  target detect - Auto-detect connected target MCU\r\n  target halt   - Halt target core via SWD\r\n  target resume - Resume target core execution\r\n  flash read    - Read and dump target flash memory\r\n")
                                 .await;
                         }
                         "version" | "VERSION" => {
@@ -258,8 +186,90 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                         }
                         "status" | "STATUS" => {
                             let _ = class
-                                .write_packet(b"SYSTEM: OK\r\nCLOCKS: 150 MHz sys_clk\r\nNET: CDC-NCM 10.10.10.10/24 up\r\n")
+                                .write_packet(b"SYSTEM: OK\r\nCLOCKS: 150 MHz sys_clk\r\nNET: CDC-NCM 10.10.10.10/24 up\r\nPROGRAMMER: Ready (SWD/SWIO/RVSWD)\r\n")
                                 .await;
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target detect") => {
+                            match crate::programmer::detect_target_global() {
+                                Ok(target) => {
+                                    let _ = class.write_packet(b"Target detected:\r\n").await;
+                                    let _ = class.write_packet(b"  Name:   ").await;
+                                    let _ = class.write_packet(target.name.as_bytes()).await;
+                                    let _ = class.write_packet(b"\r\n  Family: ").await;
+                                    match target.family {
+                                        crate::programmer::target::TargetFamily::Stm32F1 => {
+                                            let _ = class.write_packet(b"STM32F1\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Stm32F4 => {
+                                            let _ = class.write_packet(b"STM32F4\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Stm32H5 => {
+                                            let _ = class.write_packet(b"STM32H5\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Rp2040 => {
+                                            let _ = class.write_packet(b"RP2040\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Rp2350 => {
+                                            let _ = class.write_packet(b"RP2350\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Ch32V003 => {
+                                            let _ = class.write_packet(b"CH32V003 (1-Wire)\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Ch32V203 => {
+                                            let _ = class.write_packet(b"CH32V203 (2-Wire)\r\n").await;
+                                        }
+                                        crate::programmer::target::TargetFamily::Py32F0 => {
+                                            let _ = class.write_packet(b"PY32F0\r\n").await;
+                                        }
+                                        _ => {
+                                            let _ = class.write_packet(b"Unknown\r\n").await;
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    let _ = class.write_packet(b"Error: No target detected on SWD/SWIO/RVSWD.\r\n").await;
+                                }
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target halt") => {
+                            match crate::programmer::halt_target_global() {
+                                Ok(_) => {
+                                    let _ = class.write_packet(b"Target core halted successfully.\r\n").await;
+                                }
+                                Err(_) => {
+                                    let _ = class.write_packet(b"Error: Failed to halt target core.\r\n").await;
+                                }
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target resume") => {
+                            match crate::programmer::resume_target_global() {
+                                Ok(_) => {
+                                    let _ = class.write_packet(b"Target core resumed.\r\n").await;
+                                }
+                                Err(_) => {
+                                    let _ = class.write_packet(b"Error: Failed to resume target core.\r\n").await;
+                                }
+                            }
+                        }
+                        cmd if cmd.len() >= 10 && cmd[..10].eq_ignore_ascii_case("flash read") => {
+                            let mut buf = [0u8; 16];
+                            match crate::programmer::read_flash_global(0x08000000, &mut buf) {
+                                Ok(_) => {
+                                    let _ = class.write_packet(b"Flash [0x08000000..0x08000010]:\r\n  ").await;
+                                    for &b in &buf {
+                                        let hex_chars = [
+                                            b"0123456789ABCDEF"[(b >> 4) as usize],
+                                            b"0123456789ABCDEF"[(b & 0x0F) as usize],
+                                            b' ',
+                                        ];
+                                        let _ = class.write_packet(&hex_chars).await;
+                                    }
+                                    let _ = class.write_packet(b"\r\n").await;
+                                }
+                                Err(_) => {
+                                    let _ = class.write_packet(b"Error reading target flash.\r\n").await;
+                                }
+                            }
                         }
                         "" => {}
                         _ => {
@@ -321,8 +331,8 @@ pub async fn dap_v1_task(
 
 #[embassy_executor::task]
 pub async fn dap_v2_task(mut class: CmsisDapV2Class<'static, Driver<'static, USB>>) {
-    let mut req = [0u8; 64];
-    let mut resp = [0u8; 64];
+    let mut req = [0u8; 512];
+    let mut resp = [0u8; 512];
     loop {
         class.wait_connection().await;
         loop {

@@ -13,6 +13,7 @@ mod net;
 mod storage;
 mod usb;
 mod web;
+pub mod programmer;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
