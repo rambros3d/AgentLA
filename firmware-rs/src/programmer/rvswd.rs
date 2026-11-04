@@ -13,23 +13,49 @@ pub enum RvswdError {
 
 pub struct RvswdTransport {
     prog_offset: u8,
+    clk_pin: usize,
+    dio_pin: usize,
     clkdiv: u16,
     initialized: bool,
+}
+
+fn pio_set_pindirs(sm: pac::pio::StateMachine, pin: usize, count: usize, is_out: bool) {
+    let pinctrl_saved = sm.pinctrl().read();
+    let execctrl_saved = sm.execctrl().read();
+    sm.execctrl().modify(|w| w.set_out_sticky(false));
+    let pindir_val = if is_out { 0x1f } else { 0 };
+    sm.pinctrl().write(|w| {
+        w.set_set_base(pin as u8);
+        w.set_set_count(count as u8);
+    });
+    let ins = 0b111_00000_100_00000 | (pindir_val & 0x1F);
+    sm.instr().write(|w| w.set_instr(ins as u16));
+    sm.pinctrl().write_value(pinctrl_saved);
+    sm.execctrl().write_value(execctrl_saved);
 }
 
 impl RvswdTransport {
     pub fn new() -> Self {
         Self {
             prog_offset: 0,
+            clk_pin: 8,
+            dio_pin: 9,
             clkdiv: 36, // 150 MHz / 36 ≈ 4.17 MHz
             initialized: false,
         }
     }
 
     pub fn init(&mut self) {
+        self.init_pins(4, 5);
+    }
+
+    pub fn init_pins(&mut self, clk_pin: usize, dio_pin: usize) {
+        self.clk_pin = clk_pin;
+        self.dio_pin = dio_pin;
         // 1. Configure GPIO pads
-        // SWCLK: GPIO 4
-        pac::PADS_BANK0.gpio(4).modify(|w| {
+        // SWCLK
+        pac::PADS_BANK0.gpio(clk_pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
             w.set_pue(false);
@@ -37,12 +63,13 @@ impl RvswdTransport {
             w.set_slewfast(false);
             w.set_drive(pac::pads::vals::Drive::_2M_A);
         });
-        pac::IO_BANK0.gpio(4).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(clk_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
-        // SWDIO: GPIO 5 (pull-up enabled)
-        pac::PADS_BANK0.gpio(5).modify(|w| {
+        // SWDIO (pull-up enabled)
+        pac::PADS_BANK0.gpio(dio_pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
             w.set_pue(true);
@@ -50,7 +77,7 @@ impl RvswdTransport {
             w.set_slewfast(false);
             w.set_drive(pac::pads::vals::Drive::_2M_A);
         });
-        pac::IO_BANK0.gpio(5).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(dio_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
@@ -66,15 +93,15 @@ impl RvswdTransport {
         // 3. Configure State Machine 0
         let sm = pac::PIO0.sm(0);
 
-        // Sideset: SWCLK = GPIO 4, 1 bit optional pin value
+        // Sideset: SWCLK, 1 bit optional pin value
         sm.pinctrl().write(|w| {
-            w.set_sideset_base(4);
+            w.set_sideset_base(clk_pin as u8);
             w.set_sideset_count(2); // 1 bit value + 1 bit optional enable
-            w.set_out_base(5);
+            w.set_out_base(dio_pin as u8);
             w.set_out_count(1);
-            w.set_set_base(5);
+            w.set_set_base(dio_pin as u8);
             w.set_set_count(1);
-            w.set_in_base(5);
+            w.set_in_base(dio_pin as u8);
         });
 
         // Execctrl: wrap boundaries + side-set opt enable
@@ -99,6 +126,10 @@ impl RvswdTransport {
             w.set_frac(0);
         });
 
+        // Pin directions: SWCLK & SWDIO start as outputs
+        pio_set_pindirs(sm, clk_pin, 1, true);
+        pio_set_pindirs(sm, dio_pin, 1, true);
+
         // Clear FIFOs and reset debug flags
         pac::PIO0.fdebug().write(|w| w.0 = 0xFFFFFFFF);
 
@@ -121,7 +152,7 @@ impl RvswdTransport {
             w.set_sm_enable(w.sm_enable() & !(1 << 0));
         });
 
-        for pin in [4, 5] {
+        for pin in [self.clk_pin, self.dio_pin] {
             pac::PADS_BANK0.gpio(pin).modify(|w| {
                 w.set_pue(false);
                 w.set_pde(false);

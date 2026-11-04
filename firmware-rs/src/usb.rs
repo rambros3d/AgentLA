@@ -79,6 +79,8 @@ pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
         control_buf,
     );
 
+    builder.msos_descriptor(embassy_usb::msos::windows_version::WIN8_1, 1);
+
     // 1 & 2: CDC-ACM 0 (CLI / REPL)
     let cdc0_state = CDC0_STATE.init(CdcAcmState::new());
     let cdc_cli = CdcAcmClass::new(&mut builder, cdc0_state, 64);
@@ -146,13 +148,84 @@ pub async fn ncm_task(runner: embassy_usb::class::cdc_ncm::embassy_net::Runner<'
     runner.run().await;
 }
 
+async fn write_str<D: embassy_usb::driver::Driver<'static>>(
+    class: &mut CdcAcmClass<'static, D>,
+    s: &str,
+) {
+    let bytes = s.as_bytes();
+    for chunk in bytes.chunks(64) {
+        let _ = class.write_packet(chunk).await;
+    }
+}
+
+async fn print_target_info<D: embassy_usb::driver::Driver<'static>>(
+    class: &mut CdcAcmClass<'static, D>,
+    target: &crate::programmer::target::TargetInfo,
+) {
+    write_str(class, "  Name:     ").await;
+    write_str(class, target.name).await;
+    write_str(class, "\r\n  Family:   ").await;
+    match target.family {
+        crate::programmer::target::TargetFamily::Stm32F1 => write_str(class, "STM32F1\r\n").await,
+        crate::programmer::target::TargetFamily::Stm32F4 => write_str(class, "STM32F4\r\n").await,
+        crate::programmer::target::TargetFamily::Stm32H5 => write_str(class, "STM32H5\r\n").await,
+        crate::programmer::target::TargetFamily::Rp2040 => write_str(class, "RP2040\r\n").await,
+        crate::programmer::target::TargetFamily::Rp2350 => write_str(class, "RP2350\r\n").await,
+        crate::programmer::target::TargetFamily::Ch32V003 => write_str(class, "CH32V003 (1-Wire)\r\n").await,
+        crate::programmer::target::TargetFamily::Ch32V203 => write_str(class, "CH32V203 (2-Wire)\r\n").await,
+        crate::programmer::target::TargetFamily::Py32F0 => write_str(class, "PY32F0\r\n").await,
+        _ => write_str(class, "Unknown\r\n").await,
+    }
+    write_str(class, "  Flash:    ").await;
+    let mut kb_buf = [0u8; 16];
+    let kb = target.flash_size / 1024;
+    let s = itoa_str(kb, &mut kb_buf);
+    write_str(class, s).await;
+    write_str(class, " KB\r\n  RAM:      ").await;
+    let ram_kb = target.ram_size / 1024;
+    let s2 = itoa_str(ram_kb, &mut kb_buf);
+    write_str(class, s2).await;
+    write_str(class, " KB\r\n").await;
+}
+
+fn itoa_str(mut val: u32, buf: &mut [u8; 16]) -> &str {
+    if val == 0 {
+        buf[0] = b'0';
+        return core::str::from_utf8(&buf[..1]).unwrap_or("0");
+    }
+    let mut idx = 15;
+    while val > 0 && idx > 0 {
+        buf[idx] = b'0' + (val % 10) as u8;
+        val /= 10;
+        idx -= 1;
+    }
+    core::str::from_utf8(&buf[idx + 1..]).unwrap_or("")
+}
+
+async fn write_hex_u32<D: embassy_usb::driver::Driver<'static>>(
+    class: &mut CdcAcmClass<'static, D>,
+    val: u32,
+) {
+    let mut buf = [0u8; 10];
+    buf[0] = b'0';
+    buf[1] = b'x';
+    for i in 0..8 {
+        let nibble = ((val >> ((7 - i) * 4)) & 0xF) as usize;
+        buf[2 + i] = b"0123456789ABCDEF"[nibble];
+    }
+    let s = core::str::from_utf8(&buf).unwrap_or("");
+    write_str(class, s).await;
+}
+
 #[embassy_executor::task]
 pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>) {
     loop {
         class.wait_connection().await;
-        let _ = class
-            .write_packet(b"\r\n=== AgentLA RP2350 Interactive Console ===\r\nType 'help' for command list.\r\nagentla> ")
-            .await;
+        write_str(
+            &mut class,
+            "\r\n=== AgentLA RP2350 Interactive Console ===\r\nType 'help' for command list.\r\nagentla> ",
+        )
+        .await;
         let mut line_buf = [0u8; 64];
         let mut line_len = 0;
         let mut rx_buf = [0u8; 64];
@@ -170,114 +243,189 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                         .trim();
                     match cmd {
                         "help" | "HELP" => {
-                            let _ = class
-                                .write_packet(b"Commands:\r\n  help          - Show command list\r\n  status        - System and core status\r\n  version       - Firmware version\r\n  identify      - MCU identity\r\n  target detect - Auto-detect connected target MCU\r\n  target halt   - Halt target core via SWD\r\n  target resume - Resume target core execution\r\n  flash read    - Read and dump target flash memory\r\n")
-                                .await;
+                            write_str(
+                                &mut class,
+                                "Commands:\r\n  help                     - Show command list\r\n  status                   - System and core status\r\n  version                  - Firmware version\r\n  identify                 - MCU identity\r\n  bootsel                  - Reboot probe into USB BOOTSEL mode\r\n  target detect            - Scan all 3 ports (BluePill, CH32V203, CH32V003)\r\n  target detect bluepill   - Detect BluePill on Port 1 (GPIO 4 SWCLK, 5 SWDIO, 6 nRST)\r\n  target detect ch32v203   - Detect CH32V203 on Port 2 (GPIO 8 SWCLK, 9 SWDIO, 10 nRST)\r\n  target detect ch32v003   - Detect CH32V003 on Port 3 (GPIO 12 SWIO, 13 nRST, 14 TX)\r\n  target halt              - Halt target core via SWD\r\n  target resume            - Resume target core execution\r\n  flash read               - Read and dump target flash memory\r\n",
+                            )
+                            .await;
+                        }
+                        "bootsel" | "BOOTSEL" | "boot" | "BOOT" | "reset" | "RESET" => {
+                            write_str(&mut class, "OK ENTERING BOOTSEL\r\n").await;
+                            embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
+                            embassy_rp::rom_data::reset_to_usb_boot(0, 0);
                         }
                         "version" | "VERSION" => {
-                            let _ = class
-                                .write_packet(b"AgentLA firmware v1.0.0 (RP2350 Embassy Rust)\r\n")
-                                .await;
+                            write_str(&mut class, "AgentLA firmware v1.0.0 (RP2350 Embassy Rust)\r\n").await;
                         }
                         "identify" | "IDENTIFY" => {
-                            let _ = class
-                                .write_packet(b"CHIP: RP2350 (ARM Cortex-M33 @ 150MHz)\r\nBOARD: AgentLA BakuProbe / Pico 2\r\n")
-                                .await;
+                            write_str(
+                                &mut class,
+                                "CHIP: RP2350 (ARM Cortex-M33 @ 150MHz)\r\nBOARD: AgentLA BakuProbe / Pico 2\r\n",
+                            )
+                            .await;
                         }
                         "status" | "STATUS" => {
-                            let _ = class
-                                .write_packet(b"SYSTEM: OK\r\nCLOCKS: 150 MHz sys_clk\r\nNET: CDC-NCM 10.10.10.10/24 up\r\nPROGRAMMER: Ready (SWD/SWIO/RVSWD)\r\n")
-                                .await;
+                            write_str(
+                                &mut class,
+                                "SYSTEM: OK\r\nCLOCKS: 150 MHz sys_clk\r\nNET: CDC-NCM 10.10.10.10/24 up\r\nPROGRAMMER: Ready (SWD/SWIO/RVSWD multi-port)\r\n",
+                            )
+                            .await;
+                            let gpio_in = rp_pac::SIO.gpio_in(0).read();
+                            write_str(&mut class, "GPIO IN: ").await;
+                            write_hex_u32(&mut class, gpio_in).await;
+                            write_str(&mut class, "\r\n  P1: CLK4=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 4)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, " DIO5=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 5)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, " RST6=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 6)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, "\r\n  P2: CLK8=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 8)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, " DIO9=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 9)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, " RST10=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 10)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, "\r\n  P3: SWIO12=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 12)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, " RST13=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 13)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, " TX14=").await;
+                            write_str(&mut class, if (gpio_in & (1 << 14)) != 0 { "1" } else { "0" }).await;
+                            write_str(&mut class, "\r\n").await;
                         }
-                        cmd if cmd.eq_ignore_ascii_case("target detect") => {
-                            match crate::programmer::detect_target_global() {
-                                Ok(target) => {
-                                    let _ = class.write_packet(b"Target detected:\r\n").await;
-                                    let _ = class.write_packet(b"  Name:   ").await;
-                                    let _ = class.write_packet(target.name.as_bytes()).await;
-                                    let _ = class.write_packet(b"\r\n  Family: ").await;
-                                    match target.family {
-                                        crate::programmer::target::TargetFamily::Stm32F1 => {
-                                            let _ = class.write_packet(b"STM32F1\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Stm32F4 => {
-                                            let _ = class.write_packet(b"STM32F4\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Stm32H5 => {
-                                            let _ = class.write_packet(b"STM32H5\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Rp2040 => {
-                                            let _ = class.write_packet(b"RP2040\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Rp2350 => {
-                                            let _ = class.write_packet(b"RP2350\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Ch32V003 => {
-                                            let _ = class.write_packet(b"CH32V003 (1-Wire)\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Ch32V203 => {
-                                            let _ = class.write_packet(b"CH32V203 (2-Wire)\r\n").await;
-                                        }
-                                        crate::programmer::target::TargetFamily::Py32F0 => {
-                                            let _ = class.write_packet(b"PY32F0\r\n").await;
-                                        }
-                                        _ => {
-                                            let _ = class.write_packet(b"Unknown\r\n").await;
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    let _ = class.write_packet(b"Error: No target detected on SWD/SWIO/RVSWD.\r\n").await;
-                                }
+                        cmd if cmd.eq_ignore_ascii_case("target detect bluepill") => {
+                            write_str(&mut class, "Probing Port 1 [BluePill (GPIO 4 SWCLK, 5 SWDIO, 6 nRST)]...\r\n").await;
+                            let (dpidr, ack, req) = crate::programmer::debug_probe_bluepill_global();
+                            write_str(&mut class, "  Req: ").await;
+                            write_hex_u32(&mut class, req).await;
+                            write_str(&mut class, "  ACK: ").await;
+                            write_hex_u32(&mut class, ack as u32).await;
+                            write_str(&mut class, "  DPIDR: ").await;
+                            write_hex_u32(&mut class, dpidr).await;
+                            write_str(&mut class, "\r\n").await;
+                            match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::BluePill) {
+                                Ok(t) => print_target_info(&mut class, &t).await,
+                                Err(_) => write_str(&mut class, "Error: No target detected on Port 1.\r\n").await,
                             }
                         }
-                        cmd if cmd.eq_ignore_ascii_case("target halt") => {
-                            match crate::programmer::halt_target_global() {
-                                Ok(_) => {
-                                    let _ = class.write_packet(b"Target core halted successfully.\r\n").await;
-                                }
-                                Err(_) => {
-                                    let _ = class.write_packet(b"Error: Failed to halt target core.\r\n").await;
-                                }
+                        cmd if cmd.eq_ignore_ascii_case("target detect ch32v203") => {
+                            write_str(&mut class, "Probing Port 2 [CH32V203 (GPIO 8 SWCLK, 9 SWDIO, 10 nRST)]...\r\n").await;
+                            let (dmstatus, _) = crate::programmer::debug_probe_ch32v203_global();
+                            write_str(&mut class, "  DMSTATUS: ").await;
+                            write_hex_u32(&mut class, dmstatus).await;
+                            write_str(&mut class, "\r\n").await;
+                            match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v203) {
+                                Ok(t) => print_target_info(&mut class, &t).await,
+                                Err(_) => write_str(&mut class, "Error: No target detected on Port 2.\r\n").await,
                             }
                         }
-                        cmd if cmd.eq_ignore_ascii_case("target resume") => {
-                            match crate::programmer::resume_target_global() {
-                                Ok(_) => {
-                                    let _ = class.write_packet(b"Target core resumed.\r\n").await;
-                                }
-                                Err(_) => {
-                                    let _ = class.write_packet(b"Error: Failed to resume target core.\r\n").await;
-                                }
+                        cmd if cmd.eq_ignore_ascii_case("target detect ch32v003") => {
+                            write_str(&mut class, "Probing Port 3 [CH32V003 (GPIO 12 SWIO, 13 nRST, 14 TX)]...\r\n").await;
+                            let (dmstatus, partid) = crate::programmer::debug_probe_ch32v003_global();
+                            write_str(&mut class, "  DMSTATUS: ").await;
+                            write_hex_u32(&mut class, dmstatus).await;
+                            write_str(&mut class, "  PARTID: ").await;
+                            write_hex_u32(&mut class, partid).await;
+                            write_str(&mut class, "\r\n").await;
+                            match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003) {
+                                Ok(t) => print_target_info(&mut class, &t).await,
+                                Err(_) => write_str(&mut class, "Error: No target detected on Port 3.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target detect") || cmd.eq_ignore_ascii_case("target detect all") => {
+                            write_str(&mut class, "Scanning all target ports...\r\n").await;
+                            write_str(&mut class, "[Port 1: BluePill (GPIO 4 SWCLK, 5 SWDIO, 6 nRST)]\r\n").await;
+                            match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::BluePill) {
+                                Ok(t) => print_target_info(&mut class, &t).await,
+                                Err(_) => write_str(&mut class, "  No target detected on Port 1.\r\n").await,
+                            }
+                            write_str(&mut class, "[Port 2: CH32V203 (GPIO 8 SWCLK, 9 SWDIO, 10 nRST)]\r\n").await;
+                            match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v203) {
+                                Ok(t) => print_target_info(&mut class, &t).await,
+                                Err(_) => write_str(&mut class, "  No target detected on Port 2.\r\n").await,
+                            }
+                            write_str(&mut class, "[Port 3: CH32V003 (GPIO 12 SWIO, 13 nRST, 14 TX)]\r\n").await;
+                            match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003) {
+                                Ok(t) => print_target_info(&mut class, &t).await,
+                                Err(_) => write_str(&mut class, "  No target detected on Port 3.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target halt") || cmd.eq_ignore_ascii_case("target halt bluepill") => {
+                            match crate::programmer::halt_target_port_global(crate::programmer::TargetPort::BluePill) {
+                                Ok(_) => write_str(&mut class, "Port 1 [BluePill] core halted successfully.\r\n").await,
+                                Err(_) => write_str(&mut class, "Error: Failed to halt Port 1 [BluePill] core.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target halt ch32v203") => {
+                            match crate::programmer::halt_target_port_global(crate::programmer::TargetPort::Ch32v203) {
+                                Ok(_) => write_str(&mut class, "Port 2 [CH32V203] core halted successfully.\r\n").await,
+                                Err(_) => write_str(&mut class, "Error: Failed to halt Port 2 [CH32V203] core.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target halt ch32v003") => {
+                            match crate::programmer::halt_target_port_global(crate::programmer::TargetPort::Ch32v003) {
+                                Ok(_) => write_str(&mut class, "Port 3 [CH32V003] core halted successfully.\r\n").await,
+                                Err(_) => write_str(&mut class, "Error: Failed to halt Port 3 [CH32V003] core.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target resume") || cmd.eq_ignore_ascii_case("target resume bluepill") => {
+                            match crate::programmer::resume_target_port_global(crate::programmer::TargetPort::BluePill) {
+                                Ok(_) => write_str(&mut class, "Port 1 [BluePill] core resumed.\r\n").await,
+                                Err(_) => write_str(&mut class, "Error: Failed to resume Port 1 [BluePill] core.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target resume ch32v203") => {
+                            match crate::programmer::resume_target_port_global(crate::programmer::TargetPort::Ch32v203) {
+                                Ok(_) => write_str(&mut class, "Port 2 [CH32V203] core resumed.\r\n").await,
+                                Err(_) => write_str(&mut class, "Error: Failed to resume Port 2 [CH32V203] core.\r\n").await,
+                            }
+                        }
+                        cmd if cmd.eq_ignore_ascii_case("target resume ch32v003") => {
+                            match crate::programmer::resume_target_port_global(crate::programmer::TargetPort::Ch32v003) {
+                                Ok(_) => write_str(&mut class, "Port 3 [CH32V003] core resumed.\r\n").await,
+                                Err(_) => write_str(&mut class, "Error: Failed to resume Port 3 [CH32V003] core.\r\n").await,
                             }
                         }
                         cmd if cmd.len() >= 10 && cmd[..10].eq_ignore_ascii_case("flash read") => {
                             let mut buf = [0u8; 16];
                             match crate::programmer::read_flash_global(0x08000000, &mut buf) {
                                 Ok(_) => {
-                                    let _ = class.write_packet(b"Flash [0x08000000..0x08000010]:\r\n  ").await;
+                                    write_str(&mut class, "Port 1 [BluePill] Flash [0x08000000..0x08000010]:\r\n").await;
+                                    let w0 = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                                    let w1 = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]);
+                                    let w2 = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
+                                    let w3 = u32::from_le_bytes([buf[12], buf[13], buf[14], buf[15]]);
+                                    write_str(&mut class, "  0x08000000 (SP):           ").await;
+                                    write_hex_u32(&mut class, w0).await;
+                                    write_str(&mut class, "\r\n  0x08000004 (Reset Vector): ").await;
+                                    write_hex_u32(&mut class, w1).await;
+                                    write_str(&mut class, "\r\n  0x08000008 (NMI Vector):   ").await;
+                                    write_hex_u32(&mut class, w2).await;
+                                    write_str(&mut class, "\r\n  0x0800000C (HardFault):    ").await;
+                                    write_hex_u32(&mut class, w3).await;
+                                    write_str(&mut class, "\r\n  Raw bytes: ").await;
                                     for &b in &buf {
                                         let hex_chars = [
-                                            b"0123456789ABCDEF"[(b >> 4) as usize],
-                                            b"0123456789ABCDEF"[(b & 0x0F) as usize],
-                                            b' ',
+                                             b"0123456789ABCDEF"[(b >> 4) as usize],
+                                             b"0123456789ABCDEF"[(b & 0x0F) as usize],
+                                             b' ',
                                         ];
                                         let _ = class.write_packet(&hex_chars).await;
                                     }
-                                    let _ = class.write_packet(b"\r\n").await;
+                                    write_str(&mut class, "\r\n").await;
                                 }
                                 Err(_) => {
-                                    let _ = class.write_packet(b"Error reading target flash.\r\n").await;
+                                    write_str(&mut class, "Error reading target flash.\r\n").await;
                                 }
                             }
                         }
                         "" => {}
                         _ => {
-                            let _ = class.write_packet(b"Unknown command. Type 'help'.\r\n").await;
+                            write_str(&mut class, "Unknown command. Type 'help'.\r\n").await;
                         }
                     }
                     line_len = 0;
-                    let _ = class.write_packet(b"agentla> ").await;
+                    write_str(&mut class, "agentla> ").await;
                 } else if b == 0x08 || b == 0x7F {
                     if line_len > 0 {
                         line_len -= 1;

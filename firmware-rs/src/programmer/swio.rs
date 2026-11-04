@@ -17,6 +17,7 @@ pub enum SwioError {
 
 pub struct SwioTransport {
     prog_offset: u8,
+    swio_pin: usize,
     initialized: bool,
 }
 
@@ -24,13 +25,20 @@ impl SwioTransport {
     pub fn new() -> Self {
         Self {
             prog_offset: 0,
+            swio_pin: 12,
             initialized: false,
         }
     }
 
     pub fn init(&mut self) {
-        // 1. Configure GPIO 5 pad
-        pac::PADS_BANK0.gpio(5).modify(|w| {
+        self.init_pin(12);
+    }
+
+    pub fn init_pin(&mut self, swio_pin: usize) {
+        self.swio_pin = swio_pin;
+        // 1. Configure GPIO pad
+        pac::PADS_BANK0.gpio(swio_pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
             w.set_pue(true); // Pull-up is required for 1-wire open-drain bus
@@ -51,15 +59,15 @@ impl SwioTransport {
         // 3. Configure State Machine 0
         let sm = pac::PIO0.sm(0);
 
-        // All mapping on GPIO 5 (SWIO pin)
+        // All mapping on SWIO pin
         sm.pinctrl().write(|w| {
-            w.set_sideset_base(5);
+            w.set_sideset_base(swio_pin as u8);
             w.set_sideset_count(1);
-            w.set_out_base(5);
+            w.set_out_base(swio_pin as u8);
             w.set_out_count(1);
-            w.set_set_base(5);
+            w.set_set_base(swio_pin as u8);
             w.set_set_count(1);
-            w.set_in_base(5);
+            w.set_in_base(swio_pin as u8);
         });
 
         // Execctrl: sideset controls pindirs!
@@ -86,6 +94,11 @@ impl SwioTransport {
             w.set_frac(102);
         });
 
+        // Set SM pin output value to 0 for open-drain operation (side_pindir 1 drives LOW, 0 floats)
+        sm.instr().write(|w| {
+            w.set_instr(0b111_00000_000_00000); // set pins, 0
+        });
+
         // Initial pin directions: input (0)
         sm.instr().write(|w| {
             w.set_instr(0b111_00000_100_00000); // set pindirs, 0
@@ -101,20 +114,20 @@ impl SwioTransport {
             w.set_sm_enable(1 << 0);
         });
 
-        // 4. Send ~8µs low pulse on GPIO 5 to reset WCH debug module
+        // 4. Send ~12µs low pulse on swio_pin to reset/awaken WCH debug module
         // Temporarily take over pin with SIO
-        pac::IO_BANK0.gpio(5).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(swio_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
         });
-        pac::SIO.gpio_out(0).value_clr().write_value(1 << 5);
-        pac::SIO.gpio_oe(0).value_set().write_value(1 << 5);
-        cortex_m::asm::delay(1200); // ~8 µs at 150 MHz
-        pac::SIO.gpio_oe(0).value_clr().write_value(1 << 5);
-        pac::IO_BANK0.gpio(5).ctrl().write(|w| {
+        pac::SIO.gpio_out(0).value_clr().write_value(1 << swio_pin);
+        pac::SIO.gpio_oe(0).value_set().write_value(1 << swio_pin);
+        cortex_m::asm::delay(2000); // ~13 µs at 150 MHz
+        pac::SIO.gpio_oe(0).value_clr().write_value(1 << swio_pin);
+        pac::IO_BANK0.gpio(swio_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
-        cortex_m::asm::delay(3000); // ~20 µs settling
+        cortex_m::asm::delay(5000); // ~33 µs settling high
 
         // 5. Awaken WCH target debug module
         self.put(WCH_DM_SHDWCFGR, 0x5AA50400);
@@ -130,13 +143,13 @@ impl SwioTransport {
             w.set_sm_enable(w.sm_enable() & !(1 << 0));
         });
 
-        pac::PADS_BANK0.gpio(5).modify(|w| {
+        pac::PADS_BANK0.gpio(self.swio_pin).modify(|w| {
             w.set_pue(false);
             w.set_pde(false);
             w.set_od(true);
             w.set_ie(false);
         });
-        pac::IO_BANK0.gpio(5).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(self.swio_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::NULL.into());
         });
 

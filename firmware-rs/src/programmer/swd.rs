@@ -44,16 +44,37 @@ enum ProbeCmd {
 
 pub struct SwdTransport {
     prog_offset: u8,
+    clk_pin: usize,
+    dio_pin: usize,
+    reset_pin: usize,
     turnaround: u8,
     idle_cycles: u8,
     ap_select: u32,
     clock_khz: u32,
 }
 
+fn pio_set_pindirs(sm: pac::pio::StateMachine, pin: usize, count: usize, is_out: bool) {
+    let pinctrl_saved = sm.pinctrl().read();
+    let execctrl_saved = sm.execctrl().read();
+    sm.execctrl().modify(|w| w.set_out_sticky(false));
+    let pindir_val = if is_out { 0x1f } else { 0 };
+    sm.pinctrl().write(|w| {
+        w.set_set_base(pin as u8);
+        w.set_set_count(count as u8);
+    });
+    let ins = 0b111_00000_100_00000 | (pindir_val & 0x1F);
+    sm.instr().write(|w| w.set_instr(ins as u16));
+    sm.pinctrl().write_value(pinctrl_saved);
+    sm.execctrl().write_value(execctrl_saved);
+}
+
 impl SwdTransport {
     pub fn new() -> Self {
         Self {
             prog_offset: 0,
+            clk_pin: 4,
+            dio_pin: 5,
+            reset_pin: 6,
             turnaround: 1,
             idle_cycles: 8,
             ap_select: 0xFFFFFFFF,
@@ -62,9 +83,18 @@ impl SwdTransport {
     }
 
     pub fn init(&mut self, freq_khz: u32) {
+        self.init_pins(4, 5, 6, freq_khz);
+    }
+
+    pub fn init_pins(&mut self, clk_pin: usize, dio_pin: usize, reset_pin: usize, freq_khz: u32) {
+        self.clk_pin = clk_pin;
+        self.dio_pin = dio_pin;
+        self.reset_pin = reset_pin;
+
         // 1. Configure GPIO pads
-        // SWCLK: GPIO 4
-        pac::PADS_BANK0.gpio(4).modify(|w| {
+        // SWCLK
+        pac::PADS_BANK0.gpio(clk_pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
             w.set_pue(false);
@@ -72,12 +102,13 @@ impl SwdTransport {
             w.set_slewfast(true);
             w.set_drive(pac::pads::vals::Drive::_12M_A);
         });
-        pac::IO_BANK0.gpio(4).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(clk_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
-        // SWDIO: GPIO 5 (with pull-up, idle is high)
-        pac::PADS_BANK0.gpio(5).modify(|w| {
+        // SWDIO (with pull-up, idle is high)
+        pac::PADS_BANK0.gpio(dio_pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
             w.set_pue(true);
@@ -85,19 +116,20 @@ impl SwdTransport {
             w.set_slewfast(true);
             w.set_drive(pac::pads::vals::Drive::_12M_A);
         });
-        pac::IO_BANK0.gpio(5).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(dio_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
-        // nRESET: GPIO 6 (pull-up, open-drain emulation: input by default)
-        pac::PADS_BANK0.gpio(6).modify(|w| {
+        // nRESET (pull-up, open-drain emulation: input by default)
+        pac::PADS_BANK0.gpio(reset_pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(true);
             w.set_pue(true);
             w.set_pde(false);
         });
-        pac::IO_BANK0.gpio(6).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+        pac::IO_BANK0.gpio(reset_pin).ctrl().write(|w| {
+            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::NULL.into());
         });
 
         // 2. Load PIO Program into PIO0 instruction memory
@@ -112,15 +144,15 @@ impl SwdTransport {
         // 3. Configure State Machine 0
         let sm = pac::PIO0.sm(0);
 
-        // Sideset: SWCLK = GPIO 4, 1 bit optional pin value
+        // Sideset: SWCLK = clk_pin, 1 bit optional pin value
         sm.pinctrl().write(|w| {
-            w.set_sideset_base(4);
+            w.set_sideset_base(clk_pin as u8);
             w.set_sideset_count(2); // 1 bit value + 1 bit optional enable
-            w.set_out_base(5);
+            w.set_out_base(dio_pin as u8);
             w.set_out_count(1);
-            w.set_set_base(5);
+            w.set_set_base(dio_pin as u8);
             w.set_set_count(1);
-            w.set_in_base(5);
+            w.set_in_base(dio_pin as u8);
         });
 
         // Execctrl: wrap boundaries (10 down to 3) + side-set opt enable
@@ -139,11 +171,9 @@ impl SwdTransport {
             w.set_autopush(false);
         });
 
-        // Pin directions: SWCLK (4) & SWDIO (5) start as outputs
-        sm.instr().write(|w| {
-            // set pindirs, 3 on pins 4..5
-            w.set_instr(0b111_00000_100_00011);
-        });
+        // Pin directions: SWCLK & SWDIO start as outputs
+        pio_set_pindirs(sm, clk_pin, 1, true);
+        pio_set_pindirs(sm, dio_pin, 1, true);
 
         // Set clock frequency
         self.set_clock(freq_khz);
@@ -172,7 +202,7 @@ impl SwdTransport {
         });
 
         // Tristate pins
-        for pin in [4, 5] {
+        for pin in [self.clk_pin, self.dio_pin] {
             pac::PADS_BANK0.gpio(pin).modify(|w| {
                 w.set_pue(false);
                 w.set_pde(false);
@@ -257,10 +287,10 @@ impl SwdTransport {
             return 0;
         }
         if !self.put_fifo(self.fmt_command(bit_count, false, ProbeCmd::Read)) {
-            return 0;
+            return 0xEEEEEEEE;
         }
 
-        for _ in 0..20_000 {
+        for _ in 0..50_000 {
             if (pac::PIO0.fstat().read().rxempty() & (1 << 0)) == 0 {
                 let data = pac::PIO0.rxf(0).read();
                 return if bit_count < 32 {
@@ -270,7 +300,7 @@ impl SwdTransport {
                 };
             }
         }
-        0
+        0xDDDDDDDD
     }
 
     pub fn line_reset(&mut self) {
@@ -413,7 +443,34 @@ impl SwdTransport {
         Err(SwdError::Timeout)
     }
 
+    pub fn select_ap(&mut self, apsel: u8, apbank: u8) -> Result<(), SwdError> {
+        let select = ((apsel as u32) << 24) | (((apbank as u32) & 0x0F) << 4);
+        if self.ap_select != select {
+            self.write_dp(DP_SELECT, select)?;
+            self.ap_select = select;
+        }
+        Ok(())
+    }
+
+    pub fn power_up_debug(&mut self) -> Result<(), SwdError> {
+        // Clear sticky errors
+        let _ = self.write_dp(DP_ABORT, 0x0000001E);
+        // Power up CDBGPWRUPREQ | CSYSPWRUPREQ
+        let _ = self.write_dp(DP_CTRLSTAT, 0x50000000);
+        for _ in 0..100 {
+            let mut val = 0u32;
+            if self.read_dp(DP_CTRLSTAT, &mut val).is_ok() {
+                if (val & 0xA0000000) == 0xA0000000 {
+                    return Ok(());
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn write_ap(&mut self, reg: u8, value: u32) -> Result<(), SwdError> {
+        let apbank = (reg >> 4) & 0x0F;
+        self.select_ap(0, apbank)?;
         let req = Self::build_request(true, false, (reg >> 2) & 3);
         let mut val = value;
         for _ in 0..50 {
@@ -431,13 +488,28 @@ impl SwdTransport {
         Err(SwdError::Timeout)
     }
 
-    pub fn read_ap(&self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
+    pub fn read_ap(&mut self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
+        let apbank = (reg >> 4) & 0x0F;
+        self.select_ap(0, apbank)?;
         let req = Self::build_request(true, true, (reg >> 2) & 3);
         let mut dummy = 0u32;
         // AP reads are pipelined: initial read triggers transfer
-        let ack = self.transfer(req, &mut dummy);
-        if ack != SWD_ACK_OK {
-            return Err(SwdError::ProtocolError);
+        let mut ok = false;
+        for _ in 0..50 {
+            let ack = self.transfer(req, &mut dummy);
+            if ack == SWD_ACK_OK {
+                ok = true;
+                break;
+            } else if ack == SWD_ACK_WAIT {
+                continue;
+            } else if ack == SWD_ACK_FAULT {
+                return Err(SwdError::AckFault);
+            } else {
+                return Err(SwdError::ProtocolError);
+            }
+        }
+        if !ok {
+            return Err(SwdError::Timeout);
         }
         // Read RDBUFF to get actual data
         self.read_dp(DP_RDBUFF, value)

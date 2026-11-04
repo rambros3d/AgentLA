@@ -140,7 +140,19 @@ pub fn identify_cortex_target(dpidr: u32, dbgmcu_id: u32, sysinfo_id: u32) -> Ta
             page_size: 128,
         },
         _ => {
-            if dbgmcu_id == 0x20000000 || (dpidr == 0x0BC11477 && dbgmcu_id == 0) {
+            if dpidr == 0x1BA01477 || dpidr == 0x2BA01477 {
+                TargetInfo {
+                    name: "STM32F103 BluePill (ARM Cortex-M3)",
+                    family: TargetFamily::Stm32F1,
+                    idcode: if dbgmcu_id != 0 { dbgmcu_id } else { dpidr },
+                    flash_base: 0x08000000,
+                    flash_size: 64 * 1024,
+                    ram_base: 0x20000000,
+                    ram_size: 20 * 1024,
+                    sector_size: 1024,
+                    page_size: 1024,
+                }
+            } else if dbgmcu_id == 0x20000000 || (dpidr == 0x0BC11477 && dbgmcu_id == 0) {
                 TargetInfo {
                     name: "Puya PY32F002A / PY32F030",
                     family: TargetFamily::Py32F0,

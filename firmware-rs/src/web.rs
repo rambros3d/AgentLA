@@ -237,6 +237,14 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             get(|| async move { (("Content-Type", "application/json"), SYSTEM_JSON) }),
         )
         .route(
+            "/api/v1/system/bootsel",
+            post(|| async move {
+                embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+                embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+                (("Content-Type", "application/json"), r#"{"status":"rebooting_bootsel"}"#)
+            }),
+        )
+        .route(
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),
         )
