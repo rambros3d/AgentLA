@@ -4,6 +4,7 @@
  */
 
 #include "littlefs_driver.h"
+#include "seed_apps.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include <string.h>
@@ -126,6 +127,9 @@ bool littlefs_init(void) {
 
     /* Ensure /apps directory exists */
     lfs_mkdir(&lfs_instance, "/apps");
+
+    /* Seed starter apps (e.g. Servo Master) into LittleFS on first boot */
+    seed_default_apps(&lfs_instance);
 
     return true;
 }

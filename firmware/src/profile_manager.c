@@ -5,6 +5,7 @@
 
 #include "profile_manager.h"
 #include "pin_owner.h"
+#include "servo_pwm.h"
 #include "board_settings.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
@@ -208,6 +209,7 @@ bool profile_set_boot_default(uint8_t slot_id) {
 void profile_emergency_safe_state(void) {
     /* 1. Atomically reset pin ownership and drive all GPIOs to High-Z inputs */
     pin_owner_quiesce_and_reset();
+    servo_pwm_quiesce_all();
 
     /* 2. De-energize target power (Safe 0V) */
     /* Target power control pin on BakuProbe / AgentLA (if configured) */

@@ -23,6 +23,7 @@
 #include "analyzer/capture.h"
 #include "pin_owner.h"
 #include "profile_manager.h"
+#include "servo_pwm.h"
 #include "analyzer/decode.h"
 #include "analyzer/decode_can.h"
 #include "analyzer/decode_modbus.h"
@@ -1624,6 +1625,7 @@ static void cmd_out_set(char* args) {
     uint8_t pin = 255;
     uint32_t freq = 0;
     int duty = -1;
+    uint32_t pulse_us = 0;
 
     char* token = strtok(args, " ");
     while (token != NULL) {
@@ -1633,6 +1635,8 @@ static void cmd_out_set(char* args) {
             freq = (uint32_t)strtoul(token + 5, NULL, 10);
         } else if (strncmp(token, "duty=", 5) == 0) {
             duty = atoi(token + 5);
+        } else if (strncmp(token, "pulse_us=", 9) == 0) {
+            pulse_us = (uint32_t)strtoul(token + 9, NULL, 10);
         }
         token = strtok(NULL, " ");
     }
@@ -1645,6 +1649,18 @@ static void cmd_out_set(char* args) {
     pwm_generator_slot_t* slot = get_pwm_slot(pin);
     if (!slot || !slot->active) {
         send_response("ERR OUTSET pin not claimed (run OUTCLAIM first)");
+        return;
+    }
+
+    if (pulse_us > 0) {
+        /* High-resolution microsecond pulse width */
+        if (freq == 0) freq = 50;
+        servo_pwm_set(pin, freq, pulse_us);
+        slot->freq = freq;
+        slot->duty = (uint8_t)((pulse_us * freq * 100UL) / 1000000UL);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "OK OUTSET PIN=%u FREQ=%lu PULSE_US=%lu", pin, (unsigned long)freq, (unsigned long)pulse_us);
+        send_response(msg);
         return;
     }
 
@@ -4238,6 +4254,7 @@ int main() {
     pin_owner_init();
     profile_manager_init();
     pwm_generator_init();
+    servo_pwm_init();
 
     /* Initialize adapter I2C only - skip UART init to avoid GPIO 4/5 conflict with SWD */
     adapter_init_i2c_only();

@@ -7,9 +7,29 @@
 #include "app_routing.h"
 #include "littlefs_driver.h"
 #include "profile_manager.h"
+#include "servo_pwm.h"
 #include "pico/time.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+static int get_query_param_int(const char *str, const char *param, int default_val) {
+    if (!str || !param) return default_val;
+    const char *p = strstr(str, param);
+    if (!p) return default_val;
+    p += strlen(param);
+    if (*p != '=') return default_val;
+    return atoi(p + 1);
+}
+
+static uint32_t get_query_param_u32(const char *str, const char *param, uint32_t default_val) {
+    if (!str || !param) return default_val;
+    const char *p = strstr(str, param);
+    if (!p) return default_val;
+    p += strlen(param);
+    if (*p != '=') return default_val;
+    return (uint32_t)strtoul(p + 1, NULL, 10);
+}
 
 #if __has_include("generated/board_config.h")
 #include "generated/board_config.h"
@@ -31,7 +51,7 @@
 #define BOARD_MCU_FLASH_BYTES (4194304UL)
 #endif
 
-#define REST_BUFFER_SIZE 1536
+#define REST_BUFFER_SIZE 1280
 #define REST_HEADER_RESERVE 160
 static char rest_response_buffer[REST_BUFFER_SIZE];
 static char rest_last_installed_app[64] = "app";
@@ -303,6 +323,181 @@ int rest_api_handle(struct fs_file *file, const char *uri) {
             "{\"status\":\"ok\",\"safe\":%s,\"active_profile\":\"%s\",\"pins\":[]}",
             is_safe ? "true" : "false", prof_name ? prof_name : "Safe State");
         return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+    }
+
+    /* 8. PWM API: /api/v1/pwm/* */
+    if (strncmp(path, "pwm", 3) == 0) {
+        const char *sub = path + 3;
+        if (*sub == '/') sub++;
+
+        /* GET /api/v1/pwm */
+        if (*sub == '\0') {
+            servo_channel_t chs[SERVO_MAX_CHANNELS];
+            int count = servo_get_active_channels(chs, SERVO_MAX_CHANNELS);
+            int written = snprintf(json_scratch, json_capacity, "{\"status\":\"ok\",\"channels\":[");
+            for (int i = 0; i < count; i++) {
+                if (written < (int)json_capacity - 100) {
+                    written += snprintf(json_scratch + written, json_capacity - written,
+                        "%s{\"pin\":%u,\"freq\":%lu,\"pulse_us\":%lu,\"active\":true}",
+                        (i > 0) ? "," : "",
+                        chs[i].pin, (unsigned long)chs[i].freq, (unsigned long)chs[i].pulse_us);
+                }
+            }
+            if (written < (int)json_capacity - 3) {
+                json_scratch[written++] = ']';
+                json_scratch[written++] = '}';
+                json_scratch[written] = '\0';
+            }
+            return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)written);
+        }
+
+        /* POST /api/v1/pwm/claim?pin=... */
+        if (strncmp(sub, "claim", 5) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            if (pin < 0) {
+                const char *err = "{\"error\":\"Missing pin parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            uint32_t handle = 0;
+            if (servo_pwm_claim((uint8_t)pin, &handle)) {
+                int len = snprintf(json_scratch, json_capacity, "{\"status\":\"claimed\",\"pin\":%d,\"handle\":%lu}", pin, (unsigned long)handle);
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+            } else {
+                const char *err = "{\"error\":\"Failed to claim pin for PWM\"}";
+                return build_http_response(file, 409, "Conflict", "application/json", err, strlen(err));
+            }
+        }
+
+        /* POST /api/v1/pwm/set?pin=...&freq=...&pulse_us=... */
+        if (strncmp(sub, "set", 3) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            uint32_t freq = get_query_param_u32(sub, "freq", 50);
+            uint32_t pulse_us = get_query_param_u32(sub, "pulse_us", 0);
+            if (pin < 0 || pulse_us == 0) {
+                const char *err = "{\"error\":\"Invalid pin or pulse_us parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            if (servo_pwm_set((uint8_t)pin, freq, pulse_us)) {
+                int len = snprintf(json_scratch, json_capacity, "{\"status\":\"ok\",\"pin\":%d,\"freq\":%lu,\"pulse_us\":%lu}", pin, (unsigned long)freq, (unsigned long)pulse_us);
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+            } else {
+                const char *err = "{\"error\":\"Failed to configure PWM\"}";
+                return build_http_response(file, 500, "Internal Error", "application/json", err, strlen(err));
+            }
+        }
+
+        /* POST /api/v1/pwm/release?pin=... */
+        if (strncmp(sub, "release", 7) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            if (pin < 0) {
+                const char *err = "{\"error\":\"Missing pin parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            servo_pwm_release((uint8_t)pin);
+            int len = snprintf(json_scratch, json_capacity, "{\"status\":\"released\",\"pin\":%d}", pin);
+            return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+        }
+    }
+
+    /* 9. SERVO API: /api/v1/servo/* */
+    if (strncmp(path, "servo", 5) == 0) {
+        const char *sub = path + 5;
+        if (*sub == '/') sub++;
+
+        /* GET /api/v1/servo */
+        if (*sub == '\0') {
+            servo_channel_t chs[SERVO_MAX_CHANNELS];
+            int count = servo_get_active_channels(chs, SERVO_MAX_CHANNELS);
+            int written = snprintf(json_scratch, json_capacity, "{\"status\":\"ok\",\"channels\":[");
+            for (int i = 0; i < count; i++) {
+                if (written < (int)json_capacity - 120) {
+                    written += snprintf(json_scratch + written, json_capacity - written,
+                        "%s{\"pin\":%u,\"angle\":%d,\"pulse_us\":%lu,\"min_us\":%u,\"max_us\":%u,\"continuous\":%s}",
+                        (i > 0) ? "," : "",
+                        chs[i].pin, chs[i].angle, (unsigned long)chs[i].pulse_us,
+                        chs[i].min_us, chs[i].max_us, chs[i].continuous ? "true" : "false");
+                }
+            }
+            if (written < (int)json_capacity - 3) {
+                json_scratch[written++] = ']';
+                json_scratch[written++] = '}';
+                json_scratch[written] = '\0';
+            }
+            return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)written);
+        }
+
+        /* POST /api/v1/servo/attach?pin=...&min_us=...&max_us=...&continuous=... */
+        if (strncmp(sub, "attach", 6) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            uint16_t min_us = (uint16_t)get_query_param_u32(sub, "min_us", 500);
+            uint16_t max_us = (uint16_t)get_query_param_u32(sub, "max_us", 2500);
+            int cont = get_query_param_int(sub, "continuous", 0);
+            if (pin < 0) {
+                const char *err = "{\"error\":\"Missing pin parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            if (servo_attach((uint8_t)pin, min_us, max_us, cont != 0)) {
+                int len = snprintf(json_scratch, json_capacity,
+                    "{\"status\":\"attached\",\"pin\":%d,\"angle\":%d,\"pulse_us\":1500,\"min_us\":%u,\"max_us\":%u,\"continuous\":%s}",
+                    pin, cont ? 0 : 90, min_us, max_us, cont ? "true" : "false");
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+            } else {
+                const char *err = "{\"error\":\"Failed to attach servo\"}";
+                return build_http_response(file, 409, "Conflict", "application/json", err, strlen(err));
+            }
+        }
+
+        /* POST /api/v1/servo/write_us?pin=...&pulse_us=... */
+        if (strncmp(sub, "write_us", 8) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            uint32_t pulse_us = get_query_param_u32(sub, "pulse_us", 1500);
+            if (pin < 0) {
+                const char *err = "{\"error\":\"Missing pin parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            if (servo_write_us((uint8_t)pin, pulse_us)) {
+                const servo_channel_t *ch = servo_pwm_get_slot((uint8_t)pin);
+                int len = snprintf(json_scratch, json_capacity,
+                    "{\"status\":\"ok\",\"pin\":%d,\"angle\":%d,\"pulse_us\":%lu}",
+                    pin, ch ? ch->angle : 0, (unsigned long)pulse_us);
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+            } else {
+                const char *err = "{\"error\":\"Failed to write servo pulse\"}";
+                return build_http_response(file, 500, "Internal Error", "application/json", err, strlen(err));
+            }
+        }
+
+        /* POST /api/v1/servo/write?pin=...&angle=... */
+        if (strncmp(sub, "write", 5) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            int angle = get_query_param_int(sub, "angle", 90);
+            if (pin < 0) {
+                const char *err = "{\"error\":\"Missing pin parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            if (servo_write_angle((uint8_t)pin, (int16_t)angle)) {
+                const servo_channel_t *ch = servo_pwm_get_slot((uint8_t)pin);
+                int len = snprintf(json_scratch, json_capacity,
+                    "{\"status\":\"ok\",\"pin\":%d,\"angle\":%d,\"pulse_us\":%lu}",
+                    pin, angle, (unsigned long)(ch ? ch->pulse_us : 1500));
+                return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+            } else {
+                const char *err = "{\"error\":\"Failed to write servo angle\"}";
+                return build_http_response(file, 500, "Internal Error", "application/json", err, strlen(err));
+            }
+        }
+
+        /* POST /api/v1/servo/detach?pin=... */
+        if (strncmp(sub, "detach", 6) == 0) {
+            int pin = get_query_param_int(sub, "pin", -1);
+            if (pin < 0) {
+                const char *err = "{\"error\":\"Missing pin parameter\"}";
+                return build_http_response(file, 400, "Bad Request", "application/json", err, strlen(err));
+            }
+            servo_detach((uint8_t)pin);
+            int len = snprintf(json_scratch, json_capacity, "{\"status\":\"detached\",\"pin\":%d}", pin);
+            return build_http_response(file, 200, "OK", "application/json", json_scratch, (size_t)len);
+        }
     }
 
     /* Default 404 for unknown REST endpoints */
