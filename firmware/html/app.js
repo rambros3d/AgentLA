@@ -760,7 +760,7 @@ function closeAgentGuideModal() {
 function switchMode(mode) {
     if (mode === 'adapters' || mode === 'adapter') {
         primaryMode = 'adapters';
-    } else if (mode === 'target') {
+    } else if (mode === 'target' || mode === 'debugger' || mode === 'debug') {
         primaryMode = 'target';
     } else if (mode === 'pins' || mode === 'matrix') {
         primaryMode = 'pins';

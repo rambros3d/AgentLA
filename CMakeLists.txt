@@ -67,6 +67,10 @@ pico_generate_pio_header(${PROJECT_NAME}
     ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/i3c.pio
 )
 
+pico_generate_pio_header(${PROJECT_NAME}
+    ${CMAKE_CURRENT_LIST_DIR}/firmware/pio/neopixel.pio
+)
+
 pico_set_program_name(AgentLA "AgentLA")
 pico_set_program_version(AgentLA "1.0")
 add_compile_definitions(FIRMWARE_VERSION="v1.0")

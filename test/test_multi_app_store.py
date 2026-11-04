@@ -336,16 +336,20 @@ def test_apps_html_assets_and_integration():
     cmake_text = cmakelists_path.read_text(encoding="utf-8")
 
     # 1. apps.html structure checks
-    assert "Flash Partition Storage" in apps_html
-    assert "My Apps" in apps_html
+    assert "storage-dock" in apps_html
     assert "Community App Store" in apps_html
+    assert "modal-app-store" in apps_html
+    assert "btn-open-app-store" in apps_html
     assert "install-modal" in apps_html
     assert "parseTarMetadata" in apps_html
     assert "/api/v1/apps/storage" in apps_html
     assert "/api/v1/apps/install" in apps_html
-    assert "AgentLA Lab" in apps_html
     assert "spotlight-search" in apps_html
     assert "modal-settings" in apps_html
+    assert "Scope" in apps_html
+    assert "Debugger" in apps_html
+    assert "Pin Control" in apps_html
+    assert "Console" in apps_html
 
     # 2. Navigation toggle in index.html
     assert "/apps" in index_html, "index.html must include navigation link to /apps"

@@ -479,6 +479,17 @@
             }
             const defaultInstalled = [
                 {
+                    id: "servo-master",
+                    name: "Servo Master",
+                    version: "1.0.0",
+                    author: "AgentLA Team",
+                    description: "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
+                    requires: ["pwm", "gpio_flexible"],
+                    tags: ["Robotics", "PWM", "Actuation"],
+                    size_bytes: 32600,
+                    icon: "icon.svg"
+                },
+                {
                     id: "can-sniffer",
                     name: "CAN Bus Analyzer",
                     version: "1.1.0",
@@ -487,19 +498,17 @@
                     requires: ["has_hardware_can"],
                     tags: ["Automotive", "CAN"],
                     size_bytes: 45120
-                },
-                {
-                    id: "battery-profiler",
-                    name: "Battery Discharge Profiler",
-                    version: "1.0.2",
-                    author: "AgentLA Team",
-                    description: "Continuous voltage & current profiling curves with mWh calculations and CSV export.",
-                    requires: [],
-                    tags: ["Power", "ADC"],
-                    size_bytes: 28400
                 }
             ];
             return new Response(JSON.stringify(defaultInstalled), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 2g. Intercept /api/v1/servo and /api/v1/pwm for Servo Master app demo
+        if (urlStr.includes('/api/v1/servo') || urlStr.includes('/api/v1/pwm')) {
+            return new Response(JSON.stringify({ status: "ok", demo: true }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
             });

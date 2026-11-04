@@ -75,10 +75,13 @@ def test_apps_html_unified_os_launcher():
     assert 'href="style.css"' in content
     assert 'href="themes.css"' in content
 
-    # 2. Flagship tile for AgentLA Lab
-    assert "AgentLA Lab" in content
-    assert 'onclick="openLab()"' in content
-    assert "FLAGSHIP" in content
+    # 2. Core Apps in launcher
+    assert "Scope" in content
+    assert "Adapter" in content
+    assert "Debugger" in content
+    assert "Pin Control" in content
+    assert "Console" in content
+    assert 'onclick="openLab(\'scope\')"' in content
 
     # 3. Spotlight search bar
     assert 'id="spotlight-search"' in content

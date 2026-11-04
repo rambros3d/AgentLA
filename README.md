@@ -59,6 +59,7 @@ In addition to standalone programming, AgentLA serves as a high-performance host
   * **UART Bridge**: Dual CDC ACM ports for CLI control and high-speed target serial pass-through (300 to 3+ Mbaud, 8N1/8E1/8O1, hardware flow control).
   * **I²C Bus Master**: Interactive bus scanning (`I2C SCAN`), multi-byte reads/writes, sensor evaluation, and register dumps.
   * **SPI Bus Master**: Modes 0–3, configurable clock polarity and phase, multi-chip-select control, and high-speed data streaming.
+  * **Universal Addressable LED Driver**: Hardware PIO (`neopixel.pio`) and SPI streaming for WS2812B, WS2811, SK6812 (RGBW), and APA102/DotStar strips up to 256 pixels.
   * **CAN Bus Interface**: Frame transmission and monitoring on dedicated adapter lines.
   * **GPIO Controller**: Software-configurable inputs, push-pull outputs, internal pull-up/pull-down resistors, and PWM frequency generation.
 
@@ -137,6 +138,19 @@ AgentLA is purpose-built for the age of agentic engineering. It embeds a native 
   }
   ```
   AI models can compile embedded C/Rust firmware, flash the binary through AgentLA, trigger a logic capture, decode UART/I²C packets, and verify test assertions completely autonomously.
+
+---
+
+### 7. Full Hardware REST API (`/api/v1`)
+In addition to JSON-RPC over `/mcp`, AgentLA serves a comprehensive standard RESTful API over HTTP for direct automation, scripting, and web dashboard integration:
+- **Profiles & Hardware Arbiters**: `/api/v1/profiles` and `/api/v1/pins` (with atomic pin claim/release).
+- **Bus Bridges**: `/api/v1/bus/i2c`, `/api/v1/bus/spi`, `/api/v1/bus/uart`, `/api/v1/bus/can`.
+- **Addressable LEDs**: `/api/v1/bus/led/transmit` (WS2812B, SK6812, APA102).
+- **Programmer & Flasher**: `/api/v1/programmer/target`, `/reset`, `/erase`, `/flash`, and streaming `/read`.
+- **High-Speed Logic Analyzer**: `/api/v1/analyzer/arm`, `/status`, `/stop`, and streaming Sigrok-compatible `/vcd`.
+- **Probe Telemetry & Control**: `/api/v1/device/telemetry`, `/reboot`, `/bootsel`, `/power`.
+
+For detailed API schemas, endpoints, and examples, see the [Hardware REST API Documentation](docs/rest-api.md).
 
 ---
 

@@ -434,7 +434,8 @@ typedef enum {
     POST_TYPE_INSTALL_HTML,
     POST_TYPE_PINS_SAFE,
     POST_TYPE_SETTINGS,
-    POST_TYPE_THEMES
+    POST_TYPE_THEMES,
+    POST_TYPE_REST
 } post_type_t;
 
 static post_type_t current_post_type = POST_TYPE_NONE;
@@ -565,6 +566,21 @@ err_t httpd_post_begin(void *connection, const char *uri,
         return ERR_OK;
     }
 
+    /* 6. Generic REST API POST endpoint (/api/v1/... or /api/profiles/...) */
+    if (rest_api_matches(uri) &&
+        strncmp(uri, "/api/v1/apps/install", 20) != 0 &&
+        strncmp(uri, "/api/v1/settings", 16) != 0 &&
+        strncmp(uri, "/api/v1/themes", 14) != 0 &&
+        strncmp(uri, "/api/v1/pins/safe", 17) != 0) {
+        current_post_type = POST_TYPE_REST;
+        httpd_post_body_len = 0;
+        httpd_post_body[0] = '\0';
+        if (response_uri != NULL && response_uri_len > 0) {
+            snprintf(response_uri, response_uri_len, "%s", uri);
+        }
+        return ERR_OK;
+    }
+
     return ERR_CONN;
 }
 
@@ -572,7 +588,7 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p) {
     (void)connection;
     if (p == NULL) return ERR_OK;
 
-    if (current_post_type == POST_TYPE_MCP || current_post_type == POST_TYPE_SETTINGS || current_post_type == POST_TYPE_THEMES) {
+    if (current_post_type == POST_TYPE_MCP || current_post_type == POST_TYPE_SETTINGS || current_post_type == POST_TYPE_THEMES || current_post_type == POST_TYPE_REST) {
         if (httpd_post_body_len < sizeof(httpd_post_body) - 1) {
             size_t available = sizeof(httpd_post_body) - httpd_post_body_len - 1;
             if (available > 0) {
@@ -717,6 +733,8 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
         if (response_uri != NULL && response_uri_len > 0) {
             snprintf(response_uri, (size_t)response_uri_len, "/api/v1/themes/saved");
         }
+    } else if (current_post_type == POST_TYPE_REST) {
+        rest_api_set_post_payload(response_uri, httpd_post_body, httpd_post_body_len);
     }
 
     current_post_type = POST_TYPE_NONE;

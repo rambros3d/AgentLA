@@ -15,6 +15,9 @@ void rest_api_set_last_installed_app(const char *name);
 /* Set last saved theme name for 201 Created response */
 void rest_api_set_last_saved_theme(const char *name);
 
+/* Store POST payload for REST API endpoint processing */
+void rest_api_set_post_payload(const char *uri, const char *body, size_t body_len);
+
 /* Handle REST API request and populate fs_file with generated response */
 int rest_api_handle(struct fs_file *file, const char *uri);
 
