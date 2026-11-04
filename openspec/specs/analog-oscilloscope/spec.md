@@ -24,3 +24,10 @@ The system SHALL support automated validation of ADC channels (ADC0 on GPIO 26, 
 - **WHEN** the host issues `ADCSCOPE pin=26 samples=100` while connected to the target reference signal
 - **THEN** the system returns valid voltage readings (CH0, CH1, CH2, CH3) with RAW sample conversions and non-zero peak-to-peak amplitude
 
+### Requirement: DaisyUI Scope Container and Telemetry Components
+The Analog Oscilloscope interface SHALL wrap the waveform canvas inside a DaisyUI `.card .card-border .card-body` container and present signal measurements (Vpp, Vrms, Frequency, Duty) using DaisyUI `.stats .stat` blocks with `.stat-title`, `.stat-value`, and `.stat-desc`.
+
+#### Scenario: Viewing oscilloscope measurements
+- **WHEN** the user opens the Analog Scope panel
+- **THEN** the scope canvas is framed within a DaisyUI `.card` and live voltage telemetry is formatted inside `.stats .stat` components without custom measurement wrapper divs
+

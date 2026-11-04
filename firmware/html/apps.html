@@ -123,8 +123,8 @@
                             <circle cx="11" cy="11" r="8"/>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                         </svg>
-                        <input type="text" class="spotlight-input launcher-spotlight-input" id="spotlight-search" placeholder="Search apps, instruments, and protocols... (Press / to focus)" autocomplete="off">
-                        <span class="spotlight-shortcut-hint">/</span>
+                        <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search apps, instruments, and protocols... (Press / to focus)" autocomplete="off">
+                        <kbd class="kbd kbd-sm spotlight-shortcut-hint">/</kbd>
                     </div>
                 </div>
 
@@ -250,9 +250,9 @@
                             <div style="font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;" id="storage-detail-text">LittleFS Partition Loading...</div>
                         </div>
 
-                        <!-- Segmented Switcher Controls -->
-                        <div class="segmented-control">
-                            <button class="seg-btn active" id="tab-my-apps">
+                        <!-- Segmented Switcher Controls (DaisyUI Tabs) -->
+                        <div role="tablist" class="tabs tabs-box segmented-control">
+                            <button role="tab" class="tab tab-active seg-btn active" id="tab-my-apps">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                     <rect x="3" y="3" width="7" height="7"/>
                                     <rect x="14" y="3" width="7" height="7"/>
@@ -261,7 +261,7 @@
                                 </svg>
                                 My Apps
                             </button>
-                            <button class="seg-btn" id="tab-store">
+                            <button role="tab" class="tab seg-btn" id="tab-store">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/>
                                 </svg>
@@ -319,24 +319,24 @@
 
                 <div style="font-size: 13px; color: var(--text-secondary);" id="modal-app-desc">Description of the application...</div>
 
-                <!-- Storage Capacity Check Alert -->
-                <div class="alert-box alert-success" id="modal-storage-alert">
+                <!-- Storage Capacity Check Alert (DaisyUI Alert) -->
+                <div role="alert" class="alert alert-success alert-box" id="modal-storage-alert">
                     <div id="modal-storage-text">Checking available flash storage...</div>
                 </div>
 
-                <!-- Hardware Compatibility Alert -->
-                <div class="alert-box alert-warning" id="modal-hw-alert" style="display: none;">
+                <!-- Hardware Compatibility Alert (DaisyUI Alert) -->
+                <div role="alert" class="alert alert-warning alert-box" id="modal-hw-alert" style="display: none;">
                     <div>
                         <div style="font-weight: 600; margin-bottom: 2px;">Hardware Requirement Notice</div>
                         <div id="modal-hw-text" style="margin-bottom: 8px;">This app requires hardware not detected on your board profile.</div>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
-                            <input type="checkbox" id="modal-hw-override"> Install anyway despite hardware notice
+                            <input type="checkbox" class="checkbox checkbox-xs" id="modal-hw-override"> Install anyway despite hardware notice
                         </label>
                     </div>
                 </div>
 
-                <!-- Overwrite notice -->
-                <div class="alert-box alert-warning" id="modal-overwrite-alert" style="display: none;">
+                <!-- Overwrite notice (DaisyUI Alert) -->
+                <div role="alert" class="alert alert-warning alert-box" id="modal-overwrite-alert" style="display: none;">
                     <div>This application is already installed. Confirming will overwrite existing files.</div>
                 </div>
 
@@ -443,7 +443,7 @@
                             <div class="settings-label text-red">Reboot into USB BOOTSEL Mode</div>
                             <div class="settings-subtext">Drop into RP2350 ROM bootloader for UF2 drag-and-drop firmware upgrades</div>
                         </div>
-                        <button class="action-btn outline btn-sm text-red" id="btn-bootsel-mode" style="border-color: rgba(255, 69, 58, 0.4);">
+                        <button class="btn btn-outline btn-error btn-sm" id="btn-bootsel-mode">
                             Enter BOOTSEL
                         </button>
                     </div>
@@ -1230,16 +1230,20 @@
         const secStore = document.getElementById('section-community-store');
 
         tabMyApps.addEventListener('click', () => {
-            tabMyApps.classList.add('active');
-            tabStore.classList.remove('active');
+            tabMyApps.classList.add('active', 'tab-active');
+            tabStore.classList.remove('active', 'tab-active');
+            tabMyApps.setAttribute('aria-selected', 'true');
+            tabStore.setAttribute('aria-selected', 'false');
             secCore.style.display = 'block';
             secInstalled.style.display = 'block';
             secStore.style.display = 'none';
         });
 
         tabStore.addEventListener('click', () => {
-            tabStore.classList.add('active');
-            tabMyApps.classList.remove('active');
+            tabStore.classList.add('active', 'tab-active');
+            tabMyApps.classList.remove('active', 'tab-active');
+            tabStore.setAttribute('aria-selected', 'true');
+            tabMyApps.setAttribute('aria-selected', 'false');
             secCore.style.display = 'none';
             secInstalled.style.display = 'none';
             secStore.style.display = 'block';

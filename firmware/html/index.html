@@ -58,7 +58,7 @@
             width: 42px; 
             height: 42px; 
             margin: 0 auto; 
-            border: 3.5px solid rgba(255, 255, 255, 0.12); 
+            border: 3.5px solid #202b3c; 
             border-left-color: #00e5ff; 
             border-radius: 50%; 
             animation: spin 0.9s linear infinite; 
@@ -1092,8 +1092,8 @@
                     </div>
 
                     <div class="control-bar">
-                        <button class="action-btn outline" id="btn-flash-detect">Detect Target</button>
-                        <button class="action-btn outline" id="btn-flash-program" style="border-color: var(--color-primary); color: var(--color-primary); background: rgba(0, 229, 255, 0.1);">Flash Target</button>
+                        <button class="btn btn-outline btn-sm" id="btn-flash-detect">Detect Target</button>
+                        <button class="btn btn-primary btn-sm" id="btn-flash-program">Flash Target</button>
                         <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); cursor: pointer; margin-left: auto;">
                             <input type="checkbox" id="flash-verify-check" checked> Verify write
                         </label>
@@ -1667,7 +1667,7 @@
                             <div class="settings-label text-red">Reboot into USB BOOTSEL Mode</div>
                             <div class="settings-subtext">Drop into RP2350 ROM bootloader for UF2 drag-and-drop firmware upgrades</div>
                         </div>
-                        <button class="action-btn outline btn-sm text-red" id="btn-bootsel-mode" style="border-color: rgba(255, 69, 58, 0.4);">
+                        <button class="btn btn-outline btn-error btn-sm" id="btn-bootsel-mode">
                             Enter BOOTSEL
                         </button>
                     </div>
@@ -1772,7 +1772,7 @@
             </div>
             <div class="modal-body" style="padding: 16px;">
                 <p id="compat-modal-summary" style="margin-bottom: 12px; color: var(--text-primary); font-size: 13px;"></p>
-                <div id="compat-modal-details" style="background: rgba(0,0,0,0.25); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 160px; overflow-y: auto; margin-bottom: 14px;"></div>
+                <div id="compat-modal-details" style="background: var(--color-base-300); padding: 10px; border-radius: var(--radius-box, 0.5rem); font-family: monospace; font-size: 12px; max-height: 160px; overflow-y: auto; margin-bottom: 14px;"></div>
                 <div style="display: flex; justify-content: flex-end;">
                     <button class="action-btn primary btn-sm" id="btn-ack-compat">Acknowledge</button>
                 </div>

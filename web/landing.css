@@ -36,11 +36,11 @@
     --bg-card: var(--color-base-200);
     --bg-card-hover: var(--color-base-300);
 
-    --border-color: rgba(255, 255, 255, 0.10);
+    --border-color: var(--color-base-300);
     --border-hover: var(--color-primary);
     --text-primary: var(--color-base-content);
-    --text-secondary: color-mix(in oklch, var(--color-base-content) 78%, transparent);
-    --text-muted: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 78%, var(--color-base-200));
+    --text-muted: color-mix(in oklch, var(--color-base-content) 60%, var(--color-base-200));
 
     --accent-cyan: var(--color-info);
     --accent-blue: oklch(65% 0.18 250);
@@ -48,9 +48,7 @@
     --accent-green: var(--color-success);
     --accent-purple: oklch(68% 0.18 310);
 
-    
-    
-    --header-bg: color-mix(in oklch, var(--color-base-100) 85%, transparent);
+    --header-bg: var(--color-base-100);
 
     --radius-sm: var(--radius-field, 0.5rem);
     --radius-md: var(--radius-selector, 0.75rem);
@@ -88,11 +86,11 @@
     --bg-card: var(--color-base-200);
     --bg-card-hover: var(--color-base-300);
 
-    --border-color: rgba(0, 0, 0, 0.12);
+    --border-color: var(--color-base-300);
     --border-hover: var(--color-primary);
     --text-primary: var(--color-base-content);
-    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
-    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, var(--color-base-200));
+    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, var(--color-base-200));
 
     --accent-cyan: var(--color-info);
     --accent-blue: var(--color-secondary);
@@ -100,7 +98,7 @@
     --accent-green: var(--color-success);
     --accent-purple: oklch(58% 0.18 310);
 
-    --header-bg: color-mix(in oklch, var(--color-base-100) 90%, transparent);
+    --header-bg: var(--color-base-100);
 }
 
 [data-theme="caramellatte"] {
@@ -131,11 +129,11 @@
     --bg-card: var(--color-base-200);
     --bg-card-hover: var(--color-base-300);
 
-    --border-color: rgba(0, 0, 0, 0.14);
+    --border-color: var(--color-base-300);
     --border-hover: var(--color-primary);
     --text-primary: var(--color-base-content);
-    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
-    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, var(--color-base-200));
+    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, var(--color-base-200));
 
     --accent-cyan: var(--color-info);
     --accent-blue: var(--color-secondary);
@@ -143,7 +141,7 @@
     --accent-green: var(--color-success);
     --accent-purple: oklch(58% 0.18 310);
 
-    --header-bg: color-mix(in oklch, var(--color-base-100) 90%, transparent);
+    --header-bg: var(--color-base-100);
 }
 
 .theme-toggle-btn {
@@ -274,9 +272,9 @@ a:hover {
 }
 
 .btn-nav-demo {
-    background: rgba(0, 229, 255, 0.12);
-    color: var(--accent-cyan) !important;
-    border: 1px solid rgba(0, 229, 255, 0.3);
+    background: var(--color-base-200);
+    color: var(--color-primary) !important;
+    border: 1px solid var(--color-primary);
     padding: 6px 14px;
     border-radius: var(--radius-sm);
     font-weight: 600 !important;
@@ -284,16 +282,16 @@ a:hover {
 }
 
 .btn-nav-demo:hover {
-    background: var(--accent-cyan);
-    color: #040910 !important;
-    border-color: var(--accent-cyan);
+    background: var(--color-primary);
+    color: var(--color-primary-content) !important;
+    border-color: var(--color-primary);
 }
 
 /* Hero Section */
 .hero-section {
     padding: 80px 24px 60px;
     text-align: center;
-    background: radial-gradient(circle at 50% 10%, rgba(0, 229, 255, 0.08) 0%, transparent 60%);
+    background: var(--color-base-100);
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -307,11 +305,11 @@ a:hover {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 1.5px;
-    color: var(--accent-cyan);
-    background: rgba(0, 229, 255, 0.08);
-    border: 1px solid rgba(0, 229, 255, 0.2);
+    color: var(--color-primary);
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
     padding: 6px 14px;
-    border-radius: 999px;
+    border-radius: var(--radius-selector, 1rem);
     margin-bottom: 24px;
 }
 
@@ -364,15 +362,15 @@ a:hover {
 }
 
 .btn-primary {
-    background: var(--accent-cyan);
-    color: #040910;
+    background: var(--color-primary);
+    color: var(--color-primary-content);
 }
 
 .btn-primary:hover {
-    background: #4df0ff;
-    color: #040910;
+    background: color-mix(in oklch, var(--color-primary) 85%, black);
+    color: var(--color-primary-content);
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(0, 229, 255, 0.3);
+    box-shadow: none;
 }
 
 .btn-secondary {
@@ -535,9 +533,9 @@ a:hover {
     width: 46px;
     height: 46px;
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-base-200);
     border: 1px solid var(--border-color);
-    color: var(--accent);
+    color: var(--color-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -663,9 +661,9 @@ a:hover {
 .detail-badge {
     font-size: 11px;
     padding: 2px 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-secondary);
+    border-radius: var(--radius-selector, 1rem);
+    background: var(--color-base-300);
+    color: var(--color-base-content);
 }
 
 .detail-desc {
@@ -725,12 +723,12 @@ a:hover {
 }
 
 .connect-step code {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-base-300);
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-field, 0.25rem);
     font-family: monospace;
     font-size: 13px;
-    color: var(--accent-cyan);
+    color: var(--color-primary);
 }
 
 /* Footer */

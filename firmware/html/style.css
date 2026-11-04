@@ -48,11 +48,11 @@
     --bg-elevated: var(--color-base-300);
 
     --text-primary: var(--color-base-content);
-    --text-secondary: color-mix(in oklch, var(--color-base-content) 78%, transparent);
-    --text-muted: color-mix(in oklch, var(--color-base-content) 62%, transparent);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 78%, var(--color-base-200));
+    --text-muted: color-mix(in oklch, var(--color-base-content) 60%, var(--color-base-200));
 
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-subtle: color-mix(in oklch, var(--color-base-300) 65%, transparent);
+    --border-color: var(--color-base-300);
+    --border-subtle: var(--color-base-300);
     --border-focus: var(--color-info);
 
     --accent-cyan: var(--color-info);
@@ -68,7 +68,7 @@
     --canvas-bg: oklch(14% 0 0);
 
     /* Bento & Pure DaisyUI Tokens */
-    --pin-claimed-bg: color-mix(in oklch, var(--color-info) 14%, transparent);
+    --pin-claimed-bg: var(--color-base-300);
     --pin-claimed-border: var(--color-info);
 
     /* Signal & Scope colors */
@@ -139,11 +139,11 @@
     --bg-elevated: var(--color-base-200);
 
     --text-primary: var(--color-base-content);
-    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, transparent);
-    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+    --text-secondary: color-mix(in oklch, var(--color-base-content) 75%, var(--color-base-200));
+    --text-muted: color-mix(in oklch, var(--color-base-content) 55%, var(--color-base-200));
 
-    --border-color: rgba(0, 0, 0, 0.12);
-    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-color: var(--color-base-300);
+    --border-subtle: var(--color-base-300);
     --border-focus: var(--color-primary);
 
     --accent-cyan: var(--color-info);
@@ -549,10 +549,10 @@ body.no-transparency {
 
 .desktop-vertical-nav .sub-btn.active {
     color: var(--color-primary);
-    background: color-mix(in oklch, var(--color-primary) 18%, transparent);
-    border-color: color-mix(in oklch, var(--color-primary) 35%, transparent);
+    background: var(--color-base-300);
+    border-color: var(--color-primary);
     border-radius: var(--radius-selector, 0.75rem);
-    box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 25%, transparent);
+    box-shadow: none;
     min-height: 112px;
 }
 
@@ -699,9 +699,10 @@ body.no-transparency {
     }
 
     .primary-mode-nav .sub-btn.active {
-        background: color-mix(in oklch, var(--color-primary) 18%, transparent);
+        background: var(--color-base-300);
         color: var(--color-primary);
-        box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 25%, transparent);
+        border: 1px solid var(--color-primary);
+        box-shadow: none;
         padding: 6px 14px;
     }
 
@@ -837,10 +838,10 @@ body.no-transparency {
     font-size: 10px;
     font-weight: 700;
     color: var(--color-primary);
-    background: rgba(0, 229, 255, 0.1);
-    border: 1px solid rgba(0, 229, 255, 0.3);
+    background: var(--color-base-300);
+    border: 1px solid var(--color-base-300);
     padding: 3px 8px;
-    border-radius: 10px;
+    border-radius: var(--radius-selector, 1rem);
     margin-bottom: 6px;
 }
 
@@ -918,10 +919,10 @@ body.no-transparency {
 .heading-badge {
     font-size: 11px;
     color: var(--color-primary);
-    background: rgba(0, 229, 255, 0.1);
-    border: 1px solid rgba(0, 229, 255, 0.25);
+    background: var(--color-base-300);
+    border: 1px solid var(--color-base-300);
     padding: 2px 8px;
-    border-radius: 12px;
+    border-radius: var(--radius-selector, 1rem);
 }
 
 /* 1-Tap Quick-Launch Tiles */
@@ -960,8 +961,9 @@ body.no-transparency {
 .tile-icon-box {
     width: 44px;
     height: 44px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-box, 0.5rem);
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1047,9 +1049,9 @@ body.no-transparency {
     letter-spacing: 0.5px;
 }
 
-.domain-prog { background: rgba(255, 159, 10, 0.15); color: var(--accent-amber); }
-.domain-adapt { background: rgba(13, 132, 250, 0.15); color: var(--accent-blue); }
-.domain-la { background: rgba(0, 229, 255, 0.15); color: var(--color-primary); }
+.domain-prog { background: var(--color-warning); color: var(--color-warning-content); }
+.domain-adapt { background: var(--color-info); color: var(--color-info-content); }
+.domain-la { background: var(--color-primary); color: var(--color-primary-content); }
 
 .domain-range {
     font-size: 11px;
@@ -1081,7 +1083,7 @@ body.no-transparency {
     gap: 2px;
     margin: 6px 0;
     padding: 8px 10px;
-    background: rgba(0, 229, 255, 0.04);
+    background: var(--color-base-200);
     border-left: 3px solid var(--color-primary);
     border-radius: 4px;
 }
@@ -1100,16 +1102,16 @@ body.no-transparency {
 }
 
 .domain-fixed-block {
-    opacity: 0.88;
-    background: rgba(255, 159, 10, 0.03);
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
     border-radius: 6px;
     padding: 8px;
 }
 
 .domain-fixed-block .domain-badge {
-    background: rgba(255, 159, 10, 0.15);
-    color: var(--accent-amber);
-    border: 1px solid rgba(255, 159, 10, 0.3);
+    background: var(--color-warning);
+    color: var(--color-warning-content);
+    border: none;
 }
 
 .domain-stats-group {
@@ -1124,24 +1126,24 @@ body.no-transparency {
 }
 
 .dash-pin-chip.has-driver {
-    border-color: var(--accent-green) !important;
-    background: rgba(52, 199, 89, 0.08) !important;
+    border-color: var(--color-success) !important;
+    background: var(--color-base-200) !important;
 }
 
 .dash-pin-chip.has-driver .dash-pin-role-tag {
-    background: var(--accent-green) !important;
+    background: var(--color-success) !important;
     color: var(--color-success-content) !important;
     font-weight: 700;
 }
 
 .dash-pin-chip.has-observer {
     border-color: var(--color-primary) !important;
-    background: color-mix(in oklch, var(--color-info) 10%, transparent) !important;
+    background: var(--color-base-200) !important;
 }
 
 .dash-pin-chip.has-observer .dash-pin-role-tag {
     background: var(--color-primary) !important;
-    color: var(--color-info-content) !important;
+    color: var(--color-primary-content) !important;
     font-weight: 700;
 }
 
@@ -1156,8 +1158,8 @@ body.no-transparency {
     right: 4px;
     font-size: 8px;
     font-weight: 700;
-    color: var(--color-primary);
-    background: rgba(0, 229, 255, 0.15);
+    color: var(--color-primary-content);
+    background: var(--color-primary);
     padding: 0 3px;
     border-radius: 2px;
 }
@@ -1250,15 +1252,8 @@ body.no-transparency {
     font-weight: 600;
     padding: 1px 5px;
     border-radius: 3px;
-    background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
-    color: var(--text-primary);
-}
-
-[data-theme-scheme="light"] .dash-pin-role-tag,
-[data-theme="light"] .dash-pin-role-tag,
-[data-theme="emerald"] .dash-pin-role-tag,
-[data-theme="caramellatte"] .dash-pin-role-tag {
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--color-base-300);
+    color: var(--color-base-content);
 }
 
 .dash-pin-chip.claimed .dash-pin-role-tag {
@@ -1336,7 +1331,7 @@ body.no-transparency {
 }
 
 .instrument-slot.active-slot {
-    border-color: rgba(0, 229, 255, 0.4);
+    border-color: var(--color-primary);
 }
 
 .slot-header {
@@ -1387,7 +1382,6 @@ body.no-transparency {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px);
     z-index: 900;
     opacity: 0;
     visibility: hidden;
@@ -1646,15 +1640,15 @@ body.no-transparency {
 }
 
 .btn-run-stop.running {
-    background-color: rgba(255, 69, 58, 0.2);
-    border-color: var(--accent-red);
-    color: var(--accent-red);
+    background-color: var(--color-error);
+    border-color: var(--color-error);
+    color: var(--color-error-content);
 }
 
 .btn-run-stop.stopped {
-    background-color: rgba(52, 199, 89, 0.2);
-    border-color: var(--accent-green);
-    color: var(--accent-green);
+    background-color: var(--color-success);
+    border-color: var(--color-success);
+    color: var(--color-success-content);
 }
 
 /* Flasher Component */
@@ -1791,21 +1785,21 @@ body.no-transparency {
 }
 
 .dbg-status-pill.halted {
-    background: rgba(255, 159, 10, 0.15);
-    border-color: var(--accent-amber);
-    color: var(--accent-amber);
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+    color: var(--color-warning-content);
 }
 
 .dbg-status-pill.running {
-    background: rgba(52, 199, 89, 0.15);
-    border-color: var(--accent-green);
-    color: var(--accent-green);
+    background: var(--color-success);
+    border-color: var(--color-success);
+    color: var(--color-success-content);
 }
 
 .dbg-status-pill.disconnected {
-    background: rgba(255, 69, 58, 0.15);
-    border-color: var(--accent-red);
-    color: var(--accent-red);
+    background: var(--color-error);
+    border-color: var(--color-error);
+    color: var(--color-error-content);
 }
 
 .memory-hex-wrap {
@@ -1922,8 +1916,8 @@ body.no-transparency {
     display: inline-block;
 }
 
-.pin-chip-state.high { background: rgba(52, 199, 89, 0.2); color: var(--accent-green); }
-.pin-chip-state.low { background: color-mix(in oklch, var(--color-base-content) 12%, transparent); color: var(--text-secondary); border: 1px solid var(--border-color); }
+.pin-chip-state.high { background: var(--color-success); color: var(--color-success-content); }
+.pin-chip-state.low { background: var(--color-base-300); color: var(--color-base-content); border: 1px solid var(--border-color); }
 
 /* Bus Masters (I2C & SPI) */
 .bus-layout {
@@ -2351,8 +2345,8 @@ body.no-transparency {
 }
 
 .auto-sniff-pill:has(input:checked) {
-    border-color: rgba(0, 229, 255, 0.4);
-    background: rgba(0, 229, 255, 0.08);
+    border-color: var(--color-primary);
+    background: var(--color-base-300);
     color: var(--color-primary);
 }
 
@@ -2430,13 +2424,13 @@ body.no-transparency {
 .scope-pin-btn.active-digital {
     border-color: var(--pin-color, var(--color-primary));
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-base-200);
 }
 
 .scope-pin-btn.active-analog {
     border-color: var(--pin-color, var(--color-primary));
     color: var(--text-primary);
-    background: rgba(0, 229, 255, 0.05);
+    background: var(--color-base-200);
 }
 
 .pin-status-dot {
@@ -2915,10 +2909,10 @@ body.no-transparency {
 
 .pin-analog-notice {
     font-size: 11px;
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    background: var(--color-base-200);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius-box, 0.5rem);
     padding: 6px 10px;
 }
 
@@ -3024,7 +3018,7 @@ body.no-transparency {
 }
 
 .bus-subtab.active {
-    background: rgba(0, 229, 255, 0.12);
+    background: var(--color-base-300);
     border-color: var(--color-primary);
     color: var(--color-primary);
     font-weight: 600;
@@ -3075,19 +3069,19 @@ body.no-transparency {
     font-family: monospace;
     padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-base-200);
     color: var(--text-secondary);
 }
 
 .pin-toggle-state.high {
-    background: rgba(52, 199, 89, 0.15);
-    color: var(--accent-green);
-    border: 1px solid rgba(52, 199, 89, 0.3);
+    background: var(--color-success);
+    color: var(--color-success-content);
+    border: 1px solid var(--color-success);
 }
 
 .pin-toggle-state.low {
-    background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
-    color: var(--text-secondary);
+    background: var(--color-base-300);
+    color: var(--color-base-content);
     border: 1px solid var(--border-color);
 }
 
@@ -3124,7 +3118,7 @@ body.no-transparency {
 
 .pin-toggle-actions button:hover,
 .btn-pin-act:hover {
-    background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+    background: var(--color-base-200);
     color: var(--color-primary);
 }
 
@@ -3147,7 +3141,7 @@ body.no-transparency {
     padding: 8px 16px;
     background: var(--color-base-100);
     color: var(--color-primary);
-    border: 1px solid color-mix(in oklch, var(--color-primary) 35%, var(--border-color));
+    border: 1px solid var(--color-primary);
     border-radius: var(--radius-field, 0.5rem);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
     font-size: 12px;
@@ -3220,13 +3214,13 @@ body.no-transparency {
 }
 
 .adapter-master-item:hover {
-    border-color: color-mix(in oklch, var(--color-info) 40%, var(--border-color));
+    border-color: var(--color-info);
     transform: translateY(-1px);
 }
 
 .adapter-master-item.active {
     border-color: var(--color-info);
-    background: color-mix(in oklch, var(--color-info) 10%, var(--bg-card));
+    background: var(--color-base-200);
     box-shadow: 0 0 0 1px var(--color-info);
 }
 
@@ -3263,9 +3257,9 @@ body.no-transparency {
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-subtle);
+    background: var(--color-base-300);
+    color: var(--color-base-content);
+    border: 1px solid var(--border-color);
 }
 
 .adapter-master-meta {
@@ -3331,7 +3325,7 @@ body.no-transparency {
 }
 
 .preset-chip:hover {
-    background: color-mix(in oklch, var(--color-info) 14%, var(--bg-surface));
+    background: var(--color-base-200);
     border-color: var(--color-info);
     color: var(--color-primary);
     transform: translateY(-1px);
@@ -3509,12 +3503,12 @@ body.no-transparency {
 
 .target-power-pill:hover {
     transform: translateY(-1px);
-    border-color: color-mix(in oklch, var(--color-success) 40%, var(--color-base-300));
+    border-color: var(--color-success);
 }
 
 .target-power-pill.active-on {
-    background: color-mix(in oklch, var(--color-success) 14%, var(--color-base-200));
-    border-color: color-mix(in oklch, var(--color-success) 50%, transparent);
+    background: var(--color-base-300);
+    border-color: var(--color-success);
     color: var(--color-success);
 }
 
@@ -3589,16 +3583,16 @@ body.no-transparency {
 }
 
 .vtarget-btn.active-on {
-    background: color-mix(in oklch, var(--color-success) 18%, transparent);
+    background: var(--color-success);
     border-color: var(--color-success);
-    color: var(--color-success);
+    color: var(--color-success-content);
     font-weight: 700;
 }
 
 .vtarget-btn.active-off {
-    background: color-mix(in oklch, var(--color-error) 18%, transparent);
+    background: var(--color-error);
     border-color: var(--color-error);
-    color: var(--color-error);
+    color: var(--color-error-content);
     font-weight: 700;
 }
 
@@ -3608,9 +3602,9 @@ body.no-transparency {
     gap: 8px;
     font-size: 11px;
     color: var(--text-secondary);
-    background: color-mix(in oklch, var(--color-base-content) 6%, transparent);
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    background: var(--color-base-200);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-box, 0.5rem);
     padding: 7px 10px;
     line-height: 1.4;
 }
@@ -3689,7 +3683,6 @@ body.no-transparency {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(2px);
     z-index: 998;
     opacity: 0;
     pointer-events: none;
@@ -3756,15 +3749,15 @@ body.no-transparency {
 }
 
 .pin-conflict-badge.ok {
-    background: rgba(52, 199, 89, 0.15);
-    color: var(--accent-green);
-    border: 1px solid rgba(52, 199, 89, 0.3);
+    background: var(--color-success);
+    color: var(--color-success-content);
+    border: 1px solid var(--color-success);
 }
 
 .pin-conflict-badge.conflict {
-    background: rgba(255, 149, 0, 0.2);
-    color: var(--accent-amber);
-    border: 1px solid rgba(255, 149, 0, 0.5);
+    background: var(--color-warning);
+    color: var(--color-warning-content);
+    border: 1px solid var(--color-warning);
     animation: conflictPulse 1.5s infinite;
 }
 
@@ -3790,8 +3783,8 @@ body.no-transparency {
 
 /* Conflict highlighting on pin cards */
 .pin-conflict-alert {
-    border-color: var(--accent-amber) !important;
-    background: rgba(255, 149, 0, 0.08) !important;
+    border-color: var(--color-warning) !important;
+    background: var(--color-base-200) !important;
 }
 
 /* Zoom controls */
@@ -3964,9 +3957,9 @@ body.no-transparency {
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-subtle);
+    background: var(--color-base-300);
+    color: var(--color-base-content);
+    border: 1px solid var(--border-color);
 }
 
 /* --------------------------------------------------------------------------
@@ -4024,15 +4017,15 @@ body.no-transparency {
 }
 
 .transceiver-mode-badge.onboard {
-    background: rgba(52, 199, 89, 0.15);
-    color: var(--accent-green);
-    border: 1px solid rgba(52, 199, 89, 0.3);
+    background: var(--color-success);
+    color: var(--color-success-content);
+    border: 1px solid var(--color-success);
 }
 
 .transceiver-mode-badge.breakout {
-    background: rgba(255, 149, 0, 0.15);
-    color: #ff9500;
-    border: 1px solid rgba(255, 149, 0, 0.35);
+    background: var(--color-warning);
+    color: var(--color-warning-content);
+    border: 1px solid var(--color-warning);
 }
 
 /* --------------------------------------------------------------------------
@@ -4415,9 +4408,9 @@ body.no-transparency {
    ========================================================================== */
 
 .emergency-safe-btn {
-    background: rgba(239, 68, 68, 0.15) !important;
-    border: 1px solid rgba(239, 68, 68, 0.6) !important;
-    color: #f87171 !important;
+    background: var(--color-error) !important;
+    border: 1px solid var(--color-error) !important;
+    color: var(--color-error-content) !important;
     font-weight: 700 !important;
     letter-spacing: 0.5px !important;
     cursor: pointer;
@@ -4425,9 +4418,10 @@ body.no-transparency {
 }
 
 .emergency-safe-btn:hover {
-    background: rgba(239, 68, 68, 0.3) !important;
-    border-color: #ef4444 !important;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+    background: var(--color-error) !important;
+    border-color: var(--color-error) !important;
+    box-shadow: none;
+    filter: brightness(0.9);
 }
 
 .emergency-safe-btn:active {
@@ -4469,12 +4463,12 @@ body.no-transparency {
 
 .profile-dot.safe {
     background: var(--color-success);
-    box-shadow: 0 0 6px color-mix(in oklch, var(--color-success) 60%, transparent);
+    box-shadow: 0 0 6px var(--color-success);
 }
 
 .profile-dot.active {
     background: var(--color-primary);
-    box-shadow: 0 0 6px color-mix(in oklch, var(--color-primary) 60%, transparent);
+    box-shadow: 0 0 6px var(--color-primary);
 }
 
 .dropdown-arrow {
@@ -4530,15 +4524,15 @@ body.no-transparency {
 }
 
 .profile-slot-item.active-slot {
-    background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+    background: var(--color-base-300);
     color: var(--color-primary);
     font-weight: bold;
 }
 
 .profile-boot-badge {
     font-size: 9px;
-    background: color-mix(in oklch, var(--color-success) 20%, transparent);
-    color: var(--color-success);
+    background: var(--color-success);
+    color: var(--color-success-content);
     padding: 2px 5px;
     border-radius: 4px;
     margin-left: 6px;
@@ -4553,8 +4547,8 @@ body.no-transparency {
 
 .profile-menu-btn {
     width: 100%;
-    background: color-mix(in oklch, var(--color-primary) 15%, transparent);
-    border: var(--border) solid color-mix(in oklch, var(--color-primary) 40%, transparent);
+    background: var(--color-base-300);
+    border: var(--border) solid var(--color-primary);
     color: var(--color-primary);
     border-radius: var(--radius-selector);
     padding: 6px 10px;
@@ -4565,8 +4559,8 @@ body.no-transparency {
 }
 
 .profile-menu-btn:hover {
-    background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-primary-content);
 }
 
 .modal-input, .modal-select {
@@ -4641,7 +4635,7 @@ body.no-transparency {
 .launcher-spotlight-input:focus {
     border-color: var(--color-primary);
     background: var(--bg-surface-elevated);
-    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 25%, transparent);
+    box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .launcher-spotlight-icon {
@@ -4758,8 +4752,8 @@ body.no-transparency {
 
 /* Flagship Squircle Glow */
 .os-squircle-tile.is-flagship .os-squircle-icon {
-    background: color-mix(in oklch, var(--color-primary) 12%, var(--bg-card));
-    border-color: color-mix(in oklch, var(--color-primary) 50%, var(--border-color));
+    background: var(--color-base-200);
+    border-color: var(--color-primary);
 }
 
 /* Add / Install Tile */
@@ -4773,7 +4767,7 @@ body.no-transparency {
 .os-squircle-tile.is-install:hover .os-squircle-icon {
     border-color: var(--color-primary);
     color: var(--color-primary);
-    background: color-mix(in oklch, var(--color-primary) 10%, transparent);
+    background: var(--color-base-200);
 }
 
 /* Squircle Badges */
@@ -4982,7 +4976,7 @@ body.no-transparency {
 .launcher-dropzone:hover,
 .launcher-dropzone.dragover {
     border-color: var(--color-primary);
-    background: color-mix(in oklch, var(--color-primary) 8%, var(--bg-surface));
+    background: var(--color-base-200);
     transform: translateY(-2px);
 }
 
@@ -5170,7 +5164,7 @@ body.no-transparency {
 }
 
 .table-zebra tbody tr:nth-child(even) {
-    background-color: color-mix(in oklch, var(--color-base-300) 40%, transparent);
+    background-color: var(--color-base-200);
 }
 
 .table-pin-rows thead tr {
@@ -5428,7 +5422,7 @@ body.no-transparency {
 }
 
 .btn-ghost:hover {
-    background-color: color-mix(in oklch, var(--color-base-content) 10%, transparent);
+    background-color: var(--color-base-200);
     border-color: transparent;
 }
 
@@ -5559,4 +5553,217 @@ body.no-transparency {
     padding: 1.5rem;
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25);
     align-self: center;
+}
+
+/* 13. Tabs Component (Solid DaisyUI) */
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.tabs-box {
+    background-color: var(--color-base-300);
+    padding: 0.25rem;
+    border-radius: var(--radius-field, 0.5rem);
+    gap: 0.25rem;
+}
+
+.tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    appearance: none;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.375rem 0.75rem;
+    border-radius: calc(var(--radius-field, 0.5rem) - 2px);
+    color: var(--text-secondary);
+    background-color: transparent;
+    border: none;
+    transition: all 0.15s ease;
+}
+
+.tab:hover {
+    color: var(--color-base-content);
+}
+
+.tab.tab-active,
+.tab[aria-selected="true"] {
+    background-color: var(--color-base-100);
+    color: var(--color-base-content);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* 14. Alert Component (Solid DaisyUI) */
+.alert {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    border-radius: var(--radius-field, 0.5rem);
+    background-color: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
+    color: var(--color-base-content);
+    box-sizing: border-box;
+}
+
+.alert-success {
+    background-color: var(--color-success);
+    border-color: var(--color-success);
+    color: var(--color-success-content);
+}
+
+.alert-warning {
+    background-color: var(--color-warning);
+    border-color: var(--color-warning);
+    color: var(--color-warning-content);
+}
+
+.alert-error {
+    background-color: var(--color-error);
+    border-color: var(--color-error);
+    color: var(--color-error-content);
+}
+
+.alert-info {
+    background-color: var(--color-info);
+    border-color: var(--color-info);
+    color: var(--color-info-content);
+}
+
+/* 15. Kbd Component (Solid DaisyUI) */
+.kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-weight: 600;
+    border-radius: var(--radius-field, 0.25rem);
+    background-color: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
+    border-bottom: 2px solid var(--color-base-300);
+    color: var(--color-base-content);
+    padding: 0.125rem 0.375rem;
+    line-height: 1;
+}
+
+.kbd-xs { font-size: 0.625rem; min-height: 1rem; min-width: 1rem; }
+.kbd-sm { font-size: 0.75rem; min-height: 1.25rem; min-width: 1.25rem; }
+
+/* 16. Input & Select Components (Solid DaisyUI) */
+.input, .select {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--color-base-100);
+    border: 1px solid var(--color-base-300);
+    border-radius: var(--radius-field, 0.5rem);
+    color: var(--color-base-content);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+}
+
+.input:focus, .select:focus {
+    border-color: var(--color-primary);
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+}
+
+.input-sm, .select-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    height: 2rem;
+}
+
+.input-xs, .select-xs {
+    padding: 0.125rem 0.375rem;
+    font-size: 0.6875rem;
+    height: 1.5rem;
+}
+
+/* 17. Checkbox Component (Solid DaisyUI) */
+.checkbox {
+    appearance: none;
+    display: inline-block;
+    vertical-align: middle;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: var(--radius-field, 0.25rem);
+    border: 1px solid var(--color-base-300);
+    background-color: var(--color-base-200);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+}
+
+.checkbox:checked {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.checkbox:checked:after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--color-primary-content);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.checkbox-sm { width: 1rem; height: 1rem; }
+.checkbox-sm:checked:after { left: 3px; top: 0px; width: 3px; height: 6px; }
+
+.checkbox-xs { width: 0.875rem; height: 0.875rem; }
+.checkbox-xs:checked:after { left: 2px; top: 0px; width: 3px; height: 5px; }
+
+/* 18. Dock Component (Solid DaisyUI Bottom Nav) */
+.dock {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 4rem;
+    background-color: var(--color-base-100);
+    border-top: 1px solid var(--color-base-300);
+    align-items: center;
+    justify-content: space-around;
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-sizing: border-box;
+}
+
+.dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex: 1;
+    height: 100%;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.dock-item:hover, .dock-item.dock-active {
+    color: var(--color-primary);
 }
