@@ -6,6 +6,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 
 use crate::pin_owner;
+use rp_pac as pac;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum State {
@@ -106,16 +107,29 @@ pub fn start() -> Result<(), Error> {
     if state() != State::Armed { return Err(Error::NotArmed); }
     STATE.store(State::Capturing as u8, Ordering::Relaxed);
     let len = unsafe { LENGTH }.max(1).min(BANK_WORDS as u32);
+    let freq = unsafe { FREQ }.max(1);
+    let period = ((1_000_000u64 / freq as u64).max(1)).max(1) as u64;
     unsafe {
-        // Fill the bank with a deterministic ascending pattern, to evidence a real
-        // "captured" bank (the hardware-timed PIO/DMA transfer replaces this in
-        // the next hardware bring-up pass).
         let mut i = 0u32;
         while i < len {
-            SAMPLE_RING[i as usize] = i;
+            // Hardware: sample all requested channels as one bank word and wait for period.
+            let mut word = 0u32;
+            let mut ch = 0usize;
+            while ch < 32 {
+                let pin = ch as u8;
+                // flexible pins range 0-29
+                if pin < 30 {
+                    let bank = pac::SIO.gpio_in(0).read();
+                    let val = (bank >> pin) & 1;
+                    word |= val << ch;
+                }
+                ch += 1;
+            }
+            SAMPLE_RING[i as usize] = word;
+            SAMPLE_COUNT = i + 1;
+            if period >= 1 { embassy_time::block_for(embassy_time::Duration::from_micros(period)); }
             i += 1;
         }
-        SAMPLE_COUNT = len;
     }
     STATE.store(State::Captured as u8, Ordering::Relaxed);
     Ok(())
