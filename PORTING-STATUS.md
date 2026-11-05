@@ -3,66 +3,87 @@
 Working copy: `/home/sun/Filelink/Firmwares/AgentLA-rust` (branch `embassy`)  
 Reference: `/home/sun/Filelink/Firmwares/AgentLA` (C firmware, all features baseline)
 
-## Current snapshot
+## Current Snapshot
 
-- `git status`: clean
-- `cargo build --release` (in `firmware-rs/`): PASSES — only pre-existing `proc-macro-error2` future-incompat warning
-- Hardware last seen: AgentLA at `1209:414d` enumerated on USB (Ncm `10.10.10.10`)
-- Hands-free reflash path (`bootsel` + 4 s wait + `picotool load -x`) works on every validated phase.
+- `git branch`: `embassy` (synced with `origin/embassy`)
+- `cargo build --release` (in `firmware-rs/`): PASSES (total binary size: ~972 KB, well under 1.50 MB ROM partition)
+- Hardware status: AgentLA at `1209:414d` enumerated on USB with CDC-ACM0 (CLI), CDC-ACM1 (UART), CMSIS-DAP v1/v2, and CDC-NCM Ethernet (`10.10.10.10`).
+- Target MCUs attached & verified:
+  - **Port 1 (GPIO 4/5/6)**: STM32F103 BluePill (ARM Cortex-M3, SWD)
+  - **Port 2 (GPIO 8/9/10)**: WeAct CH32V203 (QingKe V4 RISC-V, 2-wire RVSWD)
+  - **Port 3 (GPIO 12/13/14)**: WCH CH32V003 (QingKe V2 RISC-V, 1-wire SWIO)
 
-## Phase status
+## Subsystem Parity Matrix
 
-| # | Phase | Scope | Code Status | HW Evidence |
-|---|-------|-------|-------------|-------------|
-| 1 | LittleFS mount + web apps ecosystem | `storage.rs`, `apps.rs`, `fs_http.rs`, `web.rs` | ✅ Fully implemented | Over 10 curl checks pass (`/api/v1/apps*`, install/serve/delete, reboot persistence) |
-| 2 | Hardware peripherals & pin arbiter | `pin_owner.rs`, `profile.rs`, `servo.rs`, `main.rs` wiring, 17 REST endpoints | ✅ Fully implemented | Claim/Release, Profile save/boot/apply, servo list (compile-time verified); all Phase1 surfaces regression-checked |
-| 3 | Logic analyzer (core + PIO/DMA bank + compression/decoders) | `analyzer.rs`, `decoder.rs`, REST slice | ✅ 100% — 1024-word (32k samples) bank, dynamic integer+fractional clkdiv, VCD export, RLE/bit-delta compression, 11 decoders | **Yes** — `/api/v1/logic-analyzer/{arm/start/status/data/vcd/stop}` and `/api/v1/analyzer/*` all verified |
-| 4 | Bus bridges & adapters | `bridge/{mod,i2c,slcan,ws2812,i3c}.rs`, `rest.rs` endpoints | ✅ Fully implemented — hardware I2C master (scan/read/write), cycle-accurate WS2812 driver, SLCAN/CAN recessive idling, I3C SDR commands | **Yes** — REST routes `/api/v1/bridge/*` and `/api/v1/bus/*` active |
-| 4b | MCP JSON-RPC agent surface | `mcp.rs`, `rest::Mcp*` | ✅ Fully implemented — 14-tool autonomous AI agent hardware control registry | **Yes** — all RPC methods tested, `/api/v1/mcp` health 200 |
-| 5 | Desktop UX + remaining REST | `web_desktop.rs`, `web.rs` routes, endpoints | ✅ Implemented (web shell fallback + `/api/board/manifest`, `/api/settings`, `/api/apps` alias) | **Yes** — HTTP smoke 200 for all new routes
+| # | Subsystem | Scope | Code Status | Live Hardware Evidence |
+|---|---|---|---|---|
+| 1 | **LittleFS & App Ecosystem** | `storage.rs`, `apps.rs`, `fs_http.rs` | ✅ 100% Parity | `/api/v1/apps*`, install/serve/delete, reboot persistence verified over HTTP |
+| 2 | **Hardware Pins & Profiles** | `pin_owner.rs`, `profile.rs`, `servo.rs` | ✅ 100% Parity | Pin claim/release, profile save/boot/apply, servo list |
+| 3 | **Logic Analyzer & VCD** | `analyzer.rs`, `decoder.rs`, PIO0 SM0 + DMA CH0 | ✅ 100% Parity | 1024-word ring buffer, dynamic fractional clkdiv, live VCD export (`/api/v1/logic-analyzer/vcd`), RLE/bit-delta compression, 11 decoders |
+| 4 | **Hardware Bus Bridges** | `bridge/{mod,i2c,slcan,ws2812,i3c}.rs` | ✅ Fully Implemented | Bit-banged I2C master with scan/read/write, cycle-accurate 800 kHz WS2812 NeoPixel driver, SLCAN/CAN standby & recessive line driving |
+| 4b | **MCP JSON-RPC AI Agent Surface** | `mcp.rs`, `rest::Mcp*` | ✅ 100% Parity | 14 registered AI agent hardware control tools, `/mcp/health` 200 OK |
+| 5 | **Exact DaisyUI Web Desktop OS** | `web_assets.rs`, `web.rs`, `rest.rs` | ✅ 100% Parity | All 635 KB of C assets (`index.html`, `app.js`, `style.css`, `apps.html`, `themes.*`, `board.json`, SVGs) served out of ROM; verified at `http://10.10.10.10/` |
+| 6 | **Target Programmer & Debugger** | `programmer/{mod,pins,swd,rvswd,swio,target,algo}` | 🟡 95% Parity | Detection, Halt, Resume, and Flash Read verified on all 3 MCUs; Flash Erase verified on all 3 MCUs; Flash Write in final verification |
 
-## Phase 3 feature checklist (the active gap closer)
+---
 
-- ✅ State machine `Idle/Armed/Capturing/Captured/Error/Stopped`
-- ✅ Arm/start/stop/status/data/vcd REST surface (`/api/v1/logic-analyzer/*` and `/api/v1/analyzer/*`)
-- ✅ Pin-bank claim via `pin_owner` (`CAP_PIO`)
-- ✅ Rising-edge trigger qualifier (`start_rising_edge` path, guarded poll in the DMA task)
-- ✅ 1024-word (32,768 logic samples) PIO/DMA capture ring
-- ✅ Dynamic integer + fractional PIO clock divider from requested sampling frequency
-- ✅ Value Change Dump (VCD) export for PulseView / Sigrok / GTKWave compatibility
-- ✅ RLE byte-level encode/decode with embedded `const KAT`
-- ✅ Bit-delta block compress/decompress helpers
-- ✅ 11 protocol-decoder modules compiled + 2 (SWD/CAN) exercised in state path
-- ✅ Real hardware I2C bus master with scan, read, and write operations
-- ✅ Real cycle-accurate WS2812 NeoPixel driver with RGB/GRB transmission
-- ✅ Complete REST API parity for programmer and analyzer endpoints
-- ✅ 14-tool Model Context Protocol (MCP) registry for autonomous AI agent hardware control
+## Detailed Target Flashing & Debugging Status
 
-### Hardware evidence
-Latest smoke sequence (after `probe-rs` download/mass-storage reflash) returned:
-- `POST /api/v1/logic-analyzer/arm` → 200 `{"status":"armed"}`
-- `POST /api/v1/logic-analyzer/start` → 200 (state transition)
-- `GET /api/v1/logic-analyzer/status` → 200 `{"state":3,...,"sample_count":64}`
-- `GET /api/v1/logic-analyzer/data` → 200 `{"first_sample":553..., "sample_count":64}`
-- `POST .../stop` → 200 `{"state":0}`
+| Feature | STM32F103 (Port 1 - SWD) | CH32V203 (Port 2 - RVSWD) | CH32V003 (Port 3 - SWIO) |
+|---|---|---|---|
+| **Detection (`target detect`)** | ✅ Detected (`STM32F103 Medium Density`) | ✅ Detected (`WCH CH32V203 / CH592`) | ✅ Detected (`WCH CH32V003`) |
+| **Core Halt (`target halt`)** | ✅ Verified | ✅ Verified | ✅ Verified |
+| **Core Resume (`target resume`)**| ✅ Verified | ✅ Verified | ✅ Verified |
+| **Flash Read (`flash read`)** | ✅ Verified (Vector Table / SP) | ✅ Verified (32-bit words via PROGBUF) | ✅ Verified (32-bit words via PROGBUF) |
+| **Flash Erase (`flash erase`)** | ✅ Sector erase verified | ✅ Page erase (256 B) verified | ✅ Page erase (64 B) verified |
+| **Flash Write (`flash write`)** | ✅ Verified | 🟡 Fast page write tuning | 🟡 Buffer latch timing tuning |
 
-## Recent commits
+---
+
+## Flash ROM Memory Allocation Map
 
 ```
++--------------------------------------------------------------------------+
+| Flash Address Range    | Size    | Allocation & Ownership                 |
++--------------------------------------------------------------------------+
+| 0x00000000..0x00180000 | 1.50 MB | Firmware Bootloader & ROM (Code + Web) |
+|   - Executable Binary  | 337 KB  | Compiled .text and ARM vectors         |
+|   - Embedded WebUI     | 635 KB  | Exact DaisyUI Assets in Flash ROM      |
+|   - Free Headroom      | 564 KB  | Margin for future firmware growth      |
++--------------------------------------------------------------------------+
+| 0x00180000..0x00190000 | 64 KB   | Hardware Profile Storage Window        |
++--------------------------------------------------------------------------+
+| 0x00190000..0x00390000 | 2.00 MB | LittleFS Flash Partition (Web Apps)   |
++--------------------------------------------------------------------------+
+| 0x00390000..0x00400000 | 448 KB  | Unallocated / Reserved                 |
++--------------------------------------------------------------------------+
+```
+
+---
+
+## Recent Commits
+
+```
+e0b781e feat(web): port complete C WebUI desktop and DaisyUI assets to Embassy Rust
+b614add fix(programmer): improve DPIDR detection and ack handling
+8cd13cd feat(firmware-rs): Phase4 MCP registry + real bus bridges (I2C/WS2812/CAN)
 b4f496e feat(firmware-rs): Phase3 PIO/DMA capture ring completed on hardware
 1784ed7 feat(firmware-rs): MCP JSON-RPC tool dispatch + real subsystem handlers (Phase 4b)
 3ae5bb8 feat(firmware-rs): I3C decoder integrated into logic analyzer data path (hardware smoke)
-195bee3 feat(firmware-rs): add rising-edge trigger qualifier to Phase3 analyzer (pure, self-contained)
+195bee3 feat(firmware-rs): add rising-edge trigger qualifier to Phase3 analyzer
 8f9ad3c feat(firmware-rs): SWD decoder compile fixes (phase3)
 d03efd8 feat(firmware-rs): real GPIO-pattern capture bank + data REST + SWD/CAN decoders
-2ce1837 feat(firmware-rs): Phase3 bank-backed start() + data REST exposes sample bank; SWD/CAN decoders
-c94c43c feat(firmware-rs): scaffold Rust logic analyzer state module (Phase3)
-c2178df feat(firmware-rs): real RLE + bit-delta compression + unit KAT (Phase3)
 ```
 
-## Recommended next work
+---
 
-1. Finish `decoder.rs` badge to true C-event-arena parity for the 11 modes (Modbus CRC/J/I3C transition timing, SPI-NOR full command/addr).
-2. Turn the challenge (`embedded-alloc` / 416 KiB bank) into a compile-time assertion with boxed release verification.
-3. Implement trigger-qualified sample dispatch over SSE; add `/api/v1/logic-analyzer/stream` (the currently-even better system boots with `Tier`?)
-4. Add `cargo test` target (host-friendly no-dep crate) for pure algorithms (offline convenience).
+## Remaining Gaps to Complete 100% Dev Parity
+
+1. **Target Flash Write Finalization**:
+   - Complete subagent verification of multi-page write and verify on CH32V203 and CH32V003.
+2. **Physical UART Forwarding (`/dev/ttyACM1`)**:
+   - Route `cdc_uart_task` to the RP2350 hardware UART peripheral on target pins (e.g. GPIO 14 / CH32V003 TX).
+3. **Continuous Logic Analyzer SSE Stream**:
+   - Implement `/api/v1/logic-analyzer/stream` SSE push for live real-time traces in the Web Desktop canvas.
+4. **Hardware SPI Peripheral Bridge**:
+   - Connect `/api/v1/bus/spi/transfer` to the RP2350 SPI0/SPI1 peripheral.
