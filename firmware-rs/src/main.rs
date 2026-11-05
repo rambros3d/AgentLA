@@ -29,6 +29,8 @@ pub mod programmer;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
+    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO0>;
+    DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH0>;
 });
 
 // ---------------------------------------------------------------------------
@@ -150,6 +152,10 @@ async fn main(spawner: embassy_executor::Spawner) {
     // Turn on status LED (GPIO 25) immediately to show CPU is running
     let mut led = embassy_rp::gpio::Output::new(p.PIN_25, embassy_rp::gpio::Level::High);
     led.set_high();
+
+    // Pre-take PIO0/DMA0 for the analyzer capture task.
+    let pio0 = p.PIO0;
+    let dma0 = p.DMA_CH0;
 
     defmt::info!("AgentLA RP2350 booting at 150 MHz...");
 

@@ -311,18 +311,62 @@ const _: () = {
 };
 
 pub fn capture_get_engine_mode_name() -> &'static str { "Raw" }
-
-
-// ---------- rising-edge trigger qualifier (pure state function) ----------
+// ---------- rising-edge trigger qualifier (pure, stateful) ----------
 pub fn rising_edge(samples: &[u8], trig_bit: u8) -> usize {
-    let mut i = 0usize; let mut count = 0usize; let n = samples.len();
-    if n == 0 { return 0; }
-    let mut prev = ((samples[0] >> trig_bit) & 1) != 0;
-    while i + 1 < n {
-        let cur = ((samples[i + 1] >> trig_bit) & 1) != 0;
+    let mut count = 0usize; let n=samples.len();
+    if n==0 { return 0; }
+    let mut prev = ((samples[0]>>trig_bit)&1)!=0;
+    let mut i=1usize;
+    while i<n {
+        let cur = ((samples[i]>>trig_bit)&1)!=0;
         if !prev && cur { count += 1; }
         prev = cur;
         i += 1;
     }
     count
+}
+pub fn finish_captured(slots: u32) { unsafe { SAMPLE_COUNT = slots.max(1); } STATE.store(State::Captured as u8, Ordering::Relaxed); }
+pub fn abort_capture() { STATE.store(State::Error as u8, Ordering::Relaxed); }
+
+use embassy_rp::pio::program::pio_asm;
+use embassy_rp::pio::{Config, Pio, ShiftConfig, ShiftDirection};
+use embassy_rp::dma;
+use embassy_rp::peripherals::{DMA_CH0, PIO0};
+use embassy_rp::Peri;
+use embassy_time::{Duration, Timer};
+
+#[embassy_executor::task]
+pub async fn capture_task(pio0: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>, dma0: embassy_rp::Peri<'static, embassy_rp::peripherals::DMA_CH0>) {
+    let Pio { mut common, sm0: mut sm, .. } = Pio::new(pio0, crate::Irqs);
+    let mut dma_ref = dma::Channel::new(dma0, crate::Irqs);
+    loop {
+        if state() == State::Capturing {
+            let mut bank = [0u32; 64];
+            let prg = pio_asm!(
+                ".wrap_target",
+                " in pins 32",
+                ".wrap",
+            );
+            let mut cfg = Config::default();
+            cfg.use_program(&common.load_program(&prg.program), &[]);
+            cfg.clock_divider = 1u8.into();
+            cfg.shift_in = ShiftConfig { auto_fill: true, threshold: 32, direction: ShiftDirection::Left };
+            sm.set_config(&cfg);
+            sm.set_enable(true);
+            {
+                let (rx, _tx) = sm.rx_tx();
+                rx.dma_pull(&mut dma_ref, &mut bank, false).await;
+                for i in 0..bank.len() {
+                    unsafe { if i < 64 { SAMPLE_RING[i] = bank[i]; } }
+                }
+                finish_captured(bank.len() as u32);
+            }
+            sm.set_enable(false);
+            while state() != State::Idle {
+                embassy_time::Timer::after(embassy_time::Duration::from_millis(1)).await;
+            }
+        } else {
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(5)).await;
+        }
+    }
 }
