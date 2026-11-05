@@ -41,8 +41,9 @@ pub fn debug_probe_bluepill_global() -> (u32, u8, u32) {
         let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
         swd_session.jtag_to_swd();
         let mut dpidr = 0u32;
+        let res = swd_session.read_dpidr_retry(&mut dpidr);
         let req = swd::SwdTransport::build_request(false, true, 0);
-        let ack = swd_session.transport.transfer(req, &mut dpidr);
+        let ack = if res.is_ok() { swd::SWD_ACK_OK } else { 7 };
         *pins = swd_session.release();
         (dpidr, ack, req as u32)
     })
