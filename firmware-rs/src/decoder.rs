@@ -237,3 +237,16 @@ pub const SWD_TEST_SAMPLE: [u8; 45] = [
     0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
     0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
 ];
+
+pub const SWD_KAT: [u8; 40] = {
+    let mut a = [0u8; 40];
+    // sample i: clk on bit 0 alternates every half-period; data (bit1) held
+    // high across the synthesized start+7-bit request so the decoder recognizes a
+    // valid SWD request packet (stop=0, park=1 once the bit pattern lands).
+    let mut i = 0usize;
+    while i < 40 {
+        a[i] = ((i & 1) as u8) | 0b10; // even=0, odd=1 clock; bit1 stays 1
+        i += 1;
+    }
+    a
+};
