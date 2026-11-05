@@ -20,19 +20,52 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
   - **Use Case**: Providing external MCO/HSE clock sources to un-brick MCUs with disabled internal RC oscillators; bench stimulus for PWM servos/motors.
   - **Reference**: `openspec/specs/digital-signal-generator/spec.md`.
 
+- [ ] **Addressable RGB LED Tester & Timing Analyzer (WS2812B / SK6812)**
+  - **Scope**: Dedicated PIO transmitter and receiver for WS2812B/SK6812 LED protocols.
+  - **Capabilities**: Drive test patterns (color wheels, sweeps, static RGBW) and measure timing margins (T0H, T0L, T1H, T1L, reset latch delay) to detect degraded signal integrity or timing violations on LED strings.
+  - **Endpoints**: `/api/v1/led/pattern`, `/api/v1/led/analyze`.
+
 - [ ] **Hardware Glitch & Fault Injection**
   - **Scope**: Cycle-accurate PIO-based voltage and clock glitching engine with nanosecond-resolution delay and pulse-width controls.
   - **Use Case**: Hardware security evaluation, fault injection testing, and brownout recovery verification.
 
 ---
 
-## 2. Target Debugging & Flashing Expansions
+## 2. Host-Native USB Kernel Interfaces (Driver-Free OS Integration)
+
+- [ ] **Linux USB SocketCAN Interface (`gs_usb`)**
+  - **Scope**: Emulate the Geschwister Schneider USB/CAN (`gs_usb`) protocol over a dedicated USB interface.
+  - **Benefit**: Zero-install native Linux support. Host kernel `gs_usb` module instantly attaches a standard network interface `can0` (`ip link set can0 up type can bitrate 500000`).
+  - **Compatibility**: Direct operation with `candump`, `cansend`, Wireshark, python-can, and ROS/ROS2 without custom user-space tools.
+
+- [ ] **Linux USB `i2c-tiny-usb` Interface**
+  - **Scope**: Implement the standard Linux kernel `i2c-tiny-usb` protocol.
+  - **Benefit**: Instantly exposes a native `/dev/i2c-X` device in Linux.
+  - **Compatibility**: Standard Linux tools (`i2cdetect`, `i2cget`, `i2cset`, `i2ctransfer`, `libgpiod`) work out-of-the-box over USB.
+
+---
+
+## 3. Target Debugging & Flashing Expansions
 
 - [ ] **Vendor UART Bootloader Recovery Engine**
   - **Scope**: ST AN3155 USART bootloader and WCH single-wire bootloader support.
   - **Orchestration**: Hardware control of `BOOT0` (GPIO 2) and `nRST` (GPIO 6/10/13) to force target into bootloader mode when SWD/debug access is locked (RDP Level 1/2 or misconfigured SWD pins).
   - **Actions**: Automated chip unprotect, flash mass-erase, and recovery binary loading.
   - **Reference**: `openspec/specs/bootloader-recovery/spec.md`.
+
+- [ ] **WCH CH32 RISC-V 1-Wire SDI / SWIO Debug Engine**
+  - **Scope**: Native PIO implementation of WCH proprietary single-wire SDI protocol for CH32V003, CH32V103, CH32V203, and CH32V307.
+  - **Capabilities**: Target detection, core halt/run, register/SRAM access, and flash erase/programming via RISC-V ProgBuf execution and debug module registers (`DMCONTROL`, `DMSTATUS`, `DATA0`).
+  - **Reference**: `openspec/specs/ch32-swio-pio/spec.md`.
+
+- [ ] **Generic Cortex-M Flash Algorithm Runner (CMSIS-Pack FLM / ELF)**
+  - **Scope**: Load standard ARM CMSIS-Pack flash algorithms (`.FLM` / `.ELF` containing `Init`, `UnInit`, `EraseSector`, `ProgramPage`) into target SRAM and execute them via SWD.
+  - **Benefit**: Enables AgentLA to flash virtually *any* ARM Cortex-M target (STM32, NXP LPC, SAM, GD32, Silicon Labs) without compiling chip-specific flashing logic into probe firmware.
+  - **Reference**: `openspec/specs/generic-cortexm-algo-runner/spec.md`.
+
+- [ ] **Hardened Connect-under-Reset & Vector Catch Engine**
+  - **Scope**: Robust hardware `nRST` assertion, vector catch (`DEMCR.VC_CORERESET`), and `AIRCR.SYSRESETREQ` / `VECTRESET` handling.
+  - **Benefit**: Prevents target from entering HardFault loops or sleep states (`WFI`) on power-up, reliably halting targets with corrupt flash (resolves BluePill `PC=0xFFFFFFFE` lockup).
 
 - [ ] **Raspberry Pi RP2040 & RP2350 Target Support**
   - **Scope**: SWD programming and rescue debugging for RP2040 and RP2350 targets using Raspberry Pi bootrom vectors and flash memory algorithms.
@@ -49,7 +82,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 3. AI Agent (MCP) Hardware Tools
+## 4. AI Agent (MCP) Hardware Tools
 
 - [ ] **Autonomous Target Circuit Diagnostic (`mcp_target_diagnose`)**
   - **Scope**: One-shot agent tool that inspects target rail voltage, tests pin pull-ups, identifies floating vs. driven lines, probes IDCODE/DPIDR, and determines if the MCU core is running, halted, or in a HardFault loop.
@@ -62,7 +95,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 4. Web Desktop & High-Throughput Streaming
+## 5. Web Desktop, Telemetry & Streaming
 
 - [ ] **In-Browser Web Serial Terminal App (`/apps/terminal`)**
   - **Scope**: An xterm.js terminal client inside the DaisyUI Web Desktop OS (`http://10.10.10.10/apps/terminal`).
@@ -72,12 +105,24 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
   - **Scope**: Native Sigrok driver backend or continuous framing over CDC-NCM Ethernet/TCP.
   - **Use Case**: Allows Pulseview to connect directly as an external capture device with 1 click.
 
-- [ ] **Continuous Multi-Megabyte DMA Streaming**
-  - **Scope**: Upgrade from snapshot ring buffers to continuous PIO+DMA streaming over CDC-NCM Ethernet, allowing multi-second continuous logic analyzer captures without missing edges.
+- [ ] **Continuous Multi-Megabyte DMA Streaming & Real-Time RLE Compression**
+  - **Scope**: Upgrade from snapshot ring buffers to continuous PIO+DMA streaming over CDC-NCM Ethernet with real-time Run-Length-Encoding (RLE) on RP2350 Core 1.
+  - **Benefit**: Multi-second continuous logic analyzer captures without missing edges or exhausting onboard RAM.
+
+- [ ] **On-Chip & In-Browser Protocol Decoders**
+  - **Scope**: Decoders for standard embedded protocols directly within the capture viewer:
+    - I2C (Address, Read/Write, Data, ACK/NACK)
+    - SPI (Modes 0–3, MOSI/MISO decoded hex/ASCII)
+    - UART (Baud auto-detection, framing check)
+    - CAN 2.0B & CAN-FD (Standard/Extended ID, DLC, Data, CRC)
+    - 1-Wire / Dallas (ROM search, Scratchpad read)
+    - DMX512 (Break, MAB, 512-channel slot frames)
+    - Modbus RTU (Slave address, function code, CRC16)
+    - MIPI I3C SDR (Dynamic Address Assignment, IBI)
 
 ---
 
-## 5. Factory Test & Bench Automation (FCT Station)
+## 6. Factory Test & Bench Automation (FCT Station)
 
 - [ ] **Dynamic Current & Sleep Profiling with Overcurrent Trip (BakuProbe INA180)**
   - **Scope**: BakuProbe onboard TI INA180 current sense circuit integration.
