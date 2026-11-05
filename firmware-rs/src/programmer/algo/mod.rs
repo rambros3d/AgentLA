@@ -180,12 +180,6 @@ impl FlashAlgorithmRunner {
     // Direct hardware flash unlock and operations for STM32F1 & PY32
     pub fn stm32f1_unlock(cortex: &mut CortexM) -> Result<(), AlgoError> {
         let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-        let mut cr = 0u32;
-        if cortex.swd.read_ap(crate::programmer::swd::AP_DRW, &mut cr).is_ok() && (cr & 0x80) == 0 {
-            // Already unlocked
-            return Ok(());
-        }
         let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022004);
         let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x45670123);
         let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022004);

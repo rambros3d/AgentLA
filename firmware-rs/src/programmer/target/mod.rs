@@ -22,13 +22,7 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
         TargetPort::BluePill => {
             // ARM SWD on GPIO 4 (SWCLK), 5 (SWDIO)
             let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-            swd_session.jtag_to_swd();
-
-            let mut dpidr = 0u32;
-            if swd_session.read_dpidr_retry(&mut dpidr).is_ok()
-                && dpidr != 0
-                && dpidr != 0xFFFFFFFF
-            {
+            if let Ok(dpidr) = swd_session.attach() {
                 let mut cortex = CortexM::new(&mut swd_session.transport);
 
                 let mut dbgmcu_id = 0u32;
@@ -54,8 +48,8 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
         }
         TargetPort::Ch32v203 => {
             // First try WCH 2-Wire RVSWD on GPIO 8 (SWCLK), 9 (SWDIO)
-            let rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
-            if let Ok(dmstatus) = rvswd_session.read(0x11) {
+            let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+            if let Ok(dmstatus) = rvswd_session.attach() {
                 if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
                     let info = targets::ch32v203_info(dmstatus);
                     *pins = rvswd_session.release();
@@ -82,8 +76,8 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
             *pins = swd_session.release();
 
             // Next try 1-wire SWIO on GPIO 9
-            let swio_session = pins.into_swio_port(TargetPort::Ch32v203);
-            if let Ok(dmstatus) = swio_session.get(0x11) {
+            let mut swio_session = pins.into_swio_port(TargetPort::Ch32v203);
+            if let Ok(dmstatus) = swio_session.attach() {
                 if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
                     let part_id = swio_session.get(0x7F).unwrap_or(dmstatus);
                     let info = targets::ch32v203_info(part_id);
@@ -97,8 +91,8 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
         }
         TargetPort::Ch32v003 => {
             // WCH 1-Wire SWIO on GPIO 12
-            let swio_session = pins.into_swio_port(TargetPort::Ch32v003);
-            if let Ok(dmstatus) = swio_session.get(0x11) {
+            let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+            if let Ok(dmstatus) = swio_session.attach() {
                 if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
                     let part_id = swio_session.get(0x7F).unwrap_or(dmstatus);
                     let info = targets::ch32v003_info(part_id);

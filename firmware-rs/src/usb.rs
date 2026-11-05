@@ -321,11 +321,15 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                         }
                         cmd if cmd.eq_ignore_ascii_case("target detect ch32v003") => {
                             write_str(&mut class, "Probing Port 3 [CH32V003 (GPIO 12 SWIO, 13 nRST, 14 TX)]...\r\n").await;
-                            let (dmstatus, partid) = crate::programmer::debug_probe_ch32v003_global();
+                            let (dmstatus, partid, abstractcs, hartinfo) = crate::programmer::debug_probe_ch32v003_global();
                             write_str(&mut class, "  DMSTATUS: ").await;
                             write_hex_u32(&mut class, dmstatus).await;
                             write_str(&mut class, "  PARTID: ").await;
                             write_hex_u32(&mut class, partid).await;
+                            write_str(&mut class, "  ABSTRACTCS: ").await;
+                            write_hex_u32(&mut class, abstractcs).await;
+                            write_str(&mut class, "  HARTINFO: ").await;
+                            write_hex_u32(&mut class, hartinfo).await;
                             write_str(&mut class, "\r\n").await;
                             match crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003) {
                                 Ok(t) => print_target_info(&mut class, &t).await,
@@ -392,21 +396,34 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                                 write_str(&mut class, "Usage:\r\n  flash read [bluepill|ch32v203|ch32v003]\r\n  flash erase [bluepill|ch32v203|ch32v003]\r\n  flash write [bluepill|ch32v203|ch32v003]\r\n").await;
                             } else if sub.len() >= 4 && sub[..4].eq_ignore_ascii_case("read") {
                                 let arg = sub[4..].trim();
-                                let (port, label, is_arm) = match arg {
+                                let mut parts = arg.split_whitespace();
+                                let target_name = parts.next().unwrap_or("");
+                                let (port, label, is_arm) = match target_name {
                                     a if a.eq_ignore_ascii_case("ch32v203") => (crate::programmer::TargetPort::Ch32v203, "Port 2 [CH32V203]", false),
                                     a if a.eq_ignore_ascii_case("ch32v003") => (crate::programmer::TargetPort::Ch32v003, "Port 3 [CH32V003]", false),
                                     _ => (crate::programmer::TargetPort::BluePill, "Port 1 [BluePill]", true),
                                 };
+                                let mut read_addr = 0x08000000u32;
+                                if let Some(addr_str) = parts.next() {
+                                    let clean = addr_str.trim_start_matches("0x").trim_start_matches("0X");
+                                    if let Ok(a) = u32::from_str_radix(clean, 16) {
+                                        read_addr = a;
+                                    }
+                                }
                                 let mut buf = [0u8; 16];
-                                match crate::programmer::read_flash_port_global(port, 0x08000000, &mut buf) {
+                                match crate::programmer::read_flash_port_global(port, read_addr, &mut buf) {
                                     Ok(_) => {
                                         write_str(&mut class, label).await;
-                                        write_str(&mut class, " Flash [0x08000000..0x08000010]:\r\n").await;
+                                        write_str(&mut class, " Flash [0x").await;
+                                        write_hex_u32(&mut class, read_addr).await;
+                                        write_str(&mut class, "..0x").await;
+                                        write_hex_u32(&mut class, read_addr + 16).await;
+                                        write_str(&mut class, "]:\r\n").await;
                                         let w0 = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
                                         let w1 = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]);
                                         let w2 = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
                                         let w3 = u32::from_le_bytes([buf[12], buf[13], buf[14], buf[15]]);
-                                        if is_arm {
+                                        if is_arm && read_addr == 0x08000000 {
                                             write_str(&mut class, "  0x08000000 (SP):           ").await;
                                             write_hex_u32(&mut class, w0).await;
                                             write_str(&mut class, "\r\n  0x08000004 (Reset Vector): ").await;
@@ -416,13 +433,13 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                                             write_str(&mut class, "\r\n  0x0800000C (HardFault):    ").await;
                                             write_hex_u32(&mut class, w3).await;
                                         } else {
-                                            write_str(&mut class, "  0x08000000 (Word 0):       ").await;
+                                            write_str(&mut class, "  Word 0:                     ").await;
                                             write_hex_u32(&mut class, w0).await;
-                                            write_str(&mut class, "\r\n  0x08000004 (Word 1):       ").await;
+                                            write_str(&mut class, "\r\n  Word 1:                     ").await;
                                             write_hex_u32(&mut class, w1).await;
-                                            write_str(&mut class, "\r\n  0x08000008 (Word 2):       ").await;
+                                            write_str(&mut class, "\r\n  Word 2:                     ").await;
                                             write_hex_u32(&mut class, w2).await;
-                                            write_str(&mut class, "\r\n  0x0800000C (Word 3):       ").await;
+                                            write_str(&mut class, "\r\n  Word 3:                     ").await;
                                             write_hex_u32(&mut class, w3).await;
                                         }
                                         write_str(&mut class, "\r\n  Raw bytes: ").await;
@@ -436,8 +453,15 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                                         }
                                         write_str(&mut class, "\r\n").await;
                                     }
-                                    Err(_) => {
-                                        write_str(&mut class, "Error reading target flash.\r\n").await;
+                                    Err(e) => {
+                                        write_str(&mut class, "Error reading target flash (").await;
+                                        match e {
+                                            crate::programmer::target::TargetError::FlashErrorCode(c) => write_hex_u32(&mut class, c).await,
+                                            crate::programmer::target::TargetError::ProtocolError => write_str(&mut class, "proto").await,
+                                            crate::programmer::target::TargetError::Timeout => write_str(&mut class, "timeout").await,
+                                            _ => write_str(&mut class, "err").await,
+                                        }
+                                        write_str(&mut class, ").\r\n").await;
                                     }
                                 }
                             } else if sub.len() >= 5 && sub[..5].eq_ignore_ascii_case("erase") {
@@ -468,10 +492,10 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                                 }
                             } else if sub.len() >= 5 && sub[..5].eq_ignore_ascii_case("write") {
                                 let arg = sub[5..].trim();
-                                let (port, label, addr, erase_len) = match arg {
-                                    a if a.eq_ignore_ascii_case("ch32v203") => (crate::programmer::TargetPort::Ch32v203, "Port 2 [CH32V203]", 0x0800F000u32, 256u32),
-                                    a if a.eq_ignore_ascii_case("ch32v003") => (crate::programmer::TargetPort::Ch32v003, "Port 3 [CH32V003]", 0x08003F00u32, 64u32),
-                                    _ => (crate::programmer::TargetPort::BluePill, "Port 1 [BluePill]", 0x0800FC00u32, 1024u32),
+                                let (port, label, addr) = match arg {
+                                    a if a.eq_ignore_ascii_case("ch32v203") => (crate::programmer::TargetPort::Ch32v203, "Port 2 [CH32V203]", 0x0800F000u32),
+                                    a if a.eq_ignore_ascii_case("ch32v003") => (crate::programmer::TargetPort::Ch32v003, "Port 3 [CH32V003]", 0x08003F00u32),
+                                    _ => (crate::programmer::TargetPort::BluePill, "Port 1 [BluePill]", 0x0800FC00u32),
                                 };
                                 let pattern: [u8; 16] = [
                                     0xAA, 0x55, 0x12, 0x34, 0xBE, 0xEF, 0xCA, 0xFE,
@@ -482,27 +506,21 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
                                 write_str(&mut class, " at ").await;
                                 write_hex_u32(&mut class, addr).await;
                                 write_str(&mut class, "...\r\n").await;
-                                if let Err(e) = crate::programmer::erase_flash_port_global(port, addr, erase_len) {
-                                    write_str(&mut class, "Error: Pre-write erase failed (").await;
-                                    match e {
-                                        crate::programmer::target::TargetError::FlashErrorCode(c) => write_hex_u32(&mut class, c).await,
-                                        _ => write_str(&mut class, "err").await,
+                                match crate::programmer::flash_target_port_global(port, addr, &pattern) {
+                                    Ok(_) => {
+                                        write_str(&mut class, label).await;
+                                        write_str(&mut class, " flash program & verify successful.\r\n").await;
                                     }
-                                    write_str(&mut class, ").\r\n").await;
-                                } else {
-                                    match crate::programmer::flash_target_port_global(port, addr, &pattern) {
-                                        Ok(_) => {
-                                            write_str(&mut class, label).await;
-                                            write_str(&mut class, " flash program & verify successful.\r\n").await;
+                                    Err(e) => {
+                                        write_str(&mut class, "Error: Flash program/verify failed (").await;
+                                        match e {
+                                            crate::programmer::target::TargetError::FlashErrorCode(c) => write_hex_u32(&mut class, c).await,
+                                            crate::programmer::target::TargetError::ProtocolError => write_str(&mut class, "proto").await,
+                                            crate::programmer::target::TargetError::Timeout => write_str(&mut class, "timeout").await,
+                                            crate::programmer::target::TargetError::FlashError => write_str(&mut class, "flasherror").await,
+                                            _ => write_str(&mut class, "err").await,
                                         }
-                                        Err(e) => {
-                                            write_str(&mut class, "Error: Flash program/verify failed (").await;
-                                            match e {
-                                                crate::programmer::target::TargetError::FlashErrorCode(c) => write_hex_u32(&mut class, c).await,
-                                                _ => write_str(&mut class, "err").await,
-                                            }
-                                            write_str(&mut class, ").\r\n").await;
-                                        }
+                                        write_str(&mut class, ").\r\n").await;
                                     }
                                 }
                             } else {

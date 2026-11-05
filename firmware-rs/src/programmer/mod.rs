@@ -12,7 +12,7 @@ use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 pub use pins::TargetPort;
-use pins::ProgrammerPins;
+use pins::{ProgrammerPins, pulse_reset_pin};
 use target::cortex_m::CortexM;
 use target::qingke::QingKe;
 use target::targets::TargetInfo;
@@ -39,11 +39,9 @@ pub fn debug_probe_bluepill_global() -> (u32, u8, u32) {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
         let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-        swd_session.jtag_to_swd();
-        let mut dpidr = 0u32;
-        let res = swd_session.read_dpidr_retry(&mut dpidr);
+        let dpidr = swd_session.attach().unwrap_or(0);
         let req = swd::SwdTransport::build_request(false, true, 0);
-        let ack = if res.is_ok() { swd::SWD_ACK_OK } else { 7 };
+        let ack = if dpidr != 0 { swd::SWD_ACK_OK } else { 7 };
         *pins = swd_session.release();
         (dpidr, ack, req as u32)
     })
@@ -59,14 +57,16 @@ pub fn debug_probe_ch32v203_global() -> (u32, u32) {
     })
 }
 
-pub fn debug_probe_ch32v003_global() -> (u32, u32) {
+pub fn debug_probe_ch32v003_global() -> (u32, u32, u32, u32) {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
-        let swio_session = pins.into_swio_port(TargetPort::Ch32v003);
-        let dmstatus = swio_session.get(0x11).unwrap_or(0xDEADBEEF);
-        let partid = swio_session.get(0x7F).unwrap_or(0xDEADBEEF);
+        let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+        let dmstatus = swio_session.attach().unwrap_or(0);
+        let partid = swio_session.get(0x7F).unwrap_or(0);
+        let abstractcs = swio_session.get(0x16).unwrap_or(0);
+        let hartinfo = swio_session.get(0x12).unwrap_or(0);
         *pins = swio_session.release();
-        (dmstatus, partid)
+        (dmstatus, partid, abstractcs, hartinfo)
     })
 }
 
@@ -84,6 +84,7 @@ pub fn halt_target_port_global(port: TargetPort) -> Result<(), TargetError> {
             }
             TargetPort::Ch32v203 => {
                 let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+                let _ = rvswd_session.attach();
                 let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
                 let res = qk.halt().map_err(|_| TargetError::Timeout);
                 *pins = rvswd_session.release();
@@ -91,6 +92,7 @@ pub fn halt_target_port_global(port: TargetPort) -> Result<(), TargetError> {
             }
             TargetPort::Ch32v003 => {
                 let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+                let _ = swio_session.attach();
                 let mut qk = QingKe::new_1wire(&mut swio_session.transport);
                 let res = qk.halt().map_err(|_| TargetError::Timeout);
                 *pins = swio_session.release();
@@ -114,6 +116,7 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
             }
             TargetPort::Ch32v203 => {
                 let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+                let _ = rvswd_session.attach();
                 let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
                 let res = qk.resume().map_err(|_| TargetError::Timeout);
                 *pins = rvswd_session.release();
@@ -121,6 +124,7 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
             }
             TargetPort::Ch32v003 => {
                 let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+                let _ = swio_session.attach();
                 let mut qk = QingKe::new_1wire(&mut swio_session.transport);
                 let res = qk.resume().map_err(|_| TargetError::Timeout);
                 *pins = swio_session.release();
@@ -130,39 +134,59 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
     })
 }
 
+pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, addr: u32, buf: &mut [u8]) -> Result<(), TargetError> {
+    match port {
+        TargetPort::BluePill => {
+            let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+            swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+            let mut cortex = CortexM::new(&mut swd_session.transport);
+            let _ = cortex.halt();
+            let res = cortex
+                .mem_read_block(addr, buf)
+                .map_err(|_| TargetError::ProtocolError);
+            let _ = cortex.resume();
+            *pins = swd_session.release();
+            res
+        }
+        TargetPort::Ch32v203 => {
+            let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+            let _ = rvswd_session.attach();
+            let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
+            let _ = qk.halt();
+            let res = qk
+                .mem_read_block(addr, buf)
+                .map_err(|e| match e {
+                    target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                    target::qingke::QingKeError::Timeout => TargetError::FlashErrorCode(992),
+                    _ => TargetError::ProtocolError,
+                });
+            let _ = qk.resume();
+            *pins = rvswd_session.release();
+            res
+        }
+        TargetPort::Ch32v003 => {
+            let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+            let _ = swio_session.attach();
+            let mut qk = QingKe::new_1wire(&mut swio_session.transport);
+            let _ = qk.halt();
+            let res = qk
+                .mem_read_block(addr, buf)
+                .map_err(|e| match e {
+                    target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                    target::qingke::QingKeError::Timeout => TargetError::FlashErrorCode(992),
+                    _ => TargetError::ProtocolError,
+                });
+            let _ = qk.resume();
+            *pins = swio_session.release();
+            res
+        }
+    }
+}
+
 pub fn read_flash_port_global(port: TargetPort, addr: u32, buf: &mut [u8]) -> Result<(), TargetError> {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
-        match port {
-            TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
-                let mut cortex = CortexM::new(&mut swd_session.transport);
-                let res = cortex
-                    .mem_read_block(addr, buf)
-                    .map_err(|_| TargetError::ProtocolError);
-                *pins = swd_session.release();
-                res
-            }
-            TargetPort::Ch32v203 => {
-                let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
-                let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
-                let res = qk
-                    .mem_read_block(addr, buf)
-                    .map_err(|_| TargetError::ProtocolError);
-                *pins = rvswd_session.release();
-                res
-            }
-            TargetPort::Ch32v003 => {
-                let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
-                let mut qk = QingKe::new_1wire(&mut swio_session.transport);
-                let res = qk
-                    .mem_read_block(addr, buf)
-                    .map_err(|_| TargetError::ProtocolError);
-                *pins = swio_session.release();
-                res
-            }
-        }
+        read_flash_port_internal(&mut *pins, port, addr, buf)
     })
 }
 
@@ -172,12 +196,12 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+                swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
-                cortex.halt().map_err(|_| TargetError::Timeout)?;
+                cortex.halt().map_err(|_| TargetError::FlashErrorCode(0x2001))?;
                 let sector_size = 1024u32;
                 let start_addr = addr & !(sector_size - 1);
-                let end_addr = (addr + len + sector_size - 1) & !(sector_size - 1);
+                let end_addr = addr + len;
                 let mut curr = start_addr;
                 while curr < end_addr {
                     FlashAlgorithmRunner::stm32f1_erase_sector(&mut cortex, curr)
@@ -187,52 +211,46 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
                         })?;
                     curr += sector_size;
                 }
-                // Lock flash before resuming
+                // Lock flash before releasing
                 let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
                 let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
                 let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
-                let _ = cortex.resume();
                 *pins = swd_session.release();
                 Ok(())
             }
             TargetPort::Ch32v203 => {
                 let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+                let _ = rvswd_session.attach();
                 let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
                 qk.halt().map_err(|_| TargetError::Timeout)?;
                 // Unlock
-                qk.mem_write32(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(101))?;
-                qk.mem_write32(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(102))?;
-                qk.mem_write32(0x40022024, 0x45670123).map_err(|_| TargetError::FlashErrorCode(103))?;
-                qk.mem_write32(0x40022024, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(104))?;
+                qk.mem_write32_halted(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(101))?;
+                qk.mem_write32_halted(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(102))?;
+                let _ = qk.mem_write32_halted(0x40022024, 0x45670123);
+                let _ = qk.mem_write32_halted(0x40022024, 0xCDEF89AB);
 
                 let page_sz = 256u32;
                 let start_addr = addr & !(page_sz - 1);
-                let end_addr = (addr + len + page_sz - 1) & !(page_sz - 1);
+                let end_addr = addr + len;
                 let mut curr = start_addr;
                 while curr < end_addr {
-                    qk.mem_write32(0x40022010, 1 << 17).map_err(|_| TargetError::FlashErrorCode(105))?; // FTER
-                    qk.mem_write32(0x40022014, curr).map_err(|_| TargetError::FlashErrorCode(106))?; // ADDR
-                    qk.mem_write32(0x40022010, (1 << 17) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(107))?; // FTER | STRT
+                    qk.mem_write32_halted(0x40022010, 1 << 17).map_err(|_| TargetError::FlashErrorCode(105))?; // FTER
+                    qk.mem_write32_halted(0x40022014, curr).map_err(|_| TargetError::FlashErrorCode(106))?; // ADDR
+                    qk.mem_write32_halted(0x40022010, (1 << 17) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(107))?; // FTER | STRT
 
                     cortex_m::asm::delay(75_000); // 500 µs initial delay (matching ch32.c)
                     let mut busy = true;
                     for _ in 0..1000 {
-                        let statr = qk.mem_read32(0x4002200C).map_err(|e| match e {
-                            target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(1080 + c),
-                            target::qingke::QingKeError::Timeout => TargetError::FlashErrorCode(0x7771),
-                            target::qingke::QingKeError::WireError => TargetError::FlashErrorCode(0x7772),
-                            target::qingke::QingKeError::CommandError => TargetError::FlashErrorCode(0x7773),
-                            target::qingke::QingKeError::RvswdParity => TargetError::FlashErrorCode(0x7774),
-                            target::qingke::QingKeError::RvswdTimeout => TargetError::FlashErrorCode(0x7775),
-                        })?;
-                        if (statr & 1) == 0 {
-                            if (statr & 0x14) != 0 {
-                                let _ = qk.mem_write32(0x4002200C, 0x14); // W1C
-                                *pins = rvswd_session.release();
-                                return Err(TargetError::FlashErrorCode(statr));
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                if (statr & 0x14) != 0 {
+                                    let _ = qk.mem_write32_halted(0x4002200C, 0x14); // W1C
+                                    *pins = rvswd_session.release();
+                                    return Err(TargetError::FlashErrorCode(statr));
+                                }
+                                busy = false;
+                                break;
                             }
-                            busy = false;
-                            break;
                         }
                         cortex_m::asm::delay(7500);
                     }
@@ -243,49 +261,46 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
                     curr += page_sz;
                 }
 
-                let _ = qk.mem_write32(0x40022010, 0);
-                let _ = qk.mem_write32(0x40022010, 1 << 15); // FLOCK
+                let _ = qk.mem_write32_halted(0x40022010, 0);
+                let _ = qk.mem_write32_halted(0x40022010, 1 << 15); // FLOCK
                 let _ = qk.resume();
                 *pins = rvswd_session.release();
                 Ok(())
             }
             TargetPort::Ch32v003 => {
                 let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+                let _ = swio_session.attach();
                 let mut qk = QingKe::new_1wire(&mut swio_session.transport);
                 qk.halt().map_err(|_| TargetError::Timeout)?;
-                // Unlock
-                qk.mem_write32(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(301))?;
-                qk.mem_write32(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(302))?;
-                qk.mem_write32(0x40022024, 0x45670123).map_err(|_| TargetError::FlashErrorCode(303))?;
-                qk.mem_write32(0x40022024, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(304))?;
+                // Unlock KEYR and MODEKEYR
+                qk.mem_write32_halted(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(301))?;
+                qk.mem_write32_halted(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(302))?;
+                let _ = qk.mem_write32_halted(0x40022024, 0x45670123);
+                let _ = qk.mem_write32_halted(0x40022024, 0xCDEF89AB);
 
                 let page_sz = 64u32;
                 let start_addr = addr & !(page_sz - 1);
-                let end_addr = (addr + len + page_sz - 1) & !(page_sz - 1);
+                let end_addr = addr + len;
                 let mut curr = start_addr;
                 while curr < end_addr {
-                    qk.mem_write32(0x40022014, curr).map_err(|_| TargetError::FlashErrorCode(305))?; // ADDR
-                    qk.mem_write32(0x40022010, (1 << 1) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(306))?; // PER | STRT
+                    qk.mem_write32_halted(0x40022014, curr).map_err(|_| TargetError::FlashErrorCode(305))?; // ADDR
+                    qk.mem_write32_halted(0x40022010, (1 << 1) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(306))?; // PER | STRT
 
-                    cortex_m::asm::delay(75_000); // 500 µs initial delay
-                    let mut busy = true;
-                    for _ in 0..1000 {
-                        let statr = qk.mem_read32(0x4002200C).map_err(|_| TargetError::FlashErrorCode(307))?;
-                        if (statr & 1) == 0 {
-                            busy = false;
-                            break;
+                    cortex_m::asm::delay(450_000); // 3 ms initial delay
+                    for _ in 0..100 {
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                break;
+                            }
                         }
-                        cortex_m::asm::delay(7500);
+                        cortex_m::asm::delay(15_000);
                     }
-                    if busy {
-                        *pins = swio_session.release();
-                        return Err(TargetError::Timeout);
-                    }
+                    let _ = qk.mem_write32_halted(0x40022010, 0);
                     curr += page_sz;
                 }
 
-                let _ = qk.mem_write32(0x40022010, 0);
-                let _ = qk.mem_write32(0x40022010, 1 << 7); // LOCK
+                let _ = qk.mem_write32_halted(0x40022010, 0);
+                let _ = qk.mem_write32_halted(0x40022010, 1 << 7); // LOCK
                 let _ = qk.resume();
                 *pins = swio_session.release();
                 Ok(())
@@ -300,17 +315,32 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+                swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
-                cortex.halt().map_err(|_| TargetError::Timeout)?;
+                cortex.halt().map_err(|_| TargetError::FlashErrorCode(0x2001))?;
+
+                // 1. Erase sector(s) covering destination
+                let sector_size = 1024u32;
+                let mut curr_sector = addr & !(sector_size - 1);
+                let end_addr = addr + data.len() as u32;
+                while curr_sector < end_addr {
+                    FlashAlgorithmRunner::stm32f1_erase_sector(&mut cortex, curr_sector)
+                        .map_err(|e| match e {
+                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x3000 | (code & 0xFF)),
+                            _ => TargetError::FlashErrorCode(0x30FF),
+                        })?;
+                    curr_sector += sector_size;
+                }
+
+                // 2. Program pages
                 let page_size = 1024usize;
                 let mut offset = 0usize;
                 while offset < data.len() {
                     let chunk_len = (data.len() - offset).min(page_size);
                     FlashAlgorithmRunner::stm32f1_program_page(&mut cortex, addr + offset as u32, &data[offset..offset + chunk_len])
                         .map_err(|e| match e {
-                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
-                            _ => TargetError::FlashError,
+                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x4000 | (code & 0xFF)),
+                            _ => TargetError::FlashErrorCode(0x40FF),
                         })?;
                     offset += chunk_len;
                 }
@@ -325,7 +355,7 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                 while v_offset < data.len() {
                     let chunk_len = (data.len() - v_offset).min(readback.len());
                     cortex.mem_read_block(addr + v_offset as u32, &mut readback[..chunk_len])
-                        .map_err(|_| TargetError::ProtocolError)?;
+                        .map_err(|_| TargetError::FlashErrorCode(0x6001))?;
                     if readback[..chunk_len] != data[v_offset..v_offset + chunk_len] {
                         let _ = cortex.resume();
                         *pins = swd_session.release();
@@ -333,27 +363,65 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                     }
                     v_offset += chunk_len;
                 }
-                let _ = cortex.resume();
                 *pins = swd_session.release();
                 Ok(())
             }
             TargetPort::Ch32v203 => {
                 let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+                let _ = rvswd_session.attach();
                 let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
                 qk.halt().map_err(|_| TargetError::Timeout)?;
-                qk.mem_write32(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(201))?;
-                qk.mem_write32(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(202))?;
-                qk.mem_write32(0x40022024, 0x45670123).map_err(|_| TargetError::FlashErrorCode(203))?;
-                qk.mem_write32(0x40022024, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(204))?;
 
+                // Unlock flash
+                qk.mem_write32_halted(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(201))?;
+                qk.mem_write32_halted(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(202))?;
+                let _ = qk.mem_write32_halted(0x40022024, 0x45670123);
+                let _ = qk.mem_write32_halted(0x40022024, 0xCDEF89AB);
+
+                // 1. Fast Page Erase
                 let page_sz = 256usize;
+                let start_addr = addr & !(page_sz as u32 - 1);
+                let end_addr = (addr + data.len() as u32 + page_sz as u32 - 1) & !(page_sz as u32 - 1);
+                let mut curr = start_addr;
+                while curr < end_addr {
+                    qk.mem_write32_halted(0x40022010, 1 << 17).map_err(|_| TargetError::FlashErrorCode(205))?; // FTER
+                    qk.mem_write32_halted(0x40022014, curr).map_err(|_| TargetError::FlashErrorCode(206))?; // ADDR
+                    qk.mem_write32_halted(0x40022010, (1 << 17) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(207))?; // FTER | STRT
+
+                    cortex_m::asm::delay(75_000); // 500 µs
+                    let mut busy = true;
+                    for _ in 0..1000 {
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                if (statr & 0x14) != 0 {
+                                    let _ = qk.mem_write32_halted(0x4002200C, 0x14);
+                                    *pins = rvswd_session.release();
+                                    return Err(TargetError::FlashErrorCode(statr));
+                                }
+                                busy = false;
+                                break;
+                            }
+                        }
+                        cortex_m::asm::delay(7500);
+                    }
+                    if busy {
+                        *pins = rvswd_session.release();
+                        return Err(TargetError::Timeout);
+                    }
+                    curr += page_sz as u32;
+                }
+
+                // 2. Program pages via hardware fast page controller (matches ch32.c lines 600-635)
                 let mut offset = 0usize;
                 while offset < data.len() {
                     let page_addr = addr + offset as u32;
                     let chunk_len = (data.len() - offset).min(page_sz);
 
-                    qk.mem_write32(0x40022010, (1 << 16) | (1 << 19)).map_err(|_| TargetError::FlashErrorCode(205))?; // FTPG | BUFRST
-                    qk.mem_write32(0x40022014, page_addr).map_err(|_| TargetError::FlashErrorCode(206))?;
+                    // Reset buffer & arm FTPG (FTPG | BUFRST), set page address
+                    qk.mem_write32_halted(0x40022010, (1 << 16) | (1 << 19))
+                        .map_err(|_| TargetError::FlashErrorCode(209))?;
+                    qk.mem_write32_halted(0x40022014, page_addr)
+                        .map_err(|_| TargetError::FlashErrorCode(210))?;
 
                     for b in (0..page_sz).step_by(4) {
                         let mut word = 0xFFFFFFFFu32;
@@ -370,72 +438,113 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                             bytes[..rem].copy_from_slice(&data[offset + b..offset + b + rem]);
                             word = u32::from_le_bytes(bytes);
                         }
-                        qk.mem_write32(page_addr + b as u32, word).map_err(|_| TargetError::FlashErrorCode(207))?;
+                        qk.mem_write32_halted(page_addr + b as u32, word)
+                            .map_err(|e| match e {
+                                target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                                _ => TargetError::FlashErrorCode(211),
+                            })?;
                     }
 
-                    qk.mem_write32(0x40022010, (1 << 16) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(208))?; // FTPG | STRT
+                    // Trigger fast page write (FTPG | STRT)
+                    qk.mem_write32_halted(0x40022010, (1 << 16) | (1 << 6))
+                        .map_err(|_| TargetError::FlashErrorCode(212))?;
 
-                    cortex_m::asm::delay(75_000); // 500 µs initial delay
-                    let mut busy = true;
-                    for _ in 0..1000 {
-                        let statr = qk.mem_read32(0x4002200C).map_err(|_| TargetError::FlashErrorCode(209))?;
-                        if (statr & 1) == 0 {
-                            if (statr & 0x14) != 0 {
-                                let _ = qk.mem_write32(0x4002200C, 0x14);
-                                *pins = rvswd_session.release();
-                                return Err(TargetError::FlashErrorCode(statr));
+                    cortex_m::asm::delay(450_000); // 3 ms
+                    for _ in 0..100 {
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                if (statr & 0x14) != 0 {
+                                    let _ = qk.mem_write32_halted(0x4002200C, 0x14);
+                                }
+                                break;
                             }
-                            busy = false;
-                            break;
                         }
-                        cortex_m::asm::delay(7500);
+                        cortex_m::asm::delay(15_000);
                     }
-                    if busy {
-                        *pins = rvswd_session.release();
-                        return Err(TargetError::Timeout);
-                    }
-
                     offset += chunk_len;
                 }
 
-                let _ = qk.mem_write32(0x40022010, 0);
-                let _ = qk.mem_write32(0x40022010, 1 << 15); // FLOCK
+                // Clear programming mode and lock flash to re-enable read mode
+                let _ = qk.mem_write32_halted(0x40022010, 0);
+                let _ = qk.mem_write32_halted(0x40022010, 1 << 15); // FLOCK
+                let _ = qk.mem_write32_halted(0x4002200C, 1 << 5); // Clear EOP
+                let _ = qk.resume();
+                *pins = rvswd_session.release();
 
-                // Verify
-                let mut verify_buf = [0u8; 64];
+                cortex_m::asm::delay(1_500_000); // 10 ms settling
+
+                // Verify using clean read session
+                let mut readback = [0u8; 64];
                 let mut v_offset = 0usize;
                 while v_offset < data.len() {
-                    let chunk = (data.len() - v_offset).min(verify_buf.len());
-                    qk.mem_read_block(addr + v_offset as u32, &mut verify_buf[..chunk])
-                        .map_err(|_| TargetError::FlashErrorCode(210))?;
-                    if verify_buf[..chunk] != data[v_offset..v_offset + chunk] {
-                        let _ = qk.resume();
-                        *pins = rvswd_session.release();
-                        return Err(TargetError::FlashErrorCode(0xDEADBEE2));
+                    let chunk = (data.len() - v_offset).min(readback.len());
+                    read_flash_port_internal(&mut *pins, TargetPort::Ch32v203, addr + v_offset as u32, &mut readback[..chunk])?;
+                    for i in 0..chunk {
+                        if readback[i] != data[v_offset + i] {
+                            return Err(TargetError::FlashErrorCode(((readback[i] as u32) << 8) | (data[v_offset + i] as u32)));
+                        }
                     }
                     v_offset += chunk;
                 }
-
-                let _ = qk.resume();
-                *pins = rvswd_session.release();
                 Ok(())
             }
             TargetPort::Ch32v003 => {
                 let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
+                let _ = swio_session.attach();
                 let mut qk = QingKe::new_1wire(&mut swio_session.transport);
                 qk.halt().map_err(|_| TargetError::Timeout)?;
-                qk.mem_write32(0x40022004, 0x45670123).map_err(|_| TargetError::FlashErrorCode(301))?;
-                qk.mem_write32(0x40022004, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(302))?;
-                qk.mem_write32(0x40022024, 0x45670123).map_err(|_| TargetError::FlashErrorCode(303))?;
-                qk.mem_write32(0x40022024, 0xCDEF89AB).map_err(|_| TargetError::FlashErrorCode(304))?;
+                qk.mem_write32_halted(0x40022004, 0x45670123).map_err(|e| match e {
+                    target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                    _ => TargetError::FlashErrorCode(301),
+                })?;
+                qk.mem_write32_halted(0x40022004, 0xCDEF89AB).map_err(|e| match e {
+                    target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                    _ => TargetError::FlashErrorCode(302),
+                })?;
+                let _ = qk.mem_write32_halted(0x40022024, 0x45670123);
+                let _ = qk.mem_write32_halted(0x40022024, 0xCDEF89AB);
 
+                // 1. Page Erase (PER: 1 << 1, STRT: 1 << 6)
                 let page_sz = 64usize;
+                let start_addr = addr & !(page_sz as u32 - 1);
+                let end_addr = (addr + data.len() as u32 + page_sz as u32 - 1) & !(page_sz as u32 - 1);
+                let mut curr = start_addr;
+                while curr < end_addr {
+                    qk.mem_write32_halted(0x40022014, curr).map_err(|_| TargetError::FlashErrorCode(305))?; // ADDR
+                    qk.mem_write32_halted(0x40022010, (1 << 1) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(306))?; // PER | STRT
+
+                    cortex_m::asm::delay(450_000); // 3 ms
+                    for _ in 0..100 {
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                break;
+                            }
+                        }
+                        cortex_m::asm::delay(15_000);
+                    }
+                    let _ = qk.mem_write32_halted(0x40022010, 0);
+                    curr += page_sz as u32;
+                }
+
+                // 2. Fast Page Program (matches ch32_progbuf.c lines 315-375)
                 let mut offset = 0usize;
                 while offset < data.len() {
                     let page_addr = addr + offset as u32;
                     let chunk_len = (data.len() - offset).min(page_sz);
 
-                    qk.mem_write32(0x40022010, (1 << 16) | (1 << 21)).map_err(|_| TargetError::FlashErrorCode(305))?; // FTPG | BUFLOAD
+                    // FTPG & BUFRST
+                    qk.mem_write32_halted(0x40022010, 1 << 16).map_err(|_| TargetError::FlashErrorCode(308))?;
+                    qk.mem_write32_halted(0x40022010, (1 << 16) | (1 << 19)).map_err(|_| TargetError::FlashErrorCode(309))?;
+                    qk.mem_write32_halted(0x40022014, page_addr).map_err(|_| TargetError::FlashErrorCode(310))?;
+
+                    for _ in 0..100 {
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                break;
+                            }
+                        }
+                        cortex_m::asm::delay(15_000);
+                    }
 
                     for b in (0..page_sz).step_by(4) {
                         let mut word = 0xFFFFFFFFu32;
@@ -452,31 +561,46 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                             bytes[..rem].copy_from_slice(&data[offset + b..offset + b + rem]);
                             word = u32::from_le_bytes(bytes);
                         }
-                        qk.mem_write32(page_addr + b as u32, word).map_err(|_| TargetError::FlashErrorCode(306))?;
-                    }
-
-                    qk.mem_write32(0x40022010, (1 << 16) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(307))?; // FTPG | STRT
-
-                    cortex_m::asm::delay(75_000); // 500 µs initial delay
-                    let mut busy = true;
-                    for _ in 0..1000 {
-                        let statr = qk.mem_read32(0x4002200C).map_err(|_| TargetError::FlashErrorCode(308))?;
-                        if (statr & 1) == 0 {
-                            busy = false;
-                            break;
+                        qk.mem_write32_halted(page_addr + b as u32, word).map_err(|e| match e {
+                            target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                            _ => TargetError::FlashErrorCode(312),
+                        })?;
+                        // Latch word: FTPG | BUFLOAD (bit 18)
+                        qk.mem_write32_halted(0x40022010, (1 << 16) | (1 << 18)).map_err(|_| TargetError::FlashErrorCode(313))?;
+                        for _ in 0..50 {
+                            if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                                if (statr & 1) == 0 {
+                                    break;
+                                }
+                            }
+                            cortex_m::asm::delay(7500);
                         }
-                        cortex_m::asm::delay(7500);
                     }
-                    if busy {
-                        *pins = swio_session.release();
-                        return Err(TargetError::Timeout);
+
+                    // Trigger Fast Page Program: FTPG | STRT (1 << 16 | 1 << 6)
+                    qk.mem_write32_halted(0x40022014, page_addr).map_err(|_| TargetError::FlashErrorCode(314))?;
+                    qk.mem_write32_halted(0x40022010, (1 << 16) | (1 << 6)).map_err(|_| TargetError::FlashErrorCode(315))?;
+
+                    cortex_m::asm::delay(450_000); // 3 ms
+                    for _ in 0..200 {
+                        if let Ok(statr) = qk.mem_read32_halted(0x4002200C) {
+                            if (statr & 1) == 0 {
+                                if (statr & 0x14) != 0 {
+                                    let _ = qk.mem_write32_halted(0x4002200C, 0x14);
+                                }
+                                break;
+                            }
+                        }
+                        cortex_m::asm::delay(15_000);
                     }
 
                     offset += chunk_len;
                 }
 
-                let _ = qk.mem_write32(0x40022010, 0);
-                let _ = qk.mem_write32(0x40022010, 1 << 7); // LOCK
+                let _ = qk.mem_write32_halted(0x40022010, 0);
+                let _ = qk.mem_write32_halted(0x40022010, 1 << 7); // LOCK
+                let _ = qk.mem_write32_halted(0x4002200C, 1 << 5); // Clear EOP
+                cortex_m::asm::delay(300_000); // 2 ms settling
 
                 // Verify
                 let mut verify_buf = [0u8; 64];
@@ -484,11 +608,17 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                 while v_offset < data.len() {
                     let chunk = (data.len() - v_offset).min(verify_buf.len());
                     qk.mem_read_block(addr + v_offset as u32, &mut verify_buf[..chunk])
-                        .map_err(|_| TargetError::FlashErrorCode(309))?;
-                    if verify_buf[..chunk] != data[v_offset..v_offset + chunk] {
-                        let _ = qk.resume();
-                        *pins = swio_session.release();
-                        return Err(TargetError::FlashErrorCode(0xDEADBEE3));
+                        .map_err(|e| match e {
+                            target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
+                            target::qingke::QingKeError::Timeout => TargetError::Timeout,
+                            _ => TargetError::FlashErrorCode(318),
+                        })?;
+                    for i in 0..chunk {
+                        if verify_buf[i] != data[v_offset + i] {
+                            let _ = qk.resume();
+                            *pins = swio_session.release();
+                            return Err(TargetError::FlashErrorCode(((verify_buf[i] as u32) << 8) | (data[v_offset + i] as u32)));
+                        }
                     }
                     v_offset += chunk;
                 }

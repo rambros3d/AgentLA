@@ -45,9 +45,9 @@ enum ProbeCmd {
 
 pub struct SwdTransport {
     prog_offset: u8,
-    clk_pin: usize,
-    dio_pin: usize,
-    reset_pin: usize,
+    pub clk_pin: usize,
+    pub dio_pin: usize,
+    pub reset_pin: usize,
     turnaround: u8,
     idle_cycles: u8,
     ap_select: u32,
@@ -471,53 +471,72 @@ impl SwdTransport {
         Ok(())
     }
 
+    pub fn recover_from_ack_error(&mut self) -> Result<(), SwdError> {
+        self.jtag_to_swd();
+        let mut idcode = 0u32;
+        if self.read_dpidr_retry(&mut idcode).is_err() || idcode == 0 || idcode == 0xFFFFFFFF {
+            return Err(SwdError::ProtocolError);
+        }
+        let _ = self.write_dp(DP_ABORT, 0x0000001E);
+        let _ = self.write_dp(DP_CTRLSTAT, 0x50000000);
+        self.power_up_debug()?;
+        self.ap_select = 0xFFFFFFFF;
+        Ok(())
+    }
+
     pub fn write_ap(&mut self, reg: u8, value: u32) -> Result<(), SwdError> {
-        let apbank = (reg >> 4) & 0x0F;
-        self.select_ap(0, apbank)?;
-        let req = Self::build_request(true, false, (reg >> 2) & 3);
-        let mut val = value;
-        for _ in 0..200 {
-            let ack = self.transfer(req, &mut val);
-            if ack == SWD_ACK_OK {
-                return Ok(());
-            } else if ack == SWD_ACK_WAIT {
-                cortex_m::asm::delay(300);
-                continue;
-            } else if ack == SWD_ACK_FAULT {
-                return Err(SwdError::AckFault);
-            } else {
-                return Err(SwdError::ProtocolError);
+        for attempt in 0..2 {
+            let apbank = (reg >> 4) & 0x0F;
+            self.select_ap(0, apbank)?;
+            let req = Self::build_request(true, false, (reg >> 2) & 3);
+            let mut val = value;
+            for _ in 0..200 {
+                let ack = self.transfer(req, &mut val);
+                if ack == SWD_ACK_OK {
+                    return Ok(());
+                } else if ack == SWD_ACK_WAIT {
+                    cortex_m::asm::delay(300);
+                    continue;
+                } else if ack == SWD_ACK_FAULT {
+                    let _ = self.recover_from_ack_error();
+                    break;
+                } else {
+                    let _ = self.recover_from_ack_error();
+                    break;
+                }
             }
         }
-        Err(SwdError::Timeout)
+        Err(SwdError::ProtocolError)
     }
 
     pub fn read_ap(&mut self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
-        let apbank = (reg >> 4) & 0x0F;
-        self.select_ap(0, apbank)?;
-        let req = Self::build_request(true, true, (reg >> 2) & 3);
-        let mut dummy = 0u32;
-        // AP reads are pipelined: initial read triggers transfer
-        let mut ok = false;
-        for _ in 0..200 {
-            let ack = self.transfer(req, &mut dummy);
-            if ack == SWD_ACK_OK {
-                ok = true;
-                break;
-            } else if ack == SWD_ACK_WAIT {
-                cortex_m::asm::delay(300);
-                continue;
-            } else if ack == SWD_ACK_FAULT {
-                return Err(SwdError::AckFault);
-            } else {
-                return Err(SwdError::ProtocolError);
+        for attempt in 0..2 {
+            let apbank = (reg >> 4) & 0x0F;
+            self.select_ap(0, apbank)?;
+            let req = Self::build_request(true, true, (reg >> 2) & 3);
+            let mut dummy = 0u32;
+            let mut ok = false;
+            for _ in 0..200 {
+                let ack = self.transfer(req, &mut dummy);
+                if ack == SWD_ACK_OK {
+                    ok = true;
+                    break;
+                } else if ack == SWD_ACK_WAIT {
+                    cortex_m::asm::delay(300);
+                    continue;
+                } else if ack == SWD_ACK_FAULT {
+                    let _ = self.recover_from_ack_error();
+                    break;
+                } else {
+                    let _ = self.recover_from_ack_error();
+                    break;
+                }
+            }
+            if ok {
+                return self.read_dp(DP_RDBUFF, value);
             }
         }
-        if !ok {
-            return Err(SwdError::Timeout);
-        }
-        // Read RDBUFF to get actual data
-        self.read_dp(DP_RDBUFF, value)
+        Err(SwdError::ProtocolError)
     }
 
     pub fn read_dpidr_retry(&mut self, idcode: &mut u32) -> Result<(), SwdError> {
@@ -529,9 +548,12 @@ impl SwdTransport {
             if res.is_ok() && *idcode != 0 && *idcode != 0xFFFFFFFF {
                 return Ok(());
             }
-            if retry > 0 && retry % 5 == 0 && freq_idx < 3 {
-                freq_idx += 1;
-                self.set_clock(freqs[freq_idx]);
+            if retry > 0 && retry % 5 == 0 {
+                if freq_idx < 3 {
+                    freq_idx += 1;
+                    self.set_clock(freqs[freq_idx]);
+                }
+                self.jtag_to_swd();
             }
             // Clear sticky errors via ABORT register
             let _ = self.write_dp(DP_ABORT, 0x0000001E);

@@ -32,7 +32,6 @@ impl<'a> CortexM<'a> {
     }
 
     pub fn mem_read32(&mut self, addr: u32) -> Result<u32, CortexError> {
-        let _ = self.swd.power_up_debug();
         self.swd
             .write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT)
             .map_err(|_| CortexError::SwdError)?;

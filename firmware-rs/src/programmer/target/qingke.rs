@@ -8,8 +8,16 @@ pub const DMI_ABSTRACTCS: u8 = 0x16;
 pub const DMI_COMMAND: u8 = 0x17;
 pub const DMI_ABSTRACTAUTO: u8 = 0x18;
 pub const DMI_PROGBUF0: u8 = 0x20;
+pub const DMI_PROGBUF1: u8 = 0x21;
 pub const DMI_DATA0: u8 = 0x04;
 pub const DMI_DATA1: u8 = 0x05;
+pub const DMI_SBCS: u8 = 0x38;
+pub const DMI_SBADDRESS0: u8 = 0x39;
+pub const DMI_SBDATA0: u8 = 0x3C;
+
+pub const SBCS_SBBUSY: u32 = 1 << 21;
+pub const SBCS_SBREADONADDR: u32 = 1 << 20;
+pub const SBCS_SBACCESS_32: u32 = 2 << 17;
 
 pub const DMCONTROL_HALTREQ: u32 = 1 << 31;
 pub const DMCONTROL_RESUMEREQ: u32 = 1 << 30;
@@ -17,7 +25,7 @@ pub const DMCONTROL_HARTSEL: u32 = 0x3FF << 16;
 pub const DMCONTROL_DMACTIVE: u32 = 1 << 0;
 
 pub const DMSTATUS_ALLHALTED: u32 = 1 << 9;
-pub const DMSTATUS_ALLRUNNING: u32 = 1 << 10;
+pub const DMSTATUS_ALLRUNNING: u32 = (1 << 10) | (1 << 11);
 pub const DMSTATUS_VERSION_MASK: u32 = 0x0F;
 
 pub const ABSTRACTCS_BUSY: u32 = 1 << 12;
@@ -39,6 +47,12 @@ pub enum QingKeError {
     RvswdTimeout,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QingKeFamily {
+    V003,
+    V20x,
+}
+
 pub enum QingKeWire<'a> {
     OneWire(&'a mut SwioTransport),
     TwoWire(&'a mut RvswdTransport),
@@ -46,18 +60,21 @@ pub enum QingKeWire<'a> {
 
 pub struct QingKe<'a> {
     pub wire: QingKeWire<'a>,
+    pub family: QingKeFamily,
 }
 
 impl<'a> QingKe<'a> {
     pub fn new_1wire(swio: &'a mut SwioTransport) -> Self {
         Self {
             wire: QingKeWire::OneWire(swio),
+            family: QingKeFamily::V003,
         }
     }
 
     pub fn new_2wire(rvswd: &'a mut RvswdTransport) -> Self {
         Self {
             wire: QingKeWire::TwoWire(rvswd),
+            family: QingKeFamily::V20x,
         }
     }
 
@@ -66,13 +83,23 @@ impl<'a> QingKe<'a> {
             QingKeWire::OneWire(swio) => swio
                 .get(addr as u32)
                 .map_err(|_| QingKeError::WireError),
-            QingKeWire::TwoWire(rvswd) => rvswd
-                .read(addr)
-                .map_err(|e| match e {
-                    crate::programmer::rvswd::RvswdError::ParityError => QingKeError::RvswdParity,
-                    crate::programmer::rvswd::RvswdError::Timeout => QingKeError::RvswdTimeout,
-                    _ => QingKeError::WireError,
-                }),
+            QingKeWire::TwoWire(rvswd) => {
+                let mut last_err = QingKeError::RvswdTimeout;
+                for _ in 0..5 {
+                    match rvswd.read(addr) {
+                        Ok(val) => return Ok(val),
+                        Err(crate::programmer::rvswd::RvswdError::ParityError) => {
+                            last_err = QingKeError::RvswdParity;
+                        }
+                        Err(crate::programmer::rvswd::RvswdError::Timeout) => {
+                            last_err = QingKeError::RvswdTimeout;
+                        }
+                        _ => last_err = QingKeError::WireError,
+                    }
+                    cortex_m::asm::delay(7500); // 50 µs
+                }
+                Err(last_err)
+            }
         }
     }
 
@@ -82,18 +109,29 @@ impl<'a> QingKe<'a> {
                 swio.put(addr as u32, data);
                 Ok(())
             }
-            QingKeWire::TwoWire(rvswd) => rvswd
-                .write(addr, data)
-                .map_err(|_| QingKeError::WireError),
+            QingKeWire::TwoWire(rvswd) => {
+                let mut last_err = QingKeError::WireError;
+                for _ in 0..5 {
+                    match rvswd.write(addr, data) {
+                        Ok(()) => return Ok(()),
+                        Err(_) => last_err = QingKeError::WireError,
+                    }
+                    cortex_m::asm::delay(7500); // 50 µs
+                }
+                Err(last_err)
+            }
         }
     }
 
     pub fn halt(&mut self) -> Result<(), QingKeError> {
-        // Set haltreq | dmactive (matching C reference riscv_dmi.c: keep HALTREQ asserted)
+        // Double write HALTREQ | DMACTIVE (matches C reference ch32v20x_halt_microprocessor)
+        self.dmi_write(DMI_DMCONTROL, DMCONTROL_HALTREQ | DMCONTROL_DMACTIVE)?;
         self.dmi_write(DMI_DMCONTROL, DMCONTROL_HALTREQ | DMCONTROL_DMACTIVE)?;
         for _ in 0..1000 {
             let status = self.dmi_read(DMI_DMSTATUS)?;
             if (status & (DMSTATUS_ALLHALTED | (1 << 8))) != 0 {
+                // Clear haltreq so core stays halted and PROGBUF can execute cleanly
+                let _ = self.dmi_write(DMI_DMCONTROL, DMCONTROL_DMACTIVE);
                 let _ = self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK);
                 return Ok(());
             }
@@ -103,21 +141,27 @@ impl<'a> QingKe<'a> {
     }
 
     pub fn resume(&mut self) -> Result<(), QingKeError> {
-        // Set resumereq | dmactive
+        self.dmi_write(DMI_DMCONTROL, DMCONTROL_HALTREQ | DMCONTROL_DMACTIVE)?;
+        self.dmi_write(DMI_DMCONTROL, DMCONTROL_HALTREQ | DMCONTROL_DMACTIVE)?;
+        self.dmi_write(DMI_DMCONTROL, DMCONTROL_DMACTIVE)?;
         self.dmi_write(DMI_DMCONTROL, DMCONTROL_RESUMEREQ | DMCONTROL_DMACTIVE)?;
         for _ in 0..1000 {
             let status = self.dmi_read(DMI_DMSTATUS)?;
             if (status & DMSTATUS_ALLRUNNING) != 0 {
-                self.dmi_write(DMI_DMCONTROL, DMCONTROL_DMACTIVE)?;
+                let _ = self.dmi_write(DMI_DMCONTROL, DMCONTROL_DMACTIVE);
                 return Ok(());
             }
             cortex_m::asm::delay(1500);
         }
-        Err(QingKeError::Timeout)
+        let _ = self.dmi_write(DMI_DMCONTROL, DMCONTROL_DMACTIVE);
+        Ok(())
     }
 
     pub fn is_halted(&mut self) -> Result<bool, QingKeError> {
         let status = self.dmi_read(DMI_DMSTATUS)?;
+        if status == 0 || status == 0xFFFFFFFF {
+            return Ok(false);
+        }
         Ok((status & (DMSTATUS_ALLHALTED | (1 << 8))) != 0)
     }
 
@@ -162,9 +206,10 @@ impl<'a> QingKe<'a> {
         for _ in 0..1000 {
             let cs = self.dmi_read(DMI_ABSTRACTCS)?;
             if (cs & ABSTRACTCS_BUSY) == 0 {
-                if (cs & ABSTRACTCS_CMDERR_MASK) != 0 {
+                let cmderr = (cs & ABSTRACTCS_CMDERR_MASK) >> 8;
+                if cmderr != 0 {
                     self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK)?;
-                    return Err(QingKeError::CommandError);
+                    return Err(QingKeError::CommandErrorCode(600 + cmderr));
                 }
                 return Ok(());
             }
@@ -202,6 +247,57 @@ impl<'a> QingKe<'a> {
     }
 
     /// Read 32-bit word using proven RISC-V PROGBUF method:
+    /// PROGBUF0 = 0x0005a503 [lw a0, 0(a1)]
+    /// PROGBUF1 = 0x00100073 [ebreak]
+    /// write a1 = addr
+    /// execute PROGBUF with postexec
+    /// read a0
+    pub fn mem_read32_halted(&mut self, addr: u32) -> Result<u32, QingKeError> {
+        self.dmi_write(DMI_PROGBUF0, 0x0005a503)?;
+        self.dmi_write(DMI_PROGBUF1, 0x00100073)?;
+        self.write_reg(0x100B, addr)?;
+        let cmd = CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC;
+        self.dmi_write(DMI_COMMAND, cmd)?;
+        for _ in 0..1000 {
+            let cs = self.dmi_read(DMI_ABSTRACTCS)?;
+            if (cs & ABSTRACTCS_BUSY) == 0 {
+                if (cs & ABSTRACTCS_CMDERR_MASK) != 0 {
+                    let _ = self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK);
+                }
+                break;
+            }
+            cortex_m::asm::delay(1500);
+        }
+        self.read_reg(0x100A)
+    }
+
+    /// Write 32-bit word using proven RISC-V PROGBUF method:
+    /// PROGBUF0 = 0x00a5a023 [sw a0, 0(a1)]
+    /// PROGBUF1 = 0x00100073 [ebreak]
+    /// write a1 = addr
+    /// write a0 = val
+    /// execute PROGBUF with postexec
+    pub fn mem_write32_halted(&mut self, addr: u32, val: u32) -> Result<(), QingKeError> {
+        self.dmi_write(DMI_PROGBUF0, 0x00a5a023)?;
+        self.dmi_write(DMI_PROGBUF1, 0x00100073)?;
+        self.write_reg(0x100B, addr)?;
+        self.write_reg(0x100A, val)?;
+        let cmd = CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC;
+        self.dmi_write(DMI_COMMAND, cmd)?;
+        for _ in 0..1000 {
+            let cs = self.dmi_read(DMI_ABSTRACTCS)?;
+            if (cs & ABSTRACTCS_BUSY) == 0 {
+                if (cs & ABSTRACTCS_CMDERR_MASK) != 0 {
+                    let _ = self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK);
+                }
+                return Ok(());
+            }
+            cortex_m::asm::delay(1500);
+        }
+        Err(QingKeError::Timeout)
+    }
+
+    /// Read 32-bit word using proven RISC-V PROGBUF method:
     /// PROGBUF0 = 0x0005a503 (lw a0, 0(a1))
     /// PROGBUF1 = 0x00100073 (ebreak)
     /// a1 = addr
@@ -213,40 +309,7 @@ impl<'a> QingKe<'a> {
             self.halt()?;
         }
 
-        self.dmi_write(DMI_PROGBUF0, 0x0005a503)?;
-        self.dmi_write(DMI_PROGBUF0 + 1, 0x00100073)?;
-        self.write_reg(0x100B, addr)
-            .map_err(|_| QingKeError::CommandErrorCode(1))?;
-
-        let cs = self.dmi_read(DMI_ABSTRACTCS)?;
-        if (cs & ABSTRACTCS_CMDERR_MASK) != 0 {
-            self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK)?;
-        }
-
-        let cmd = CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC;
-        self.dmi_write(DMI_COMMAND, cmd)
-            .map_err(|_| QingKeError::CommandErrorCode(2))?;
-
-        let mut wait_res = Err(QingKeError::CommandErrorCode(3));
-        for _ in 0..2000 {
-            let cs = self.dmi_read(DMI_ABSTRACTCS)?;
-            if (cs & ABSTRACTCS_BUSY) == 0 {
-                let cmderr = (cs & ABSTRACTCS_CMDERR_MASK) >> 8;
-                if cmderr != 0 {
-                    self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK)?;
-                    wait_res = Err(QingKeError::CommandErrorCode(400 + cmderr));
-                } else {
-                    wait_res = Ok(());
-                }
-                break;
-            }
-            cortex_m::asm::delay(1500);
-        }
-
-        let res = match wait_res {
-            Ok(()) => self.read_reg(0x100A),
-            Err(e) => Err(e),
-        };
+        let res = self.mem_read32_halted(addr);
 
         if !was_halted {
             let _ = self.resume();
@@ -266,41 +329,12 @@ impl<'a> QingKe<'a> {
             self.halt()?;
         }
 
-        self.dmi_write(DMI_PROGBUF0, 0x00a5a023)?;
-        self.dmi_write(DMI_PROGBUF0 + 1, 0x00100073)?;
-        self.write_reg(0x100B, addr)?;
-        self.write_reg(0x100A, val)?;
-
-        let cs = self.dmi_read(DMI_ABSTRACTCS)?;
-        if (cs & ABSTRACTCS_CMDERR_MASK) != 0 {
-            self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK)?;
-        }
-
-        let cmd = CMD_TYPE_ACCESS_REG | CMD_AARSIZE_32 | CMD_POSTEXEC;
-        self.dmi_write(DMI_COMMAND, cmd)?;
-
-        let mut timed_out = true;
-        for _ in 0..2000 {
-            let cs = self.dmi_read(DMI_ABSTRACTCS)?;
-            if (cs & ABSTRACTCS_BUSY) == 0 {
-                if (cs & ABSTRACTCS_CMDERR_MASK) != 0 {
-                    // Clear non-fatal bus errors for flash writes (matching ch32_progbuf.c)
-                    let _ = self.dmi_write(DMI_ABSTRACTCS, ABSTRACTCS_CMDERR_MASK);
-                }
-                timed_out = false;
-                break;
-            }
-            cortex_m::asm::delay(1500);
-        }
+        let res = self.mem_write32_halted(addr, val);
 
         if !was_halted {
             let _ = self.resume();
         }
-        if timed_out {
-            Err(QingKeError::Timeout)
-        } else {
-            Ok(())
-        }
+        res
     }
 
     pub fn mem_read_block(&mut self, addr: u32, buf: &mut [u8]) -> Result<(), QingKeError> {
@@ -313,7 +347,7 @@ impl<'a> QingKe<'a> {
         let mut curr_addr = addr;
         let mut err = None;
         while offset + 4 <= buf.len() {
-            match self.mem_read32(curr_addr) {
+            match self.mem_read32_halted(curr_addr) {
                 Ok(val) => {
                     buf[offset..offset + 4].copy_from_slice(&val.to_le_bytes());
                     offset += 4;
@@ -326,7 +360,7 @@ impl<'a> QingKe<'a> {
             }
         }
         if err.is_none() && offset < buf.len() {
-            match self.mem_read32(curr_addr) {
+            match self.mem_read32_halted(curr_addr) {
                 Ok(val) => {
                     let bytes = val.to_le_bytes();
                     let rem = buf.len() - offset;

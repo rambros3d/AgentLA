@@ -317,7 +317,7 @@ impl RvswdTransport {
             }
         }
 
-        let parity_bit = (parity_read >> 31) & 1 == 1;
+        let parity_bit = (parity_read & 1) == 1;
         if data_parity != parity_bit {
             return Err(RvswdError::ParityError);
         }

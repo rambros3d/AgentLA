@@ -23,6 +23,7 @@ pub enum TargetPort {
 /// Tristate and safely float all programmer pins (bridge block, GPIO 4–14 excluding 11)
 pub fn tristate_pins() {
     for pin in BRIDGE_PINS {
+        pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
         pac::PADS_BANK0.gpio(pin).modify(|w| {
             w.set_iso(false);
             w.set_ie(true);
@@ -177,11 +178,65 @@ impl Drop for SwdSession {
     }
 }
 
+pub fn pulse_reset_pin(pin: usize) {
+    pac::PADS_BANK0.gpio(pin).modify(|w| {
+        w.set_ie(true);
+        w.set_od(false);
+        w.set_pue(false);
+        w.set_pde(false);
+    });
+    pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
+        w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+    });
+    pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
+    pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
+    cortex_m::asm::delay(3_000_000); // 20 ms
+    pac::PADS_BANK0.gpio(pin).modify(|w| {
+        w.set_ie(true);
+        w.set_od(true);
+        w.set_pue(true);
+        w.set_pde(false);
+    });
+    pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
+    cortex_m::asm::delay(7_500_000); // 50 ms
+}
+
 impl SwdSession {
     pub fn attach(&mut self) -> Result<u32, crate::programmer::swd::SwdError> {
         self.transport.jtag_to_swd();
         let mut dpidr = 0u32;
-        self.transport.read_dpidr_retry(&mut dpidr)?;
+        if self.transport.read_dpidr_retry(&mut dpidr).is_ok() && dpidr != 0 && dpidr != 0xFFFFFFFF {
+            self.transport.power_up_debug()?;
+            return Ok(dpidr);
+        }
+        // Pulse nRESET: assert low 20ms, release high, wait 20ms recovery
+        let pin = self.transport.reset_pin;
+        pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_ie(true);
+            w.set_od(false);
+            w.set_pue(false);
+            w.set_pde(false);
+        });
+        pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
+            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+        });
+        pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
+        pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
+        cortex_m::asm::delay(3_000_000); // 20 ms low
+
+        // Release nRESET
+        pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_ie(true);
+            w.set_od(true);
+            w.set_pue(true);
+            w.set_pde(false);
+        });
+        pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
+        cortex_m::asm::delay(3_000_000); // 20 ms recovery
+
+        self.transport.jtag_to_swd();
+        let res = self.transport.read_dpidr_retry(&mut dpidr);
+        res?;
         self.transport.power_up_debug()?;
         Ok(dpidr)
     }
@@ -219,6 +274,38 @@ impl Drop for SwioSession {
 }
 
 impl SwioSession {
+    pub fn attach(&mut self) -> Result<u32, crate::programmer::swio::SwioError> {
+        // Halt and reset sequence matching proven PicoRVD / minichlink:
+        self.transport.put(0x10, 0x80000001); // Halt core
+        cortex_m::asm::delay(150_000);
+        self.transport.put(0x10, 0x80000003); // Assert NDMRESET
+        cortex_m::asm::delay(300_000);
+        self.transport.put(0x10, 0x80000001); // Release NDMRESET while holding halt
+        cortex_m::asm::delay(300_000);
+        self.transport.put(0x10, 0x90000001); // Ack havereset (bit 28)
+        cortex_m::asm::delay(150_000);
+        self.transport.put(0x10, 0x80000001); // Keep core halted
+        self.transport.put(0x18, 0x00000000); // Clear ABSTRACTAUTO
+        self.transport.put(0x16, 0x08000700); // Clear ABSTRACTCS errors (cmderr)
+        cortex_m::asm::delay(150_000);
+
+        let mut dmstatus = self.transport.get(0x11).unwrap_or(0);
+        if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+            return Ok(dmstatus);
+        }
+        // Pulse nRESET on GPIO 13 and retry
+        pulse_reset_pin(13);
+        self.transport.init_pin(12);
+        self.transport.put(0x10, 0x80000001);
+        self.transport.put(0x18, 0x00000000);
+        self.transport.put(0x16, 0x08000700);
+        dmstatus = self.transport.get(0x11)?;
+        if dmstatus == 0 || dmstatus == 0xFFFFFFFF {
+            return Err(crate::programmer::swio::SwioError::Timeout);
+        }
+        Ok(dmstatus)
+    }
+
     pub fn release(mut self) -> ProgrammerPins {
         self.transport.deinit();
         tristate_pins();
@@ -252,6 +339,26 @@ impl Drop for RvswdSession {
 }
 
 impl RvswdSession {
+    pub fn attach(&mut self) -> Result<u32, crate::programmer::rvswd::RvswdError> {
+        let mut dmstatus = self.transport.read(0x11).unwrap_or(0);
+        if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+            return Ok(dmstatus);
+        }
+        let _ = self.transport.reset();
+        dmstatus = self.transport.read(0x11).unwrap_or(0);
+        if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+            return Ok(dmstatus);
+        }
+        // Pulse nRESET on GPIO 10 and retry
+        pulse_reset_pin(10);
+        let _ = self.transport.reset();
+        dmstatus = self.transport.read(0x11)?;
+        if dmstatus == 0 || dmstatus == 0xFFFFFFFF {
+            return Err(crate::programmer::rvswd::RvswdError::Timeout);
+        }
+        Ok(dmstatus)
+    }
+
     pub fn release(mut self) -> ProgrammerPins {
         self.transport.deinit();
         tristate_pins();

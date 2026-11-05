@@ -161,7 +161,7 @@ impl SwioTransport {
     }
 
     fn put_fifo(&self, data: u32) -> bool {
-        for _ in 0..10_000 {
+        for _ in 0..500_000 {
             if (pac::PIO0.fstat().read().txfull() & (1 << 0)) == 0 {
                 pac::PIO0.txf(0).write_value(data);
                 return true;
@@ -177,12 +177,17 @@ impl SwioTransport {
     }
 
     pub fn get(&self, addr: u32) -> Result<u32, SwioError> {
+        // Drain any stale RX FIFO data
+        while (pac::PIO0.fstat().read().rxempty() & (1 << 0)) == 0 {
+            let _ = pac::PIO0.rxf(0).read();
+        }
+
         let cmd = ((!addr) << 1) | 1;
         if !self.put_fifo(cmd) {
             return Err(SwioError::Timeout);
         }
 
-        for _ in 0..20_000 {
+        for _ in 0..500_000 {
             if (pac::PIO0.fstat().read().rxempty() & (1 << 0)) == 0 {
                 return Ok(pac::PIO0.rxf(0).read());
             }
