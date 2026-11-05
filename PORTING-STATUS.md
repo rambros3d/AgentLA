@@ -6,8 +6,8 @@ Reference: `/home/sun/Filelink/Firmwares/AgentLA` (C firmware, all features base
 ## Current Snapshot
 
 - `git branch`: `embassy` (synced with `origin/embassy`)
-- `cargo build --release` (in `firmware-rs/`): PASSES (total binary size: ~972 KB, well under 1.50 MB ROM partition)
-- Hardware status: AgentLA at `1209:414d` enumerated on USB with CDC-ACM0 (CLI), CDC-ACM1 (UART), CMSIS-DAP v1/v2, and CDC-NCM Ethernet (`10.10.10.10`).
+- `cargo build --release` (in `firmware-rs/`): PASSES (total binary size: ~950 KB, well under 1.50 MB ROM partition)
+- Hardware status: AgentLA at `1209:414d` enumerated on USB with a clean single CDC-ACM port (dedicated to transparent Target UART telemetry on GPIO 14 RX / GPIO 8 TX), CMSIS-DAP v1/v2, and CDC-NCM Ethernet (`10.10.10.10`). The legacy ASCII text CLI has been retired in favor of the CDC-NCM REST API and JSON-RPC MCP server.
 - Target MCUs attached & verified:
   - **Port 1 (GPIO 4/5/6)**: STM32F103 BluePill (ARM Cortex-M3, SWD)
   - **Port 2 (GPIO 8/9/10)**: WeAct CH32V203 (QingKe V4 RISC-V, 2-wire RVSWD)
@@ -20,7 +20,7 @@ Reference: `/home/sun/Filelink/Firmwares/AgentLA` (C firmware, all features base
 | 1 | **LittleFS & App Ecosystem** | `storage.rs`, `apps.rs`, `fs_http.rs` | ✅ 100% Parity | `/api/v1/apps*`, install/serve/delete, reboot persistence verified over HTTP |
 | 2 | **Hardware Pins & Profiles** | `pin_owner.rs`, `profile.rs`, `servo.rs` | ✅ 100% Parity | Pin claim/release, profile save/boot/apply, servo list |
 | 3 | **Logic Analyzer & VCD** | `analyzer.rs`, `decoder.rs`, PIO0 SM0 + DMA CH0 | ✅ 100% Parity | 1024-word ring buffer, dynamic fractional clkdiv, live VCD export (`/api/v1/logic-analyzer/vcd`), SSE push stream (`/api/v1/logic-analyzer/stream`), RLE/bit-delta compression, 11 decoders |
-| 4 | **Hardware Bus Bridges** | `bridge/{mod,i2c,slcan,ws2812,i3c,spi,uart}.rs` | ✅ 100% Parity | Bit-banged I2C master with scan/read/write, full SPI master Mode 0-3 (`/api/v1/bus/spi/transfer`), UART bridge with host CDC-ACM1 forwarding and `/api/v1/bus/uart/*`, WS2812 NeoPixel driver, SLCAN/CAN |
+| 4 | **Hardware Bus Bridges** | `bridge/{mod,i2c,slcan,ws2812,i3c,spi,uart}.rs` | ✅ 100% Parity | Bit-banged I2C master with scan/read/write, full SPI master Mode 0-3 (`/api/v1/bus/spi/transfer`), UART bridge with host CDC-ACM forwarding and `/api/v1/bus/uart/*`, WS2812 NeoPixel driver, SLCAN/CAN |
 | 4b | **MCP JSON-RPC AI Agent Surface** | `mcp.rs`, `rest::Mcp*` | ✅ 100% Parity | 14 registered AI agent hardware control tools, `/mcp/health` 200 OK |
 | 5 | **Exact DaisyUI Web Desktop OS** | `web_assets.rs`, `web.rs`, `rest.rs` | ✅ 100% Parity | All 635 KB of C assets (`index.html`, `app.js`, `style.css`, `apps.html`, `themes.*`, `board.json`, SVGs) served out of ROM; verified at `http://10.10.10.10/` |
 | 6 | **Target Programmer & Debugger** | `programmer/{mod,pins,swd,rvswd,swio,target,algo}` | ✅ 100% Parity | Detection, Halt, Resume, Flash Read, Flash Erase, and Flash Write with readback verification verified on all 3 MCUs |
@@ -86,8 +86,8 @@ All major subsystems have reached **100% Feature Parity** with the C firmware:
 
 1. **Target Flash Write Finalization**:
    - Single and multi-page write, erase, and verification completed across all 3 MCU targets (STM32F103, CH32V203, CH32V003) with pattern readback matching.
-2. **Physical UART Forwarding (`/dev/ttyACM1`)**:
-   - `cdc_uart_task` routed to target UART with bidirectional buffering between host CDC-ACM1 and target pins (GPIO 14 telemetry RX / GPIO 8 TX), along with `/api/v1/bus/uart/write` and `/api/v1/bus/uart/read`.
+2. **Physical UART Forwarding (Single CDC-ACM Port)**:
+   - `cdc_uart_task` routed to target UART with bidirectional buffering between host CDC-ACM and target pins (GPIO 14 telemetry RX / GPIO 8 TX), along with `/api/v1/bus/uart/write` and `/api/v1/bus/uart/read`.
 3. **Continuous Logic Analyzer SSE Stream**:
    - Implemented `/api/v1/logic-analyzer/stream` and `/api/v1/analyzer/stream` Server-Sent Events push for live real-time traces and state telemetry in the Web Desktop canvas.
 4. **Hardware SPI Peripheral Bridge**:

@@ -12,7 +12,7 @@ This document describes the multi-target hardware testing setup, physical pin ma
                           +-------------------------------------------------+
                                       |                       |
                              /dev/ttyACM1            /dev/ttyACM0
-                       (AgentLA CDC-ACM CLI)     (Pico CMSIS-DAP Probe)
+                      (AgentLA Target Telemetry) (Pico CMSIS-DAP Probe)
                                       |
                  +--------------------+---------------------+
                  |       AgentLA RP2350 Probe (Pico 2)       |
@@ -32,9 +32,9 @@ This document describes the multi-target hardware testing setup, physical pin ma
 - **Probe MCU**: Raspberry Pi Pico 2 (Raspberry Pi RP2350A, Dual ARM Cortex-M33 @ 150 MHz).
 - **Firmware**: Embassy asynchronous Rust framework (`firmware-rs`).
 - **USB Device Identity**: `1209:414d Generic Adi Linden`
-  - `/dev/ttyACM1`: Interactive CDC-ACM CLI Console (115200 baud).
-  - `/dev/ttyACM2`: CDC-ACM Target Telemetry / UART Bridge.
-  - CDC-NCM Ethernet: `10.10.10.10/24` for high-throughput HTTP/REST and WebSockets.
+  - `/dev/ttyACM1`: Single CDC-ACM port dedicated to transparent Target Telemetry / UART Bridge (GPIO 14 RX / GPIO 8 TX). (Legacy CDC-ACM ASCII text CLI retired).
+  - CMSIS-DAP v1 (HID) & CMSIS-DAP v2 (Bulk) high-speed hardware debugger interfaces.
+  - CDC-NCM Ethernet: `10.10.10.10/24` for high-throughput HTTP/REST API, JSON-RPC MCP server, and WebSockets.
 - **Auxiliary Probe**: Raspberry Pi Pico running official Raspberry Pi Debugprobe CMSIS-DAP firmware (`2e8a:000c`) on `/dev/ttyACM0` for optional external SWD hardware tracing.
 
 ---
@@ -67,15 +67,15 @@ Each target MCU connects to dedicated physical GPIO pins on the AgentLA probe, a
 
 Zero physical button touches (`BOOTSEL` button) are required to build, flash, and test new firmware iterations on the AgentLA probe:
 
-1. **Software Trigger**: The CLI command `bootsel` (or HTTP `POST /api/v1/system/bootsel`) calls `embassy_rp::rom_data::reset_to_usb_boot(0, 0)`.
+1. **Software Trigger**: HTTP `POST http://10.10.10.10/api/v1/system/bootsel` calls `embassy_rp::rom_data::reset_to_usb_boot(0, 0)`.
 2. **Bootloader Re-enumeration**: RP2350 reboots directly into USB mass-storage bootloader mode (`2e8a:000f Raspberry Pi RP2350 Boot`).
 3. **Flashing**: `picotool load -x /tmp/firmware-rs.uf2` uploads the binary and reboots into user application mode.
-4. **CDC-ACM Re-enumeration**: The probe appears back on `/dev/ttyACM1` within ~1.5 seconds.
+4. **CDC-ACM Re-enumeration**: The probe appears back on `/dev/ttyACM1` (dedicated to transparent Target UART telemetry) within ~1.5 seconds.
 
 ### Automated Reflash Script
 
 ```bash
-cd /run/media/sun/halo/AgentLA-rust/firmware-rs
+cd firmware-rs
 
 # 1. Compile release binary
 cargo build --release
@@ -84,37 +84,40 @@ cargo build --release
 cp target/thumbv8m.main-none-eabihf/release/firmware-rs /tmp/firmware-rs.elf
 picotool uf2 convert --family rp2350-arm-s /tmp/firmware-rs.elf /tmp/firmware-rs.uf2
 
-# 3. Trigger reboot into BOOTSEL and load firmware
-python3 -c "
-import serial, time, subprocess
-s = serial.Serial('/dev/ttyACM1', 115200, timeout=1.0)
-s.write(b'\r\nbootsel\r\n')
-s.close()
-time.sleep(1.5)
-subprocess.run(['picotool', 'load', '-x', '/tmp/firmware-rs.uf2'], check=True)
-"
+# 3. Trigger reboot into BOOTSEL via REST API and load firmware
+curl -s -X POST http://10.10.10.10/api/v1/system/bootsel || true
+sleep 2
+picotool load -x /tmp/firmware-rs.uf2
 ```
 
 ---
 
-## 4. Interactive CLI Console Commands & Verification
+## 4. Target Programming, Diagnostics & MCP Surface
 
-Connect to the probe console at 115200 baud (e.g. `picocom -b 115200 /dev/ttyACM1` or python serial):
+The legacy ASCII text CLI previously running on CDC-ACM0 has been retired because all probe management, diagnostics, bus bridges, and debugger functions are fully available via the CDC-NCM REST API (at `http://10.10.10.10/`) and the JSON-RPC MCP server.
 
-### Command Reference
+### REST API Reference
 
-| Command | Description |
-|---|---|
-| `help` | Display list of supported commands |
-| `status` | Print system status, clock rate, network status, and live GPIO logic levels across all 3 ports |
-| `bootsel` | Reboot probe into USB BOOTSEL flash mode |
-| `target detect` | Probe and identify MCUs across all ports simultaneously |
-| `target detect bluepill` | Detect ARM Cortex-M target on Port 1 |
-| `target detect ch32v203` | Detect QingKe V4 RISC-V target on Port 2 |
-| `target detect ch32v003` | Detect QingKe V2 RISC-V target on Port 3 |
-| `flash read` | Read and parse 16 bytes from target flash at `0x08000000` (vector table) |
-| `target halt [port]` | Halt core execution (`bluepill`, `ch32v203`, or `ch32v003`) |
-| `target resume [port]` | Resume core execution (`bluepill`, `ch32v203`, or `ch32v003`) |
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/board/manifest` | GET | Retrieve board manifest and identity |
+| `/api/v1/system` | GET | Probe system telemetry, uptime, clocks |
+| `/api/v1/system/bootsel` | POST | Reboot probe into USB BOOTSEL flash mode |
+| `/api/v1/programmer/detect` | GET / POST | Scan and detect targets on Port 1 (SWD), Port 2 (RVSWD), and Port 3 (SWIO) |
+| `/api/v1/programmer/halt` | POST | Halt target core execution (`bluepill`, `ch32v203`, `ch32v003`) |
+| `/api/v1/programmer/resume` | POST | Resume target core execution (`bluepill`, `ch32v203`, `ch32v003`) |
+| `/api/v1/programmer/flash/read` | POST | Read target flash memory page / vector table |
+| `/api/v1/programmer/flash/erase` | POST | Erase target flash page or sector |
+| `/api/v1/programmer/flash/write` | POST | Write target flash memory |
+| `/api/v1/bus/uart/write` | POST | Write raw bytes to physical target UART |
+| `/api/v1/bus/uart/read` | GET | Read received bytes from target UART buffer |
+| `/api/v1/bridge` | GET | Bus bridge and peripheral status |
+| `/mcp/health` | GET | MCP server health check |
+| `/mcp` | POST | MCP JSON-RPC protocol endpoint (14 AI agent tools) |
+
+### Transparent Target Telemetry (CDC-ACM)
+
+The single USB CDC-ACM port (`/dev/ttyACM1` or first available ACM port) is directly dedicated to transparent bi-directional target UART telemetry (GPIO 14 RX / GPIO 8 TX @ 115,200 baud). Host serial terminals (e.g. `picocom -b 115200 /dev/ttyACM1` or python serial scripts) communicate directly with target application logs and console IO.
 
 ---
 

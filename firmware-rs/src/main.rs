@@ -171,7 +171,6 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     // 3. Spawn core USB tasks immediately
     spawner.spawn(usb::usb_task(composite.device).unwrap());
-    spawner.spawn(usb::cdc_cli_task(composite.cdc_cli).unwrap());
     spawner.spawn(usb::cdc_uart_task(composite.cdc_uart).unwrap());
     spawner.spawn(usb::dap_v1_task(composite.dap_v1_reader, composite.dap_v1_writer).unwrap());
     spawner.spawn(usb::dap_v2_task(composite.dap_v2).unwrap());
