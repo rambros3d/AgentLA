@@ -21,7 +21,8 @@ pub const AP_TAR: u8 = 0x04;
 pub const AP_DRW: u8 = 0x0C;
 pub const AP_IDR: u8 = 0xFC;
 
-pub const ADIV5_AP_CSW_DEFAULT: u32 = 0x23000052;
+pub const ADIV5_AP_CSW_DEFAULT: u32 = 0x23000012;
+pub const ADIV5_AP_CSW_16BIT: u32 = 0x23000011;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SwdError {
@@ -409,11 +410,12 @@ impl SwdTransport {
     pub fn write_dp(&mut self, reg: u8, value: u32) -> Result<(), SwdError> {
         let req = Self::build_request(false, false, (reg >> 2) & 3);
         let mut val = value;
-        for _ in 0..50 {
+        for _ in 0..200 {
             let ack = self.transfer(req, &mut val);
             if ack == SWD_ACK_OK {
                 return Ok(());
             } else if ack == SWD_ACK_WAIT {
+                cortex_m::asm::delay(300);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 return Err(SwdError::AckFault);
@@ -426,11 +428,12 @@ impl SwdTransport {
 
     pub fn read_dp(&self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
         let req = Self::build_request(false, true, (reg >> 2) & 3);
-        for _ in 0..50 {
+        for _ in 0..200 {
             let ack = self.transfer(req, value);
             if ack == SWD_ACK_OK {
                 return Ok(());
             } else if ack == SWD_ACK_WAIT {
+                cortex_m::asm::delay(300);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 return Err(SwdError::AckFault);
@@ -473,11 +476,12 @@ impl SwdTransport {
         self.select_ap(0, apbank)?;
         let req = Self::build_request(true, false, (reg >> 2) & 3);
         let mut val = value;
-        for _ in 0..50 {
+        for _ in 0..200 {
             let ack = self.transfer(req, &mut val);
             if ack == SWD_ACK_OK {
                 return Ok(());
             } else if ack == SWD_ACK_WAIT {
+                cortex_m::asm::delay(300);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 return Err(SwdError::AckFault);
@@ -495,12 +499,13 @@ impl SwdTransport {
         let mut dummy = 0u32;
         // AP reads are pipelined: initial read triggers transfer
         let mut ok = false;
-        for _ in 0..50 {
+        for _ in 0..200 {
             let ack = self.transfer(req, &mut dummy);
             if ack == SWD_ACK_OK {
                 ok = true;
                 break;
             } else if ack == SWD_ACK_WAIT {
+                cortex_m::asm::delay(300);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 return Err(SwdError::AckFault);

@@ -776,3 +776,101 @@ impl MethodHandlerService<(), ()> for McpHealth {
         send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":14}"#).await
     }
 }
+
+pub struct ThemesEndpoint;
+impl MethodHandlerService<(), ()> for ThemesEndpoint {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        (): (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+        let _ = read_body_str(&mut request).await;
+        send_json(
+            request,
+            response_writer,
+            StatusCode::OK,
+            r#"[{"name":"forest","colorScheme":"dark","prefersDark":true,"isDefault":true},{"name":"emerald","colorScheme":"light","prefersDark":false,"isDefault":true},{"name":"caramellatte","colorScheme":"light","prefersDark":false,"isDefault":false}]"#,
+        )
+        .await
+    }
+}
+
+pub struct SettingsEndpoint;
+
+struct UiSettingsState {
+    theme_mode: heapless::String<64>,
+    default_light_theme: heapless::String<64>,
+    default_dark_theme: heapless::String<64>,
+    default_home_route: heapless::String<64>,
+    active_profile: heapless::String<64>,
+}
+
+static UI_SETTINGS: embassy_sync::blocking_mutex::Mutex<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    core::cell::RefCell<UiSettingsState>,
+> = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(UiSettingsState {
+    theme_mode: heapless::String::new(),
+    default_light_theme: heapless::String::new(),
+    default_dark_theme: heapless::String::new(),
+    default_home_route: heapless::String::new(),
+    active_profile: heapless::String::new(),
+}));
+
+impl MethodHandlerService<(), ()> for SettingsEndpoint {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        (): (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method == "GET" {
+            let _ = read_body_str(&mut request).await;
+            let mut body = heapless::String::<256>::new();
+            UI_SETTINGS.lock(|cell| {
+                let s = cell.borrow();
+                let theme_mode = if s.theme_mode.is_empty() { "system" } else { s.theme_mode.as_str() };
+                let light_theme = if s.default_light_theme.is_empty() { "emerald" } else { s.default_light_theme.as_str() };
+                let dark_theme = if s.default_dark_theme.is_empty() { "forest" } else { s.default_dark_theme.as_str() };
+                let home_route = if s.default_home_route.is_empty() { "/lab" } else { s.default_home_route.as_str() };
+                let profile = if s.active_profile.is_empty() { "Safe State" } else { s.active_profile.as_str() };
+                let _ = write!(
+                    body,
+                    r#"{{"theme_mode":"{}","default_light_theme":"{}","default_dark_theme":"{}","default_home_route":"{}","active_profile":"{}"}}"#,
+                    theme_mode, light_theme, dark_theme, home_route, profile
+                );
+            });
+            send_json(request, response_writer, StatusCode::OK, body.as_str()).await
+        } else if method == "POST" {
+            let body = read_body_str(&mut request).await;
+            UI_SETTINGS.lock(|cell| {
+                let mut s = cell.borrow_mut();
+                if let Some(m) = key_str(None, &body, "theme_mode") {
+                    s.theme_mode = m;
+                }
+                if let Some(l) = key_str(None, &body, "default_light_theme") {
+                    s.default_light_theme = l;
+                }
+                if let Some(d) = key_str(None, &body, "default_dark_theme") {
+                    s.default_dark_theme = d;
+                }
+                if let Some(h) = key_str(None, &body, "default_home_route") {
+                    s.default_home_route = h;
+                }
+                if let Some(p) = key_str(None, &body, "active_profile") {
+                    s.active_profile = p;
+                }
+            });
+            send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok"}"#).await
+        } else {
+            send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await
+        }
+    }
+}

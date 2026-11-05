@@ -179,19 +179,35 @@ impl FlashAlgorithmRunner {
 
     // Direct hardware flash unlock and operations for STM32F1 & PY32
     pub fn stm32f1_unlock(cortex: &mut CortexM) -> Result<(), AlgoError> {
-        cortex
-            .mem_write32(0x40022004, 0x45670123)
-            .map_err(|_| AlgoError::SwdError)?;
-        cortex
-            .mem_write32(0x40022004, 0xCDEF89AB)
-            .map_err(|_| AlgoError::SwdError)?;
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+        let mut cr = 0u32;
+        if cortex.swd.read_ap(crate::programmer::swd::AP_DRW, &mut cr).is_ok() && (cr & 0x80) == 0 {
+            // Already unlocked
+            return Ok(());
+        }
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022004);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x45670123);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022004);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0xCDEF89AB);
+        // Clear status register error flags (PGERR, WRPRTERR, EOP)
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34);
         Ok(())
     }
 
     pub fn stm32f1_wait_bsy(cortex: &mut CortexM) -> Result<(), AlgoError> {
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
         for _ in 0..10_000 {
-            if let Ok(sr) = cortex.mem_read32(0x4002200C) {
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
+            let mut sr = 0u32;
+            if cortex.swd.read_ap(crate::programmer::swd::AP_DRW, &mut sr).is_ok() {
                 if (sr & 0x01) == 0 {
+                    if (sr & 0x14) != 0 {
+                        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
+                        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34);
+                        return Err(AlgoError::ExecutionFailed(sr));
+                    }
                     return Ok(());
                 }
             }
@@ -202,22 +218,23 @@ impl FlashAlgorithmRunner {
 
     pub fn stm32f1_erase_sector(cortex: &mut CortexM, sector_addr: u32) -> Result<(), AlgoError> {
         Self::stm32f1_unlock(cortex)?;
-        cortex
-            .mem_write32(0x4002200C, 0x20)
-            .map_err(|_| AlgoError::SwdError)?; // Clear EOP
-        cortex
-            .mem_write32(0x40022010, 0x02)
-            .map_err(|_| AlgoError::SwdError)?; // PER=1
-        cortex
-            .mem_write32(0x40022014, sector_addr)
-            .map_err(|_| AlgoError::SwdError)?; // AR = sector_addr
-        cortex
-            .mem_write32(0x40022010, 0x42)
-            .map_err(|_| AlgoError::SwdError)?; // STRT=1, PER=1
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34); // Clear EOP and error flags
+
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x02); // PER=1
+
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022014);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, sector_addr); // AR = sector_addr
+
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x42); // STRT=1, PER=1
+
         Self::stm32f1_wait_bsy(cortex)?;
-        cortex
-            .mem_write32(0x40022010, 0x00)
-            .map_err(|_| AlgoError::SwdError)?; // Clear PER
+
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x00); // Clear PER
         Ok(())
     }
 
@@ -227,23 +244,39 @@ impl FlashAlgorithmRunner {
         data: &[u8],
     ) -> Result<(), AlgoError> {
         Self::stm32f1_unlock(cortex)?;
-        cortex
-            .mem_write32(0x40022010, 0x01)
-            .map_err(|_| AlgoError::SwdError)?; // PG=1
-
         let mut offset = 0usize;
-        while offset + 2 <= data.len() {
-            let halfword = (data[offset] as u16) | ((data[offset + 1] as u16) << 8);
-            cortex
-                .mem_write32(addr + offset as u32, halfword as u32)
-                .map_err(|_| AlgoError::SwdError)?;
+        while offset < data.len() {
+            let halfword = if offset + 1 < data.len() {
+                (data[offset] as u16) | ((data[offset + 1] as u16) << 8)
+            } else {
+                data[offset] as u16 | 0xFF00
+            };
+
+            // 1. Clear EOP and error flags in FLASH_SR
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34);
+
+            // 2. Set PG=1 in FLASH_CR
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x01);
+
+            // 3. Program halfword using 16-bit CSW access with byte lane positioning
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_16BIT);
+            let curr_addr = addr + offset as u32;
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, curr_addr);
+            let packed = (halfword as u32) << (8 * (curr_addr & 2));
+            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, packed);
+
+            // 4. Wait for BSY clear
             Self::stm32f1_wait_bsy(cortex)?;
             offset += 2;
         }
 
-        cortex
-            .mem_write32(0x40022010, 0x00)
-            .map_err(|_| AlgoError::SwdError)?; // Clear PG
+        // Clear PG bit
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x00);
         Ok(())
     }
 

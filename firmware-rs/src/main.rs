@@ -24,6 +24,7 @@ mod servo;
 mod storage;
 mod usb;
 mod web;
+mod web_assets;
 mod web_desktop;
 pub mod programmer;
 

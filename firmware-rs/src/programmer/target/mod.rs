@@ -14,6 +14,7 @@ pub enum TargetError {
     ProtocolError,
     Timeout,
     FlashError,
+    FlashErrorCode(u32),
 }
 
 pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result<TargetInfo, TargetError> {
