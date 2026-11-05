@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use core::sync::atomic::{AtomicU8, Ordering};
 
 use crate::pin_owner::{self, ClaimError, Driver, SlotId};
@@ -21,10 +22,6 @@ pub mod slcan;
 pub mod ws2812;
 pub mod i3c;
 
-pub use i2c::I2cBridge;
-pub use slcan::SlcanBridge;
-pub use ws2812::Ws2812Bridge;
-pub use i3c::I3cBridge;
 
 // Safety-limited slot storage (interior via raw pointer to satisfy Rust 2024).
 static mut I2C_SLOT: Option<SlotId> = None;
@@ -35,7 +32,7 @@ static mut I3C_SLOT: Option<SlotId> = None;
 macro_rules! slot_read { ($name:ident) => { unsafe { core::ptr::addr_of!($name).read() } } }
 macro_rules! slot_write { ($name:ident, $val:expr) => { unsafe { core::ptr::addr_of_mut!($name).write($val) } } }
 
-pub fn i2c_on() -> Result<(), ClaimError> { i2c_enable() }
+pub fn i2c_on() -> Result<(), &'static str> { i2c_enable().map_err(|_| "pin conflict") }
 pub fn i2c_off() { i2c_disable() }
 pub fn i2c_enable() -> Result<(), ClaimError> {
     unsafe {
@@ -57,7 +54,7 @@ pub fn i2c_disable() {
     if active() == Mode::I2cTiny { set_active(Mode::Idle); }
 }
 
-pub fn slcan_on() -> Result<(), ClaimError> { slcan_enable() }
+pub fn slcan_on() -> Result<(), &'static str> { slcan_enable().map_err(|_| "pin conflict") }
 pub fn slcan_off() { slcan_disable() }
 pub fn slcan_enable() -> Result<(), ClaimError> {
     unsafe {
@@ -79,12 +76,12 @@ pub fn slcan_disable() {
     if active() == Mode::Slcan { set_active(Mode::Idle); }
 }
 
-pub fn can_on() -> Result<(), ClaimError> { slcan_enable() }
+pub fn can_on() -> Result<(), &'static str> { slcan_enable().map_err(|_| "pin conflict") }
 pub fn can_off() { slcan_disable() }
 pub fn can_enable() -> Result<(), ClaimError> { slcan_enable() }
 pub fn can_disable() { slcan_disable() }
 
-pub fn led_on() -> Result<(), ClaimError> { led_enable() }
+pub fn led_on() -> Result<(), &'static str> { led_enable().map_err(|_| "pin conflict") }
 pub fn led_off() { led_disable() }
 pub fn led_enable() -> Result<(), ClaimError> {
     unsafe {
@@ -108,7 +105,7 @@ pub fn led_disable() {
 pub fn neopixel_enable() -> Result<(), ClaimError> { led_enable() }
 pub fn neopixel_disable() { led_disable() }
 
-pub fn i3c_on() -> Result<(), ClaimError> { i3c_enable() }
+pub fn i3c_on() -> Result<(), &'static str> { i3c_enable().map_err(|_| "pin conflict") }
 pub fn i3c_off() { i3c_disable() }
 pub fn i3c_enable() -> Result<(), ClaimError> {
     unsafe {

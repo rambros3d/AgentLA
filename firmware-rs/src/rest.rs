@@ -120,6 +120,15 @@ pub struct LogicAnalyzerStop;
 pub struct LogicAnalyzerStatus;
 pub struct LogicAnalyzerConfig;
 pub struct LogicAnalyzerData;
+pub struct BridgeState;
+pub struct BridgeI2cOn;
+pub struct BridgeI2cOff;
+pub struct BridgeCanOn;
+pub struct BridgeCanOff;
+pub struct BridgeLedOn;
+pub struct BridgeLedOff;
+pub struct BridgeI3cOn;
+pub struct BridgeI3cOff;
 
 macro_rules! service {
     ($t:ty, $m:expr) => {
@@ -135,6 +144,7 @@ macro_rules! service {
 }
 
 service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET");
+service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 
 // ============ implementations ============
 impl ProfilesList {
@@ -504,6 +514,92 @@ impl LogicAnalyzerData {
         let st = crate::analyzer::get_status();
         let mut b=heapless::String::<256>::new();
         let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count));
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+
+impl BridgeState {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let body = crate::bridge::state_json();
+        send_json(request, response_writer, StatusCode::OK, body.as_str()).await
+    }
+}
+// placeholder wrappers to fit macro (off returns ()): convert
+
+impl BridgeI2cOn {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::bridge::i2c_on() {
+            Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
+            Err(e) => { let mut b=heapless::String::<64>::new(); let _=core::write!(b,r#"{{"error":"{:?}"}}"#,e); send_json(request,response_writer,StatusCode::CONFLICT,b.as_str()).await }
+        }
+    }
+}
+impl BridgeI2cOff {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::bridge::i2c_off();
+        let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl BridgeCanOn {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::bridge::can_on() {
+            Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
+            Err(e) => { let mut b=heapless::String::<64>::new(); let _=core::write!(b,r#"{{"error":"{:?}"}}"#,e); send_json(request,response_writer,StatusCode::CONFLICT,b.as_str()).await }
+        }
+    }
+}
+impl BridgeCanOff {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::bridge::can_off();
+        let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl BridgeLedOn {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::bridge::led_on() {
+            Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
+            Err(e) => { let mut b=heapless::String::<64>::new(); let _=core::write!(b,r#"{{"error":"{:?}"}}"#,e); send_json(request,response_writer,StatusCode::CONFLICT,b.as_str()).await }
+        }
+    }
+}
+impl BridgeLedOff {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::bridge::led_off();
+        let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl BridgeI3cOn {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::bridge::i3c_on() {
+            Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
+            Err(e) => { let mut b=heapless::String::<64>::new(); let _=core::write!(b,r#"{{"error":"{:?}"}}"#,e); send_json(request,response_writer,StatusCode::CONFLICT,b.as_str()).await }
+        }
+    }
+}
+impl BridgeI3cOff {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::bridge::i3c_off();
+        let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
     }
 }
