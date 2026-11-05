@@ -388,6 +388,12 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 (("Content-Type", "application/json"), buf)
             }),
         )
+
+        .route_service("/mcp", crate::rest::McpRpc)
+        .route_service("/mcp/health", crate::rest::McpHealth)
+        .route_service("/api/v1/mcp", crate::rest::McpHealth)
+        .route("/mcp/sse", get(|| async move { picoserve::response::sse::EventStream(crate::mcp::McpSseEvents) }))
+        // GET /apps/{name}/{path} — static files from LittleFS
         // GET /apps/{name}/{path} — static files from LittleFS
         .nest_service(
             ("/apps", parse_path_segment::<crate::apps::AppParams>()),

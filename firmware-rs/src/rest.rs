@@ -603,3 +603,28 @@ impl BridgeI3cOff {
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
     }
 }
+
+pub struct McpRpc;
+impl MethodHandlerService<(), ()> for McpRpc {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error=R::Error>>(
+        &self, _state: &(), (): (), _method: &str, mut request: Request<'_, R>, response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let body = read_body_str(&mut request).await;
+        let text = crate::mcp::handle_request(body.as_bytes());
+        if text.is_empty() {
+            let finalizer = request.body_connection.finalize().await?;
+            // notifications return 204
+            return StatusCode::NO_CONTENT.write_to(finalizer, response_writer).await;
+        }
+        send_json(request, response_writer, StatusCode::OK, text.as_str()).await
+    }
+}
+pub struct McpHealth;
+impl MethodHandlerService<(), ()> for McpHealth {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error=R::Error>>(
+        &self, _state: &(), (): (), _method: &str, mut request: Request<'_, R>, response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let _ = read_body_str(&mut request).await;
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":6}"#).await
+    }
+}
