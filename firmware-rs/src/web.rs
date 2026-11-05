@@ -418,6 +418,14 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/pwm/claim", crate::rest::PwmClaim)
         .route_service("/api/v1/pwm/set", crate::rest::PwmSet)
         .route_service("/api/v1/pwm/release", crate::rest::PwmRelease)
+        .route(
+            "/api/board/manifest",
+            get(|| async move { (("Content-Type", "application/json"), r#"{"board":"RP2350","name":"AgentLA"}"#) }),
+        )
+        .route(
+            "/api/settings",
+            get(|| async move { (("Content-Type", "application/json"), r#"{"theme":"forest","telemetry":true,"power":"3.3V"}"#) }),
+        )
 .route_service("/api/v1/logic-analyzer/arm", crate::rest::LogicAnalyzerArm)
 .route_service("/api/v1/logic-analyzer/start", crate::rest::LogicAnalyzerStart)
 .route_service("/api/v1/logic-analyzer/stop", crate::rest::LogicAnalyzerStop)
