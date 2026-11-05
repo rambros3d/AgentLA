@@ -114,6 +114,12 @@ pub struct PwmList;
 pub struct PwmClaim;
 pub struct PwmSet;
 pub struct PwmRelease;
+pub struct LogicAnalyzerArm;
+pub struct LogicAnalyzerStart;
+pub struct LogicAnalyzerStop;
+pub struct LogicAnalyzerStatus;
+pub struct LogicAnalyzerConfig;
+pub struct LogicAnalyzerData;
 
 macro_rules! service {
     ($t:ty, $m:expr) => {
@@ -128,7 +134,7 @@ macro_rules! service {
     };
 }
 
-service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST");
+service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET");
 
 // ============ implementations ============
 impl ProfilesList {
@@ -426,6 +432,78 @@ impl PwmRelease {
         if handle>=0 { let _=pin_owner::release(pin_owner::SlotId(handle as u32)); }
         if pin>=0 { let _=servo::detach(pin as u32); }
         let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"released"}"#);
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+
+// ============ logic analyzer handlers ============
+impl LogicAnalyzerArm {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query=request.parts.query();
+        let body=read_body_str(&mut request).await;
+        let freq=key_int(query,&body,"freq").map(|v|v as u32).unwrap_or(1_000_000);
+        let length=key_int(query,&body,"length").map(|v|v as u32).unwrap_or(1024);
+        let mut channels: heapless::Vec<u8,32> = heapless::Vec::new();
+        if let Some(q)=query_val(query,"channels") {
+            for t in q.as_str().split(',') { if let Ok(n)=t.parse::<u8>() { let _=channels.push(n); } }
+        } else {
+            for n in 0u8..4u8 { let _=channels.push(n); }
+        }
+        let cfg = crate::analyzer::CaptureConfig { freq, length, channels, trigger: crate::analyzer::TriggerConfig::default() };
+        match crate::analyzer::arm(cfg) {
+            Ok(()) => {
+                let mut b=heapless::String::<64>::new();
+                let _=b.push_str(r#"{"status":"armed"}"#);
+                send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+            }
+            Err(_) => send_json(request,response_writer,StatusCode::CONFLICT,r#"{"error":"already capturing or pin conflict"}"#).await,
+        }
+    }
+}
+impl LogicAnalyzerStart {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = crate::analyzer::start();
+        let st = crate::analyzer::get_status();
+        let mut b=heapless::String::<128>::new();
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count));
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl LogicAnalyzerStop {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        crate::analyzer::stop();
+        let st = crate::analyzer::get_status();
+        let mut b=heapless::String::<128>::new();
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count));
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl LogicAnalyzerStatus {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let st = crate::analyzer::get_status();
+        let mut b=heapless::String::<256>::new();
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"freq":{},"length":{},"pre_bytes":{},"post_bytes":{},"sample_count":{},"is_capturing":{}}}"#, st.state as u8, st.freq, st.length, st.pre_bytes, st.post_bytes, st.sample_count, st.is_capturing));
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl LogicAnalyzerConfig {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let mut b=heapless::String::<64>::new();
+        let _=b.push_str(r#"{"status":"ok"}"#);
+        send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl LogicAnalyzerData {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let st = crate::analyzer::get_status();
+        let mut b=heapless::String::<256>::new();
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count));
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
     }
 }
