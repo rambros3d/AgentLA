@@ -23,6 +23,7 @@ mod servo;
 mod storage;
 mod usb;
 mod web;
+mod web_desktop;
 pub mod programmer;
 
 bind_interrupts!(struct Irqs {
