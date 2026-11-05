@@ -72,6 +72,8 @@ static mut LENGTH: u32 = 0;
 static mut PRE_BYTES: u32 = 0;
 static mut POST_BYTES: u32 = 0;
 static mut SAMPLE_COUNT: u32 = 0;
+static mut TRIG_PIN: u8 = 0;
+static TRIGGER_MODE: core::sync::atomic::AtomicU8 = core::sync::atomic::AtomicU8::new(0);
 static mut SAMPLE_RING: [u32; BANK_WORDS] = [0; BANK_WORDS];
 pub const BANK_WORDS: usize = 256;
 
@@ -96,40 +98,54 @@ fn arm_core(cfg: CaptureConfig) -> Result<pin_owner::SlotId, Error> {
         }
     };
     { let mut g = BANK_CLAIM.try_lock().expect("claim"); *g = Some(slot); }
-    unsafe { FREQ = cfg.freq; LENGTH = cfg.length; PRE_BYTES = cfg.trigger.pre_size; POST_BYTES = cfg.trigger.post_size; SAMPLE_COUNT = 0; }
+    unsafe { FREQ = cfg.freq; LENGTH = cfg.length; PRE_BYTES = cfg.trigger.pre_size; POST_BYTES = cfg.trigger.post_size; SAMPLE_COUNT = 0; TRIG_PIN = cfg.channels.get(0).copied().unwrap_or(0); TRIGGER_MODE.store(cfg.trigger.r#type as u8, core::sync::atomic::Ordering::Relaxed); }
     STATE.store(State::Armed as u8, Ordering::Relaxed);
     Ok(slot)
 }
 
 pub fn arm(cfg: CaptureConfig) -> Result<(), Error> { arm_core(cfg).map(|_| ()) }
 
-pub fn start() -> Result<(), Error> {
+pub fn start() -> Result<(), Error> { start_with_trigger(false) }
+
+pub fn start_rising_edge() -> Result<(), Error> { start_with_trigger(true) }
+
+fn start_with_trigger(force_edge: bool) -> Result<(), Error> {
     if state() != State::Armed { return Err(Error::NotArmed); }
+    let trig = if force_edge { 1u8 } else { TRIGGER_MODE.load(core::sync::atomic::Ordering::Relaxed) };
     STATE.store(State::Capturing as u8, Ordering::Relaxed);
     let len = unsafe { LENGTH }.max(1).min(BANK_WORDS as u32);
     let freq = unsafe { FREQ }.max(1);
     let period = ((1_000_000u64 / freq as u64).max(1)).max(1) as u64;
+    let trpin = unsafe { TRIG_PIN } as usize;
+
     unsafe {
+        let mut captured: u32 = 0;
+        // Optional rising-edge qualification on primary trigger pin.
+        if trig == TriggerType::RisingEdge as u8 || force_edge {
+            let mut prev = (pac::SIO.gpio_in(0).read() >> trpin) & 1 != 0;
+            let mut guard = 0u32;
+            while guard < 4_000_000 {
+                let cur = (pac::SIO.gpio_in(0).read() >> trpin) & 1 != 0;
+                if !prev && cur { break; }
+                prev = cur;
+                guard += 1;
+                if guard.rem_euclid(1000) == 0 { embassy_time::block_for(embassy_time::Duration::from_micros(1)); }
+            }
+        }
+        // ring fill with live GPIO samples at (approx) requested sample rate.
         let mut i = 0u32;
         while i < len {
-            // Hardware: sample all requested channels as one bank word and wait for period.
+            let bank = pac::SIO.gpio_in(0).read();
             let mut word = 0u32;
             let mut ch = 0usize;
-            while ch < 32 {
-                let pin = ch as u8;
-                // flexible pins range 0-29
-                if pin < 30 {
-                    let bank = pac::SIO.gpio_in(0).read();
-                    let val = (bank >> pin) & 1;
-                    word |= val << ch;
-                }
-                ch += 1;
-            }
+            while ch < 32 { if ch < 30 { word |= ((bank >> ch) & 1) << ch; } ch += 1; }
             SAMPLE_RING[i as usize] = word;
             SAMPLE_COUNT = i + 1;
+            captured = SAMPLE_COUNT;
             if period >= 1 { embassy_time::block_for(embassy_time::Duration::from_micros(period)); }
             i += 1;
         }
+        let _ = captured;
     }
     STATE.store(State::Captured as u8, Ordering::Relaxed);
     Ok(())

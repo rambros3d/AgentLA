@@ -513,8 +513,17 @@ impl LogicAnalyzerData {
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let st = crate::analyzer::get_status();
         let first = crate::analyzer::bank_word(0);
+        let mut bankbuf = [0u8; 32];
+        let n = ((st.sample_count as usize)*4).min(32);
+        let mut i = 0usize;
+        while i < n {
+            let w = crate::analyzer::bank_word(i/4);
+            bankbuf[i] = ((w >> ((i % 4)*8)) & 0xFF) as u8;
+            i += 1;
+        }
+        let i3c = crate::decoder::i3c_decode(&bankbuf, 0, 1);
         let mut b=heapless::String::<256>::new();
-        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{},"first_sample":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count, first));
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{},"first_sample":{},"i3c_frames":{}, "i3c_bytes":{}}}"#, st.state as u8 , st.pre_bytes, st.post_bytes, st.sample_count, first, i3c.frame_count, i3c.byte_count));
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
     }
 }
