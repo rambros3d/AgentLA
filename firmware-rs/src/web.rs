@@ -363,6 +363,24 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             }),
         )
         .route(
+            "/api/apps",
+            get(|| async move {
+                let mut buf = heapless::String::<1024>::new();
+                match crate::apps::list_apps_json(&mut buf) {
+                    Some(Ok(())) => {}
+                    Some(Err(_)) => {
+                        buf.clear();
+                        let _ = buf.push_str(r#"{"error":"fs_error"}"#);
+                    }
+                    None => {
+                        buf.clear();
+                        let _ = buf.push_str(r#"{"error":"fs_not_mounted"}"#);
+                    }
+                }
+                (("Content-Type", "application/json"), buf)
+            }),
+        )
+        .route(
             "/api/v1/apps/storage",
             get(|| async move {
                 let mut buf = heapless::String::<192>::new();
