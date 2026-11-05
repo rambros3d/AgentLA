@@ -4,6 +4,7 @@
 
 use defmt_rtt as _;
 use embassy_rp::bind_interrupts;
+use embassy_rp::flash::Flash;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
 use panic_probe as _;
@@ -12,6 +13,10 @@ use static_cell::StaticCell;
 mod apps;
 mod fs_http;
 mod net;
+mod pin_owner;
+mod rest;
+mod profile;
+mod servo;
 mod storage;
 mod usb;
 mod web;
@@ -143,11 +148,16 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     defmt::info!("AgentLA RP2350 booting at 150 MHz...");
 
-    // 1. Composite USB Device (Start USB FIRST so host enumerates immediately)
+    // 1. Pin-ownership blank state (GPIO pin-ownership spec): register the fixed
+    //    programmer bridge claims and quiesce every flexible pin (SIO funcsel, input
+    //    direction, no pulls) before any peripheral task can drive a GPIO.
+    pin_owner::init();
+
+    // 2. Composite USB Device (Start USB FIRST so host enumerates immediately)
     let driver = Driver::new(p.USB, Irqs);
     let composite = usb::create_composite_usb(driver);
 
-    // 2. Spawn core USB tasks immediately
+    // 3. Spawn core USB tasks immediately
     spawner.spawn(usb::usb_task(composite.device).unwrap());
     spawner.spawn(usb::cdc_cli_task(composite.cdc_cli).unwrap());
     spawner.spawn(usb::cdc_uart_task(composite.cdc_uart).unwrap());
@@ -155,7 +165,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(usb::dap_v2_task(composite.dap_v2).unwrap());
     spawner.spawn(usb::ncm_task(composite.ncm_runner).unwrap());
 
-    // 3. Async Network Stack (embassy-net over CDC-NCM)
+    // 3b. Async Network Stack (embassy-net over CDC-NCM)
     let mut dns_servers = heapless::Vec::<embassy_net::Ipv4Address, 3>::new();
     let _ = dns_servers.push(net::STATIC_IP);
 
@@ -175,10 +185,17 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(net::dns_server_task(stack).unwrap());
     spawner.spawn(web::web_server_task(stack).unwrap());
 
-    // 3b. LittleFS partition on internal flash. Must complete before the
+    // 3c. LittleFS partition on internal flash. Must complete before the
     // watchdog task starts: a first-boot format erases 512 x 4 KiB sectors
-    // and can take seconds (the watchdog feeds on 5 s windows).
-    let flash = embassy_rp::flash::Flash::new_blocking(p.FLASH);
+    // and can take seconds (the watchdog feeds on 5 s windows). The FLASH
+    // peripheral is shared from here on between LittleFS and profile ops
+    // (profile window 0x180000..0x190000, see storage.rs).
+    let flash = Flash::new_blocking(p.FLASH);
+
+    // Profile boot-default scan BEFORE the LittleFS mount: purely XIP (read-only,
+    // zero-copy) and never erases at boot (design decision 5).
+    profile::scan_boot_default();
+
     let mounted = storage::init_filesystem(flash);
     defmt::info!(
         "LittleFS subsystem {}",

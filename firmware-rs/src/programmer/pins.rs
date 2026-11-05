@@ -8,6 +8,11 @@ pub const PIN_SWDIO: usize = 5;
 pub const PIN_RESET: usize = 6;
 pub const PIN_BOOT0: usize = 7;
 
+/// Programmer-bridge pin block (GPIO 4–14, pin 11 deliberately excluded — it stays
+/// flexible). Single source of truth: `tristate_pins` below and the fixed claims in
+/// `crate::pin_owner` are seeded from this list.
+pub const BRIDGE_PINS: [usize; 10] = [4, 5, 6, 7, 8, 9, 10, 12, 13, 14];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetPort {
     BluePill, // GPIO 4 (SWCLK), 5 (SWDIO), 6 (nRST)
@@ -15,9 +20,9 @@ pub enum TargetPort {
     Ch32v003, // GPIO 12 (SWIO), 13 (nRST), 14 (UART RX)
 }
 
-/// Tristate and safely float all programmer pins (GPIO 4-14)
+/// Tristate and safely float all programmer pins (bridge block, GPIO 4–14 excluding 11)
 pub fn tristate_pins() {
-    for pin in [4, 5, 6, 7, 8, 9, 10, 12, 13, 14] {
+    for pin in BRIDGE_PINS {
         pac::PADS_BANK0.gpio(pin).modify(|w| {
             w.set_iso(false);
             w.set_ie(true);

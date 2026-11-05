@@ -3,7 +3,7 @@ use core::fmt::Write as _;
 use embassy_net::Stack;
 use picoserve::response::sse::{EventSource, EventStream, EventWriter};
 use picoserve::response::{File, StatusCode};
-use picoserve::routing::{delete, get, get_service, parse_path_segment, post, PathRouter};
+use picoserve::routing::{delete, get, get_service, parse_path_segment, post, post_service, PathRouter};
 use picoserve::Config as PicoserveConfig;
 use picoserve::Server;
 
@@ -393,10 +393,35 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             ("/apps", parse_path_segment::<crate::apps::AppParams>()),
             crate::fs_http::AppFiles,
         )
+        // --- peripheral arbiter endpoints (pin ownership / profiles / servo / pwm) --
+        // Implemented as full-request service handlers (necessary because query params and
+        // JSON bodies cannot be extracted without serde in this no_std crate).
+        .route_service("/api/v1/profiles", crate::rest::ProfilesList)
+        .route_service("/api/v1/profiles/apply", crate::rest::ProfilesApply)
+        .route_service("/api/v1/profiles/boot", crate::rest::ProfilesBoot)
+        .route_service("/api/v1/profiles/save", crate::rest::ProfilesSave)
+        .route_service("/api/v1/profiles/delete", crate::rest::ProfilesDelete)
+        .route_service("/api/v1/pins/claim", crate::rest::PinsClaim)
+        .route_service("/api/v1/pins/release", crate::rest::PinsRelease)
+        .route_service("/api/v1/servo", crate::rest::ServoList)
+        .route_service("/api/v1/servo/attach", crate::rest::ServoAttach)
+        .route_service("/api/v1/servo/write", crate::rest::ServoWrite)
+        .route_service("/api/v1/servo/write_us", crate::rest::ServoWriteUs)
+        .route_service("/api/v1/servo/detach", crate::rest::ServoDetach)
+        .route_service("/api/v1/pwm", crate::rest::PwmList)
+        .route_service("/api/v1/pwm/claim", crate::rest::PwmClaim)
+        .route_service("/api/v1/pwm/set", crate::rest::PwmSet)
+        .route_service("/api/v1/pwm/release", crate::rest::PwmRelease)
+        .route_service("/api/profiles", crate::rest::ProfilesList)
+        .route_service("/api/profiles/apply", crate::rest::ProfilesApply)
+        .route_service("/api/profiles/boot", crate::rest::ProfilesBoot)
+        .route_service("/api/profiles/save", crate::rest::ProfilesSave)
+        .route_service("/api/profiles/delete", crate::rest::ProfilesDelete)
 }
 
+
 #[embassy_executor::task]
-pub async fn web_server_task(stack: Stack<'static>) {
+pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
     let app = make_app();
     static CONFIG: PicoserveConfig = PicoserveConfig::const_default().keep_connection_alive();
 
@@ -404,9 +429,7 @@ pub async fn web_server_task(stack: Stack<'static>) {
     let mut tcp_rx_buf = [0u8; 2048];
     let mut tcp_tx_buf = [0u8; 2048];
 
-    let server = Server::new(&app, &CONFIG, &mut http_buf);
+    let server = picoserve::Server::new(&app, &CONFIG, &mut http_buf);
     defmt::info!("HTTP server listening on TCP :80 (http://agentla.local and http://10.10.10.10)");
-    server
-        .listen_and_serve(0, stack, 80, &mut tcp_rx_buf, &mut tcp_tx_buf)
-        .await;
+    server.listen_and_serve(0, stack, 80, &mut tcp_rx_buf, &mut tcp_tx_buf).await;
 }
