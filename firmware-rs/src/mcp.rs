@@ -1,6 +1,7 @@
 //! Minimal MCP JSON-RPC 2.0 server barrel (Phase 4b).
 
 use core::fmt::Write as _;
+use rp_pac as pac;
 
 pub const MAX_BODY: usize = 4096;
 
@@ -29,6 +30,7 @@ fn id_token(body: &str) -> Option<&str> {
     Some(&tail[..end].trim())
 }
 
+use crate::profile; use crate::servo;
 pub fn handle_request(body: &[u8]) -> heapless::String<1024> {
     let mut out = heapless::String::new();
     let text = core::str::from_utf8(body).unwrap_or("{}");
@@ -70,13 +72,29 @@ pub fn handle_request(body: &[u8]) -> heapless::String<1024> {
 fn invoke_tool(name: &str) -> heapless::String<256> {
     let mut out = heapless::String::new();
     match name {
-        "status" => { let _ = write!(out, "clk=150MHz tools=6"); }
-        "probe_target" => { let _ = write!(out, "probe target family=STM32F1/RP2040/CH32V003"); }
-        "read_pins" => { let _ = write!(out, "pins active: 0-29"); }
-        "system_reboot_bootsel" => { let _ = write!(out, "scheduled"); }
-        "profile_status" => { let _ = write!(out, "active_slot=0"); }
-        "servo_list" => { let _ = write!(out, "channels=[]"); }
-        _ => { let _ = write!(out, "unknown tool"); }
+        "status" => {
+            let _ = write!(out, "clk={}MHz tools={} active_profile={}", 150, 7, profile::active_slot());
+        }
+        "probe_target" => {
+            let _ = write!(out, "transport=SWD/RVSWD/SWIO (ports 1-3 armed)");
+        }
+        "read_pins" => {
+            let bank = unsafe { pac::SIO.gpio_in(0).read() };
+            let _ = write!(out, "input=0x{:08x}", bank);
+        }
+        "system_reboot_bootsel" => {
+            let _ = write!(out, "scheduled (deferred in this release)");
+        }
+        "profile_status" => {
+            let _ = write!(out, "active_slot={} active_name={}", profile::active_slot(), profile::active_name().as_str());
+        }
+        "servo_list" => {
+            let n = servo::servo_list().len();
+            let _ = write!(out, "channels={}", n);
+        }
+        _ => {
+            let _ = write!(out, "unknown tool: {}", name);
+        }
     }
     out
 }
