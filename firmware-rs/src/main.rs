@@ -220,6 +220,8 @@ async fn main(spawner: embassy_executor::Spawner) {
     let watchdog = embassy_rp::watchdog::Watchdog::new(p.WATCHDOG);
     spawner.spawn(watchdog_task(watchdog).unwrap());
 
+    // Spawn analyzer capture task (PIO0/DMA0) to fill bank.
+    spawner.spawn(crate::analyzer::capture_task(pio0, dma0).unwrap());
     let _ = crate::decoder::swd_decode(&crate::decoder::SWD_TEST_SAMPLE, 1_000_000, 0, 1, 0);
 defmt::info!("SWD KAT: port smoke");
 defmt::info!("All AgentLA subsystems initialized and running.");

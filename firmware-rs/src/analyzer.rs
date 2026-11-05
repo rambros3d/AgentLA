@@ -111,43 +111,8 @@ pub fn start_rising_edge() -> Result<(), Error> { start_with_trigger(true) }
 
 fn start_with_trigger(force_edge: bool) -> Result<(), Error> {
     if state() != State::Armed { return Err(Error::NotArmed); }
-    let trig = if force_edge { 1u8 } else { TRIGGER_MODE.load(core::sync::atomic::Ordering::Relaxed) };
+    if force_edge { TRIGGER_MODE.store(TriggerType::RisingEdge as u8, core::sync::atomic::Ordering::Relaxed); }
     STATE.store(State::Capturing as u8, Ordering::Relaxed);
-    let len = unsafe { LENGTH }.max(1).min(BANK_WORDS as u32);
-    let freq = unsafe { FREQ }.max(1);
-    let period = ((1_000_000u64 / freq as u64).max(1)).max(1) as u64;
-    let trpin = unsafe { TRIG_PIN } as usize;
-
-    unsafe {
-        let mut captured: u32 = 0;
-        // Optional rising-edge qualification on primary trigger pin.
-        if trig == TriggerType::RisingEdge as u8 || force_edge {
-            let mut prev = (pac::SIO.gpio_in(0).read() >> trpin) & 1 != 0;
-            let mut guard = 0u32;
-            while guard < 4_000_000 {
-                let cur = (pac::SIO.gpio_in(0).read() >> trpin) & 1 != 0;
-                if !prev && cur { break; }
-                prev = cur;
-                guard += 1;
-                if guard.rem_euclid(1000) == 0 { embassy_time::block_for(embassy_time::Duration::from_micros(1)); }
-            }
-        }
-        // ring fill with live GPIO samples at (approx) requested sample rate.
-        let mut i = 0u32;
-        while i < len {
-            let bank = pac::SIO.gpio_in(0).read();
-            let mut word = 0u32;
-            let mut ch = 0usize;
-            while ch < 32 { if ch < 30 { word |= ((bank >> ch) & 1) << ch; } ch += 1; }
-            SAMPLE_RING[i as usize] = word;
-            SAMPLE_COUNT = i + 1;
-            captured = SAMPLE_COUNT;
-            if period >= 1 { embassy_time::block_for(embassy_time::Duration::from_micros(period)); }
-            i += 1;
-        }
-        let _ = captured;
-    }
-    STATE.store(State::Captured as u8, Ordering::Relaxed);
     Ok(())
 }
 
@@ -179,6 +144,8 @@ pub fn no_trigger(length: u32, channels: &[u8], _width: u32) -> Result<(), Error
 }
 
 pub fn sample_count() -> u32 { unsafe { SAMPLE_COUNT } }
+
+pub fn rising_edge_mode() -> bool { TRIGGER_MODE.load(Ordering::Relaxed) == TriggerType::RisingEdge as u8 }
 
 pub fn bank_word(index: usize) -> u32 {
     if index < unsafe { SAMPLE_COUNT } as usize && index < BANK_WORDS {
@@ -339,6 +306,18 @@ pub async fn capture_task(pio0: embassy_rp::Peri<'static, embassy_rp::peripheral
     let mut dma_ref = dma::Channel::new(dma0, crate::Irqs);
     loop {
         if state() == State::Capturing {
+            if crate::analyzer::rising_edge_mode() {
+                let trpin = unsafe { TRIG_PIN } as usize;
+                let mut prev = (pac::SIO.gpio_in(0).read() >> trpin) & 1 != 0;
+                let mut guard = 0u32;
+                while guard < 4_000_000 {
+                    let cur = (pac::SIO.gpio_in(0).read() >> trpin) & 1 != 0;
+                    if !prev && cur { break; }
+                    prev = cur;
+                    guard += 1;
+                    if guard.rem_euclid(1000) == 0 { Timer::after(Duration::from_micros(1)).await; }
+                }
+            }
             let mut bank = [0u32; 64];
             let prg = pio_asm!(
                 ".wrap_target",
