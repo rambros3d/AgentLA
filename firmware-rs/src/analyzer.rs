@@ -281,3 +281,18 @@ const _: () = {
 };
 
 pub fn capture_get_engine_mode_name() -> &'static str { "Raw" }
+
+
+// ---------- rising-edge trigger qualifier (pure state function) ----------
+pub fn rising_edge(samples: &[u8], trig_bit: u8) -> usize {
+    let mut i = 0usize; let mut count = 0usize; let n = samples.len();
+    if n == 0 { return 0; }
+    let mut prev = ((samples[0] >> trig_bit) & 1) != 0;
+    while i + 1 < n {
+        let cur = ((samples[i + 1] >> trig_bit) & 1) != 0;
+        if !prev && cur { count += 1; }
+        prev = cur;
+        i += 1;
+    }
+    count
+}

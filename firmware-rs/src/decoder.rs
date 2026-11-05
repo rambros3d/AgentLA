@@ -255,3 +255,15 @@ pub fn swo_decode(samples:&[u8])->SwoResult { SwoResult { words:(samples.len()/3
 pub fn led_decode_1w(samples:&[u8])->LedResult { LedResult { transitions: (samples.len()/10) as u32 } }
 pub fn led_decode_2w(samples:&[u8])->LedResult { LedResult { transitions: (samples.len()/10) as u32 } }
 pub fn decoder_count() -> usize { 11 }  // 1wire+can+dmx+i2c+i3c+led+lin+modbus+spiflash+swd+swo }
+
+pub const SWD_TEST_SAMPLE: [u8; 45] = [
+    0b01000001, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00010000, 0b00000000, 0b00100001, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+];
