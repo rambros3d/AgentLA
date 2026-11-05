@@ -12,6 +12,7 @@ use static_cell::StaticCell;
 
 mod analyzer;
 mod bridge;
+mod mcp;
 mod apps;
 mod fs_http;
 mod net;
