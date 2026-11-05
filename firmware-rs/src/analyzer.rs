@@ -63,3 +63,20 @@ pub fn stop() {
 }
 
 pub fn last_error() -> Option<&'static str> { None }
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TriggerMode { None, RisingEdge, FallingEdge, Pattern }
+
+pub struct CaptureBank(pub [u8; SAMPLE_COUNT_MAX*4]);
+
+#[allow(static_mut_refs)]
+static mut BANK: CaptureBank = CaptureBank([0u8; SAMPLE_COUNT_MAX*4]);
+
+
+
+// Additional state-transition helper (no-op except state the intended bank size)
+pub fn ingest_no_trigger_samples(slot_count: u32) {
+    if slot_count > 0 && state() == State::Capturing {
+        STATE.store(State::Captured as u8, core::sync::atomic::Ordering::Relaxed);
+    }
+}
