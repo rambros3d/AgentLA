@@ -23,7 +23,7 @@ Reference: `/home/sun/Filelink/Firmwares/AgentLA` (C firmware, all features base
 | 4 | **Hardware Bus Bridges** | `bridge/{mod,i2c,slcan,ws2812,i3c}.rs` | ✅ Fully Implemented | Bit-banged I2C master with scan/read/write, cycle-accurate 800 kHz WS2812 NeoPixel driver, SLCAN/CAN standby & recessive line driving |
 | 4b | **MCP JSON-RPC AI Agent Surface** | `mcp.rs`, `rest::Mcp*` | ✅ 100% Parity | 14 registered AI agent hardware control tools, `/mcp/health` 200 OK |
 | 5 | **Exact DaisyUI Web Desktop OS** | `web_assets.rs`, `web.rs`, `rest.rs` | ✅ 100% Parity | All 635 KB of C assets (`index.html`, `app.js`, `style.css`, `apps.html`, `themes.*`, `board.json`, SVGs) served out of ROM; verified at `http://10.10.10.10/` |
-| 6 | **Target Programmer & Debugger** | `programmer/{mod,pins,swd,rvswd,swio,target,algo}` | 🟡 95% Parity | Detection, Halt, Resume, and Flash Read verified on all 3 MCUs; Flash Erase verified on all 3 MCUs; Flash Write in final verification |
+| 6 | **Target Programmer & Debugger** | `programmer/{mod,pins,swd,rvswd,swio,target,algo}` | ✅ 100% Parity | Detection, Halt, Resume, Flash Read, Flash Erase, and Flash Write with readback verification verified on all 3 MCUs |
 
 ---
 
@@ -36,7 +36,8 @@ Reference: `/home/sun/Filelink/Firmwares/AgentLA` (C firmware, all features base
 | **Core Resume (`target resume`)**| ✅ Verified | ✅ Verified | ✅ Verified |
 | **Flash Read (`flash read`)** | ✅ Verified (Vector Table / SP) | ✅ Verified (32-bit words via PROGBUF) | ✅ Verified (32-bit words via PROGBUF) |
 | **Flash Erase (`flash erase`)** | ✅ Sector erase verified | ✅ Page erase (256 B) verified | ✅ Page erase (64 B) verified |
-| **Flash Write (`flash write`)** | ✅ Verified | 🟡 Fast page write tuning | 🟡 Buffer latch timing tuning |
+| **Flash Write (`flash write`)** | ✅ Sector program & verify verified | ✅ Fast page program & verify verified | ✅ Fast page program & verify verified |
+| **Pattern Readback Match** | ✅ Matched (PASS) | ✅ Matched (PASS) | ✅ Matched (PASS) |
 
 ---
 
@@ -64,6 +65,8 @@ Reference: `/home/sun/Filelink/Firmwares/AgentLA` (C firmware, all features base
 ## Recent Commits
 
 ```
+3ff19e9 feat(programmer): multi-port flashing and debugging verified on physical hardware
+887cd7e docs: update PORTING-STATUS.md with WebUI completion and multi-target progress
 e0b781e feat(web): port complete C WebUI desktop and DaisyUI assets to Embassy Rust
 b614add fix(programmer): improve DPIDR detection and ack handling
 8cd13cd feat(firmware-rs): Phase4 MCP registry + real bus bridges (I2C/WS2812/CAN)
