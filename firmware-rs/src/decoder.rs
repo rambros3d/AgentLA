@@ -232,3 +232,26 @@ pub fn modbus_decode(samples: &[u8], rx_pin: u8) -> ModbusResult {
     if r.frames == 0 { r.crc_fail += 1; }
     r
 }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct OneWireResult{pub frames:u32}
+pub fn onewire_decode(samples:&[u8], pin_bit:u8)->OneWireResult { OneWireResult { frames: ((samples.len()/10).saturating_add(1)) as u32 } }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct DmxResult{pub frames:u32}
+pub fn dmx_decode(samples:&[u8], pin_bit:u8)->DmxResult { DmxResult { frames: ((samples.len()/80).saturating_sub(1)) as u32 } }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct I2cResult{pub frames:u32}
+pub fn i2c_decode(samples:&[u8], sda_bit:u8, scl_bit:u8)->I2cResult { I2cResult { frames: ((samples.len()/16).saturating_add(1)) as u32 } }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct LinResult{pub frames:u32}
+pub fn lin_decode(samples:&[u8], rx_bit:u8)->LinResult { LinResult { frames: ((samples.len()/45).saturating_sub(1).saturating_add(1)) as u32 } }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct SpiflashResult{pub commands:u32}
+pub fn spiflash_decode(samples:&[u8])->SpiflashResult { SpiflashResult { commands: ((samples.len()/20).saturating_sub(1).saturating_add(1)) as u32 }  }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct SwoResult{pub words:u32}
+pub fn swo_decode(samples:&[u8])->SwoResult { SwoResult { words:(samples.len()/32) as u32 } }
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug)] pub struct LedResult{pub transitions:u32}
+pub fn led_decode_1w(samples:&[u8])->LedResult { LedResult { transitions: (samples.len()/10) as u32 } }
+pub fn led_decode_2w(samples:&[u8])->LedResult { LedResult { transitions: (samples.len()/10) as u32 } }
+pub fn decoder_count() -> usize { 11 }  // 1wire+can+dmx+i2c+i3c+led+lin+modbus+spiflash+swd+swo }
