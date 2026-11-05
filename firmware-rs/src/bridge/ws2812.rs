@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 //! WS2812 / NeoPixel PIO bridge.
 //!
 //! Drives a single-wire addressable LED strip via a PIO state machine. Timing is

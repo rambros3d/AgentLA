@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 //! SLCAN (Lawicel) ASCII CAN bridge.
 //!
 //! Maps SLCAN `S`/`O`/`C`/`t`/`T`/`r`/`R` style commands onto a dynamic CAN

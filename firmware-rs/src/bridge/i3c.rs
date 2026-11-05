@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 //! MIPI I3C master bridge (SDR).
 //!
 //! Issues basic CCCs (INIT/ENTDAA/RSTDAA) and read/write transactions. Hardware

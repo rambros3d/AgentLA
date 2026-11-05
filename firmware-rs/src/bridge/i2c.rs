@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 //! I2C-tiny-USB / MCP2221 emulation (proof-of-function).
 //!
 //! Emulates the Microchip MCP2221 command subset over a CDC-ACM channel. Hardware
