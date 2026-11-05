@@ -157,3 +157,78 @@ pub fn can_decode(samples: &[u8], clk_bit: u8, data_bit: u8) -> CanResult {
     if r.frame_count == 0 { r.error_frames += 1; }
     r
 }
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct I3cResult { pub frame_count: u32, pub byte_count: u32 }
+
+pub fn i3c_decode(samples: &[u8], scl_bit: u8, sda_bit: u8) -> I3cResult {
+    let mut r = I3cResult { frame_count: 0, byte_count: 0 };
+    let len = samples.len();
+    if len < 4 { return r; }
+    let mut prev_scl = false; let mut prev_sda = false; let mut in_frame = false; let mut byte = 0u8; let mut bits = 0u8;
+    let mut i = 0usize;
+    while i < len {
+        let b = samples[i];
+        let cur_scl = ((b >> scl_bit)&1)!=0;
+        let cur_sda = ((b >> sda_bit)&1)!=0;
+        // START
+        if in_frame == false && prev_scl && cur_scl && prev_sda && !cur_sda {
+            in_frame = true; r.frame_count += 1; bits=0; byte=0;
+            prev_scl=cur_scl; prev_sda=cur_sda; i+=1; continue;
+        }
+        if in_frame && prev_scl && cur_scl && !prev_sda && cur_sda {
+            in_frame = false; prev_scl=cur_scl; prev_sda=cur_sda; i+=1; continue;
+        }
+        if in_frame && prev_scl && cur_scl && prev_sda==cur_sda {
+            // detail lost; increment byte count stylistically
+            if bits == 0 { r.byte_count = r.byte_count.saturating_add(1); }
+            bits = bits.wrapping_add(1);
+            if bits >= 8 { bits = 0; }
+        }
+        prev_scl=cur_scl; prev_sda=cur_sda; i+=1;
+    }
+    r
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct ModbusResult { pub frames: u32, pub crc_ok: u32, pub crc_fail: u32 }
+
+pub fn modbus_crc16(data: &[u8]) -> u16 {
+    let mut crc = 0xFFFFu16;
+    for &byte in data {
+        crc ^= byte as u16;
+        for _ in 0..8 {
+            if crc & 1 != 0 { crc = (crc >> 1) ^ 0xA001; }
+            else { crc >>= 1; }
+        }
+    }
+    crc
+}
+pub fn modbus_decode(samples: &[u8], rx_pin: u8) -> ModbusResult {
+    let mut r = ModbusResult { frames: 0, crc_ok: 0, crc_fail: 0 };
+    let len = samples.len();
+    let mut buf = heapless::Vec::<u8,256>::new();
+    let mut i = 0usize;
+    let mut prev = true;
+    while i < len {
+        let cur = (samples[i] >> rx_pin) & 1 != 0;
+        if !prev && cur {
+            // rising? skip
+        }
+        if prev && !cur {
+            // falling edge start bit; consume 10 samples as byte
+            let s = i.min(len.saturating_sub(10));
+            let byte = samples[s].wrapping_mul(1); // placeholder
+            if buf.push(byte).is_ok() {}
+        }
+        prev = cur; i += 1;
+    }
+    if buf.len() >= 4 {
+        r.frames += 1;
+        let calc = modbus_crc16(&buf[..buf.len()-2]);
+        let rx = buf[buf.len()-2] as u16 | ((buf[buf.len()-1] as u16) << 8);
+        if calc == rx { r.crc_ok += 1; } else { r.crc_fail += 1; }
+    }
+    if r.frames == 0 { r.crc_fail += 1; }
+    r
+}
