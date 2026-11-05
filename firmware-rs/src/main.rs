@@ -9,6 +9,8 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use panic_probe as _;
 use static_cell::StaticCell;
 
+mod apps;
+mod fs_http;
 mod net;
 mod storage;
 mod usb;
@@ -18,6 +20,107 @@ pub mod programmer;
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
 });
+
+// ---------------------------------------------------------------------------
+// libc string shims for the littlefs2 C core
+//
+// `littlefs2-sys` compiles `lfs.c` with `lfs_util.h` stripped (see its
+// build.rs), so the C core emits plain `strcpy`/`strchr`/`strlen` calls. The
+// mem* variants are provided by `compiler_builtins`; the str* ones are not,
+// and a no_std firmware links no libc — so we supply minimal implementations
+// matching the C semantics exactly. Only used by the littlefs C code.
+// ---------------------------------------------------------------------------
+
+/// strcpy: copies `src` (incl. NUL) into `dst`, returns `dst`.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn strcpy(dst: *mut core::ffi::c_char, src: *const core::ffi::c_char) -> *mut core::ffi::c_char {
+    unsafe {
+        let mut i = 0usize;
+        loop {
+            let b = *src.add(i);
+            *dst.add(i) = b;
+            if b == 0 {
+                break;
+            }
+            i += 1;
+        }
+    }
+    dst
+}
+
+/// strchr: returns a pointer to the first occurrence of `c` in `s`,
+/// including the terminating NUL, or null when absent.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn strchr(s: *const core::ffi::c_char, c: core::ffi::c_int) -> *mut core::ffi::c_char {
+    unsafe {
+        let mut i = 0usize;
+        loop {
+            let b = *s.add(i);
+            if b as core::ffi::c_int == c {
+                return s.add(i) as *mut core::ffi::c_char;
+            }
+            if b == 0 {
+                return core::ptr::null_mut();
+            }
+            i += 1;
+        }
+    }
+}
+
+/// strlen: length of the NUL-terminated string.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn strlen(s: *const core::ffi::c_char) -> usize {
+    unsafe {
+        let mut n = 0usize;
+        while *s.add(n) != 0 {
+            n += 1;
+        }
+        n
+    }
+}
+
+/// strspn: length of the initial segment of `s` made only of `accept` chars.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn strspn(s: *const core::ffi::c_char, accept: *const core::ffi::c_char) -> usize {
+    unsafe {
+        let mut n = 0usize;
+        while *s.add(n) != 0 {
+            let mut found = false;
+            let mut i = 0usize;
+            while *accept.add(i) != 0 {
+                if *accept.add(i) == *s.add(n) {
+                    found = true;
+                    break;
+                }
+                i += 1;
+            }
+            if !found {
+                break;
+            }
+            n += 1;
+        }
+        n
+    }
+}
+
+/// strcspn: length of the initial segment of `s` without any `reject` char.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn strcspn(s: *const core::ffi::c_char, reject: *const core::ffi::c_char) -> usize {
+    unsafe {
+        let mut n = 0usize;
+        while *s.add(n) != 0 {
+            let mut i = 0usize;
+            while *reject.add(i) != 0 {
+                if *reject.add(i) == *s.add(n) {
+                    return n;
+                }
+                i += 1;
+            }
+            n += 1;
+        }
+        n
+    }
+}
 
 #[embassy_executor::task]
 async fn watchdog_task(mut watchdog: embassy_rp::watchdog::Watchdog) {
@@ -71,6 +174,16 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(net::dhcp_server_task(stack).unwrap());
     spawner.spawn(net::dns_server_task(stack).unwrap());
     spawner.spawn(web::web_server_task(stack).unwrap());
+
+    // 3b. LittleFS partition on internal flash. Must complete before the
+    // watchdog task starts: a first-boot format erases 512 x 4 KiB sectors
+    // and can take seconds (the watchdog feeds on 5 s windows).
+    let flash = embassy_rp::flash::Flash::new_blocking(p.FLASH);
+    let mounted = storage::init_filesystem(flash);
+    defmt::info!(
+        "LittleFS subsystem {}",
+        if mounted { "ready" } else { "FAILED to mount (web fallback active)" }
+    );
 
     // Initialize and tristate all programmer pins
     crate::programmer::pins::tristate_pins();

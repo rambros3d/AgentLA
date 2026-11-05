@@ -1,7 +1,9 @@
+use core::fmt::Write as _;
+
 use embassy_net::Stack;
 use picoserve::response::sse::{EventSource, EventStream, EventWriter};
-use picoserve::response::File;
-use picoserve::routing::{get, get_service, post, PathRouter};
+use picoserve::response::{File, StatusCode};
+use picoserve::routing::{delete, get, get_service, parse_path_segment, post, PathRouter};
 use picoserve::Config as PicoserveConfig;
 use picoserve::Server;
 
@@ -264,6 +266,132 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route(
             "/api/v1/events",
             get(|| async move { EventStream(TelemetryEvents) }),
+        )
+        // --- app ecosystem endpoints (LittleFS-backed) ------------------
+        // Picoserve tries the most recently registered routes first and falls
+        // back to earlier ones (each `.route` wraps the previous state).
+        // Parametric routes therefore go FIRST and the literal endpoints you
+        // could otherwise shadow (e.g. `GET /api/v1/apps/storage` vs the
+        // `DELETE /api/v1/apps/{name}` app-name route) go AFTER them.
+        // GET /api/v1/apps/{name}/manifest
+        .route(
+            ("/api/v1/apps", parse_path_segment::<crate::apps::AppParams>(), "/manifest"),
+            get(|name: crate::apps::AppParams| async move {
+                let mut body = heapless::String::<256>::new();
+                let code;
+                match crate::apps::read_manifest(&name) {
+                    Some(Ok(Some(manifest))) => {
+                        // Manifests are written by us as bounded ASCII JSON;
+                        // anything non-printable is dropped defensively.
+                        for &b in manifest.iter() {
+                            if (0x20..=0x7e).contains(&b)
+                                && body.push(b as char).is_err()
+                            {
+                                break;
+                            }
+                        }
+                        if body.is_empty() {
+                            code = StatusCode::NOT_FOUND;
+                            let _ = body.push_str(r#"{"error":"Manifest not found"}"#);
+                        } else {
+                            code = StatusCode::OK;
+                        }
+                    }
+                    Some(Ok(None)) => {
+                        code = StatusCode::NOT_FOUND;
+                        let _ = body.push_str(r#"{"error":"Manifest not found"}"#);
+                    }
+                    Some(Err(_)) => {
+                        code = StatusCode::INTERNAL_SERVER_ERROR;
+                        let _ = body.push_str(r#"{"error":"fs_error"}"#);
+                    }
+                    None => {
+                        code = StatusCode::SERVICE_UNAVAILABLE;
+                        let _ = body.push_str(r#"{"error":"fs_not_mounted"}"#);
+                    }
+                }
+                (code, ("Content-Type", "application/json"), body)
+            }),
+        )
+        // POST /api/v1/apps/install/{name} (streamed tarball upload)
+        .route_service(
+            ("/api/v1/apps/install", parse_path_segment::<crate::apps::AppParams>()),
+            crate::fs_http::AppInstall,
+        )
+        // DELETE /api/v1/apps/{name}
+        .route(
+            ("/api/v1/apps", parse_path_segment::<crate::apps::AppParams>()),
+            delete(|name: crate::apps::AppParams| async move {
+                let mut body = heapless::String::<64>::new();
+                let mut code = StatusCode::OK;
+                match crate::apps::delete_app(&name) {
+                    Some(Ok(())) => {
+                        let _ = write!(
+                            body,
+                            r#"{{"status":"deleted","app":"{}"}}"#,
+                            name.as_str()
+                        );
+                    }
+                    Some(Err(_)) => {
+                        code = StatusCode::NOT_FOUND;
+                        let _ = body.push_str(r#"{"error":"App not found or delete failed"}"#);
+                    }
+                    None => {
+                        code = StatusCode::SERVICE_UNAVAILABLE;
+                        let _ = body.push_str(r#"{"error":"fs_not_mounted"}"#);
+                    }
+                }
+                (code, ("Content-Type", "application/json"), body)
+            }),
+        )
+        .route(
+            "/api/v1/apps",
+            get(|| async move {
+                let mut buf = heapless::String::<1024>::new();
+                match crate::apps::list_apps_json(&mut buf) {
+                    Some(Ok(())) => {}
+                    Some(Err(_)) => {
+                        buf.clear();
+                        let _ = buf.push_str(r#"{"error":"fs_error"}"#);
+                    }
+                    None => {
+                        buf.clear();
+                        let _ = buf.push_str(r#"{"error":"fs_not_mounted"}"#);
+                    }
+                }
+                (("Content-Type", "application/json"), buf)
+            }),
+        )
+        .route(
+            "/api/v1/apps/storage",
+            get(|| async move {
+                let mut buf = heapless::String::<192>::new();
+                match crate::apps::storage_stats() {
+                    Some(Ok(s)) => {
+                        let _ = write!(
+                            buf,
+                            r#"{{"total_bytes":{},"used_bytes":{},"free_bytes":{},"block_size":{},"block_count":{}}}"#,
+                            s.total_bytes,
+                            s.used_bytes,
+                            s.free_bytes,
+                            s.block_size,
+                            s.block_count
+                        );
+                    }
+                    Some(Err(_)) => {
+                        let _ = buf.push_str(r#"{"error":"fs_error"}"#);
+                    }
+                    None => {
+                        let _ = buf.push_str(r#"{"error":"fs_not_mounted"}"#);
+                    }
+                }
+                (("Content-Type", "application/json"), buf)
+            }),
+        )
+        // GET /apps/{name}/{path} — static files from LittleFS
+        .nest_service(
+            ("/apps", parse_path_segment::<crate::apps::AppParams>()),
+            crate::fs_http::AppFiles,
         )
 }
 

@@ -197,3 +197,39 @@ Port 2 [CH32V203] core resumed.
    - After line reset / `JTAG-to-SWD` switching sequence, the host **must** first read `DP_DPIDR` (register 0x00).
    - Before attempting any Access Port (AHB-AP) transfers, the debug power domain must be powered up by setting `CDBGPWRUPREQ` and `CSYSPWRUPREQ` in `DP_CTRLSTAT` (`0x50000000`) and verifying the handshake response (`0xA0000000`).
    - Memory accesses into Flash incur bus wait states; the transport retry loop must handle `SWD_ACK_WAIT` (0x02) during both `AP_DRW` read triggers and `DP_RDBUFF` collection.
+5. **Timing errata (observed 2026-11-05)**:
+   - After the `bootsel` serial command, the RP2350 can take **longer than 2 s** to re-enumerate as `2e8a:000f`; wait **3–5 s** before invoking `picotool`. A premature `picotool load/reboot` exits with status 249 ("No accessible RP-series devices") and leaves the board in BOOTSEL — just rerun the command once enumeration completes.
+   - `curl -T file URL` issues a **PUT**, not a POST. The tarball installer accepts only POST: use `curl -X POST --data-binary @app.tar http://10.10.10.10/api/v1/apps/install/{name}`.
+
+---
+
+## 7. Phase 1 Hardware Verification (LittleFS / App Ecosystem, 2026-11-05)
+
+Firmware built from `firmware-rs` (branch `embassy`), flashed via the §3 hands-free
+loop (bootsel + `picotool load -x`, 480 KB UF2, ~8 MB debug ELF). All checks below
+were run against `http://10.10.10.10` over the CDC-NCM virtual Ethernet link.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Build release | OK — no new warnings (only pre-existing `proc-macro-error2` future-incompat note) |
+| 2 | Defmt mount line | Mount at `0x00190000`; on first ever boot the format fallback ran once, subsequent boots mount directly |
+| 3 | Embedded fallback `/` | OK — INDEX_HTML served unchanged |
+| 4 | `GET /api/v1/apps` | OK — JSON array, seeded `servo-master` present |
+| 5 | `POST /api/v1/apps/install/{name}` | OK — `{"status":"installed","app":"live-test","files":2,"bytes":75}` |
+| 6 | `GET /apps/{name}/index.html` | OK — HTTP 200, `Content-Type: text/html`, chunked streaming from LittleFS |
+| 7 | `GET /api/v1/apps/storage` | OK — `total_bytes:2097152, used:32768→40960→32768, block_count:512` |
+| 8 | `DELETE /api/v1/apps/{name}` | OK — `{"status":"deleted"}`, subsequent `GET /apps/…` → `404 {"status":"not_found"}` |
+| 9 | SSE `/api/v1/events` + `/api/v1/system` | OK — telemetry events flowing, endpoints unaffected by FS traffic |
+| 10 | Reboot persistence | OK — installed app survived flashing **and** `picotool reboot` cycles (LittleFS mount without re-format) |
+
+Operational notes:
+- `used_bytes` rose 32768 → 40960 (2 × 4 KiB blocks) on install and fell back exactly
+  on delete — free-space accounting is consistent, and space freed by `DELETE` is
+  reclaimed at the filesystem level.
+- The app-list JSON splices an installed manifest only when it is bounded printable
+  ASCII JSON (`{`…`}` with no trailing newline); a raw manifest is always available via
+  `GET /api/v1/apps/{name}/manifest`.
+- A brief connection-refused blip was observed on the HTTP port immediately after a
+  tarball install while flash writes settle; the next request succeeded. Not a blocker,
+  but worth re-checking when the connection pool / keep-alive behavior is tuned.
+- UNTouched: profile slots below `0x190000`, all programmer/analyzer subsystems.
