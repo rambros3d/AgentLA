@@ -1,2 +1,2 @@
-// Desktop shell wiring harness (stub)
-pub const DESKTOP_CSS: &str = "/* unused */";
+// Phase shell placeholder
+pub const DESKTOP_NOTE: &str = "desktop-shell";
