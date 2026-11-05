@@ -460,7 +460,12 @@ impl LogicAnalyzerArm {
         } else {
             for n in 0u8..4u8 { let _=channels.push(n); }
         }
-        let cfg = crate::analyzer::CaptureConfig { freq, length, channels, trigger: crate::analyzer::TriggerConfig::default() };
+        let mut trig = crate::analyzer::TriggerConfig::default();
+        if let Some(k)=key_str(query,&body,"trigger") {
+            if k.as_str().eq_ignore_ascii_case("rising") || k.as_str()=="rising" { trig.r#type = crate::analyzer::TriggerType::RisingEdge; }
+        }
+        if let Some(t)=key_int(query,&body,"trigger_type") { if t==1 { trig.r#type = crate::analyzer::TriggerType::RisingEdge; } if t==2 { trig.r#type = crate::analyzer::TriggerType::FallingEdge; } }
+        let cfg = crate::analyzer::CaptureConfig { freq, length, channels, trigger: trig };
         match crate::analyzer::arm(cfg) {
             Ok(()) => {
                 let mut b=heapless::String::<64>::new();
