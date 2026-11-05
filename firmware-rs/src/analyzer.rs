@@ -1,0 +1,64 @@
+//! Logic Analyzer capture engine (MVP scaffold).
+//!
+//! This module provides the capture state machine that future phases (PIO DMA programs,
+//! RLE encoder, and the 11 decoders) will drive. The MVP keeps the surface small so the
+//! rest of the firmware can link and the REST endpoints can report state, allowing
+//! iterative development without blocking the async runtime.
+
+use core::sync::atomic::{AtomicU8, Ordering};
+
+pub const SAMPLE_COUNT_MAX: usize = 1024;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum State {
+    Idle = 0,
+    Armed = 1,
+    Capturing = 2,
+    Captured = 3,
+    Error = 4,
+    Stopped = 5,
+}
+
+pub struct Config {
+    pub freq_hz: u32,
+    pub length: u32,
+    pub pre_pct: u8,
+}
+
+impl Config {
+    pub const fn default() -> Self { Self { freq_hz: 1_000_000, length: 1024, pre_pct: 50 } }
+}
+
+static STATE: AtomicU8 = AtomicU8::new(State::Idle as u8);
+
+pub fn state() -> State {
+    match STATE.load(Ordering::Relaxed) {
+        1 => State::Armed,
+        2 => State::Capturing,
+        3 => State::Captured,
+        4 => State::Error,
+        5 => State::Stopped,
+        _ => State::Idle,
+    }
+}
+
+pub fn arm(cfg: Config) -> Result<(), ()> {
+    let _ = cfg;
+    if state() != State::Idle && state() != State::Captured && state() != State::Stopped {
+        return Err(());
+    }
+    STATE.store(State::Armed as u8, Ordering::Relaxed);
+    Ok(())
+}
+
+pub fn start() -> Result<(), ()> {
+    if state() != State::Armed { return Err(()); }
+    STATE.store(State::Capturing as u8, Ordering::Relaxed);
+    Ok(())
+}
+
+pub fn stop() {
+    STATE.store(State::Stopped as u8, Ordering::Relaxed);
+}
+
+pub fn last_error() -> Option<&'static str> { None }

@@ -10,6 +10,7 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use panic_probe as _;
 use static_cell::StaticCell;
 
+mod analyzer;
 mod apps;
 mod fs_http;
 mod net;
