@@ -512,8 +512,9 @@ impl LogicAnalyzerData {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let st = crate::analyzer::get_status();
+        let first = crate::analyzer::bank_word(0);
         let mut b=heapless::String::<256>::new();
-        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count));
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{},"first_sample":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count, first));
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
     }
 }

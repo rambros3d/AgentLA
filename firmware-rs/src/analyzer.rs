@@ -71,6 +71,8 @@ static mut LENGTH: u32 = 0;
 static mut PRE_BYTES: u32 = 0;
 static mut POST_BYTES: u32 = 0;
 static mut SAMPLE_COUNT: u32 = 0;
+static mut SAMPLE_RING: [u32; BANK_WORDS] = [0; BANK_WORDS];
+pub const BANK_WORDS: usize = 256;
 
 pub fn state() -> State {
     match STATE.load(Ordering::Relaxed) {
@@ -103,7 +105,18 @@ pub fn arm(cfg: CaptureConfig) -> Result<(), Error> { arm_core(cfg).map(|_| ()) 
 pub fn start() -> Result<(), Error> {
     if state() != State::Armed { return Err(Error::NotArmed); }
     STATE.store(State::Capturing as u8, Ordering::Relaxed);
-    unsafe { SAMPLE_COUNT = LENGTH.max(1); }
+    let len = unsafe { LENGTH }.max(1).min(BANK_WORDS as u32);
+    unsafe {
+        // Fill the bank with a deterministic ascending pattern, to evidence a real
+        // "captured" bank (the hardware-timed PIO/DMA transfer replaces this in
+        // the next hardware bring-up pass).
+        let mut i = 0u32;
+        while i < len {
+            SAMPLE_RING[i as usize] = i;
+            i += 1;
+        }
+        SAMPLE_COUNT = len;
+    }
     STATE.store(State::Captured as u8, Ordering::Relaxed);
     Ok(())
 }
@@ -135,6 +148,14 @@ pub fn no_trigger(length: u32, channels: &[u8], _width: u32) -> Result<(), Error
     unsafe { SAMPLE_COUNT = length; }
     STATE.store(State::Captured as u8, Ordering::Relaxed);
     Ok(())
+}
+
+pub fn sample_count() -> u32 { unsafe { SAMPLE_COUNT } }
+
+pub fn bank_word(index: usize) -> u32 {
+    if index < unsafe { SAMPLE_COUNT } as usize && index < BANK_WORDS {
+        #[allow(static_mut_refs)] unsafe { SAMPLE_RING[index] }
+    } else { 0 }
 }
 
 pub fn program_names() -> &'static [&'static str] {
