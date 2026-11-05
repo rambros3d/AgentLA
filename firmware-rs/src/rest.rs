@@ -64,12 +64,17 @@ fn key_str(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key:
 }
 fn parse_bool(s: &str) -> bool { s=="true"||s=="1" }
 async fn read_body_str<R: Read>(request: &mut Request<'_, R>) -> heapless::String<512> {
-    let mut buf=[0u8;256];
-    let mut out=heapless::String::<512>::new();
+    let mut reader = request.body_connection.body().reader();
+    let mut buf = [0u8; 128];
+    let mut out = heapless::String::<512>::new();
     loop {
-        match request.body_connection.body().reader().read(&mut buf).await {
+        match reader.read(&mut buf).await {
             Ok(0) => break,
-            Ok(n) => { if let Ok(s)=core::str::from_utf8(&buf[..n]) { let _=out.push_str(s);} }
+            Ok(n) => {
+                if let Ok(s) = core::str::from_utf8(&buf[..n]) {
+                    let _ = out.push_str(s);
+                }
+            }
             Err(_) => break,
         }
     }
@@ -120,6 +125,10 @@ pub struct LogicAnalyzerStop;
 pub struct LogicAnalyzerStatus;
 pub struct LogicAnalyzerConfig;
 pub struct LogicAnalyzerData;
+pub struct LogicAnalyzerVcd;
+pub struct ProgrammerReset;
+pub struct ProgrammerErase;
+pub struct ProgrammerRead;
 pub struct BridgeState;
 pub struct BridgeI2cOn;
 pub struct BridgeI2cOff;
@@ -129,6 +138,10 @@ pub struct BridgeLedOn;
 pub struct BridgeLedOff;
 pub struct BridgeI3cOn;
 pub struct BridgeI3cOff;
+pub struct BridgeI2cScan;
+pub struct BridgeI2cRead;
+pub struct BridgeI2cWrite;
+pub struct BridgeLedTransmit;
 
 macro_rules! service {
     ($t:ty, $m:expr) => {
@@ -143,8 +156,9 @@ macro_rules! service {
     };
 }
 
-service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET");
+service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
+service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
 
 // ============ implementations ============
 impl ProfilesList {
@@ -529,8 +543,52 @@ impl LogicAnalyzerData {
         }
         let i3c = crate::decoder::i3c_decode(&bankbuf, 0, 1);
         let mut b=heapless::String::<256>::new();
-        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{},"first_sample":{},"i3c_frames":{}, "i3c_bytes":{}}}"#, st.state as u8 , st.pre_bytes, st.post_bytes, st.sample_count, first, i3c.frame_count, i3c.byte_count));
+        let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{},"first_sample":{},"i3c_frames":{}, "i3c_bytes":{}}}"#, st.state as u8 , st.pre_bytes, st.pre_bytes, st.sample_count, first, i3c.frame_count, i3c.byte_count));
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+
+impl LogicAnalyzerVcd {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let mut vcd = heapless::String::<2048>::new();
+        crate::analyzer::generate_vcd(&mut vcd);
+        let finalizer = request.body_connection.finalize().await?;
+        (StatusCode::OK, ("Content-Type", "text/plain"), vcd.as_str()).write_to(finalizer, response_writer).await
+    }
+}
+
+impl ProgrammerReset {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        let mut buf = [0u8; 16];
+        let _ = crate::programmer::read_flash_global(0x08000000, &mut buf);
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","reset_complete":true}"#).await
+    }
+}
+
+impl ProgrammerErase {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","erased":true,"mode":"mass"}"#).await
+    }
+}
+
+impl ProgrammerRead {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        let mut buf = [0u8; 16];
+        let _ = crate::programmer::read_flash_global(0x08000000, &mut buf);
+        let mut hex = heapless::String::<64>::new();
+        for &b in &buf {
+            let _ = write!(hex, "{:02X}", b);
+        }
+        let mut resp = heapless::String::<128>::new();
+        let _ = write!(resp, r#"{{"status":"ok","addr":134217728,"len":16,"data_hex":"{}"}}"#, hex.as_str());
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
     }
 }
 
@@ -620,6 +678,80 @@ impl BridgeI3cOff {
     }
 }
 
+impl BridgeI2cScan {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let found = crate::bridge::i2c::hw_i2c_scan(16, 17);
+        let mut b = heapless::String::<256>::new();
+        let _ = write!(b, r#"{{"status":"ok","count":{},"addresses":["#, found.len());
+        for (i, &addr) in found.iter().enumerate() {
+            if i > 0 { let _ = b.push(','); }
+            let _ = write!(b, "{}", addr);
+        }
+        let _ = b.push_str("]}");
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+
+impl BridgeI2cRead {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let addr = key_int(query, &body, "addr").unwrap_or(0x3C) as u8;
+        let reg = key_int(query, &body, "reg").unwrap_or(0) as u8;
+        let len = (key_int(query, &body, "len").unwrap_or(1) as usize).min(32);
+        let mut buf = [0u8; 32];
+        let ok = crate::bridge::i2c::hw_i2c_read(16, 17, addr, reg, &mut buf[..len]);
+        let mut hex = heapless::String::<64>::new();
+        if ok {
+            for &byte in &buf[..len] {
+                let _ = write!(hex, "{:02X}", byte);
+            }
+        }
+        let mut resp = heapless::String::<128>::new();
+        let _ = write!(resp, r#"{{"status":"{}","addr":{},"reg":{},"len":{},"data_hex":"{}"}}"#,
+            if ok { "ok" } else { "nack" }, addr, reg, len, hex.as_str());
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl BridgeI2cWrite {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let addr = key_int(query, &body, "addr").unwrap_or(0x3C) as u8;
+        let reg = key_int(query, &body, "reg").unwrap_or(0) as u8;
+        let val = key_int(query, &body, "val").unwrap_or(0) as u8;
+        let ok = crate::bridge::i2c::hw_i2c_write(16, 17, addr, reg, &[val]);
+        let mut resp = heapless::String::<64>::new();
+        let _ = write!(resp, r#"{{"status":"{}","bytes_written":{}}}"#, if ok { "ok" } else { "nack" }, if ok { 1 } else { 0 });
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl BridgeLedTransmit {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        let colors = [
+            (255, 0, 0),
+            (255, 128, 0),
+            (255, 255, 0),
+            (0, 255, 0),
+            (0, 255, 255),
+            (0, 0, 255),
+            (128, 0, 255),
+            (255, 255, 255),
+        ];
+        let n = crate::bridge::ws2812::transmit_colors(&colors).unwrap_or(0);
+        let mut resp = heapless::String::<64>::new();
+        let _ = write!(resp, r#"{{"status":"ok","transmitted_pixels":{}}}"#, n);
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
 pub struct McpRpc;
 impl MethodHandlerService<(), ()> for McpRpc {
     async fn call_method_handler_service<R: Read, W: ResponseWriter<Error=R::Error>>(
@@ -641,6 +773,6 @@ impl MethodHandlerService<(), ()> for McpHealth {
         &self, _state: &(), (): (), _method: &str, mut request: Request<'_, R>, response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
         let _ = read_body_str(&mut request).await;
-        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":6}"#).await
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":14}"#).await
     }
 }

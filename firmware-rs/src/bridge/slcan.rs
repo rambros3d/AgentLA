@@ -6,9 +6,10 @@
 //! in-RAM state so the device boots and the host tooling can drive the API.
 
 use crate::pin_owner;
+use rp_pac as pac;
 
-/// SLCAN claims a TX/RX (or CAN-H/CAN-L) flexible pair.
-pub const SLCAN_PINS: [u32; 2] = [20, 21];
+/// SLCAN claims the CAN-TX (GPIO 18) and CAN-RX (GPIO 19) flexible pair.
+pub const SLCAN_PINS: [u32; 2] = [18, 19];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SlcanSpeed { S0 = 0, S1 = 1, S2 = 2, S3 = 3, S4 = 4, S5 = 5, S6 = 6, S7 = 7, S8 = 8 }
@@ -38,10 +39,38 @@ impl SlcanBridge {
 
     pub fn enable(&mut self) -> Result<(), pin_owner::ClaimError> {
         if self.active { return Ok(()); }
-        let slot = pin_owner::claim(pin_owner::Driver::Adapter, &SLCAN_PINS, pin_owner::CAP_PIO)?;
+        let slot = pin_owner::claim(pin_owner::Driver::Adapter, &SLCAN_PINS, pin_owner::CAP_SIO)?;
         self.slot = Some(slot);
         self.active = true;
         self.open = false;
+        unsafe {
+            // Configure CAN_TX (GPIO 18) as output driven high (recessive idle)
+            pac::IO_BANK0.gpio(18).ctrl().write(|w| {
+                w.set_funcsel(5);
+            });
+            pac::PADS_BANK0.gpio(18).modify(|w| {
+                w.set_iso(false);
+                w.set_ie(false);
+                w.set_od(false);
+                w.set_pue(false);
+                w.set_pde(false);
+            });
+            pac::SIO.gpio_oe(0).value_set().write_value(1 << 18);
+            pac::SIO.gpio_out(0).value_set().write_value(1 << 18);
+
+            // Configure CAN_RX (GPIO 19) as input with pull-up
+            pac::IO_BANK0.gpio(19).ctrl().write(|w| {
+                w.set_funcsel(5);
+            });
+            pac::PADS_BANK0.gpio(19).modify(|w| {
+                w.set_iso(false);
+                w.set_ie(true);
+                w.set_od(true);
+                w.set_pue(true);
+                w.set_pde(false);
+            });
+            pac::SIO.gpio_oe(0).value_clr().write_value(1 << 19);
+        }
         let _ = self.last.push_str("SLCAN_READY");
         Ok(())
     }

@@ -74,8 +74,8 @@ static mut POST_BYTES: u32 = 0;
 static mut SAMPLE_COUNT: u32 = 0;
 static mut TRIG_PIN: u8 = 0;
 static TRIGGER_MODE: core::sync::atomic::AtomicU8 = core::sync::atomic::AtomicU8::new(0);
+pub const BANK_WORDS: usize = 1024;
 static mut SAMPLE_RING: [u32; BANK_WORDS] = [0; BANK_WORDS];
-pub const BANK_WORDS: usize = 256;
 
 pub fn state() -> State {
     match STATE.load(Ordering::Relaxed) {
@@ -276,6 +276,33 @@ const _: () = {
 };
 
 pub fn capture_get_engine_mode_name() -> &'static str { "Raw" }
+
+pub fn generate_vcd(out: &mut heapless::String<2048>) {
+    use core::fmt::Write as _;
+    let _ = write!(out, "$date Today $end\n$version AgentLA v1.0-rust $end\n$timescale 10ns $end\n$scope module top $end\n");
+    let ch_symbols = ['!', '"', '#', '$', '%', '&', '\'', '('];
+    for ch in 0..8 {
+        let _ = write!(out, "$var wire 1 {} ch{} $end\n", ch_symbols[ch], ch);
+    }
+    let _ = write!(out, "$upscope $end\n$enddefinitions $end\n#0\n");
+    let count = sample_count() as usize;
+    let limit = count.min(128);
+    let mut prev_word = 0xFFFFFFFFu32;
+    for t in 0..limit {
+        let w = bank_word(t);
+        if w != prev_word {
+            let _ = write!(out, "#{}\n", t * 10);
+            for ch in 0..8 {
+                let bit = (w >> ch) & 1;
+                let prev_bit = (prev_word >> ch) & 1;
+                if bit != prev_bit || t == 0 {
+                    let _ = write!(out, "{}{}\n", bit, ch_symbols[ch]);
+                }
+            }
+            prev_word = w;
+        }
+    }
+}
 // ---------- rising-edge trigger qualifier (pure, stateful) ----------
 pub fn rising_edge(samples: &[u8], trig_bit: u8) -> usize {
     let mut count = 0usize; let n=samples.len();
@@ -318,7 +345,7 @@ pub async fn capture_task(pio0: embassy_rp::Peri<'static, embassy_rp::peripheral
                     if guard.rem_euclid(1000) == 0 { Timer::after(Duration::from_micros(1)).await; }
                 }
             }
-            let mut bank = [0u32; 64];
+            let mut bank = [0u32; BANK_WORDS];
             let prg = pio_asm!(
                 ".wrap_target",
                 " in pins 32",
@@ -326,15 +353,26 @@ pub async fn capture_task(pio0: embassy_rp::Peri<'static, embassy_rp::peripheral
             );
             let mut cfg = Config::default();
             cfg.use_program(&common.load_program(&prg.program), &[]);
+
+            // Dynamic clock divider based on requested sampling frequency (sys_clk = 150 MHz)
+            let freq = unsafe { FREQ }.max(10_000).min(150_000_000);
+            let div_int = (150_000_000 / freq).max(1).min(65535) as u16;
+            let div_frac = (((150_000_000 % freq) * 256) / freq).min(255) as u8;
+
             cfg.clock_divider = 1u8.into();
             cfg.shift_in = ShiftConfig { auto_fill: true, threshold: 32, direction: ShiftDirection::Left };
             sm.set_config(&cfg);
+            // Apply exact integer + fractional clock division
+            pac::PIO0.sm(0).clkdiv().write(|w| {
+                w.set_int(div_int);
+                w.set_frac(div_frac);
+            });
             sm.set_enable(true);
             {
                 let (rx, _tx) = sm.rx_tx();
                 rx.dma_pull(&mut dma_ref, &mut bank, false).await;
                 for i in 0..bank.len() {
-                    unsafe { if i < 64 { SAMPLE_RING[i] = bank[i]; } }
+                    unsafe { SAMPLE_RING[i] = bank[i]; }
                 }
                 finish_captured(bank.len() as u32);
             }

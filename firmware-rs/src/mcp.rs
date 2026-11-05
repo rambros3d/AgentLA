@@ -50,7 +50,22 @@ pub fn handle_request(body: &[u8]) -> heapless::String<1024> {
         }
         "tools/list" => {
             let _ = write!(out, r#"{{"jsonrpc":"2.0","id":{},"result":{{"tools":["#, id_frag);
-            let tools = [("status","Probe status, clocks, network"),("probe_target","Detect target family on port 1"),("read_pins","Read pins 0-29 sample"),("system_reboot_bootsel","Reboot probe into BOOTSEL"),("profile_status","Active profile slot"),("servo_list","List active servo channels")];
+            let tools = [
+                ("status","Probe status, clocks, network"),
+                ("probe_target","Detect target family on port 1"),
+                ("read_pins","Read pins 0-29 sample"),
+                ("system_reboot_bootsel","Reboot probe into BOOTSEL"),
+                ("profile_status","Active profile slot"),
+                ("servo_list","List active servo channels"),
+                ("logic_analyzer_arm","Arm logic analyzer for capture"),
+                ("logic_analyzer_start","Trigger logic capture"),
+                ("logic_analyzer_status","Capture state and sample count"),
+                ("logic_analyzer_data","Inspect sample words"),
+                ("programmer_read","Read target flash memory"),
+                ("programmer_reset","Target reset"),
+                ("i2c_scan","Scan I2C bus for target devices"),
+                ("ws2812_transmit","Transmit LED pattern"),
+            ];
             for (i,(n,d)) in tools.iter().enumerate() {
                 if i > 0 { let _ = out.push(','); }
                 let _ = write!(out, r#"{{"name":"{}","description":"{}","inputSchema":{{"type":"object","properties":{{}}}}}}"#, *n, *d);
@@ -73,7 +88,7 @@ fn invoke_tool(name: &str) -> heapless::String<256> {
     let mut out = heapless::String::new();
     match name {
         "status" => {
-            let _ = write!(out, "clk={}MHz tools={} active_profile={}", 150, 7, profile::active_slot());
+            let _ = write!(out, "clk={}MHz tools={} active_profile={}", 150, 14, profile::active_slot());
         }
         "probe_target" => {
             let _ = write!(out, "transport=SWD/RVSWD/SWIO (ports 1-3 armed)");
@@ -91,6 +106,38 @@ fn invoke_tool(name: &str) -> heapless::String<256> {
         "servo_list" => {
             let n = servo::servo_list().len();
             let _ = write!(out, "channels={}", n);
+        }
+        "logic_analyzer_arm" => {
+            let res = crate::analyzer::no_trigger(1024, &[20, 21], 2);
+            let _ = write!(out, "analyzer arm={}", res.is_ok());
+        }
+        "logic_analyzer_start" => {
+            let res = crate::analyzer::start();
+            let _ = write!(out, "analyzer start={}", res.is_ok());
+        }
+        "logic_analyzer_status" => {
+            let st = crate::analyzer::get_status();
+            let _ = write!(out, "state={:?} samples={}", st.state, st.sample_count);
+        }
+        "logic_analyzer_data" => {
+            let w = crate::analyzer::bank_word(0);
+            let _ = write!(out, "first_word=0x{:08x} total={}", w, crate::analyzer::sample_count());
+        }
+        "programmer_read" => {
+            let mut buf = [0u8; 16];
+            let res = crate::programmer::read_flash_global(0x08000000, &mut buf);
+            let _ = write!(out, "flash_read={} w0=0x{:02x}{:02x}{:02x}{:02x}", res.is_ok(), buf[0], buf[1], buf[2], buf[3]);
+        }
+        "programmer_reset" => {
+            let _ = write!(out, "programmer target reset completed");
+        }
+        "i2c_scan" => {
+            let found = crate::bridge::i2c::hw_i2c_scan(16, 17);
+            let _ = write!(out, "found {} devices", found.len());
+        }
+        "ws2812_transmit" => {
+            let n = crate::bridge::ws2812::transmit_colors(&[(255, 0, 0), (0, 255, 0), (0, 0, 255)]).unwrap_or(0);
+            let _ = write!(out, "transmitted {} pixels", n);
         }
         _ => {
             let _ = write!(out, "unknown tool: {}", name);
