@@ -7,7 +7,8 @@
 
 use core::sync::atomic::{AtomicU8, Ordering};
 
-pub const SAMPLE_COUNT_MAX: usize = 1024;
+pub const SAMPLE_COUNT_MAX: usize = 4096;
+pub const BANK_CAPACITY_WORDS: usize = 16384;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum State {
