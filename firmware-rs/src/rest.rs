@@ -480,6 +480,7 @@ impl LogicAnalyzerStart {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let _ = crate::analyzer::start();
+        embassy_time::Timer::after(embassy_time::Duration::from_millis(20)).await;
         let st = crate::analyzer::get_status();
         let mut b=heapless::String::<128>::new();
         let _=core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"state":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#, st.state as u8, st.pre_bytes, st.post_bytes, st.sample_count));

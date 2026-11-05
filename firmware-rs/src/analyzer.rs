@@ -175,8 +175,6 @@ pub fn no_trigger(length: u32, channels: &[u8], _width: u32) -> Result<(), Error
     let cfg = CaptureConfig { freq: 1_000_000, length, channels: ch, trigger: TriggerConfig::default() };
     arm(cfg)?;
     STATE.store(State::Capturing as u8, Ordering::Relaxed);
-    unsafe { SAMPLE_COUNT = length; }
-    STATE.store(State::Captured as u8, Ordering::Relaxed);
     Ok(())
 }
 
