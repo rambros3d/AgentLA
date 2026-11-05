@@ -2,7 +2,7 @@ name: Deploy AgentLA Landing Page & WebUI Demo to GitHub Pages
 
 on:
   push:
-    branches: ["dev", "master", "main"]
+    branches: ["embassy", "dev", "master", "main"]
     paths:
       - "web/**"
       - "firmware/html/**"

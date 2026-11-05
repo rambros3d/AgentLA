@@ -142,6 +142,13 @@ pub struct BridgeI2cScan;
 pub struct BridgeI2cRead;
 pub struct BridgeI2cWrite;
 pub struct BridgeLedTransmit;
+pub struct BridgeSpiOn;
+pub struct BridgeSpiOff;
+pub struct BridgeSpiTransfer;
+pub struct BridgeUartOn;
+pub struct BridgeUartOff;
+pub struct BridgeUartWrite;
+pub struct BridgeUartRead;
 
 macro_rules! service {
     ($t:ty, $m:expr) => {
@@ -159,6 +166,8 @@ macro_rules! service {
 service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
+service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
+service!(BridgeUartOn, "POST"); service!(BridgeUartOff, "POST"); service!(BridgeUartWrite, "POST"); service!(BridgeUartRead, "GET");
 
 // ============ implementations ============
 impl ProfilesList {
@@ -748,6 +757,146 @@ impl BridgeLedTransmit {
         let n = crate::bridge::ws2812::transmit_colors(&colors).unwrap_or(0);
         let mut resp = heapless::String::<64>::new();
         let _ = write!(resp, r#"{{"status":"ok","transmitted_pixels":{}}}"#, n);
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+impl BridgeSpiOn {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::bridge::spi_on() {
+            Ok(()) => { let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#); send_json(request, response_writer, StatusCode::OK, b.as_str()).await }
+            Err(e) => { let mut b = heapless::String::<64>::new(); let _ = write!(b, r#"{{"error":"{:?}"}}"#, e); send_json(request, response_writer, StatusCode::CONFLICT, b.as_str()).await }
+        }
+    }
+}
+
+impl BridgeSpiOff {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::bridge::spi_off();
+        let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#);
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+
+impl BridgeSpiTransfer {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let mode = (key_int(query, &body, "mode").unwrap_or(0) as u8).min(3);
+        let speed_hz = (key_int(query, &body, "speed_hz").unwrap_or(1_000_000) as u32).clamp(1000, 10_000_000);
+        let read_len = (key_int(query, &body, "read_len").unwrap_or(0) as usize).min(64);
+
+        let mut tx_buf = [0u8; 64];
+        let mut tx_len = 0usize;
+        if let Some(hex_str) = key_str(query, &body, "data_hex") {
+            let bytes = hex_str.as_bytes();
+            let mut i = 0;
+            while i + 1 < bytes.len() && tx_len < tx_buf.len() {
+                if let (Some(h), Some(l)) = (hex_nibble(bytes[i]), hex_nibble(bytes[i+1])) {
+                    tx_buf[tx_len] = (h << 4) | l;
+                    tx_len += 1;
+                }
+                i += 2;
+            }
+        } else if let Some(raw_str) = key_str(query, &body, "data") {
+            let b = raw_str.as_bytes();
+            let l = b.len().min(tx_buf.len());
+            tx_buf[..l].copy_from_slice(&b[..l]);
+            tx_len = l;
+        }
+
+        let total_len = tx_len.max(read_len).max(1).min(64);
+        let mut rx_buf = [0u8; 64];
+        let count = crate::bridge::spi::spi_transfer_default(mode, speed_hz, &tx_buf[..total_len], &mut rx_buf[..total_len]);
+
+        let mut rx_hex = heapless::String::<130>::new();
+        for &byte in &rx_buf[..count] {
+            let _ = write!(rx_hex, "{:02X}", byte);
+        }
+
+        let mut resp = heapless::String::<256>::new();
+        let _ = write!(resp, r#"{{"status":"ok","mode":{},"speed_hz":{},"rx_hex":"{}"}}"#, mode, speed_hz, rx_hex.as_str());
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl BridgeUartOn {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::bridge::uart_on() {
+            Ok(()) => { let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#); send_json(request, response_writer, StatusCode::OK, b.as_str()).await }
+            Err(e) => { let mut b = heapless::String::<64>::new(); let _ = write!(b, r#"{{"error":"{:?}"}}"#, e); send_json(request, response_writer, StatusCode::CONFLICT, b.as_str()).await }
+        }
+    }
+}
+
+impl BridgeUartOff {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::bridge::uart_off();
+        let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#);
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+
+impl BridgeUartWrite {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let baud = (key_int(query, &body, "baud").unwrap_or(115_200) as u32).clamp(1200, 921_600);
+        let data_str = key_str(query, &body, "data").unwrap_or_default();
+        let bytes = data_str.as_bytes();
+        let sent = if !bytes.is_empty() {
+            crate::bridge::uart::uart_write_bytes(crate::bridge::uart::PIN_UART_TX_DEFAULT, baud, bytes)
+        } else {
+            0
+        };
+        let mut resp = heapless::String::<128>::new();
+        let _ = write!(resp, r#"{{"status":"ok","baud":{},"bytes_sent":{}}}"#, baud, sent);
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl BridgeUartRead {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let baud = (key_int(query, &body, "baud").unwrap_or(115_200) as u32).clamp(1200, 921_600);
+        let len = (key_int(query, &body, "len").unwrap_or(64) as usize).clamp(1, 64);
+        let timeout_ms = (key_int(query, &body, "timeout_ms").unwrap_or(5) as u32).clamp(1, 1000);
+
+        let mut buf = [0u8; 64];
+        let n = crate::bridge::uart::uart_read_blocking(crate::bridge::uart::PIN_UART_RX_DEFAULT, baud, &mut buf[..len], timeout_ms);
+
+        let mut data_escaped = heapless::String::<128>::new();
+        for &b in &buf[..n] {
+            if b.is_ascii_graphic() || b == b' ' {
+                let _ = data_escaped.push(b as char);
+            } else {
+                let _ = write!(data_escaped, "\\x{:02X}", b);
+            }
+        }
+
+        let mut resp = heapless::String::<256>::new();
+        let _ = write!(resp, r#"{{"status":"ok","bytes_read":{},"data":"{}"}}"#, n, data_escaped.as_str());
         send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
     }
 }

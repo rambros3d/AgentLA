@@ -101,6 +101,38 @@ impl EventSource for TelemetryEvents {
     }
 }
 
+pub struct LogicAnalyzerEvents;
+
+impl EventSource for LogicAnalyzerEvents {
+    async fn write_events<W: picoserve::io::Write>(
+        self,
+        mut writer: EventWriter<'_, W>,
+    ) -> Result<(), W::Error> {
+        let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(100));
+        loop {
+            ticker.next().await;
+            let st = crate::analyzer::get_status();
+            let state_str = match st.state {
+                crate::analyzer::State::Idle => "idle",
+                crate::analyzer::State::Armed => "armed",
+                crate::analyzer::State::Capturing => "capturing",
+                crate::analyzer::State::Captured => "captured",
+                crate::analyzer::State::Error => "error",
+                crate::analyzer::State::Stopped => "stopped",
+            };
+            writer
+                .write_event(
+                    "analyzer",
+                    format_args!(
+                        r#"{{"state":"{}","freq":{},"pre_bytes":{},"post_bytes":{},"sample_count":{}}}"#,
+                        state_str, st.freq, st.pre_bytes, st.post_bytes, st.sample_count
+                    ),
+                )
+                .await?;
+        }
+    }
+}
+
 pub fn make_app() -> picoserve::Router<impl PathRouter> {
     picoserve::Router::new()
         .route("/", get_service(File::html(crate::web_assets::INDEX_HTML)))
@@ -342,6 +374,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/analyzer/config", crate::rest::LogicAnalyzerConfig)
         .route_service("/api/v1/analyzer/data", crate::rest::LogicAnalyzerData)
         .route_service("/api/v1/analyzer/vcd", crate::rest::LogicAnalyzerVcd)
+        .route("/api/v1/logic-analyzer/stream", get(|| async move { picoserve::response::sse::EventStream(LogicAnalyzerEvents) }))
+        .route("/api/v1/analyzer/stream", get(|| async move { picoserve::response::sse::EventStream(LogicAnalyzerEvents) }))
         .route_service("/api/v1/bridge", crate::rest::BridgeState)
         .route_service("/api/v1/bridge/state", crate::rest::BridgeState)
         .route_service("/api/v1/bridge/i2c/on", crate::rest::BridgeI2cOn)
@@ -360,6 +394,16 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/bus/led/transmit", crate::rest::BridgeLedTransmit)
         .route_service("/api/v1/bridge/i3c/on", crate::rest::BridgeI3cOn)
         .route_service("/api/v1/bridge/i3c/off", crate::rest::BridgeI3cOff)
+        .route_service("/api/v1/bridge/spi/on", crate::rest::BridgeSpiOn)
+        .route_service("/api/v1/bridge/spi/off", crate::rest::BridgeSpiOff)
+        .route_service("/api/v1/bridge/spi/transfer", crate::rest::BridgeSpiTransfer)
+        .route_service("/api/v1/bus/spi/transfer", crate::rest::BridgeSpiTransfer)
+        .route_service("/api/v1/bridge/uart/on", crate::rest::BridgeUartOn)
+        .route_service("/api/v1/bridge/uart/off", crate::rest::BridgeUartOff)
+        .route_service("/api/v1/bridge/uart/write", crate::rest::BridgeUartWrite)
+        .route_service("/api/v1/bus/uart/write", crate::rest::BridgeUartWrite)
+        .route_service("/api/v1/bridge/uart/read", crate::rest::BridgeUartRead)
+        .route_service("/api/v1/bus/uart/read", crate::rest::BridgeUartRead)
         .route_service("/api/profiles", crate::rest::ProfilesList)
         .route_service("/api/profiles/apply", crate::rest::ProfilesApply)
         .route_service("/api/profiles/boot", crate::rest::ProfilesBoot)

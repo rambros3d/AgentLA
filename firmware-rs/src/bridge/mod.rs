@@ -4,14 +4,14 @@ use core::sync::atomic::{AtomicU8, Ordering};
 use crate::pin_owner::{self, ClaimError, Driver, SlotId};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Mode { Idle = 0, I2cTiny = 1, Slcan = 2, I3c = 3, Uart = 4, NeoPixel = 5 }
+pub enum Mode { Idle = 0, I2cTiny = 1, Slcan = 2, I3c = 3, Uart = 4, NeoPixel = 5, Spi = 6 }
 
 static MODE: AtomicU8 = AtomicU8::new(0);
 
 pub fn active() -> Mode {
     match MODE.load(Ordering::Relaxed) {
         1 => Mode::I2cTiny, 2 => Mode::Slcan, 3 => Mode::I3c,
-        4 => Mode::Uart, 5 => Mode::NeoPixel, _ => Mode::Idle,
+        4 => Mode::Uart, 5 => Mode::NeoPixel, 6 => Mode::Spi, _ => Mode::Idle,
     }
 }
 pub fn set_active(m: Mode) { MODE.store(m as u8, Ordering::Relaxed); }
@@ -21,13 +21,16 @@ pub mod i2c;
 pub mod slcan;
 pub mod ws2812;
 pub mod i3c;
-
+pub mod spi;
+pub mod uart;
 
 // Safety-limited slot storage (interior via raw pointer to satisfy Rust 2024).
 static mut I2C_SLOT: Option<SlotId> = None;
 static mut SLCAN_SLOT: Option<SlotId> = None;
 static mut LED_SLOT: Option<SlotId> = None;
 static mut I3C_SLOT: Option<SlotId> = None;
+static mut SPI_SLOT: Option<SlotId> = None;
+static mut UART_SLOT: Option<SlotId> = None;
 
 macro_rules! slot_read { ($name:ident) => { unsafe { core::ptr::addr_of!($name).read() } } }
 macro_rules! slot_write { ($name:ident, $val:expr) => { unsafe { core::ptr::addr_of_mut!($name).write($val) } } }
@@ -127,6 +130,50 @@ pub fn i3c_disable() {
     if active() == Mode::I3c { set_active(Mode::Idle); }
 }
 
+pub fn spi_on() -> Result<(), &'static str> { spi_enable().map_err(|_| "pin conflict") }
+pub fn spi_off() { spi_disable() }
+pub fn spi_enable() -> Result<(), ClaimError> {
+    unsafe {
+        if slot_read!(SPI_SLOT).is_none() {
+            let slot = pin_owner::claim(Driver::Adapter, &spi::SPI_PINS, pin_owner::CAP_SPI)?;
+            slot_write!(SPI_SLOT, Some(slot));
+        }
+    }
+    set_active(Mode::Spi);
+    Ok(())
+}
+pub fn spi_disable() {
+    unsafe {
+        if let Some(slot) = slot_read!(SPI_SLOT) {
+            let _ = pin_owner::release(slot);
+            slot_write!(SPI_SLOT, None);
+        }
+    }
+    if active() == Mode::Spi { set_active(Mode::Idle); }
+}
+
+pub fn uart_on() -> Result<(), &'static str> { uart_enable().map_err(|_| "pin conflict") }
+pub fn uart_off() { uart_disable() }
+pub fn uart_enable() -> Result<(), ClaimError> {
+    unsafe {
+        if slot_read!(UART_SLOT).is_none() {
+            let slot = pin_owner::claim(Driver::Adapter, &uart::UART_PINS, pin_owner::CAP_UART)?;
+            slot_write!(UART_SLOT, Some(slot));
+        }
+    }
+    set_active(Mode::Uart);
+    Ok(())
+}
+pub fn uart_disable() {
+    unsafe {
+        if let Some(slot) = slot_read!(UART_SLOT) {
+            let _ = pin_owner::release(slot);
+            slot_write!(UART_SLOT, None);
+        }
+    }
+    if active() == Mode::Uart { set_active(Mode::Idle); }
+}
+
 pub fn state_json() -> heapless::String<256> {
     let mode = active();
     let mode_str = match mode {
@@ -136,15 +183,18 @@ pub fn state_json() -> heapless::String<256> {
         Mode::I3c => "i3c",
         Mode::Uart => "uart",
         Mode::NeoPixel => "neopixel",
+        Mode::Spi => "spi",
     };
     let i2c_claimed = slot_read!(I2C_SLOT).is_some();
     let slcan_claimed = slot_read!(SLCAN_SLOT).is_some();
     let led_claimed = slot_read!(LED_SLOT).is_some();
     let i3c_claimed = slot_read!(I3C_SLOT).is_some();
+    let spi_claimed = slot_read!(SPI_SLOT).is_some();
+    let uart_claimed = slot_read!(UART_SLOT).is_some();
     let mut b = heapless::String::new();
     let _ = core::fmt::Write::write_fmt(&mut b, core::format_args!(
-        r#"{{"active":"{}","i2c":{},"slcan":{},"led":{},"i3c":{}}}"#,
-        mode_str, i2c_claimed, slcan_claimed, led_claimed, i3c_claimed));
+        r#"{{"active":"{}","i2c":{},"slcan":{},"led":{},"i3c":{},"spi":{},"uart":{}}}"#,
+        mode_str, i2c_claimed, slcan_claimed, led_claimed, i3c_claimed, spi_claimed, uart_claimed));
     b
 }
 pub fn bridge_state_json() -> heapless::String<256> { state_json() }

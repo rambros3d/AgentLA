@@ -549,16 +549,48 @@ pub async fn cdc_cli_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>)
 
 #[embassy_executor::task]
 pub async fn cdc_uart_task(mut class: CdcAcmClass<'static, Driver<'static, USB>>) {
+    crate::bridge::uart::init_uart_pins(
+        crate::bridge::uart::PIN_UART_TX_DEFAULT,
+        crate::bridge::uart::PIN_UART_RX_DEFAULT,
+    );
+
     loop {
         class.wait_connection().await;
-        let mut buf = [0u8; 64];
+        let mut host_rx_buf = [0u8; 64];
+        let mut target_rx_buf = [0u8; 64];
+
         loop {
-            let n = match class.read_packet(&mut buf).await {
-                Ok(n) => n,
-                Err(_) => break,
-            };
-            if let Err(_) = class.write_packet(&buf[..n]).await {
-                break;
+            // 1. Check if target MCU sent bytes on UART (GPIO 14)
+            let n_target = crate::bridge::uart::read_rx_bytes(&mut target_rx_buf);
+            if n_target > 0 {
+                if let Err(_) = class.write_packet(&target_rx_buf[..n_target]).await {
+                    break;
+                }
+            }
+
+            // 2. Poll target UART pin for newly arriving byte
+            if let Some(b) = crate::bridge::uart::uart_poll_rx(
+                crate::bridge::uart::PIN_UART_RX_DEFAULT,
+                115_200,
+            ) {
+                let _ = class.write_packet(&[b]).await;
+            }
+
+            // 3. Check for data from host PC on CDC-ACM1 with timeout
+            match embassy_time::with_timeout(
+                embassy_time::Duration::from_millis(5),
+                class.read_packet(&mut host_rx_buf),
+            ).await {
+                Ok(Ok(n)) if n > 0 => {
+                    // Forward host bytes to physical target TX pin (GPIO 8)
+                    crate::bridge::uart::uart_write_bytes(
+                        crate::bridge::uart::PIN_UART_TX_DEFAULT,
+                        115_200,
+                        &host_rx_buf[..n],
+                    );
+                }
+                Ok(Err(_)) => break, // Disconnected
+                _ => {} // Timeout: continue polling
             }
         }
     }
