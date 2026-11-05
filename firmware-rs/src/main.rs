@@ -11,6 +11,7 @@ use panic_probe as _;
 use static_cell::StaticCell;
 
 mod analyzer;
+mod bridge;
 mod apps;
 mod fs_http;
 mod net;
