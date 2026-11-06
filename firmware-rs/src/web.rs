@@ -386,6 +386,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/bus/i2c/read", crate::rest::BridgeI2cRead)
         .route_service("/api/v1/bridge/i2c/write", crate::rest::BridgeI2cWrite)
         .route_service("/api/v1/bus/i2c/write", crate::rest::BridgeI2cWrite)
+        .route_service("/api/v1/bridge/can", crate::rest::BridgeCan)
+        .route_service("/api/v1/bridge/can/termination", crate::rest::BridgeCanTermination)
         .route_service("/api/v1/bridge/can/on", crate::rest::BridgeCanOn)
         .route_service("/api/v1/bridge/can/off", crate::rest::BridgeCanOff)
         .route_service("/api/v1/bridge/led/on", crate::rest::BridgeLedOn)

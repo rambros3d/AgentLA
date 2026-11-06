@@ -31,21 +31,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 2. Host-Native USB Kernel Interfaces (Driver-Free OS Integration)
-
-- [ ] **Linux USB SocketCAN Interface (`gs_usb`)**
-  - **Scope**: Emulate the Geschwister Schneider USB/CAN (`gs_usb`) protocol over a dedicated USB interface.
-  - **Benefit**: Zero-install native Linux support. Host kernel `gs_usb` module instantly attaches a standard network interface `can0` (`ip link set can0 up type can bitrate 500000`).
-  - **Compatibility**: Direct operation with `candump`, `cansend`, Wireshark, python-can, and ROS/ROS2 without custom user-space tools.
-
-- [ ] **Linux USB `i2c-tiny-usb` Interface**
-  - **Scope**: Implement the standard Linux kernel `i2c-tiny-usb` protocol.
-  - **Benefit**: Instantly exposes a native `/dev/i2c-X` device in Linux.
-  - **Compatibility**: Standard Linux tools (`i2cdetect`, `i2cget`, `i2cset`, `i2ctransfer`, `libgpiod`) work out-of-the-box over USB.
-
----
-
-## 3. Target Debugging & Flashing Expansions
+## 2. Target Debugging & Flashing Expansions
 
 - [ ] **Vendor UART Bootloader Recovery Engine**
   - **Scope**: ST AN3155 USART bootloader and WCH single-wire bootloader support.
@@ -82,7 +68,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 4. AI Agent (MCP) Hardware Tools
+## 3. AI Agent (MCP) Hardware Tools
 
 - [ ] **Autonomous Target Circuit Diagnostic (`mcp_target_diagnose`)**
   - **Scope**: One-shot agent tool that inspects target rail voltage, tests pin pull-ups, identifies floating vs. driven lines, probes IDCODE/DPIDR, and determines if the MCU core is running, halted, or in a HardFault loop.
@@ -95,7 +81,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 5. Web Desktop, Telemetry & Streaming
+## 4. Web Desktop, Telemetry & Streaming
 
 - [ ] **In-Browser Web Serial Terminal App (`/apps/terminal`)**
   - **Scope**: An xterm.js terminal client inside the DaisyUI Web Desktop OS (`http://10.10.10.10/apps/terminal`).
@@ -122,7 +108,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 6. Factory Test & Bench Automation (FCT Station)
+## 5. Factory Test & Bench Automation (FCT Station)
 
 - [ ] **Dynamic Current & Sleep Profiling with Overcurrent Trip (BakuProbe INA180)**
   - **Scope**: BakuProbe onboard TI INA180 current sense circuit integration.

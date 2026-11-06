@@ -17,7 +17,9 @@ pub fn active() -> Mode {
 pub fn set_active(m: Mode) { MODE.store(m as u8, Ordering::Relaxed); }
 
 // Phase 4 submodules.
+pub mod can_gsusb;
 pub mod i2c;
+pub mod i2c_tinyusb;
 pub mod slcan;
 pub mod ws2812;
 pub mod i3c;
@@ -79,10 +81,20 @@ pub fn slcan_disable() {
     if active() == Mode::Slcan { set_active(Mode::Idle); }
 }
 
-pub fn can_on() -> Result<(), &'static str> { slcan_enable().map_err(|_| "pin conflict") }
-pub fn can_off() { slcan_disable() }
-pub fn can_enable() -> Result<(), ClaimError> { slcan_enable() }
-pub fn can_disable() { slcan_disable() }
+pub fn can_on() -> Result<(), &'static str> {
+    can_gsusb::adapter_can_start();
+    Ok(())
+}
+pub fn can_off() {
+    can_gsusb::adapter_can_standby();
+}
+pub fn can_enable() -> Result<(), ClaimError> {
+    can_gsusb::adapter_can_start();
+    Ok(())
+}
+pub fn can_disable() {
+    can_gsusb::adapter_can_standby();
+}
 
 pub fn led_on() -> Result<(), &'static str> { led_enable().map_err(|_| "pin conflict") }
 pub fn led_off() { led_disable() }
@@ -191,10 +203,11 @@ pub fn state_json() -> heapless::String<256> {
     let i3c_claimed = slot_read!(I3C_SLOT).is_some();
     let spi_claimed = slot_read!(SPI_SLOT).is_some();
     let uart_claimed = slot_read!(UART_SLOT).is_some();
+    let can_active = can_gsusb::adapter_can_is_active();
     let mut b = heapless::String::new();
     let _ = core::fmt::Write::write_fmt(&mut b, core::format_args!(
-        r#"{{"active":"{}","i2c":{},"slcan":{},"led":{},"i3c":{},"spi":{},"uart":{}}}"#,
-        mode_str, i2c_claimed, slcan_claimed, led_claimed, i3c_claimed, spi_claimed, uart_claimed));
+        r#"{{"active":"{}","i2c":{},"slcan":{},"can":{},"led":{},"i3c":{},"spi":{},"uart":{}}}"#,
+        if can_active { "can" } else { mode_str }, i2c_claimed, slcan_claimed, can_active, led_claimed, i3c_claimed, spi_claimed, uart_claimed));
     b
 }
 pub fn bridge_state_json() -> heapless::String<256> { state_json() }

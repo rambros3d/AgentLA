@@ -175,6 +175,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(usb::dap_v1_task(composite.dap_v1_reader, composite.dap_v1_writer).unwrap());
     spawner.spawn(usb::dap_v2_task(composite.dap_v2).unwrap());
     spawner.spawn(usb::ncm_task(composite.ncm_runner).unwrap());
+    spawner.spawn(usb::gs_usb_task(composite.gs_usb_read_ep, composite.gs_usb_write_ep).unwrap());
 
     // 3b. Async Network Stack (embassy-net over CDC-NCM)
     let mut dns_servers = heapless::Vec::<embassy_net::Ipv4Address, 3>::new();

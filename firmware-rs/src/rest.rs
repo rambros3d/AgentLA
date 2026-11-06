@@ -134,6 +134,8 @@ pub struct BridgeI2cOn;
 pub struct BridgeI2cOff;
 pub struct BridgeCanOn;
 pub struct BridgeCanOff;
+pub struct BridgeCan;
+pub struct BridgeCanTermination;
 pub struct BridgeLedOn;
 pub struct BridgeLedOff;
 pub struct BridgeI3cOn;
@@ -164,7 +166,7 @@ macro_rules! service {
 }
 
 service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET");
-service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
+service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
 service!(BridgeUartOn, "POST"); service!(BridgeUartOff, "POST"); service!(BridgeUartWrite, "POST"); service!(BridgeUartRead, "GET");
@@ -646,6 +648,34 @@ impl BridgeCanOff {
         crate::bridge::can_off();
         let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
         send_json(request,response_writer,StatusCode::OK,b.as_str()).await
+    }
+}
+impl BridgeCan {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let active = crate::bridge::can_gsusb::adapter_can_is_active();
+        let bitrate = crate::bridge::can_gsusb::adapter_can_get_bitrate();
+        let termination = crate::bridge::can_gsusb::adapter_can_get_termination();
+        let tx = crate::bridge::can_gsusb::adapter_can_get_tx_frames();
+        let rx = crate::bridge::can_gsusb::adapter_can_get_rx_frames();
+        let mut b = heapless::String::<160>::new();
+        let _ = core::write!(
+            b,
+            r#"{{"active":{},"bitrate":{},"termination":{},"tx_frames":{},"rx_frames":{}}}"#,
+            active, bitrate, termination, tx, rx
+        );
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+impl BridgeCanTermination {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let body = read_body_str(&mut request).await;
+        let enabled = body.contains("true") || body.contains("1");
+        crate::bridge::can_gsusb::adapter_can_set_termination(enabled);
+        let mut resp = heapless::String::<64>::new();
+        let _ = core::write!(resp, r#"{{"status":"ok","termination":{}}}"#, enabled);
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
     }
 }
 impl BridgeLedOn {
