@@ -1,35 +1,36 @@
 # Credits & Attribution
 
-AgentLA is built upon and inspired by the incredible work of the open-source embedded, Rust, and hardware engineering communities. This document acknowledges the direct dependencies used in our firmware, as well as the foundational projects that served as architectural references during the port to Embassy async Rust.
+AgentLA is built upon and inspired by the incredible work of the open-source embedded, Rust, and hardware engineering communities. This document acknowledges the direct dependencies used in our firmware and web desktop, as well as the foundational projects that served as architectural references during the port to Embassy async Rust.
 
 ---
 
 ## 1. Attribution: Direct Dependencies
 
-The following libraries and crates are directly compiled into AgentLA firmware (`crates/agentla-bsp`, `boards/*`, and `firmware-rs`):
+The following libraries, crates, and frontend frameworks are directly bundled into AgentLA firmware, board packages, and the embedded web desktop (`crates/agentla-bsp`, `boards/*`, `firmware-rs`, and `web-ui/`):
 
-| Crate / Library | Project / Authors | License | Role in AgentLA |
-| :--- | :--- | :--- | :--- |
-| **[`embassy-rp`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | RP2040 and RP2350 async Hardware Abstraction Layer (PIO, DMA, Clocks, SAR ADC, PWM, UART, SIO GPIO). |
-| **[`embassy-executor`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | Bare-metal async task executor for Cortex-M microcontrollers. |
-| **[`embassy-time`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | Microsecond-accurate monotonic hardware timer driver. |
-| **[`embassy-sync`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | Zero-allocation asynchronous synchronization primitives (Channels, Mutexes, Signals). |
-| **[`embassy-usb`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | Composite USB device stack, descriptors, CDC-ACM serial, CDC-NCM networking, and HID interfaces. |
-| **[`embassy-net`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | Async embedded TCP/IP network stack (IPv4, TCP, UDP, ICMP, DHCP server, DNS server). |
-| **[`embassy-net-driver-channel`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Apache-2.0 / MIT | Zero-copy channel-based network driver adapter bridging USB CDC-NCM to `embassy-net`. |
-| **[`picoserve`](https://github.com/svenstaro/picoserve)** | Sven-Hendrik Haase | MIT / Apache-2.0 | High-performance, low-memory `#![no_std]` HTTP web server handling REST routing, Server-Sent Events (SSE), and static asset streaming. |
-| **[`littlefs2`](https://github.com/32blit/littlefs2)** | 32blit Contributors | MIT / Apache-2.0 | Memory-safe idiomatic Rust bindings to ARM LittleFS for power-fail-resilient on-probe flash storage. |
-| **[`rp-pac`](https://github.com/rp-rs/rp-pac)** | rp-rs Team | Apache-2.0 / MIT | Low-level Peripheral Access Crate generated from RP2350 SVDs for direct silicon register manipulation. |
-| **[`cortex-m`](https://github.com/rust-embedded/cortex-m)** | Rust on Cortex-M Team | MIT / Apache-2.0 | Low-level ARM Cortex-M hardware access, assembly intrinsics, and core peripheral controls. |
-| **[`cortex-m-rt`](https://github.com/rust-embedded/cortex-m)** | Rust on Cortex-M Team | MIT / Apache-2.0 | Minimal runtime, exception vectors, and reset startup code for Cortex-M microcontrollers. |
-| **[`defmt`](https://github.com/knurling-rs/defmt)** | Ferrous Systems | Apache-2.0 / MIT | Ultra-efficient deferred string formatting logging framework for resource-constrained targets. |
-| **[`defmt-rtt`](https://github.com/knurling-rs/defmt)** | Ferrous Systems | Apache-2.0 / MIT | Transport layer transmitting deferred format logs over Segger Real-Time Transfer (RTT). |
-| **[`panic-probe`](https://github.com/knurling-rs/panic-probe)** | Ferrous Systems | Apache-2.0 / MIT | Panic handler printing human-readable defmt backtraces and register dumps across debug probes. |
-| **[`static_cell`](https://github.com/embassy-rs/static-cell)** | Dario Nieuwenhuis (Dirbaio) | Apache-2.0 / MIT | Safe, zero-cost static storage abstraction for global embedded asynchronous tasks. |
-| **[`heapless`](https://github.com/japaric/heapless)** | Jorge Aparicio & Heapless Team | Apache-2.0 / MIT | Static memory, allocation-free data structures (`Vec`, `String`, `Deque`) with compile-time bounded capacity. |
-| **[`portable-atomic`](https://github.com/taiki-e/portable-atomic)** | Taiki Endo | Apache-2.0 / MIT | Hardware and software-fallback atomic operations for ARM Cortex-M33 architecture. |
-| **[`embedded-io-async`](https://github.com/rust-embedded/embedded-hal)** | Rust Embedded WG | MIT / Apache-2.0 | Asynchronous I/O trait definitions for embedded stream readers, writers, and network sockets. |
-| **[`generic-array`](https://github.com/RustCrypto/generic-array)** | RustCrypto Team | MIT | Type-level generic array sizing primitives. |
+| Crate / Library | Project / Authors | Role in AgentLA |
+| :--- | :--- | :--- |
+| **[`embassy-rp`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | RP2040 and RP2350 async Hardware Abstraction Layer (PIO, DMA, Clocks, SAR ADC, PWM, UART, SIO GPIO). |
+| **[`embassy-executor`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Bare-metal async task executor for Cortex-M microcontrollers. |
+| **[`embassy-time`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Microsecond-accurate monotonic hardware timer driver. |
+| **[`embassy-sync`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Zero-allocation asynchronous synchronization primitives (Channels, Mutexes, Signals). |
+| **[`embassy-usb`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Composite USB device stack, descriptors, CDC-ACM serial, CDC-NCM networking, and HID interfaces. |
+| **[`embassy-net`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Async embedded TCP/IP network stack (IPv4, TCP, UDP, ICMP, DHCP server, DNS server). |
+| **[`embassy-net-driver-channel`](https://github.com/embassy-rs/embassy)** | Embassy Project Contributors | Zero-copy channel-based network driver adapter bridging USB CDC-NCM to `embassy-net`. |
+| **[`picoserve`](https://github.com/svenstaro/picoserve)** | Sven-Hendrik Haase | High-performance, low-memory `#![no_std]` HTTP web server handling REST routing, Server-Sent Events (SSE), and static asset streaming. |
+| **[`littlefs2`](https://github.com/32blit/littlefs2)** | 32blit Contributors | Memory-safe idiomatic Rust bindings to ARM LittleFS for power-fail-resilient on-probe flash storage. |
+| **[`rp-pac`](https://github.com/rp-rs/rp-pac)** | rp-rs Team | Low-level Peripheral Access Crate generated from RP2350 SVDs for direct silicon register manipulation. |
+| **[`cortex-m`](https://github.com/rust-embedded/cortex-m)** | Rust on Cortex-M Team | Low-level ARM Cortex-M hardware access, assembly intrinsics, and core peripheral controls. |
+| **[`cortex-m-rt`](https://github.com/rust-embedded/cortex-m)** | Rust on Cortex-M Team | Minimal runtime, exception vectors, and reset startup code for Cortex-M microcontrollers. |
+| **[`defmt`](https://github.com/knurling-rs/defmt)** | Ferrous Systems | Ultra-efficient deferred string formatting logging framework for resource-constrained targets. |
+| **[`defmt-rtt`](https://github.com/knurling-rs/defmt)** | Ferrous Systems | Transport layer transmitting deferred format logs over Segger Real-Time Transfer (RTT). |
+| **[`panic-probe`](https://github.com/knurling-rs/panic-probe)** | Ferrous Systems | Panic handler printing human-readable defmt backtraces and register dumps across debug probes. |
+| **[`static_cell`](https://github.com/embassy-rs/static-cell)** | Dario Nieuwenhuis (Dirbaio) | Safe, zero-cost static storage abstraction for global embedded asynchronous tasks. |
+| **[`heapless`](https://github.com/japaric/heapless)** | Jorge Aparicio & Heapless Team | Static memory, allocation-free data structures (`Vec`, `String`, `Deque`) with compile-time bounded capacity. |
+| **[`portable-atomic`](https://github.com/taiki-e/portable-atomic)** | Taiki Endo | Hardware and software-fallback atomic operations for ARM Cortex-M33 architecture. |
+| **[`embedded-io-async`](https://github.com/rust-embedded/embedded-hal)** | Rust Embedded WG | Asynchronous I/O trait definitions for embedded stream readers, writers, and network sockets. |
+| **[`generic-array`](https://github.com/RustCrypto/generic-array)** | RustCrypto Team | Type-level generic array sizing primitives. |
+| **[`daisyUI`](https://github.com/saadeghi/daisyui)** | Pouya Saadeghi | Tailwind CSS component library providing design system tokens, themes, and UI primitives for the embedded Web Desktop and User Apps. |
 
 ---
 
@@ -50,7 +51,6 @@ The following upstream projects, drivers, and reference implementations were stu
 | **[PicoRVD](https://github.com/aappleby/picorvd)** | Andrew Appleby | 1-wire SWIO PIO timing, open-drain turnaround, and PROGBUF memory access routines for WCH QingKe V2 cores (CH32V003). |
 | **[gusmanb/logicanalyzer](https://github.com/gusmanb/logicanalyzer)** | Bernardo Guasconi | High-speed PIO digital capture pipelines, DMA circular buffering, and trigger qualifier architecture. |
 | **[lrndis](https://github.com/fetisov/lrndis)** | Sergey Fetisov | Packet structures for embedded DHCP and captive DNS packet formatting. |
-| **[DaisyUI & Tailwind CSS](https://github.com/saadeghi/daisyui)** | Pouya Saadeghi & Tailwind Labs | Component library and styling powering the embedded Web Desktop OS. |
 
 ---
 
