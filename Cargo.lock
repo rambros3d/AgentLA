@@ -826,6 +826,7 @@ dependencies = [
  "defmt 1.2.0",
  "defmt-rtt",
  "embassy-executor",
+ "embassy-futures",
  "embassy-net",
  "embassy-net-driver-channel",
  "embassy-rp",

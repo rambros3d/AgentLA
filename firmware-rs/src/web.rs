@@ -475,11 +475,31 @@ pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
     let app = make_app();
     static CONFIG: PicoserveConfig = PicoserveConfig::const_default().keep_connection_alive();
 
-    let mut http_buf = [0u8; 2048];
-    let mut tcp_rx_buf = [0u8; 2048];
-    let mut tcp_tx_buf = [0u8; 2048];
+    let mut http_buf_0 = [0u8; 2048];
+    let mut tcp_rx_buf_0 = [0u8; 1536];
+    let mut tcp_tx_buf_0 = [0u8; 1536];
+    let server_0 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_0);
 
-    let server = picoserve::Server::new(&app, &CONFIG, &mut http_buf);
-    defmt::info!("HTTP server listening on TCP :80 (http://agentla.local and http://10.10.10.10)");
-    server.listen_and_serve(0, stack, 80, &mut tcp_rx_buf, &mut tcp_tx_buf).await;
+    let mut http_buf_1 = [0u8; 2048];
+    let mut tcp_rx_buf_1 = [0u8; 1536];
+    let mut tcp_tx_buf_1 = [0u8; 1536];
+    let server_1 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_1);
+
+    let mut http_buf_2 = [0u8; 2048];
+    let mut tcp_rx_buf_2 = [0u8; 1536];
+    let mut tcp_tx_buf_2 = [0u8; 1536];
+    let server_2 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_2);
+
+    let mut http_buf_3 = [0u8; 2048];
+    let mut tcp_rx_buf_3 = [0u8; 1536];
+    let mut tcp_tx_buf_3 = [0u8; 1536];
+    let server_3 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_3);
+
+    defmt::info!("HTTP server listening on TCP :80 with 4 concurrent worker sockets");
+    embassy_futures::join::join4(
+        server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0),
+        server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1),
+        server_2.listen_and_serve(2, stack, 80, &mut tcp_rx_buf_2, &mut tcp_tx_buf_2),
+        server_3.listen_and_serve(3, stack, 80, &mut tcp_rx_buf_3, &mut tcp_tx_buf_3),
+    ).await;
 }

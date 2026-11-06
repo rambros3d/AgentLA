@@ -10,6 +10,7 @@ embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critic
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.5.1", features = ["defmt"] }
 embassy-sync = { version = "0.8.0", features = ["defmt"] }
+embassy-futures = "0.1.2"
 embassy-usb = { version = "0.6.0", features = ["defmt", "usbd-hid"] }
 embassy-net = { version = "0.9.1", features = ["defmt", "tcp", "udp", "proto-ipv4", "medium-ethernet", "auto-icmp-echo-reply", "icmp"] }
 embassy-net-driver-channel = "0.4.0"
