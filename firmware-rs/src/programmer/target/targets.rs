@@ -11,6 +11,18 @@ pub enum TargetFamily {
     Unknown,
 }
 
+impl TargetFamily {
+    pub fn algo_name(&self) -> Option<&'static str> {
+        match self {
+            TargetFamily::Stm32F1 => Some("stm32f1"),
+            TargetFamily::Stm32F4 => Some("stm32f4"),
+            TargetFamily::Stm32H5 => Some("stm32h5"),
+            TargetFamily::Py32F0 => Some("py32f0"),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TargetInfo {
     pub name: &'static str,

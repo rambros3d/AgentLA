@@ -9,6 +9,8 @@ pub const PIN_SWCLK: usize = ActiveBoard::PROGRAMMER.swclk as usize;
 pub const PIN_SWDIO: usize = ActiveBoard::PROGRAMMER.swdio as usize;
 pub const PIN_RESET: usize = ActiveBoard::PROGRAMMER.nrst as usize;
 pub const PIN_BOOT0: usize = ActiveBoard::PROGRAMMER.boot0 as usize;
+pub const PIN_UART_TX: usize = ActiveBoard::PROGRAMMER.uart_tx as usize;
+pub const PIN_UART_RX: usize = ActiveBoard::PROGRAMMER.uart_rx as usize;
 
 /// Programmer-bridge pin block (fixed programmatic resources).
 /// Single source of truth: `tristate_pins` below and the fixed claims in
@@ -111,32 +113,7 @@ impl ProgrammerPins {
     }
 
     pub fn set_reset(&mut self, assert_low: bool) {
-        if assert_low {
-            // Drive low
-            pac::PADS_BANK0.gpio(PIN_RESET).modify(|w| {
-                w.set_ie(true);
-                w.set_od(false);
-                w.set_pue(false);
-                w.set_pde(false);
-            });
-            pac::IO_BANK0.gpio(PIN_RESET).ctrl().write(|w| {
-                w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
-            });
-            pac::SIO.gpio_out(0).value_clr().write_value(1 << PIN_RESET);
-            pac::SIO.gpio_oe(0).value_set().write_value(1 << PIN_RESET);
-        } else {
-            // Release high (input with pullup)
-            pac::PADS_BANK0.gpio(PIN_RESET).modify(|w| {
-                w.set_ie(true);
-                w.set_od(true);
-                w.set_pue(true);
-                w.set_pde(false);
-            });
-            pac::SIO.gpio_oe(0).value_clr().write_value(1 << PIN_RESET);
-            pac::IO_BANK0.gpio(PIN_RESET).ctrl().write(|w| {
-                w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
-            });
-        }
+        drive_reset_pin(PIN_RESET, assert_low);
     }
 
     pub fn read_reset(&self) -> bool {
@@ -184,6 +161,35 @@ impl Drop for SwdSession {
     fn drop(&mut self) {
         self.transport.deinit();
         tristate_pins();
+    }
+}
+
+pub fn drive_reset_pin(pin: usize, assert_low: bool) {
+    if assert_low {
+        // Drive low
+        pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_ie(true);
+            w.set_od(false);
+            w.set_pue(false);
+            w.set_pde(false);
+        });
+        pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
+            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+        });
+        pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
+        pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
+    } else {
+        // Release high (input with pullup)
+        pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_ie(true);
+            w.set_od(true);
+            w.set_pue(true);
+            w.set_pde(false);
+        });
+        pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
+        pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
+            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+        });
     }
 }
 
@@ -248,6 +254,16 @@ impl SwdSession {
         res?;
         self.transport.power_up_debug()?;
         Ok(dpidr)
+    }
+
+    pub fn connect_under_reset(&mut self) -> Result<u32, crate::programmer::target::cortex_m::CortexError> {
+        let mut cortex = crate::programmer::target::cortex_m::CortexM::new(&mut self.transport);
+        cortex.connect_under_reset()
+    }
+
+    pub fn reset_and_catch(&mut self) -> Result<u32, crate::programmer::target::cortex_m::CortexError> {
+        let mut cortex = crate::programmer::target::cortex_m::CortexM::new(&mut self.transport);
+        cortex.reset_and_catch()
     }
 
     pub fn release(mut self) -> ProgrammerPins {

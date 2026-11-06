@@ -398,6 +398,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/settings", crate::rest::SettingsEndpoint)
         .route_service("/api/settings", crate::rest::SettingsEndpoint)
         .route_service("/api/v1/programmer/reset", crate::rest::ProgrammerReset)
+        .route_service("/api/v1/programmer/reset-catch", crate::rest::ProgrammerResetCatch)
+        .route_service("/api/v1/programmer/rescue/stm32", crate::rest::ProgrammerRescueStm32)
         .route_service("/api/v1/programmer/erase", crate::rest::ProgrammerErase)
         .route_service("/api/v1/programmer/read", crate::rest::ProgrammerRead)
         .route_service("/api/v1/logic-analyzer/arm", crate::rest::LogicAnalyzerArm)

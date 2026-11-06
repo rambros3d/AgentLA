@@ -3,6 +3,9 @@ pub mod blobs;
 pub use blobs::{AlgoBlobHeader, STM32F1_ALGO_CODE, STM32F1_ALGO_HDR};
 use crate::programmer::target::cortex_m::{CortexM, DHCSR, DHCSR_S_HALT};
 use crate::programmer::target::targets::{TargetFamily, TargetInfo};
+use core::fmt::Write;
+use littlefs2::io::OpenSeekFrom;
+use littlefs2::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlgoError {
@@ -11,6 +14,8 @@ pub enum AlgoError {
     ExecutionFailed(u32),
     VerifyMismatch { addr: u32, expected: u8, actual: u8 },
     UnsupportedTarget,
+    AlgoNotFound,
+    AlgoInvalid,
 }
 
 pub struct FlashAlgorithmRunner;
@@ -55,9 +60,16 @@ impl FlashAlgorithmRunner {
                 .map_err(|_| AlgoError::SwdError)?; // SP
         }
 
-        // LR = 0 (or breakpoint return address)
+        // LR points to BKPT 0 opcode (0xBE00) placed at sp - 4
+        let lr = if sp >= 4 {
+            let bkpt_addr = sp - 4;
+            let _ = cortex.mem_write32(bkpt_addr, 0xBE00BE00);
+            bkpt_addr | 1
+        } else {
+            0x00000000
+        };
         cortex
-            .write_core_reg(14, 0x00000000)
+            .write_core_reg(14, lr)
             .map_err(|_| AlgoError::SwdError)?;
 
         // PC = entry | 1 (Thumb bit)
@@ -274,6 +286,171 @@ impl FlashAlgorithmRunner {
         Ok(())
     }
 
+    pub fn load_algo_from_fs(name: &str, buf: &mut [u8]) -> Result<(AlgoBlobHeader, usize), AlgoError> {
+        let mut path_str = heapless::String::<64>::new();
+        let _ = core::write!(path_str, "/system/algo/{}.bin", name);
+        let path = PathBuf::try_from(path_str.as_str()).map_err(|_| AlgoError::AlgoNotFound)?;
+
+        let read_result = crate::storage::with_system_fs(|fs| {
+            if !fs.exists(&path) {
+                return Err(AlgoError::AlgoNotFound);
+            }
+            let mut read_bytes = 0usize;
+            let mut pos = 0u32;
+            while read_bytes < buf.len() {
+                let chunk_opt = fs.read_chunk::<512>(&path, OpenSeekFrom::Start(pos)).ok();
+                if let Some((chunk, _total_len)) = chunk_opt {
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    let to_copy = chunk.len().min(buf.len() - read_bytes);
+                    buf[read_bytes..read_bytes + to_copy].copy_from_slice(&chunk[..to_copy]);
+                    read_bytes += to_copy;
+                    pos += to_copy as u32;
+                    if chunk.len() < 512 {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            Ok(read_bytes)
+        });
+
+        let bytes_read = match read_result {
+            Some(Ok(n)) => n,
+            Some(Err(e)) => return Err(e),
+            None => return Err(AlgoError::AlgoNotFound),
+        };
+
+        if bytes_read < 44 {
+            return Err(AlgoError::AlgoInvalid);
+        }
+
+        let hdr = AlgoBlobHeader::from_bytes(&buf[..44]).ok_or(AlgoError::AlgoInvalid)?;
+        if 44 + hdr.code_size as usize > bytes_read {
+            return Err(AlgoError::AlgoInvalid);
+        }
+
+        Ok((hdr, bytes_read))
+    }
+
+    pub fn flm_init(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code_base: u32,
+        flash_addr: u32,
+        clk: u32,
+        func: u32,
+    ) -> Result<(), AlgoError> {
+        let entry = code_base + hdr.init_offset;
+        let res = Self::exec_algo(
+            cortex,
+            entry,
+            flash_addr,
+            clk,
+            func,
+            0,
+            hdr.stack_top,
+            2000,
+        )?;
+        if res != 0 {
+            return Err(AlgoError::ExecutionFailed(res));
+        }
+        Ok(())
+    }
+
+    pub fn flm_uninit(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code_base: u32,
+        func: u32,
+    ) -> Result<(), AlgoError> {
+        if hdr.uninit_offset == 0 {
+            return Ok(());
+        }
+        let entry = code_base + hdr.uninit_offset;
+        let res = Self::exec_algo(
+            cortex,
+            entry,
+            func,
+            0,
+            0,
+            0,
+            hdr.stack_top,
+            2000,
+        )?;
+        if res != 0 {
+            return Err(AlgoError::ExecutionFailed(res));
+        }
+        Ok(())
+    }
+
+    pub fn flm_flash_blob(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code: &[u8],
+        target_ram_base: u32,
+        target_flash_addr: u32,
+        data: &[u8],
+        sector_size: u32,
+        page_size: u32,
+    ) -> Result<(), AlgoError> {
+        let code_base = target_ram_base;
+        // 1. Download algorithm code to target SRAM
+        Self::download_ram(cortex, code_base, code)?;
+
+        // 2. Call Init(target_flash_addr, 0, 1 = Erase)
+        Self::flm_init(cortex, hdr, code_base, target_flash_addr, 0, 1)?;
+
+        // 3. Erase sectors
+        let mut curr_sector = target_flash_addr & !(sector_size - 1);
+        let end_addr = target_flash_addr + data.len() as u32;
+        while curr_sector < end_addr {
+            Self::flm_erase_sector(cortex, hdr, code_base, curr_sector)?;
+            curr_sector += sector_size;
+        }
+
+        // 4. Program pages
+        let mut offset = 0usize;
+        while offset < data.len() {
+            let chunk_len = (data.len() - offset).min(page_size as usize);
+            Self::flm_program_page(
+                cortex,
+                hdr,
+                code_base,
+                target_flash_addr + offset as u32,
+                &data[offset..offset + chunk_len],
+            )?;
+            offset += chunk_len;
+        }
+
+        // 5. Verify
+        let ok = Self::flm_verify(cortex, hdr, code_base, target_flash_addr, data)?;
+        if !ok {
+            return Err(AlgoError::ExecutionFailed(1));
+        }
+
+        // 6. UnInit
+        Self::flm_uninit(cortex, hdr, code_base, 2)?;
+        Ok(())
+    }
+
+    pub fn flash_target_with_fs(
+        cortex: &mut CortexM,
+        algo_name: &str,
+        target_ram_base: u32,
+        target_flash_addr: u32,
+        data: &[u8],
+        sector_size: u32,
+        page_size: u32,
+    ) -> Result<(), AlgoError> {
+        let mut algo_buf = [0u8; 4096];
+        let (hdr, _len) = Self::load_algo_from_fs(algo_name, &mut algo_buf)?;
+        let code = &algo_buf[44..44 + hdr.code_size as usize];
+        Self::flm_flash_blob(cortex, &hdr, code, target_ram_base, target_flash_addr, data, sector_size, page_size)
+    }
+
     // High level flash write + verify for any target
     pub fn flash_target(
         cortex: &mut CortexM,
@@ -281,6 +458,22 @@ impl FlashAlgorithmRunner {
         addr: u32,
         data: &[u8],
     ) -> Result<(), AlgoError> {
+        // 1. If device family has a matching LittleFS algorithm blob in /system/algo/, try running it
+        if let Some(algo_name) = target.family.algo_name() {
+            if let Ok(()) = Self::flash_target_with_fs(
+                cortex,
+                algo_name,
+                target.ram_base,
+                addr,
+                data,
+                target.sector_size,
+                target.page_size,
+            ) {
+                return Ok(());
+            }
+        }
+
+        // 2. Hardware-specific fallback or built-in algorithm
         match target.family {
             TargetFamily::Stm32F1 | TargetFamily::Py32F0 => {
                 // Erase sectors

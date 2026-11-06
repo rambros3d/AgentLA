@@ -1203,9 +1203,13 @@
                         </div>
                     </div>
 
-                    <div class="control-bar">
+                    <div class="control-bar" style="flex-wrap: wrap; gap: 8px;">
                         <button class="btn btn-outline btn-sm" id="btn-flash-detect">Detect Target</button>
                         <button class="btn btn-primary btn-sm" id="btn-flash-program">Flash Target</button>
+                        <button class="btn btn-warning btn-sm" id="btn-stm32-rescue" title="STM32 AN3155 UART Bootloader Recovery (BOOT0 + nRST + Mass Erase)">STM32 Unbrick</button>
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                            <input type="checkbox" id="flash-connect-under-reset"> Connect Under Reset
+                        </label>
                         <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); cursor: pointer; margin-left: auto;">
                             <input type="checkbox" id="flash-verify-check" checked> Verify write
                         </label>
@@ -1242,11 +1246,12 @@
                             </div>
                             <span class="domain-tag" style="font-size: 11px;">Target: <strong id="target-detect-summary" style="color: var(--color-primary);">RP2350 (Cortex-M33 / RISC-V Hazard3)</strong></span>
                         </div>
-                        <div class="segmented-control" style="width: 240px;">
+                        <div class="segmented-control" style="width: 290px;">
                             <button class="sub-btn" id="dbg-btn-halt">Halt</button>
                             <button class="sub-btn" id="dbg-btn-step">Step</button>
                             <button class="sub-btn" id="dbg-btn-run">Resume</button>
                             <button class="sub-btn" id="dbg-btn-reset">Reset</button>
+                            <button class="sub-btn" id="dbg-btn-reset-catch" title="Connect Under Reset & Vector Catch">Catch</button>
                         </div>
                     </div>
 

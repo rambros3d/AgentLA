@@ -7,25 +7,22 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ## 1. Target Debugging & Flashing Expansions
 
-- [ ] **Vendor UART Bootloader Recovery Engine**
-  - **Scope**: ST AN3155 USART bootloader and WCH single-wire bootloader support.
-  - **Orchestration**: Hardware control of `BOOT0` (GPIO 2) and `nRST` (GPIO 6/10/13) to force target into bootloader mode when SWD/debug access is locked (RDP Level 1/2 or misconfigured SWD pins).
-  - **Actions**: Automated chip unprotect, flash mass-erase, and recovery binary loading.
-  - **Reference**: `openspec/specs/bootloader-recovery/spec.md`.
+- [x] **Vendor UART Bootloader Recovery Engine (STM32 AN3155)**
+  - **Scope**: ST AN3155 USART bootloader (8E1 framing, 0x7F auto-baud sync, 0x92 Readout Unprotect mass erase, extended erase, write memory) with dedicated BOOT0 (GPIO 2) and nRST pin orchestration.
+  - **Status**: Completed in `target-debugging-and-flashing-expansions`. REST endpoint `POST /api/v1/programmer/rescue/stm32` available.
 
 - [ ] **WCH CH32 RISC-V 1-Wire SDI / SWIO Debug Engine**
   - **Scope**: Native PIO implementation of WCH proprietary single-wire SDI protocol for CH32V003, CH32V103, CH32V203, and CH32V307.
   - **Capabilities**: Target detection, core halt/run, register/SRAM access, and flash erase/programming via RISC-V ProgBuf execution and debug module registers (`DMCONTROL`, `DMSTATUS`, `DATA0`).
   - **Reference**: `openspec/specs/ch32-swio-pio/spec.md`.
 
-- [ ] **Generic Cortex-M Flash Algorithm Runner (CMSIS-Pack FLM / ELF)**
-  - **Scope**: Load standard ARM CMSIS-Pack flash algorithms (`.FLM` / `.ELF` containing `Init`, `UnInit`, `EraseSector`, `ProgramPage`) into target SRAM and execute them via SWD.
-  - **Benefit**: Enables AgentLA to flash virtually *any* ARM Cortex-M target (STM32, NXP LPC, SAM, GD32, Silicon Labs) without compiling chip-specific flashing logic into probe firmware.
-  - **Reference**: `openspec/specs/generic-cortexm-algo-runner/spec.md`.
+- [x] **Generic Cortex-M Flash Algorithm Runner (CMSIS-Pack FLM / ELF)**
+  - **Scope**: Standard ARM CMSIS-Pack flash algorithms (.bin blobs prefixed with 44-byte `AlgoBlobHeader`) stored on LittleFS Partition 1 (`/system/algo/<name>.bin`) via `SYSTEM_FS`. Target SRAM execution harness with stack top pointer and `BKPT 0` halt return code verification.
+  - **Status**: Completed in `target-debugging-and-flashing-expansions`. `tools/pack_flm.py` utility available for FLM/ELF packaging.
 
-- [ ] **Hardened Connect-under-Reset & Vector Catch Engine**
-  - **Scope**: Robust hardware `nRST` assertion, vector catch (`DEMCR.VC_CORERESET`), and `AIRCR.SYSRESETREQ` / `VECTRESET` handling.
-  - **Benefit**: Prevents target from entering HardFault loops or sleep states (`WFI`) on power-up, reliably halting targets with corrupt flash (resolves BluePill `PC=0xFFFFFFFE` lockup).
+- [x] **Hardened Connect-under-Reset & Vector Catch Engine**
+  - **Scope**: Robust hardware `nRST` assertion, SWD line sync under reset, vector catch (`DEMCR.VC_CORERESET` + `DEMCR.TRCENA`), and software system reset fallback via `AIRCR.SYSRESETREQ`.
+  - **Status**: Completed in `target-debugging-and-flashing-expansions`. REST endpoint `POST /api/v1/programmer/reset-catch` available.
 
 - [ ] **Raspberry Pi RP2040 & RP2350 Target Support**
   - **Scope**: SWD programming and rescue debugging for RP2040 and RP2350 targets using Raspberry Pi bootrom vectors and flash memory algorithms.

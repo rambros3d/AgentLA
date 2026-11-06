@@ -6,6 +6,7 @@ pub const DHCSR: u32 = 0xE000EDF0;
 pub const DCRSR: u32 = 0xE000EDF4;
 pub const DCRDR: u32 = 0xE000EDF8;
 pub const DEMCR: u32 = 0xE000EDFC;
+pub const AIRCR: u32 = 0xE000ED0C;
 
 pub const DHCSR_DBGKEY: u32 = 0xA05F0000;
 pub const DHCSR_C_DEBUGEN: u32 = 0x00000001;
@@ -14,12 +15,20 @@ pub const DHCSR_C_STEP: u32 = 0x00000004;
 pub const DHCSR_S_REGRDY: u32 = 0x00010000;
 pub const DHCSR_S_HALT: u32 = 0x00020000;
 
+pub const DEMCR_TRCENA: u32 = 1 << 24;
+pub const DEMCR_VC_CORERESET: u32 = 1 << 0;
+
+pub const AIRCR_VECTKEY: u32 = 0x05FA0000;
+pub const AIRCR_SYSRESETREQ: u32 = 1 << 2;
+pub const AIRCR_VECTRESET: u32 = 1 << 0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CortexError {
     SwdError,
     Timeout,
     HaltFailed,
     NotHalted,
+    ResetTimeout,
 }
 
 pub struct CortexM<'a> {
@@ -146,5 +155,65 @@ impl<'a> CortexM<'a> {
             cortex_m::asm::delay(1500);
         }
         Err(CortexError::Timeout)
+    }
+
+    pub fn connect_under_reset(&mut self) -> Result<u32, CortexError> {
+        let reset_pin = self.swd.reset_pin;
+        // 1. Assert nRST low
+        crate::programmer::pins::drive_reset_pin(reset_pin, true);
+        cortex_m::asm::delay(3_000_000); // 20 ms reset pulse
+
+        // 2. Perform SWD line reset and switch to SWD
+        self.swd.jtag_to_swd();
+        let mut dpidr = 0u32;
+        let _ = self.swd.read_dpidr_retry(&mut dpidr);
+        let _ = self.swd.power_up_debug();
+
+        // 3. Write DHCSR and DEMCR (arm vector catch) while reset is held low
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        cortex_m::asm::delay(150_000); // 1 ms settling
+
+        // 4. Release nRST
+        crate::programmer::pins::drive_reset_pin(reset_pin, false);
+
+        // 5. Poll DHCSR.S_HALT up to 500 ms (50_000 iterations x 10 µs)
+        for i in 0..50_000 {
+            if let Ok(dhcsr) = self.mem_read32(DHCSR) {
+                if (dhcsr & DHCSR_S_HALT) != 0 {
+                    let pc = self.read_core_reg(15)?;
+                    return Ok(pc);
+                }
+            }
+            // After 50 ms (5000 iterations), if not halted, fallback to software SYSRESETREQ
+            if i == 5000 {
+                let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+                let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+                let _ = self.mem_write32(AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
+            }
+            cortex_m::asm::delay(1500); // 10 µs
+        }
+        Err(CortexError::ResetTimeout)
+    }
+
+    pub fn reset_and_catch(&mut self) -> Result<u32, CortexError> {
+        // 1. Arm vector catch
+        self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN)?;
+        self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET)?;
+
+        // 2. Trigger software system reset
+        self.mem_write32(AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ)?;
+
+        // 3. Poll DHCSR.S_HALT up to 500 ms
+        for _ in 0..50_000 {
+            if let Ok(dhcsr) = self.mem_read32(DHCSR) {
+                if (dhcsr & DHCSR_S_HALT) != 0 {
+                    let pc = self.read_core_reg(15)?;
+                    return Ok(pc);
+                }
+            }
+            cortex_m::asm::delay(1500); // 10 µs
+        }
+        Err(CortexError::ResetTimeout)
     }
 }

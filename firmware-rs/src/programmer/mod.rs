@@ -1,4 +1,5 @@
 pub mod algo;
+pub mod bootloader;
 pub mod dap;
 pub mod pins;
 pub mod pio_programs;
@@ -635,6 +636,43 @@ pub fn halt_target_global() -> Result<(), TargetError> {
     halt_target_port_global(TargetPort::BluePill)
 }
 
+pub fn connect_under_reset_port_global(port: TargetPort) -> Result<u32, TargetError> {
+    PROGRAMMER_PINS.lock(|cell| {
+        let mut pins = cell.borrow_mut();
+        let mut swd_session = pins.into_swd_port(port, 1000);
+        let res = match swd_session.connect_under_reset() {
+            Ok(pc) => Ok(pc),
+            Err(target::cortex_m::CortexError::ResetTimeout) => Err(TargetError::Timeout),
+            Err(_) => Err(TargetError::ProtocolError),
+        };
+        *pins = swd_session.release();
+        res
+    })
+}
+
+pub fn connect_under_reset_global() -> Result<u32, TargetError> {
+    connect_under_reset_port_global(TargetPort::BluePill)
+}
+
+pub fn reset_and_catch_port_global(port: TargetPort) -> Result<u32, TargetError> {
+    PROGRAMMER_PINS.lock(|cell| {
+        let mut pins = cell.borrow_mut();
+        let mut swd_session = pins.into_swd_port(port, 1000);
+        let _ = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+        let res = match swd_session.reset_and_catch() {
+            Ok(pc) => Ok(pc),
+            Err(target::cortex_m::CortexError::ResetTimeout) => Err(TargetError::Timeout),
+            Err(_) => Err(TargetError::ProtocolError),
+        };
+        *pins = swd_session.release();
+        res
+    })
+}
+
+pub fn reset_and_catch_global() -> Result<u32, TargetError> {
+    reset_and_catch_port_global(TargetPort::BluePill)
+}
+
 pub fn resume_target_global() -> Result<(), TargetError> {
     resume_target_port_global(TargetPort::BluePill)
 }
@@ -645,4 +683,53 @@ pub fn read_flash_global(addr: u32, buf: &mut [u8]) -> Result<(), TargetError> {
 
 pub fn flash_target_global(addr: u32, data: &[u8]) -> Result<(), TargetError> {
     flash_target_port_global(TargetPort::BluePill, addr, data)
+}
+
+pub fn rescue_stm32_global() -> Result<(), bootloader::BootloaderError> {
+    // 1. Conflict protection check:
+    if matches!(crate::analyzer::state(), crate::analyzer::State::Armed | crate::analyzer::State::Capturing) {
+        return Err(bootloader::BootloaderError::PinConflict);
+    }
+    for pin in [pins::PIN_BOOT0 as u32, pins::PIN_UART_TX as u32, pins::PIN_UART_RX as u32, pins::PIN_RESET as u32] {
+        if let Some(owner) = crate::pin_owner::owner_of(pin) {
+            if owner != crate::pin_owner::Driver::Programmer {
+                return Err(bootloader::BootloaderError::PinConflict);
+            }
+        }
+    }
+
+    PROGRAMMER_PINS.lock(|cell| {
+        let mut pins = cell.borrow_mut();
+
+        // 2. Hardware Orchestration:
+        // Set BOOT0 = HIGH
+        pins.set_boot0(true);
+
+        // Pulse RESET low for 20ms, release high
+        pins::drive_reset_pin(pins::PIN_RESET, true);
+        cortex_m::asm::delay(3_000_000); // 20 ms
+        pins::drive_reset_pin(pins::PIN_RESET, false);
+        cortex_m::asm::delay(7_500_000); // 50 ms settling for bootloader
+
+        // 3. Initialize UART 8E1 and execute AN3155 bootloader commands
+        let mut bl = bootloader::Stm32Bootloader::default_programmer();
+        bl.init_pins();
+
+        let result = (|| {
+            bl.sync()?;
+            bl.readout_unprotect()?;
+            Ok(())
+        })();
+
+        // 4. Teardown & cleanup:
+        // Release BOOT0 = LOW
+        pins.set_boot0(false);
+        // Pulse reset to exit bootloader mode
+        pins::drive_reset_pin(pins::PIN_RESET, true);
+        cortex_m::asm::delay(3_000_000); // 20 ms
+        pins::drive_reset_pin(pins::PIN_RESET, false);
+        pins::tristate_pins();
+
+        result
+    })
 }

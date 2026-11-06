@@ -2978,8 +2978,45 @@ function initFlasher(container) {
         });
     }
 
+    const btnRescue = $(container, '#btn-stm32-rescue');
+    const connectUnderResetCheck = $(container, '#flash-connect-under-reset');
+
+    if (btnRescue) {
+        btnRescue.addEventListener('click', async () => {
+            log('Initiating STM32 AN3155 UART Bootloader Recovery...');
+            setProgress(15, 'Asserting BOOT0 and pulsing nRST...');
+            try {
+                const resp = await fetch('/api/v1/programmer/rescue/stm32', { method: 'POST' });
+                const json = await resp.json();
+                if (resp.ok && json.status === 'ok') {
+                    setProgress(100, 'STM32 Recovery Complete!');
+                    log('Success: Readout Unprotect & Flash Mass Erase completed successfully.');
+                } else {
+                    setProgress(0, 'Recovery Failed');
+                    log(`Error: ${json.error || 'Failed to unprotect target'}`);
+                }
+            } catch (err) {
+                setProgress(0, 'Network Error');
+                log(`Rescue request failed: ${err.message}`);
+            }
+        });
+    }
+
     if (btnDetect) {
         btnDetect.addEventListener('click', async () => {
+            if (connectUnderResetCheck && connectUnderResetCheck.checked) {
+                log('Connecting under reset with vector catch...');
+                try {
+                    const resp = await fetch('/api/v1/programmer/reset-catch', { method: 'POST' });
+                    const json = await resp.json();
+                    if (resp.ok && json.status === 'ok') {
+                        log(`Target attached under reset! Initial PC: ${json.pc_hex || json.pc}`);
+                        const sumEl = document.getElementById('target-detect-summary');
+                        if (sumEl) sumEl.textContent = `Connected Under Reset (PC: ${json.pc_hex || json.pc})`;
+                        return;
+                    }
+                } catch (_) {}
+            }
             log('Detecting target MCU via SWD DPIDR...');
             const res = await callMcp('cmd', 'SWD TEST');
             log(res.stdout);
@@ -3065,12 +3102,32 @@ function initDebugger(container) {
     const btnStep = $(container, '#dbg-btn-step');
     const btnRun = $(container, '#dbg-btn-run');
     const btnReset = $(container, '#dbg-btn-reset');
+    const btnResetCatch = $(container, '#dbg-btn-reset-catch');
     const btnReadMem = $(container, '#dbg-btn-readmem');
 
     if (btnHalt) btnHalt.addEventListener('click', () => execDbg('DEBUG HALT', 'Halt'));
     if (btnStep) btnStep.addEventListener('click', () => execDbg('DEBUG STEP', 'Step'));
     if (btnRun) btnRun.addEventListener('click', () => execDbg('DEBUG RUN', 'Resume'));
     if (btnReset) btnReset.addEventListener('click', () => execDbg('SWD RESET', 'Line Reset'));
+    if (btnResetCatch) {
+        btnResetCatch.addEventListener('click', async () => {
+            log('Triggering Connect-Under-Reset & Vector Catch...');
+            try {
+                const resp = await fetch('/api/v1/programmer/reset-catch', { method: 'POST' });
+                const json = await resp.json();
+                if (resp.ok && json.status === 'ok') {
+                    log(`Target halted under reset: PC=${json.pc_hex || json.pc}`);
+                    setTargetState('halted');
+                    const regRes = await callMcp('cmd', 'DEBUG REGISTERS');
+                    updateRegisters(regRes.stdout);
+                } else {
+                    log(`Reset catch failed: ${json.error || 'Target timeout'}`);
+                }
+            } catch (err) {
+                log(`Reset catch error: ${err.message}`);
+            }
+        });
+    }
 
     if (btnReadMem) {
         btnReadMem.addEventListener('click', async () => {

@@ -134,7 +134,7 @@ def pack_webui(
             f.write(gz_data)
 
         # For small assets or non-compressible files, also write uncompressed variant
-        if len(raw_data) <= 4096 or rel_name.endswith(".json") or rel_name.endswith(".svg"):
+        if len(raw_data) <= 4096 or rel_name.endswith(".json") or rel_name.endswith(".svg") or rel_name.endswith(".bin"):
             lfs_raw_path = f"/{rel_name}"
             ensure_parent_dirs(fs, lfs_raw_path)
             with fs.open(lfs_raw_path, "wb") as f:

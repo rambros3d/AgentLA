@@ -131,6 +131,8 @@ pub struct LogicAnalyzerConfig;
 pub struct LogicAnalyzerData;
 pub struct LogicAnalyzerVcd;
 pub struct ProgrammerReset;
+pub struct ProgrammerResetCatch;
+pub struct ProgrammerRescueStm32;
 pub struct ProgrammerErase;
 pub struct ProgrammerRead;
 pub struct BridgeState;
@@ -180,7 +182,7 @@ macro_rules! service {
     };
 }
 
-service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET");
+service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
@@ -595,6 +597,67 @@ impl ProgrammerReset {
         let mut buf = [0u8; 16];
         let _ = crate::programmer::read_flash_global(0x08000000, &mut buf);
         send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","reset_complete":true}"#).await
+    }
+}
+
+impl ProgrammerResetCatch {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let port_str = key_str(query, &body, "port");
+        let port = match port_str.as_ref().map(|s| s.as_str()) {
+            Some("ch32v203") => crate::programmer::TargetPort::Ch32v203,
+            Some("ch32v003") => crate::programmer::TargetPort::Ch32v003,
+            _ => crate::programmer::TargetPort::BluePill,
+        };
+        match crate::programmer::connect_under_reset_port_global(port) {
+            Ok(pc) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"ok","halted":true,"pc":{},"pc_hex":"0x{:08X}"}}"#, pc, pc);
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"error","error":"{:?}"}}"#, e);
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, resp.as_str()).await
+            }
+        }
+    }
+}
+
+impl ProgrammerRescueStm32 {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::programmer::rescue_stm32_global() {
+            Ok(()) => {
+                send_json(
+                    request,
+                    response_writer,
+                    StatusCode::OK,
+                    r#"{"status":"ok","unprotected":true,"mass_erased":true,"message":"STM32 Readout Unprotect and mass-erase complete"}"#,
+                ).await
+            }
+            Err(crate::programmer::bootloader::BootloaderError::PinConflict) => {
+                send_json(
+                    request,
+                    response_writer,
+                    StatusCode::CONFLICT,
+                    r#"{"status":"error","error":"Pin conflict with active analyzer or peripheral driver"}"#,
+                ).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"error","error":"{:?}"}}"#, e);
+                send_json(
+                    request,
+                    response_writer,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    resp.as_str(),
+                ).await
+            }
+        }
     }
 }
 
