@@ -171,6 +171,12 @@ picotool uf2 convert firmware-rs/target/thumbv8m.main-none-eabihf/release/firmwa
 
 ---
 
+## Credits & Attribution
+
+AgentLA is built upon and inspired by the embedded Rust and hardware engineering communities. For full attribution of all directly compiled crates and upstream reference projects, see [CREDITS.md](CREDITS.md).
+
+---
+
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
