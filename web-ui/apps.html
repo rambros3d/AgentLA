@@ -658,6 +658,70 @@
         }
 
         // Theme Engine
+        let isSyncingTheme = false;
+
+        function broadcastThemeChange(theme, mode, scheme) {
+            if (isSyncingTheme) return;
+            try {
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('agentla-theme-channel');
+                    bc.postMessage({ type: 'THEME_CHANGE', theme, mode, scheme });
+                    bc.close();
+                }
+            } catch (_) {}
+            try {
+                document.querySelectorAll('iframe').forEach(frame => {
+                    try { frame.contentWindow.postMessage({ type: 'THEME_CHANGE', theme, mode, scheme }, '*'); } catch (_) {}
+                });
+            } catch (_) {}
+        }
+
+        function handleExternalThemeSync(newTheme, newMode) {
+            if (isSyncingTheme) return;
+            isSyncingTheme = true;
+            try {
+                if (newMode && (newMode === 'system' || newMode === 'light' || newMode === 'dark')) {
+                    themeState.mode = newMode;
+                }
+                if (newTheme) {
+                    const isDark = (newTheme === 'forest' || newTheme === 'dark' || newTheme === 'black' || newTheme === 'luxury');
+                    if (isDark) {
+                        themeState.defaultDarkTheme = newTheme;
+                    } else {
+                        themeState.defaultLightTheme = newTheme;
+                    }
+                }
+                applyTheme();
+            } finally {
+                isSyncingTheme = false;
+            }
+        }
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'agentla-theme' || e.key === 'agentla-theme-mode') {
+                const theme = localStorage.getItem('agentla-theme');
+                const mode = localStorage.getItem('agentla-theme-mode');
+                handleExternalThemeSync(theme, mode);
+            }
+        });
+
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const syncChannel = new BroadcastChannel('agentla-theme-channel');
+                syncChannel.onmessage = (event) => {
+                    if (event.data && event.data.type === 'THEME_CHANGE') {
+                        handleExternalThemeSync(event.data.theme, event.data.mode);
+                    }
+                };
+            } catch (_) {}
+        }
+
+        window.addEventListener('message', (event) => {
+            if (event.data && (event.data.type === 'THEME_CHANGE' || event.data.type === 'AGENTLA_THEME_CHANGE')) {
+                handleExternalThemeSync(event.data.theme, event.data.mode);
+            }
+        });
+
         function getEffectiveTheme() {
             if (themeState.mode === 'light') return themeState.defaultLightTheme || 'emerald';
             if (themeState.mode === 'dark') return themeState.defaultDarkTheme || 'forest';
@@ -675,6 +739,8 @@
                 localStorage.setItem('agentla-theme', effectiveTheme);
                 localStorage.setItem('agentla-theme-mode', themeState.mode);
             } catch (_) {}
+
+            broadcastThemeChange(effectiveTheme, themeState.mode, isLight ? 'light' : 'dark');
 
             const btnToggle = document.getElementById('btn-theme-toggle');
             if (btnToggle) {

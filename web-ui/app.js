@@ -209,6 +209,73 @@ if (typeof MutationObserver !== 'undefined') {
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-theme-scheme'] });
 }
 
+let isSyncingTheme = false;
+
+function broadcastThemeChange(theme, mode, scheme) {
+    if (isSyncingTheme) return;
+    try {
+        if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('agentla-theme-channel');
+            bc.postMessage({ type: 'THEME_CHANGE', theme, mode, scheme });
+            bc.close();
+        }
+    } catch (_) {}
+    try {
+        document.querySelectorAll('iframe').forEach(frame => {
+            try { frame.contentWindow.postMessage({ type: 'THEME_CHANGE', theme, mode, scheme }, '*'); } catch (_) {}
+        });
+    } catch (_) {}
+}
+
+function handleExternalThemeSync(newTheme, newMode) {
+    if (isSyncingTheme) return;
+    isSyncingTheme = true;
+    try {
+        if (newMode && (newMode === 'system' || newMode === 'light' || newMode === 'dark')) {
+            themeState.mode = newMode;
+        }
+        if (newTheme) {
+            const isDark = (newTheme === 'forest' || newTheme === 'dark' || newTheme === 'black' || newTheme === 'luxury');
+            if (isDark) {
+                themeState.defaultDarkTheme = newTheme;
+            } else {
+                themeState.defaultLightTheme = newTheme;
+            }
+        }
+        applyTheme();
+    } finally {
+        isSyncingTheme = false;
+    }
+}
+
+// 1. Cross-window / cross-tab storage events
+window.addEventListener('storage', (e) => {
+    if (e.key === 'agentla-theme' || e.key === 'agentla-theme-mode') {
+        const theme = localStorage.getItem('agentla-theme');
+        const mode = localStorage.getItem('agentla-theme-mode');
+        handleExternalThemeSync(theme, mode);
+    }
+});
+
+// 2. BroadcastChannel events
+if (typeof BroadcastChannel !== 'undefined') {
+    try {
+        const syncChannel = new BroadcastChannel('agentla-theme-channel');
+        syncChannel.onmessage = (event) => {
+            if (event.data && event.data.type === 'THEME_CHANGE') {
+                handleExternalThemeSync(event.data.theme, event.data.mode);
+            }
+        };
+    } catch (_) {}
+}
+
+// 3. Iframe postMessage events
+window.addEventListener('message', (event) => {
+    if (event.data && (event.data.type === 'THEME_CHANGE' || event.data.type === 'AGENTLA_THEME_CHANGE')) {
+        handleExternalThemeSync(event.data.theme, event.data.mode);
+    }
+});
+
 function applyTheme() {
     const effectiveTheme = getEffectiveTheme();
     document.documentElement.setAttribute('data-theme', effectiveTheme);
@@ -225,6 +292,8 @@ function applyTheme() {
         localStorage.setItem('agentla-theme', effectiveTheme);
         localStorage.setItem('agentla-theme-mode', themeState.mode);
     } catch (_) {}
+
+    broadcastThemeChange(effectiveTheme, themeState.mode, isLight ? 'light' : 'dark');
 
     invalidateCanvasPalette();
     window.dispatchEvent(new CustomEvent('agentla-theme-changed', { detail: { theme: effectiveTheme, scheme: isLight ? 'light' : 'dark' } }));

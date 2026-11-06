@@ -9,7 +9,7 @@ import re
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-HTML_DIR = REPO_ROOT / "firmware" / "html"
+HTML_DIR = REPO_ROOT / "web-ui"
 
 
 def test_theme_compiler_root_cascade_order():
@@ -194,6 +194,28 @@ def test_landing_page_light_theme_tokens_and_syntax():
     assert '--color-base-100: oklch(100% 0 0);' in content
     assert '--color-base-200: oklch(93% 0 0);' in content
     assert 'display: block;\n}\n    --accent-green' not in content, "Orphan syntax error in landing.css"
+
+
+def test_cross_page_theme_synchronization():
+    """Verify all pages (workbench, launcher, user apps) implement multi-tab/iframe theme synchronization."""
+    app_js = (HTML_DIR / "app.js").read_text(encoding="utf-8")
+    apps_html = (HTML_DIR / "apps.html").read_text(encoding="utf-8")
+    bridge_js = (HTML_DIR / "agentla-bridge.js").read_text(encoding="utf-8")
+    servo_index = (HTML_DIR / "apps" / "servo-master" / "index.html").read_text(encoding="utf-8")
+
+    # 1. All layers listen to storage events
+    assert "window.addEventListener('storage'" in app_js, "app.js must listen to storage events"
+    assert "window.addEventListener('storage'" in apps_html, "apps.html must listen to storage events"
+    assert "window.addEventListener('storage'" in bridge_js, "agentla-bridge.js must listen to storage events"
+
+    # 2. All layers use BroadcastChannel('agentla-theme-channel')
+    assert "agentla-theme-channel" in app_js, "app.js must use agentla-theme-channel"
+    assert "agentla-theme-channel" in apps_html, "apps.html must use agentla-theme-channel"
+    assert "agentla-theme-channel" in bridge_js, "agentla-bridge.js must use agentla-theme-channel"
+
+    # 3. User app integration
+    assert '<script src="/agentla-bridge.js"></script>' in servo_index, "servo-master must include agentla-bridge.js"
+    assert 'data-theme="forest"' in servo_index, "servo-master must default to forest theme"
 
 
 if __name__ == "__main__":

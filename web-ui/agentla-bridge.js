@@ -9,6 +9,59 @@
     if (window.__AGENTLA_BRIDGE_LOADED__) return;
     window.__AGENTLA_BRIDGE_LOADED__ = true;
 
+    // -------------------------------------------------------------------------
+    // Universal Theme Synchronization Engine
+    // -------------------------------------------------------------------------
+    function syncTheme(theme, scheme) {
+        try {
+            if (!theme) {
+                theme = localStorage.getItem('agentla-theme');
+                var mode = localStorage.getItem('agentla-theme-mode');
+                if (!theme) {
+                    var prefersDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    theme = (mode === 'light' || (!mode && !prefersDark)) ? 'emerald' : 'forest';
+                }
+            }
+            if (!scheme) {
+                var isLight = (theme === 'emerald' || theme === 'caramellatte' || theme === 'light');
+                scheme = isLight ? 'light' : 'dark';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-theme-scheme', scheme);
+            document.documentElement.style.colorScheme = scheme;
+            window.dispatchEvent(new CustomEvent('agentla-theme-changed', { detail: { theme: theme, scheme: scheme } }));
+        } catch (_) {}
+    }
+
+    // Apply saved theme immediately on script execution
+    syncTheme();
+
+    // 1. Cross-tab storage synchronization
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'agentla-theme' || e.key === 'agentla-theme-mode') {
+            syncTheme();
+        }
+    });
+
+    // 2. BroadcastChannel instant sync
+    if (typeof BroadcastChannel !== 'undefined') {
+        try {
+            var themeChan = new BroadcastChannel('agentla-theme-channel');
+            themeChan.onmessage = function(event) {
+                if (event.data && event.data.type === 'THEME_CHANGE') {
+                    syncTheme(event.data.theme, event.data.scheme);
+                }
+            };
+        } catch (_) {}
+    }
+
+    // 3. Iframe message sync
+    window.addEventListener('message', function(event) {
+        if (event.data && (event.data.type === 'THEME_CHANGE' || event.data.type === 'AGENTLA_THEME_CHANGE')) {
+            syncTheme(event.data.theme, event.data.scheme);
+        }
+    });
+
     // Check opt-out suppression via query param (?no_launcher=1) or global flag
     try {
         var params = new URLSearchParams(window.location.search);

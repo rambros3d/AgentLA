@@ -1,19 +1,21 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="forest">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Servo Master — AgentLA</title>
   <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../themes.css">
+  <script src="/agentla-bridge.js"></script>
   <style>
     :root {
-      --bg-base: #0f172a;
-      --card-bg: #1e293b;
-      --card-border: #334155;
-      --accent: #38bdf8;
-      --accent-hover: #0284c7;
-      --text-main: #f8fafc;
-      --text-dim: #94a3b8;
+      --bg-base: var(--bg-canvas, var(--color-base-100, #0f172a));
+      --card-bg: var(--bg-surface, var(--color-base-200, #1e293b));
+      --card-border: var(--border-color, var(--color-base-300, #334155));
+      --accent: var(--color-primary, #38bdf8);
+      --accent-hover: var(--color-primary, #0284c7);
+      --text-main: var(--color-base-content, #f8fafc);
+      --text-dim: var(--text-secondary, #94a3b8);
     }
     body {
       background-color: var(--bg-base);
