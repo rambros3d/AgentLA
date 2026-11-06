@@ -12,6 +12,8 @@ This design introduces a **Dual LittleFS Partition Architecture** that isolates 
 
 **Goals:**
 - **Dual Partitioning**: Partition 1 (512 KB, fixed across all hardware) for System WebUI; Partition 2 (remaining dynamic flash capacity) for user apps and data.
+- **Complete DaisyUI Library**: Bundle the entire DaisyUI component catalog (`btn`, `card`, `tabs`, `modal`, `drawer`, `steps`, `timeline`, `chat`, `diff`, `stat`, `rating`, `radial-progress`, `range`, `toggle`, `dropdown`, `kbd`, `accordion`, `table`, etc.) and all 32 themes so user apps inherit comprehensive UI primitives.
+- **Pre-compressed Gzip LittleFS Streaming (Approach A)**: Package pre-compressed `.gz` assets (`~165 KB` total) into `SYSTEM_FS` and stream them with `Content-Encoding: gzip`, saving 70% flash space and accelerating USB page loads 4×.
 - **WebUI Decoupling**: Stream all Web Desktop assets dynamically from Partition 1 (`SYSTEM_FS`) instead of ROM literals.
 - **Live HTTP Updates**: Provide `POST /api/v1/system/webui/update` to stream a `.tar` bundle directly into Partition 1 in seconds.
 - **Theme Consistency**: Set default `data-theme="forest"` on static HTML markup and synchronize theme selection between Workbench and Launcher.
@@ -20,7 +22,8 @@ This design introduces a **Dual LittleFS Partition Architecture** that isolates 
 
 **Non-Goals:**
 - Modifying LittleFS internal driver code (we use standard `littlefs2` crate instances).
-- Implementing an on-probe gzip decompressor (plain ustar `.tar` archives are streamed directly).
+- Implementing on-the-fly MCU runtime gzip compression (compression is pre-computed at pack time; MCU simply streams the `.gz` bytes).
+- Restricting user apps to a limited bespoke CSS subset.
 
 ---
 
@@ -41,9 +44,13 @@ This design introduces a **Dual LittleFS Partition Architecture** that isolates 
 - **Decision**: Re-use the existing streaming `ustar` state machine (`TarUnpacker` in `apps.rs`) targeted at `SYSTEM_FS`.
 - **Rationale**: Unpacks 512-byte blocks directly from the TCP stream into flash with zero intermediate RAM buffering, allowing full WebUI updates without exceeding bare-metal microcontroller memory limits.
 
-### 4. Packager Utility for Factory Flashing (`tools/pack_webui.py`)
-- **Decision**: Create a Python utility that builds a raw 512 KB LittleFS binary image from `web-ui/` and converts it to UF2 at offset `0x10190000`.
-- **Rationale**: Enables building factory-ready combined UF2 binaries (`picotool uf2 merge`) so end users can flash both firmware and WebUI in one drag-and-drop step.
+### 4. Packager Utility & Pre-compressed Gzip Pipeline (`tools/pack_webui.py`)
+- **Decision**: The packaging utility builds a 512 KB LittleFS binary image containing pre-compressed `.gz` assets (`index.html.gz`, `apps.html.gz`, `style.css.gz`, `themes.css.gz`, `app.js.gz`).
+- **Rationale**: Full DaisyUI with all components is ~340 KB uncompressed. Storing it raw alongside workbench scripts (~830 KB total) would exceed a 512 KB partition. Gzipping reduces the total filesystem payload to **~165 KB**, comfortably fitting inside 512 KB with **~347 KB of headroom**. The probe serves these directly with `Content-Encoding: gzip` when the browser sends `Accept-Encoding: gzip`.
+
+### 5. Shared Styling Bus for User Applications
+- **Decision**: The system serves full DaisyUI CSS and theme tokens at the root paths `/style.css` and `/themes.css` with long-term browser cache headers (`Cache-Control: public, max-age=31536000`).
+- **Rationale**: User applications under `/apps/<name>/` include `<link rel="stylesheet" href="/style.css">`. The browser serves it directly from memory/disk cache without extra HTTP requests. User apps gain immediate access to all DaisyUI components (`steps`, `timeline`, `chat`, `diff`, `stat`, `range`, `kbd`, etc.) while keeping user apps ultra-lightweight (often < 10 KB).
 
 ---
 
