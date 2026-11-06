@@ -1,1 +1,1 @@
-../firmware/html/agentla-bridge.js
+../web-ui/agentla-bridge.js

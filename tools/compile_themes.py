@@ -164,8 +164,8 @@ def compile_themes(themes_dir: Path, output_css: Path, output_json: Path) -> lis
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compile DaisyUI theme CSS files into unified themes.css and themes.json")
     parser.add_argument("--themes-dir", default="themes", help="Directory containing theme CSS files")
-    parser.add_argument("--output-css", default="firmware/html/themes.css", help="Output path for compiled themes.css")
-    parser.add_argument("--output-json", default="firmware/html/themes.json", help="Output path for themes.json metadata")
+    parser.add_argument("--output-css", default="web-ui/themes.css", help="Output path for compiled themes.css")
+    parser.add_argument("--output-json", default="web-ui/themes.json", help="Output path for themes.json metadata")
     args = parser.parse_args()
 
     try:

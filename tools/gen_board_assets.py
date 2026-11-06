@@ -168,7 +168,7 @@ def main() -> int:
     parser.add_argument("--boards-dir", default="boards", help="Directory containing board definitions")
     parser.add_argument("--base-html-dir", default=None, help="Directory containing base HTML/CSS/JS files to stage")
     parser.add_argument("--output-header", default="firmware/src/generated/board_config.h", help="Output C header path")
-    parser.add_argument("--output-web-dir", default="firmware/html/generated", help="Staging directory for web assets")
+    parser.add_argument("--output-web-dir", default="web-ui/generated", help="Staging directory for web assets")
     args = parser.parse_args()
 
     boards_dir = Path(args.boards_dir).resolve()

@@ -324,16 +324,14 @@ def test_rest_api_payload_shapes():
 
 def test_apps_html_assets_and_integration():
     """Verify built-in ROM App Launcher UI (apps.html) contents and build staging."""
-    apps_html_path = REPO_ROOT / "firmware" / "html" / "apps.html"
-    index_html_path = REPO_ROOT / "firmware" / "html" / "index.html"
-    cmakelists_path = REPO_ROOT / "CMakeLists.txt"
+    apps_html_path = REPO_ROOT / "web-ui" / "apps.html"
+    index_html_path = REPO_ROOT / "web-ui" / "index.html"
 
-    assert apps_html_path.exists(), "firmware/html/apps.html must exist"
-    assert index_html_path.exists(), "firmware/html/index.html must exist"
+    assert apps_html_path.exists(), "web-ui/apps.html must exist"
+    assert index_html_path.exists(), "web-ui/index.html must exist"
 
     apps_html = apps_html_path.read_text(encoding="utf-8")
     index_html = index_html_path.read_text(encoding="utf-8")
-    cmake_text = cmakelists_path.read_text(encoding="utf-8")
 
     # 1. apps.html structure checks
     assert "storage-dock" in apps_html
@@ -355,11 +353,9 @@ def test_apps_html_assets_and_integration():
     assert "/apps" in index_html, "index.html must include navigation link to /apps"
     assert "settings-default-home-route-select" in index_html, "index.html settings modal must include landing route selector"
 
-    # 3. Injected bridge script and CMake integration
-    bridge_path = REPO_ROOT / "firmware" / "html" / "agentla-bridge.js"
-    assert bridge_path.exists(), "firmware/html/agentla-bridge.js must exist"
-    assert "apps.html" in cmake_text, "CMakeLists.txt must include apps.html in staging outputs and fsdata"
-    assert "agentla-bridge.js" in cmake_text, "CMakeLists.txt must include agentla-bridge.js in fsdata"
+    # 3. Injected bridge script
+    bridge_path = REPO_ROOT / "web-ui" / "agentla-bridge.js"
+    assert bridge_path.exists(), "web-ui/agentla-bridge.js must exist"
 
 
 if __name__ == "__main__":

@@ -124,17 +124,11 @@ pub async fn dhcp_server_task(stack: Stack<'static>) {
         resp[opt_idx + 2..opt_idx + 6].copy_from_slice(&SUBNET_MASK.octets());
         opt_idx += 6;
 
-        // Option 3: Router
-        resp[opt_idx] = 3;
-        resp[opt_idx + 1] = 4;
-        resp[opt_idx + 2..opt_idx + 6].copy_from_slice(&STATIC_IP.octets());
-        opt_idx += 6;
-
-        // Option 6: Domain Name Server
-        resp[opt_idx] = 6;
-        resp[opt_idx + 1] = 4;
-        resp[opt_idx + 2..opt_idx + 6].copy_from_slice(&STATIC_IP.octets());
-        opt_idx += 6;
+        // NOTE: Option 3 (Router) and Option 6 (DNS Server) are intentionally omitted.
+        // As a point-to-point USB gadget/instrumentation probe, AgentLA only routes its
+        // own 10.10.10.0/24 subnet. Omitting Option 3/6 prevents host operating systems
+        // (Linux NetworkManager, macOS, Windows) from overriding default gateways or DNS
+        // resolvers, ensuring host internet connectivity is never interrupted.
 
         // Option 255: End
         resp[opt_idx] = 255;
