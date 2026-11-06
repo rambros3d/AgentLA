@@ -239,50 +239,28 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
             });
 
         // 1. If client accepts gzip, prioritize pre-compressed `.gz` asset from SYSTEM_FS
-        if client_accepts_gzip {
-            let mut gz_name = heapless::String::<64>::new();
-            if write!(gz_name, "/{}.gz", self.file_name).is_ok() {
-                if let Ok(gz_path) = PathBuf::try_from(gz_name.as_str()) {
-                    let exists = with_system_fs(|fs| {
-                        fs.metadata(&gz_path).map(|m| m.is_file()).unwrap_or(false)
-                    })
-                    .unwrap_or(false);
+        let mut gz_name = heapless::String::<64>::new();
+        let _ = write!(gz_name, "/{}.gz", self.file_name);
+        let gz_path_opt = PathBuf::try_from(gz_name.as_str()).ok();
 
-                    if exists {
-                        let chunks = SystemFileChunks {
-                            path: gz_path,
-                            mime: self.mime,
-                        };
-                        let resp = ChunkedResponse::new(chunks).into_response();
-                        let resp = resp.with_header("Content-Encoding", "gzip");
-                        let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
-                            resp.with_header("Cache-Control", "public, max-age=31536000")
-                        } else {
-                            resp.with_header("Cache-Control", "no-cache")
-                        };
-                        return resp
-                            .write_to(request.body_connection.finalize().await?, response_writer)
-                            .await;
-                    }
-                }
-            }
-        }
-
-        // 2. Try raw uncompressed file from SYSTEM_FS
         let mut raw_name = heapless::String::<64>::new();
-        if write!(raw_name, "/{}", self.file_name).is_ok() {
-            if let Ok(raw_path) = PathBuf::try_from(raw_name.as_str()) {
+        let _ = write!(raw_name, "/{}", self.file_name);
+        let raw_path_opt = PathBuf::try_from(raw_name.as_str()).ok();
+
+        if client_accepts_gzip {
+            if let Some(ref gz_path) = gz_path_opt {
                 let exists = with_system_fs(|fs| {
-                    fs.metadata(&raw_path).map(|m| m.is_file()).unwrap_or(false)
+                    fs.metadata(gz_path).map(|m| m.is_file()).unwrap_or(false)
                 })
                 .unwrap_or(false);
 
                 if exists {
                     let chunks = SystemFileChunks {
-                        path: raw_path,
+                        path: gz_path.clone(),
                         mime: self.mime,
                     };
                     let resp = ChunkedResponse::new(chunks).into_response();
+                    let resp = resp.with_header("Content-Encoding", "gzip");
                     let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
                         resp.with_header("Cache-Control", "public, max-age=31536000")
                     } else {
@@ -295,7 +273,56 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
             }
         }
 
-        // 3. Fallback recovery for HTML pages if partition is unpopulated
+        // 2. Try raw uncompressed file from SYSTEM_FS
+        if let Some(ref raw_path) = raw_path_opt {
+            let exists = with_system_fs(|fs| {
+                fs.metadata(raw_path).map(|m| m.is_file()).unwrap_or(false)
+            })
+            .unwrap_or(false);
+
+            if exists {
+                let chunks = SystemFileChunks {
+                    path: raw_path.clone(),
+                    mime: self.mime,
+                };
+                let resp = ChunkedResponse::new(chunks).into_response();
+                let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
+                    resp.with_header("Cache-Control", "public, max-age=31536000")
+                } else {
+                    resp.with_header("Cache-Control", "no-cache")
+                };
+                return resp
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        }
+
+        // 3. Fallback: serve .gz asset even if client omitted Accept-Encoding (HTTP/1.1 compatible)
+        if let Some(ref gz_path) = gz_path_opt {
+            let exists = with_system_fs(|fs| {
+                fs.metadata(gz_path).map(|m| m.is_file()).unwrap_or(false)
+            })
+            .unwrap_or(false);
+
+            if exists {
+                let chunks = SystemFileChunks {
+                    path: gz_path.clone(),
+                    mime: self.mime,
+                };
+                let resp = ChunkedResponse::new(chunks).into_response();
+                let resp = resp.with_header("Content-Encoding", "gzip");
+                let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
+                    resp.with_header("Cache-Control", "public, max-age=31536000")
+                } else {
+                    resp.with_header("Cache-Control", "no-cache")
+                };
+                return resp
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        }
+
+        // 4. Fallback recovery for HTML pages if partition is unpopulated
         if self.file_name == "index.html" || self.file_name == "apps.html" {
             const RECOVERY_HTML: &str = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>AgentLA WebUI Setup</title><style>body{font-family:sans-serif;background:#181818;color:#eee;padding:2rem;line-height:1.5;}code{background:#333;padding:0.2rem 0.4rem;border-radius:4px;}</style></head><body><h2>AgentLA WebUI Partition Uninitialized</h2><p>The System WebUI filesystem partition is currently empty.</p><p>To initialize, please flash <code>webui.uf2</code> via USB BOOTSEL or upload a WebUI tarball to <code>POST /api/v1/system/webui/update</code>.</p></body></html>";
             return (
