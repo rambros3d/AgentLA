@@ -4,11 +4,16 @@
 //! Drives addressable single-wire LED strips with cycle-accurate timing
 //! directly out of flexible GPIO pins (e.g. GPIO 22).
 
+use crate::board::ActiveBoard;
 use crate::pin_owner;
+use agentla_bsp::BoardProfile;
 use rp_pac as pac;
 
-/// Single data line for the LED strip (flexible, GPIO 22).
-pub const WS2812_PINS: [u32; 1] = [22];
+/// Single data line for the LED strip from active board profile.
+pub const WS2812_PINS: [u32; 1] = match ActiveBoard::ADAPTERS.default_ws2812 {
+    Some(pin) => [pin],
+    None => [22],
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Pixel { pub r: u8, pub g: u8, pub b: u8 }

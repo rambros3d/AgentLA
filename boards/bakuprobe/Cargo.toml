@@ -1,0 +1,10 @@
+[package]
+name = "agentla-board-bakuprobe"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "BakuProbe RP2350B Instrument Board Support Package for AgentLA"
+license = "Apache-2.0"
+
+[dependencies]
+agentla-bsp = { path = "../../crates/agentla-bsp" }

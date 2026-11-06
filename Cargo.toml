@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/agentla-bsp",
+    "boards/pico2",
+    "boards/bakuprobe",
+    "boards/templates",
+    "firmware-rs",
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+debug = 2
+

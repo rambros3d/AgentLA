@@ -5,15 +5,17 @@
 //! and the connected target MCUs (e.g. GPIO 14 telemetry from CH32V003, or GPIO 8/9
 //! flexible UART).
 
+use crate::board::ActiveBoard;
 use crate::pin_owner;
+use agentla_bsp::BoardProfile;
 use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use rp_pac as pac;
 
-/// Default UART pins: Port 3 telemetry RX on GPIO 14, TX on GPIO 8 (or 15).
-pub const PIN_UART_RX_DEFAULT: u32 = 14;
-pub const PIN_UART_TX_DEFAULT: u32 = 8;
+/// Default UART pins from active board profile.
+pub const PIN_UART_TX_DEFAULT: u32 = ActiveBoard::ADAPTERS.default_uart.tx;
+pub const PIN_UART_RX_DEFAULT: u32 = ActiveBoard::ADAPTERS.default_uart.rx;
 pub const UART_PINS: [u32; 2] = [PIN_UART_TX_DEFAULT, PIN_UART_RX_DEFAULT];
 
 const RING_CAPACITY: usize = 1024;

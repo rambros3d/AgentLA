@@ -1,17 +1,26 @@
 use super::rvswd::RvswdTransport;
 use super::swd::SwdTransport;
 use super::swio::SwioTransport;
+use crate::board::ActiveBoard;
+use agentla_bsp::BoardProfile;
 use rp_pac as pac;
 
-pub const PIN_SWCLK: usize = 4;
-pub const PIN_SWDIO: usize = 5;
-pub const PIN_RESET: usize = 6;
-pub const PIN_BOOT0: usize = 7;
+pub const PIN_SWCLK: usize = ActiveBoard::PROGRAMMER.swclk as usize;
+pub const PIN_SWDIO: usize = ActiveBoard::PROGRAMMER.swdio as usize;
+pub const PIN_RESET: usize = ActiveBoard::PROGRAMMER.nrst as usize;
+pub const PIN_BOOT0: usize = ActiveBoard::PROGRAMMER.boot0 as usize;
 
-/// Programmer-bridge pin block (fixed programmatic resources GPIO 4–9).
+/// Programmer-bridge pin block (fixed programmatic resources).
 /// Single source of truth: `tristate_pins` below and the fixed claims in
 /// `crate::pin_owner` are seeded from this list.
-pub const BRIDGE_PINS: [usize; 6] = [4, 5, 6, 7, 8, 9];
+pub const BRIDGE_PINS: [usize; 6] = [
+    ActiveBoard::PROGRAMMER.swclk as usize,
+    ActiveBoard::PROGRAMMER.swdio as usize,
+    ActiveBoard::PROGRAMMER.nrst as usize,
+    ActiveBoard::PROGRAMMER.boot0 as usize,
+    ActiveBoard::PROGRAMMER.uart_tx as usize,
+    ActiveBoard::PROGRAMMER.uart_rx as usize,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetPort {
@@ -55,9 +64,9 @@ impl ProgrammerPins {
         tristate_pins();
         let mut transport = SwdTransport::new();
         match port {
-            TargetPort::BluePill => transport.init_pins(4, 5, 6, freq_khz),
+            TargetPort::BluePill => transport.init_pins(PIN_SWCLK, PIN_SWDIO, PIN_RESET, freq_khz),
             TargetPort::Ch32v203 => transport.init_pins(8, 9, 10, freq_khz),
-            TargetPort::Ch32v003 => transport.init_pins(4, 5, 6, freq_khz),
+            TargetPort::Ch32v003 => transport.init_pins(PIN_SWCLK, PIN_SWDIO, PIN_RESET, freq_khz),
         }
         SwdSession {
             transport,
@@ -75,7 +84,7 @@ impl ProgrammerPins {
         match port {
             TargetPort::Ch32v003 => transport.init_pin(12),
             TargetPort::Ch32v203 => transport.init_pin(9),
-            TargetPort::BluePill => transport.init_pin(5),
+            TargetPort::BluePill => transport.init_pin(PIN_SWDIO),
         }
         SwioSession {
             transport,
@@ -92,8 +101,8 @@ impl ProgrammerPins {
         let mut transport = RvswdTransport::new();
         match port {
             TargetPort::Ch32v203 => transport.init_pins(8, 9),
-            TargetPort::BluePill => transport.init_pins(4, 5),
-            TargetPort::Ch32v003 => transport.init_pins(4, 5),
+            TargetPort::BluePill => transport.init_pins(PIN_SWCLK, PIN_SWDIO),
+            TargetPort::Ch32v003 => transport.init_pins(PIN_SWCLK, PIN_SWDIO),
         }
         RvswdSession {
             transport,

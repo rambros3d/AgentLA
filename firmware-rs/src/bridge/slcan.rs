@@ -5,11 +5,22 @@
 //! adapter claim. Hardware transmission is deferred; commands parse and mutate
 //! in-RAM state so the device boots and the host tooling can drive the API.
 
+use crate::board::ActiveBoard;
 use crate::pin_owner;
+use agentla_bsp::BoardProfile;
 use rp_pac as pac;
 
-/// SLCAN claims the CAN-TX (GPIO 18) and CAN-RX (GPIO 19) flexible pair.
-pub const SLCAN_PINS: [u32; 2] = [18, 19];
+/// SLCAN claims the CAN-TX and CAN-RX pin pair from the active board profile.
+pub const SLCAN_PINS: [u32; 2] = [
+    match ActiveBoard::ADAPTERS.can {
+        Some(can) => can.tx,
+        None => 18,
+    },
+    match ActiveBoard::ADAPTERS.can {
+        Some(can) => can.rx,
+        None => 19,
+    },
+];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SlcanSpeed { S0 = 0, S1 = 1, S2 = 2, S3 = 3, S4 = 4, S5 = 5, S6 = 6, S7 = 7, S8 = 8 }

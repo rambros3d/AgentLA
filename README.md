@@ -1,207 +1,176 @@
 # AgentLA
 
-AgentLA is an open-source, all-in-one embedded hardware bring-up lab in a single probe. Powered by the Raspberry Pi RP2040 / RP2350, it combines a multi-target standalone programmer, driverless CMSIS-DAP debug adapter, 10-channel high-speed logic analyzer, signal scope, and multi-protocol bus bridge.
+**AgentLA** is an open-source, all-in-one embedded hardware bring-up and instrumentation lab in a single USB probe. Built from the ground up in memory-safe **Embassy async Rust** for the Raspberry Pi RP2350 (and RP2040), AgentLA combines a multi-target autonomous programmer, standard CMSIS-DAP debugger, high-speed logic analyzer, 4-channel digital oscilloscope, arbitrary signal generator, glitch injector, bus bridges, and host-native Linux kernel USB interfaces.
 
-Plug it in over USB, open a browser at `http://agentla.local` (or `http://10.10.10.10`), and inspect, debug, or flash your target — no proprietary software, drivers, or host toolchain installations required.
+Plug it in over USB, open a browser at `http://agentla.local` (or `http://10.10.10.10`), or connect your favorite AI coding agent via the native **Model Context Protocol (MCP)** server — no proprietary drivers, host toolchains, or vendor software required.
 
 ---
 
-## Hardware Pin Allocation
+## Architecture & Hardware Highlights
 
-AgentLA organizes all 30 GPIO pins into clean, contiguous 10-pin functional domains:
+* **100% Embassy Async Rust**: Built on the modern embedded Rust ecosystem (`embassy-rp`, `embassy-net`, `embassy-usb`) for deterministic latency, zero race conditions, and rock-solid stability.
+* **Modular BSP Architecture**: Decoupled Cargo workspace structure with dedicated board crates (`boards/pico2`, `boards/bakuprobe`, and `boards/templates` for custom PCBs). Reusable drivers for external ICs (TI PGA113 amplifier, TI INA180 current sense, TCAN334 CAN-FD transceiver).
+* **Host-Native Kernel USB Interfaces**:
+  * **SocketCAN (`gs_usb`)**: Native Linux network device (`can0`) with hardware CAN-FD transceiver control and switchable $120\,\Omega$ termination.
+  * **Linux I2C (`i2c-tiny-usb`)**: Native Linux I2C bus adapter (`/dev/i2c-X`) compatible with standard `i2c-tools` (`i2cdetect`, `i2cget`, `i2cset`).
+  * **CMSIS-DAP v1 & v2**: Zero-driver USB HID (v1) and high-speed WinUSB bulk endpoints (v2) compatible with **probe-rs**, **PyOCD**, **OpenOCD**, and Keil MDK.
+  * **Transparent UART Telemetry**: Dedicated single CDC-ACM serial port (`/dev/ttyACM1`) directly connected to target UART (GPIO 14 RX / GPIO 8 TX) for streaming debugging.
+  * **Virtual Ethernet (`CDC-NCM`)**: High-throughput network interface serving the Web Desktop UI, REST API, and MCP server at `10.10.10.10`.
+* **Zero Host Internet Interruption**: Link-local DHCP configuration assigns host IP without overriding default gateways or DNS resolvers.
 
-| Domain | GPIO Range | Pin Count | Primary Function |
-| :--- | :--- | :--- | :--- |
-| **PROGRAMMER** | `GPIO 0 – 9` | 10 pins | SWD, WCH SWIO/SDI, UART ISP, I²C Bootloader, nRST, BOOT0 |
-| **ADAPTER** | `GPIO 10 – 19` | 10 pins | I²C, UART, SPI, CAN bus masters & bridges |
-| **LOGIC ANALYZER** | `GPIO 20 – 29` | 10 pins | 10-channel high-speed digital capture & protocol decode |
+---
+
+## Hardware Pin Allocation & Zones
+
+AgentLA features clean functional pin zones designed for maximum usability and signal integrity:
+
+| Functional Zone | Default Pin Range | Description & Target Interfaces |
+| :--- | :--- | :--- |
+| **PROGRAMMER** | `GPIO 4 – 14` | Fixed multi-port programmer headers:<br>• **Port 1 (GPIO 4 SWCLK, 5 SWDIO, 6 nRST)**: ARM Cortex-M SWD (STM32, Puya, nRF)<br>• **Port 2 (GPIO 8 CLK, 9 DIO, 10 nRST)**: WCH 2-Wire RVSWD (CH32V203 / V307 / CH592)<br>• **Port 3 (GPIO 12 SWIO, 13 CLK, 14 TX/nRST)**: WCH 1-Wire SWIO (CH32V003) |
+| **BUS ADAPTERS** | `GPIO 16 – 22` | Host-native bridges & bus masters:<br>• **CAN**: GPIO 18 (TX), GPIO 19 (RX), GPIO 22 ($120\,\Omega$ Term)<br>• **I2C**: GPIO 16 (SDA), GPIO 17 (SCL)<br>• **SPI**: GPIO 16–19 (MISO, CS, SCK, MOSI)<br>• **UART Telemetry**: GPIO 8 (TX), GPIO 14 (RX) |
+| **FLEXIBLE INSTRUMENTS** | `GPIO 20 – 29` | Dynamic pin pool for Logic Analyzer & Mixed-Signal Instruments:<br>• **Oscilloscope (MSO)**: GPIO 26–29 (SAR ADC Ch 0–3, 500 kS/s)<br>• **Signal Generator**: PWM slices 0–7 (GPIO 10–29, 1 Hz to 75 MHz)<br>• **Logic Analyzer**: 10 simultaneous channels with hardware trigger engine |
 
 ---
 
 ## Core Capabilities
 
-### 1. Multi-Target Standalone Programmer (`PROGRAMMER`)
-AgentLA contains a fully autonomous on-probe flashing engine capable of detecting, erasing, programming, and verifying target microcontrollers directly via serial CLI (`/dev/ttyACM0` or `/dev/ttyACM1`) or the embedded Web UI, without needing host-side debug tools.
+### 1. Multi-Target Standalone Programmer
+Autonomous on-probe flashing engine capable of detecting, reading, erasing, programming, and verifying target microcontrollers directly over REST, Web UI, or MCP:
 
-* **Supported Architectures & Families**:
-  * **ARM Cortex-M**: 
-    * **STMicroelectronics**: STM32F1 (F103 LD/MD/HD/CL/XL), STM32F4 (F411), STM32G0 (G071), STM32L4 (L476), STM32H5 (H503, H52x, H53x, H56x, H57x with 128KB to 2MB Flash).
-    * **Puya Semiconductor**: PY32F0 (PY32F030, PY32F003, PY32F002A) with automatic flash size decoding from factory configuration blocks.
-    * **Nordic Semiconductor**: nRF52840 (with UICR and hardware mass erase support).
-    * **Raspberry Pi**: RP2040, RP2350 (ARM and RISC-V Hazard3 modes).
-  * **RISC-V**:
-    * **WCH (QingKe RISC-V)**: CH32V003, CH32V203, CH32V307, CH32X035, CH58x, CH59x (CH592 Bluetooth 5.4 MCU).
-* **Hardware Protocols**:
-  * **ARM SWD (ADIv5)**: 2-wire serial wire debug with continuous-clock turnaround and automatic WAIT/FAULT recovery.
-  * **WCH 1-Wire SWIO**: High-speed bi-directional single-pin debug for ultra-low-pin-count chips (CH32V003).
-  * **WCH 2-Wire RVSWD / SDI**: Dedicated debug module for CH32V20x/V30x and CH59x MCUs.
-  * **UART Bootloader ISP**: Multi-baud scanning (9600 to 460800 baud) and automatic pin polarity swapping.
-  * **I²C Bootloader**: Direct hardware EEPROM and MCU bootloader programming.
+* **Supported Architectures**:
+  * **ARM Cortex-M (SWD ADIv5)**: STM32F1 (BluePill), STM32F4, STM32G0, STM32L4, STM32H5 (H503/H563 up to 2MB Flash), Puya PY32F0, Nordic nRF52840, RP2040, RP2350.
+  * **WCH QingKe RISC-V**: CH32V003 (1-wire SWIO), CH32V203 / CH32V307 / CH592 (2-wire RVSWD/SDI).
 * **Flashing Features**:
-  * Automatic target MCU detection and flash parameter identification (`TARGET DETECT`, `PY32`, `CH32 DETECT`).
-  * Direct flash read and memory inspection (`FLASH READ <addr> <len>`).
-  * RAM flash algorithm runner (`algo_runner`) executing CMSIS-Pack FLM blobs in target SRAM.
-  * Read Protection (RDP) level inspection, RDP locking (`RDPLOCK`), and unprotection (`RDPUNLOCK`).
-  * Dedicated hardware `BOOT0` pin driver (`BOOT0 HIGH`, `BOOT0 LOW`) and target reset line (`nRST`).
-* **Transport Engines**:
-  * **PIO Driver (`PROG DRIVER PIO`)**: Hardware-timed state machine based on Raspberry Pi `debugprobe` (pinned to commit `3fff5b2`), capable of clocking SWD up to 15.6 MHz.
-  * **Bitbang Driver (`PROG DRIVER BITBANG`)**: Deterministic SIO bit-twiddling reference driver.
+  * Automatic core detection, target IDCODE identification, and flash size parameter discovery.
+  * Deterministic flash sector/page erase and RAM algorithm runner (`algo_runner`).
+  * Direct flash read and memory verification (`GET /api/v1/programmer/read`).
+  * Dedicated hardware reset (`nRST`) and boot control (`BOOT0`).
 
----
+### 2. Mixed-Signal Instruments (Scope & Stimulus)
+* **4-Channel Digital Oscilloscope**:
+  * 500 kS/s single-channel / 125 kS/s 4-channel concurrent acquisition via RP2350 SAR ADC + DMA.
+  * Hardware analog trigger engine: Rising edge, falling edge, voltage threshold, pre-trigger buffer.
+  * Live waveform streaming (`GET /api/v1/oscilloscope/stream`) and automatic measurements ($V_{pp}, V_{rms}$, frequency, duty cycle).
+  * Hardware front-end support for external Programmable Gain Amplifiers (TI PGA113 1x to 200x gain down to $5\,\text{mV}/\text{div}$).
+* **Arbitrary Signal / Clock Generator**:
+  * Dual-channel PWM stimulus on GPIO 10–29 via RP2350 PWM slices 0–7.
+  * Frequency range from 1 Hz to 75 MHz with 0.1% to 100% duty cycle control.
+  * Continuous and burst pulse modes for triggering external hardware.
+* **Addressable LED Analyzer & Transmitter**:
+  * Real-time 800 kHz WS2812 / NeoPixel transmission and capture.
+  * Nanosecond timing verification for $T_{0H}$, $T_{1H}$, and reset latch periods.
+* **Precision Glitch Injector**:
+  * Cycle-accurate 150 MHz delay and glitch pulse generation for hardware fault injection research.
 
-### 2. Host Debug Probe & CMSIS-DAP Adapter (`ADAPTER`)
-In addition to standalone programming, AgentLA serves as a high-performance host debug probe compatible with standard toolchains.
+### 3. High-Speed Logic Analyzer
+* **10 Channels**: Configurable digital capture across the flexible pin pool (`GPIO 20–29`).
+* **Sampling Engine**: RP2350 PIO state machine + DMA circular buffer with fractional clock divider.
+* **Trigger Engine**: Edge triggers (rising/falling/both), level qualifiers, and pattern matching.
+* **Protocol Decoders**: Live firmware decoding for UART, I2C, SPI, CAN, 1-Wire, PWM, and I3C.
+* **Export**: Streaming Server-Sent Events (`/api/v1/logic-analyzer/stream`) and standard `.vcd` export for PulseView and GTKWave.
 
-* **Standard CMSIS-DAP Implementation**:
-  * Supports both **CMSIS-DAP v1** (USB HID, zero-driver install on Windows/Linux/macOS) and **CMSIS-DAP v2** (WinUSB bulk endpoints for maximum debug throughput).
-  * Fully compatible with standard debuggers: **PyOCD**, **OpenOCD**, **probe-rs**, **Keil MDK**, **IAR EWARM**, **CLion**, and **VS Code (Cortex-Debug)**.
-* **Peripheral Bus Adapters & Bridges**:
-  * **UART Bridge**: Dual CDC ACM ports for CLI control and high-speed target serial pass-through (300 to 3+ Mbaud, 8N1/8E1/8O1, hardware flow control).
-  * **I²C Bus Master**: Interactive bus scanning (`I2C SCAN`), multi-byte reads/writes, sensor evaluation, and register dumps.
-  * **SPI Bus Master**: Modes 0–3, configurable clock polarity and phase, multi-chip-select control, and high-speed data streaming.
-  * **Universal Addressable LED Driver**: Hardware PIO (`neopixel.pio`) and SPI streaming for WS2812B, WS2811, SK6812 (RGBW), and APA102/DotStar strips up to 256 pixels.
-  * **CAN Bus Interface**: Frame transmission and monitoring on dedicated adapter lines.
-  * **GPIO Controller**: Software-configurable inputs, push-pull outputs, internal pull-up/pull-down resistors, and PWM frequency generation.
+### 4. AI-Native Model Context Protocol (MCP) Server
+AgentLA embeds a native **Model Context Protocol (MCP)** server over USB virtual Ethernet (`http://10.10.10.10/mcp`), enabling LLMs (such as Google Antigravity, Claude Desktop, Cursor, and Cline) to directly control physical hardware in a closed loop:
 
----
-
-### 3. High-Speed Logic Analyzer (`LOGIC ANALYZER`)
-AgentLA features a hardware-accelerated 10-channel digital logic analyzer running on dedicated RP2040/RP2350 PIO state machines.
-
-* **Channels**: 10 simultaneous digital input lines mapped to `GPIO 20 – 29`.
-* **Sample Rates**: Configurable sampling from 1 kHz up to 100+ Msps using PIO FIFO DMA transfer to high-speed circular buffers.
-* **Hardware Trigger Engine**:
-  * Edge triggers: Rising, falling, or both edges on any selected channel.
-  * Level & window triggers: High or Low level conditions.
-  * Multi-bit pattern triggers with customizable mask matching.
-* **Protocol Decoders**:
-  * Real-time firmware-level and browser-level decoding.
-  * Supported protocols: **UART / Serial**, **I²C**, **SPI**, **PWM / Frequency / Duty Cycle**, and **1-Wire**.
-* **Data Export**:
-  * Direct capture streaming.
-  * Value Change Dump (`.vcd`) export compatible with **Sigrok / PulseView** and GTKWave.
-
----
-
-### 4. Digital Signal Scope (`SCOPE`)
-For signal integrity troubleshooting and bus bring-up, AgentLA provides built-in signal scope capabilities.
-
-* **High-Speed Waveform Capture**:
-  * Real-time signal transition recording on critical clock and data lines (`SWD SCOPE`, `SWD SCOPEAB`).
-  * Microsecond-level visual inspection of turnaround (Trn) cycles, ACK bit timings, and clock stability.
-* **Bus Diagnostics**:
-  * Detects floating pins, missing pull-ups, bus contention, and signal skew.
-  * Displays ASCII transition diagrams over the serial console and interactive vector waveforms in the Web UI.
-
----
-
-### 5. Embedded Web Desktop & Virtual Network (`WEB UI`)
-AgentLA runs an embedded HTTP server and virtual network stack over USB, delivering a full graphical lab environment without software installation.
-
-* **Virtual Ethernet Interface**:
-  * Emulates an RNDIS / CDC-ECM network adapter with built-in DHCP server (`10.10.10.10` / `http://agentla.local`).
-* **WinBox-Style Web Desktop**:
-  * **Logic Analyzer Window**: Zoomable waveform viewer, protocol decoding tracks, trigger setup, and VCD export.
-  * **Oscilloscope / Scope Window**: Signal transition graphs and bus timing analyzer.
-  * **Target Programmer Window**: One-click target detection, memory map view, hex editor, and drag-and-drop `.bin` / `.hex` / `.elf` flashing.
-  * **Terminal & Bus Master**: Interactive I²C/SPI/UART consoles for rapid prototyping.
-
----
-
-### 6. Model Context Protocol (MCP) Server & Agentic Hardware Bring-Up (`MCP`)
-AgentLA is purpose-built for the age of agentic engineering. It embeds a native **Model Context Protocol (MCP)** server over its USB virtual Ethernet interface (`http://10.10.10.10/mcp` or `http://agentla.local/mcp`), enabling AI coding agents (such as Google Antigravity, Claude Desktop, Cursor, and Cline) to directly inspect, interact with, flash, and verify real physical circuits in an autonomous closed loop.
-
-* **Native Embedded HTTP JSON-RPC 2.0**:
-  * Direct tool execution via `POST /mcp` with standard JSON-RPC payloads, or query parameters via `GET /mcp?method=cmd&name=<cmd>&args=<args>`.
-  * Tool discovery endpoint (`GET /mcp?method=list`) exposing hardware capabilities:
-    * `TARGET DETECT` / `SWD` / `CH32` / `PY32`: Autonomous target MCU identification, core status, and flash configuration.
-    * `FLASH`: Memory reads, sector erases, FLM pack algorithm execution, and hex writes.
-    * `CAPTURE`: Configurable logic analyzer acquisition, signal triggers, and protocol decoding.
-    * `I2C_READ` / `I2C_WRITE`: Target I²C sensor and peripheral bus interrogation.
-    * `UART_READ` / `UART_WRITE`: Serial telemetry exchange and target bootloader handshaking.
-    * `ADC` / `MEASURE`: Voltage measurement and logic rail verification.
-    * `PINCLAIM` / `PINRELEASE` / `SAFEDISCOVER`: Hardware pin arbitration and bus safety checks.
-* **Asynchronous Jobs & Event Streaming**:
-  * Non-blocking queueing for long operations (bulk flash erases, deep logic captures) with asynchronous status polling (`job_status`, `cancel`).
-  * Server-Sent Events (`sse_push`) for real-time progress notifications.
-* **Hardware Safety Classes**:
-  * Built-in safety filters prevent destructive self-tests or diagnostic commands unless explicitly authorized.
-* **Agent Integration Example**:
-  Add AgentLA to your agent MCP configuration (e.g. `claude_desktop_config.json` or Antigravity MCP settings):
-  ```json
-  {
-    "mcpServers": {
-      "agentla": {
-        "url": "http://agentla.local/mcp"
-      }
+```json
+{
+  "mcpServers": {
+    "agentla": {
+      "url": "http://10.10.10.10/mcp"
     }
   }
-  ```
-  AI models can compile embedded C/Rust firmware, flash the binary through AgentLA, trigger a logic capture, decode UART/I²C packets, and verify test assertions completely autonomously.
+}
+```
+
+AI agents can autonomously flash firmware, measure voltages, monitor serial telemetry, trigger oscilloscope traces, and verify physical hardware assertions without human intervention.
+
+### 5. Web Desktop OS
+Served directly out of Flash ROM over USB CDC-NCM (`http://10.10.10.10` or `http://agentla.local`):
+* Multi-window draggable desktop environment built with DaisyUI & Tailwind.
+* Interactive Oscilloscope and Logic Analyzer waveform viewers.
+* Target Programmer with hex inspector, one-click detection, and binary drag-and-drop flasher.
+* Dynamic pin matrix and interactive bus console.
+* LittleFS persistent flash storage for custom embedded Web Apps.
 
 ---
 
-### 7. Full Hardware REST API (`/api/v1`)
-In addition to JSON-RPC over `/mcp`, AgentLA serves a comprehensive standard RESTful API over HTTP for direct automation, scripting, and web dashboard integration:
-- **Profiles & Hardware Arbiters**: `/api/v1/profiles` and `/api/v1/pins` (with atomic pin claim/release).
-- **Bus Bridges**: `/api/v1/bus/i2c`, `/api/v1/bus/spi`, `/api/v1/bus/uart`, `/api/v1/bus/can`.
-- **Addressable LEDs**: `/api/v1/bus/led/transmit` (WS2812B, SK6812, APA102).
-- **Programmer & Flasher**: `/api/v1/programmer/target`, `/reset`, `/erase`, `/flash`, and streaming `/read`.
-- **High-Speed Logic Analyzer**: `/api/v1/analyzer/arm`, `/status`, `/stop`, and streaming Sigrok-compatible `/vcd`.
-- **Probe Telemetry & Control**: `/api/v1/device/telemetry`, `/reboot`, `/bootsel`, `/power`.
+## Hardware REST API
 
-For detailed API schemas, endpoints, and examples, see the [Hardware REST API Documentation](docs/rest-api.md).
+All probe features are fully accessible via structured JSON REST endpoints:
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/board/manifest` | `GET` | Dynamic board manifest, pinout matrix, and peripheral map |
+| `/api/v1/programmer/target` | `GET` | Auto-detect connected ARM/RISC-V microcontroller |
+| `/api/v1/programmer/read` | `GET` | Read target flash memory (`addr`, `len`) |
+| `/api/v1/programmer/erase` | `POST` | Erase target flash sectors or mass erase |
+| `/api/v1/programmer/flash` | `POST` | Program target flash memory with binary payload |
+| `/api/v1/oscilloscope/data` | `GET` | Acquire single-shot 4-channel oscilloscope frame |
+| `/api/v1/oscilloscope/stream` | `GET` | Continuous SSE waveform stream for oscilloscope |
+| `/api/v1/generator/configure` | `POST` | Configure signal generator frequency, duty, and burst |
+| `/api/v1/bridge/can` | `GET/POST`| Configure SocketCAN bitrate and transceiver mode |
+| `/api/v1/bridge/can/termination`| `POST` | Toggle hardware $120\,\Omega$ differential termination |
+| `/api/v1/logic-analyzer/stream`| `GET` | Live SSE digital waveform and decoder stream |
 
 ---
 
 ## Quick Start
 
 ### 1. Flashing AgentLA Firmware
-1. Hold the **BOOTSEL** button on your Pico / RP2350 board and plug it into USB.
-2. Copy `AgentLA.uf2` to the mounted `RPI-RP2` drive.
-3. The board reboots automatically into AgentLA mode (USB VID `1209:414d`).
+1. Hold the **BOOTSEL** button on your Raspberry Pi Pico 2 / RP2350 board and plug it into USB.
+2. Copy `agentla-pico2.uf2` to the mounted `RPI-RP2` volume.
+3. The board reboots automatically as AgentLA (USB VID `1209:414d`).
 
-### 2. Serial Console (CLI)
-Connect to the primary CDC serial port at 115200 baud:
+### 2. Accessing the Web Desktop
+Navigate to `http://10.10.10.10` or `http://agentla.local` in any browser.
+
+### 3. Using Linux SocketCAN
 ```bash
-picocom -b 115200 /dev/ttyACM0
-```
-Common commands:
-```text
-STATUS                     - Probe health and operational mode
-TARGET DETECT              - Auto-detect connected ARM/Puya/STM32 MCU
-PY32                       - Dedicated Puya PY32 auto-detection & status
-CH32 DETECT mcu=ch32v203   - Detect WCH RISC-V target
-SWD PINS                   - Display current pin mappings
-FLASH READ 0x08000000 64   - Read 64 bytes of target Flash memory
-BOOT0 HIGH | BOOT0 LOW     - Control hardware BOOT0 line
-BOOTSEL                    - Reboot probe into bootloader for firmware updates
+# Bring up can0 at 500 kbps
+sudo ip link set can0 up type can bitrate 500000
+
+# Send and dump CAN frames
+cansend can0 123#DEADBEEF
+candump can0
 ```
 
-### 3. Host Debugging with PyOCD / OpenOCD
-AgentLA appears automatically as a CMSIS-DAP probe (`Unique ID: 00000001`):
+### 4. Using Linux I2C
 ```bash
-# PyOCD
-pyocd list
-pyocd flash -t py32f030x8 firmware.hex
-pyocd gdbserver -t stm32f103c8
+# Scan connected I2C devices on target bus
+i2cdetect -y 1
+```
 
-# OpenOCD
-openocd -f interface/cmsis-dap.cfg -f target/stm32f1x.cfg
+### 5. Debugging with probe-rs
+```bash
+probe-rs list
+# Recognizes: AgentLA RP2350 Probe (CMSIS-DAP)
 ```
 
 ---
 
-## Attribution
+## Building from Source
 
-| Project - Author | primary role in agentla |
-| :--- | :--- |
-| **[Pico SDK](https://github.com/raspberrypi/pico-sdk)** — Raspberry Pi (Trading) Ltd. | Core hardware abstraction layer, clocks, DMA, PIO, and multicore runtime for RP2040 / RP2350 |
-| **[Raspberry Pi Debugprobe](https://github.com/raspberrypi/debugprobe)** — Raspberry Pi (Trading) Ltd. & ARM Limited | High-speed PIO-based SWD transfer engine and CMSIS-DAP packet handling |
-| **[TinyUSB](https://github.com/hathach/tinyusb)** — Ha Thach & TinyUSB Contributors | USB device stack for CDC serial, CMSIS-DAP HID / WinUSB, and RNDIS / CDC-ECM networking |
-| **[lwIP (Lightweight IP)](https://savannah.nongnu.org/projects/lwip/)** — Adam Dunkels & Swedish Institute of Computer Science | Embedded TCP/IP stack, sockets, and HTTP server for Web UI and JSON-RPC API backend |
-| **[ARM CMSIS-DAP / Core](https://github.com/ARM-software/CMSIS_5)** — ARM Limited | Standard Cortex-M debug access port definitions and protocol registers |
-| **[RVSWD_pico](https://github.com/Nicolai-Electronics/RVSWD_pico)** — Nicolai-Electronics | 2-wire RISC-V debug protocol (`rvswd.pio`) for WCH QingKe V4 cores (CH32V20x/V30x, CH59x) |
-| **[PicoRVD](https://github.com/aappleby/picorvd)** — Andrew Appleby | 1-wire SWIO PIO driver and PROGBUF memory access routines for WCH RISC-V targets |
-| **[gusmanb/logicanalyzer](https://github.com/gusmanb/logicanalyzer)** — Bernardo Guasconi | PIO-accelerated high-speed digital logic capture routines (`capture.pio`) and trigger engine |
-| **[lrndis](https://github.com/fetisov/lrndis)** — Sergey Fetisov | Embedded DHCP (`dhserver.c`), DNS (`dnserver.c`), and RNDIS packet processing |
+Prerequisites:
+* Stable Rust toolchain with `thumbv8m.main-none-eabihf` target.
+* `picotool` (v2.0+) for generating UF2 binaries.
+
+```bash
+# Clone the repository
+git clone https://github.com/sun/AgentLA-rust.git
+cd AgentLA-rust
+
+# Install target
+rustup target add thumbv8m.main-none-eabihf
+
+# Build release firmware
+cargo build --release --manifest-path firmware-rs/Cargo.toml
+
+# Convert to UF2
+picotool uf2 convert firmware-rs/target/thumbv8m.main-none-eabihf/release/firmware-rs agentla-pico2.uf2 --family rp2350-arm-s
+```
+
+---
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.

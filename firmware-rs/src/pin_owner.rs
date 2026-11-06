@@ -48,12 +48,18 @@ use rp_pac as pac;
 
 use crate::programmer::pins::BRIDGE_PINS;
 
+use crate::board::ActiveBoard;
+use agentla_bsp::BoardProfile;
+
 // ---------------------------------------------------------------------------
 // Pin map constants
 // ---------------------------------------------------------------------------
 
 /// Status LED pin — claimed by no flexible role.
-pub const LED_PIN: u32 = 25;
+pub const LED_PIN: u32 = match ActiveBoard::FEATURES.onboard_led {
+    Some(pin) => pin,
+    None => 25,
+};
 /// Flexible pool (capable of dynamic claims); GPIO 26–29 are additionally analog-capable.
 pub const FLEX_PINS: [u32; 23] = [
     0, 1, 2, 3, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29,

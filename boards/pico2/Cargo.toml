@@ -1,0 +1,10 @@
+[package]
+name = "agentla-board-pico2"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Raspberry Pi Pico 2 Board Support Package for AgentLA"
+license = "Apache-2.0"
+
+[dependencies]
+agentla-bsp = { path = "../../crates/agentla-bsp" }

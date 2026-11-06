@@ -13,7 +13,9 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use rp_pac as pac;
 
+use crate::board::ActiveBoard;
 use crate::pin_owner::{self, Driver, SlotId, CAP_ADC};
+use agentla_bsp::{AnalogFrontendConfig, BoardProfile};
 
 pub const ADC_CLOCK_HZ: u32 = 48_000_000;
 pub const BUFFER_SIZE: usize = 1024;
@@ -115,15 +117,22 @@ pub fn start(config: ScopeConfig) -> Result<(), &'static str> {
         Err(_) => return Err("Oscilloscope mutex busy"),
     };
 
-    // Determine pins to claim from ch_mask (bits 0..3 correspond to GP26..29)
+    // Determine pins to claim from ch_mask (bits 0..3) using board's analog front-end config
+    let adc_pins: &[u32] = match ActiveBoard::analog_frontend() {
+        AnalogFrontendConfig::Direct { adc_pins, .. } => adc_pins,
+        AnalogFrontendConfig::Pga113 { .. } => &SCOPE_PINS,
+    };
+
     let mut pins_to_claim = heapless::Vec::<u32, 4>::new();
-    for i in 0..4 {
+    for (i, &p) in adc_pins.iter().enumerate().take(4) {
         if (config.ch_mask & (1 << i)) != 0 {
-            let _ = pins_to_claim.push(SCOPE_PINS[i]);
+            let _ = pins_to_claim.push(p);
         }
     }
     if pins_to_claim.is_empty() {
-        let _ = pins_to_claim.push(SCOPE_PINS[0]);
+        if let Some(&first) = adc_pins.first() {
+            let _ = pins_to_claim.push(first);
+        }
     }
 
     // Release prior claim if any

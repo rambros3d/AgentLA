@@ -4,10 +4,15 @@
 //! Provides open-drain bit-banged I2C on flexible GPIO pins with bus scanning,
 //! register reads, and multi-byte writes.
 
+use crate::board::ActiveBoard;
 use crate::pin_owner;
+use agentla_bsp::BoardProfile;
 use rp_pac as pac;
 
-pub const I2C_PINS: [u32; 2] = [16, 17]; // SDA, SCL (flexible, open-drain)
+pub const I2C_PINS: [u32; 2] = [
+    ActiveBoard::ADAPTERS.default_i2c.sda,
+    ActiveBoard::ADAPTERS.default_i2c.scl,
+];
 
 fn sda_high(sda_pin: u32) {
     unsafe {

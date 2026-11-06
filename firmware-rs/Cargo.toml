@@ -24,6 +24,14 @@ static_cell = "2.1"
 embedded-io-async = "0.7.0"
 portable-atomic = { version = "1.11", features = ["critical-section"] }
 heapless = "0.9"
+agentla-bsp = { path = "../crates/agentla-bsp" }
+agentla-board-pico2 = { path = "../boards/pico2" }
+agentla-board-bakuprobe = { path = "../boards/bakuprobe", optional = true }
+
+[features]
+default = ["board-pico2"]
+board-pico2 = []
+board-bakuprobe = ["dep:agentla-board-bakuprobe"]
 
 [profile.release]
 opt-level = "s"

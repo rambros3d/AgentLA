@@ -5,15 +5,17 @@
 //! pinouts (MISO: GPIO 16, CS: GPIO 17, SCK: GPIO 18, MOSI: GPIO 19) or flexible
 //! user-assigned GPIO pins. Supports SPI modes 0, 1, 2, 3 and variable baud rates.
 
+use crate::board::ActiveBoard;
 use crate::pin_owner;
+use agentla_bsp::BoardProfile;
 use rp_pac as pac;
 
-/// Default hardware SPI0 pins: [MISO, CS, SCK, MOSI]
-pub const SPI_PINS: [u32; 4] = [16, 17, 18, 19];
-pub const PIN_MISO: u32 = 16;
-pub const PIN_CS: u32 = 17;
-pub const PIN_SCK: u32 = 18;
-pub const PIN_MOSI: u32 = 19;
+/// Default hardware SPI pins from active board profile.
+pub const PIN_MISO: u32 = ActiveBoard::ADAPTERS.default_spi.miso;
+pub const PIN_CS: u32 = ActiveBoard::ADAPTERS.default_spi.cs;
+pub const PIN_SCK: u32 = ActiveBoard::ADAPTERS.default_spi.sck;
+pub const PIN_MOSI: u32 = ActiveBoard::ADAPTERS.default_spi.mosi;
+pub const SPI_PINS: [u32; 4] = [PIN_MISO, PIN_CS, PIN_SCK, PIN_MOSI];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SpiMode {

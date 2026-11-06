@@ -12,7 +12,9 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use rp_pac as pac;
 
+use crate::board::ActiveBoard;
 use crate::pin_owner::{self, Driver, SlotId, CAP_PWM};
+use agentla_bsp::BoardProfile;
 
 pub const SYS_CLK_HZ: u32 = 150_000_000;
 pub const PWM_FUNCSEL: u8 = 4;
@@ -117,8 +119,10 @@ pub fn calculate_slice_params(freq_hz: u32) -> (u8, u8, u16) {
 
 /// Start outputting signal on the specified GPIO pin
 pub fn start(config: GeneratorConfig) -> Result<(), &'static str> {
-    if config.pin < 10 || config.pin > 29 || config.pin == 25 {
-        return Err("Pin must be in GPIO 10–29 (excluding status LED 25)");
+    if !ActiveBoard::flexible_pool().contains(config.pin)
+        || ActiveBoard::features().onboard_led == Some(config.pin)
+    {
+        return Err("Pin must be in board flexible pool (excluding status LED)");
     }
 
     let mut eng = match ENGINE.try_lock() {

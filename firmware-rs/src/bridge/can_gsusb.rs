@@ -12,11 +12,25 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use rp_pac as pac;
 
+use crate::board::ActiveBoard;
 use crate::pin_owner::{self, ClaimError, Driver, SlotId};
+use agentla_bsp::BoardProfile;
 
-pub const CAN_TX_PIN: u32 = 18;
-pub const CAN_RX_PIN: u32 = 19;
-pub const CAN_TERM_PIN: u32 = 22;
+pub const CAN_TX_PIN: u32 = match ActiveBoard::ADAPTERS.can {
+    Some(can) => can.tx,
+    None => 18,
+};
+pub const CAN_RX_PIN: u32 = match ActiveBoard::ADAPTERS.can {
+    Some(can) => can.rx,
+    None => 19,
+};
+pub const CAN_TERM_PIN: u32 = match ActiveBoard::ADAPTERS.can {
+    Some(can) => match can.term {
+        Some(term) => term,
+        None => 22,
+    },
+    None => 22,
+};
 pub const CAN_PINS: [u32; 3] = [CAN_TX_PIN, CAN_RX_PIN, CAN_TERM_PIN];
 
 pub const GS_CAN_MODE_RESET: u32 = 0;

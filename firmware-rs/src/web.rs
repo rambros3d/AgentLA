@@ -1,5 +1,6 @@
 use core::fmt::Write as _;
 
+use agentla_bsp::BoardProfile;
 use embassy_net::Stack;
 use picoserve::response::sse::{EventSource, EventStream, EventWriter};
 use picoserve::response::{File, StatusCode};
@@ -182,7 +183,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/agentla-bridge.js", get_service(File::javascript(crate::web_assets::AGENTLA_BRIDGE_JS)))
         .route("/themes.css", get_service(File::css(crate::web_assets::THEMES_CSS)))
         .route("/themes.json", get_service(File::json(crate::web_assets::THEMES_JSON)))
-        .route("/board.json", get_service(File::json(crate::web_assets::BOARD_JSON)))
+        .route("/board.json", get_service(File::json(crate::board::ActiveBoard::manifest_json())))
         .route("/wallpaper.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::WALLPAPER_SVG)))
         .route("/logo.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::LOGO_SVG)))
         .route("/favicon.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::FAVICON_SVG)))
@@ -391,7 +392,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/pwm/claim", crate::rest::PwmClaim)
         .route_service("/api/v1/pwm/set", crate::rest::PwmSet)
         .route_service("/api/v1/pwm/release", crate::rest::PwmRelease)
-        .route("/api/board/manifest", get_service(File::json(crate::web_assets::BOARD_JSON)))
+        .route("/api/board/manifest", get_service(File::json(crate::board::ActiveBoard::manifest_json())))
         .route_service("/api/v1/themes", crate::rest::ThemesEndpoint)
         .route_service("/api/v1/settings", crate::rest::SettingsEndpoint)
         .route_service("/api/settings", crate::rest::SettingsEndpoint)

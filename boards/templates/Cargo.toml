@@ -1,0 +1,10 @@
+[package]
+name = "agentla-board-template"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Boilerplate template crate for custom hardware carrier boards"
+license = "Apache-2.0"
+
+[dependencies]
+agentla-bsp = { path = "../../crates/agentla-bsp" }
