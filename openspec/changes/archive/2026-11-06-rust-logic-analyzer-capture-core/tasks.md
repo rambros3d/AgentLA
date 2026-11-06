@@ -11,10 +11,10 @@
 
 ## 3. Web Surface (REST + SSE)
 
-- [ ] 3.1 `/api/v1/logic-analyzer`: cmd/start, stop, config update, status, data chunk
-- [ ] 3.2 SSE `capture` event per bank burst (metadata only)
+- [x] 3.1 `/api/v1/logic-analyzer`: cmd/start, stop, config update, status, data chunk
+- [x] 3.2 SSE `capture` event per bank burst (metadata only)
 
 ## 4. Verification
 
 - [x] 4.1 `cargo build --release` clean, 0 new warnings
-- [ ] 4.2 HTTP smoke test (ping + status 200 via `/system` etc.)
+- [x] 4.2 HTTP smoke test (ping + status 200 via `/system` etc.)
