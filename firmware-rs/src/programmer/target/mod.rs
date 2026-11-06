@@ -1,8 +1,10 @@
 pub mod cortex_m;
+pub mod nrf;
 pub mod qingke;
 pub mod targets;
 
 pub use cortex_m::CortexM;
+pub use nrf::rescue_nrf_global;
 pub use qingke::QingKe;
 pub use targets::{identify_cortex_target, TargetFamily, TargetInfo};
 

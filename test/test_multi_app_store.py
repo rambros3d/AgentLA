@@ -324,11 +324,11 @@ def test_rest_api_payload_shapes():
 
 def test_apps_html_assets_and_integration():
     """Verify built-in ROM App Launcher UI (apps.html) contents and build staging."""
-    apps_html_path = REPO_ROOT / "web-ui" / "apps.html"
-    index_html_path = REPO_ROOT / "web-ui" / "index.html"
+    apps_html_path = REPO_ROOT / "webui" / "apps.html"
+    index_html_path = REPO_ROOT / "webui" / "index.html"
 
-    assert apps_html_path.exists(), "web-ui/apps.html must exist"
-    assert index_html_path.exists(), "web-ui/index.html must exist"
+    assert apps_html_path.exists(), "webui/apps.html must exist"
+    assert index_html_path.exists(), "webui/index.html must exist"
 
     apps_html = apps_html_path.read_text(encoding="utf-8")
     index_html = index_html_path.read_text(encoding="utf-8")
@@ -354,8 +354,8 @@ def test_apps_html_assets_and_integration():
     assert "settings-default-home-route-select" in index_html, "index.html settings modal must include landing route selector"
 
     # 3. Injected bridge script
-    bridge_path = REPO_ROOT / "web-ui" / "agentla-bridge.js"
-    assert bridge_path.exists(), "web-ui/agentla-bridge.js must exist"
+    bridge_path = REPO_ROOT / "webui" / "agentla-bridge.js"
+    assert bridge_path.exists(), "webui/agentla-bridge.js must exist"
 
 
 if __name__ == "__main__":

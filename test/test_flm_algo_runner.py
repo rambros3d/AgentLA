@@ -188,7 +188,7 @@ def test_sram_execution_harness():
 
 def test_packaged_littlefs_algo_assets():
     """Verify algorithm binaries deployed in web-ui/system/algo/ match unpack expectations."""
-    algo_dir = Path("web-ui/system/algo")
+    algo_dir = Path("webui/system/algo")
     assert algo_dir.is_dir()
 
     f1_path = algo_dir / "stm32f1.bin"

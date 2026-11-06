@@ -40,6 +40,27 @@ impl<'a> CortexM<'a> {
         Self { swd }
     }
 
+    pub fn select_ap(&mut self, apsel: u8) -> Result<(), CortexError> {
+        self.swd
+            .select_ap(apsel, 0)
+            .map_err(|_| CortexError::SwdError)
+    }
+
+    pub fn read_ap_reg(&mut self, apsel: u8, reg: u8) -> Result<u32, CortexError> {
+        let mut val = 0u32;
+        self.swd
+            .read_ap_port(apsel, reg, &mut val)
+            .map_err(|_| CortexError::SwdError)?;
+        Ok(val)
+    }
+
+    pub fn write_ap_reg(&mut self, apsel: u8, reg: u8, val: u32) -> Result<(), CortexError> {
+        self.swd
+            .write_ap_port(apsel, reg, val)
+            .map_err(|_| CortexError::SwdError)?;
+        Ok(())
+    }
+
     pub fn mem_read32(&mut self, addr: u32) -> Result<u32, CortexError> {
         self.swd
             .write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT)

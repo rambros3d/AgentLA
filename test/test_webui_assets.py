@@ -9,7 +9,7 @@ import re
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-HTML_DIR = REPO_ROOT / "web-ui"
+HTML_DIR = REPO_ROOT / "webui"
 
 
 def test_theme_compiler_root_cascade_order():
@@ -186,7 +186,7 @@ def test_modal_hidden_by_default_and_no_bogus_selector():
 
 def test_landing_page_light_theme_tokens_and_syntax():
     """Verify web/landing.css defines light mode tokens and has no orphan declarations."""
-    landing_css_path = REPO_ROOT / "web" / "landing.css"
+    landing_css_path = REPO_ROOT / "website" / "landing.css"
     assert landing_css_path.exists()
     content = landing_css_path.read_text(encoding="utf-8")
 

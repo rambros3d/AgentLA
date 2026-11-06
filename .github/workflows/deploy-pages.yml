@@ -4,8 +4,7 @@ on:
   push:
     branches: ["embassy", "dev", "master", "main"]
     paths:
-      - "web/**"
-      - "firmware/html/**"
+      - "website/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -34,7 +33,7 @@ jobs:
       - name: Assemble GitHub Pages site (dereferencing symlinks)
         run: |
           mkdir -p _site
-          cp -rL web/* _site/
+          cp -rL website/* _site/
           touch _site/.nojekyll
 
       - name: Upload static portal artifact

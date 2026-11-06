@@ -1,8 +1,10 @@
 pub mod algo;
 pub mod bootloader;
 pub mod dap;
+pub mod gdb_server;
 pub mod pins;
 pub mod pio_programs;
+pub mod rtt;
 pub mod rvswd;
 pub mod swd;
 pub mod swio;
@@ -13,6 +15,7 @@ use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 pub use pins::TargetPort;
+pub use target::rescue_nrf_global;
 use pins::{ProgrammerPins, pulse_reset_pin};
 use target::cortex_m::CortexM;
 use target::qingke::QingKe;

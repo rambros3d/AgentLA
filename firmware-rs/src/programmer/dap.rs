@@ -483,11 +483,96 @@ impl CmsisDapHandler {
                 };
                 return 4;
             }
-        }
 
-        for _ in 0..count {
-            if !is_read {
-                // Write block
+            // Transfer first count - 1 words via posted wire_req
+            if count > 1 {
+                for _ in 0..(count - 1) {
+                    let mut data = 0u32;
+                    let mut ack = SWD_ACK_OK;
+                    for _ in 0..wait_retry {
+                        ack = swd.transfer(wire_req, &mut data);
+                        if ack != SWD_ACK_WAIT {
+                            break;
+                        }
+                        cortex_m::asm::delay(1500);
+                    }
+                    if ack != SWD_ACK_OK {
+                        resp[3] = if ack == SWD_ACK_WAIT {
+                            DAP_TRANSFER_WAIT
+                        } else if ack == SWD_ACK_FAULT {
+                            DAP_TRANSFER_FAULT
+                        } else {
+                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        };
+                        break;
+                    }
+                    if resp_idx + 4 <= resp.len() {
+                        resp[resp_idx..resp_idx + 4].copy_from_slice(&data.to_le_bytes());
+                        resp_idx += 4;
+                    }
+                    completed += 1;
+                }
+            }
+
+            // Read final word from DP RDBUFF
+            if resp[3] == DAP_TRANSFER_OK {
+                let rdbuff_wire = SwdTransport::build_request(false, true, 3);
+                let mut final_data = 0u32;
+                let mut ack = SWD_ACK_OK;
+                for _ in 0..wait_retry {
+                    ack = swd.transfer(rdbuff_wire, &mut final_data);
+                    if ack != SWD_ACK_WAIT {
+                        break;
+                    }
+                    cortex_m::asm::delay(1500);
+                }
+                if ack == SWD_ACK_OK {
+                    if resp_idx + 4 <= resp.len() {
+                        resp[resp_idx..resp_idx + 4].copy_from_slice(&final_data.to_le_bytes());
+                        resp_idx += 4;
+                    }
+                    completed += 1;
+                } else {
+                    resp[3] = if ack == SWD_ACK_WAIT {
+                        DAP_TRANSFER_WAIT
+                    } else if ack == SWD_ACK_FAULT {
+                        DAP_TRANSFER_FAULT
+                    } else {
+                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                    };
+                }
+            }
+        } else if is_read {
+            // Read DP block: direct immediate read
+            for _ in 0..count {
+                let mut data = 0u32;
+                let mut ack = SWD_ACK_OK;
+                for _ in 0..wait_retry {
+                    ack = swd.transfer(wire_req, &mut data);
+                    if ack != SWD_ACK_WAIT {
+                        break;
+                    }
+                    cortex_m::asm::delay(1500);
+                }
+                if ack != SWD_ACK_OK {
+                    resp[3] = if ack == SWD_ACK_WAIT {
+                        DAP_TRANSFER_WAIT
+                    } else if ack == SWD_ACK_FAULT {
+                        DAP_TRANSFER_FAULT
+                    } else {
+                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                    };
+                    break;
+                }
+                if resp_idx + 4 <= resp.len() {
+                    resp[resp_idx..resp_idx + 4].copy_from_slice(&data.to_le_bytes());
+                    resp_idx += 4;
+                }
+                completed += 1;
+            }
+        } else {
+            // Write block
+            for _ in 0..count {
                 if req_idx + 4 > req.len() {
                     resp[3] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
                     break;
@@ -519,59 +604,6 @@ impl CmsisDapHandler {
                     break;
                 }
                 completed += 1;
-            } else {
-                // Read block
-                let mut data = 0u32;
-                let mut ack = SWD_ACK_OK;
-                for _ in 0..wait_retry {
-                    ack = swd.transfer(wire_req, &mut data);
-                    if ack != SWD_ACK_WAIT {
-                        break;
-                    }
-                    cortex_m::asm::delay(1500);
-                }
-                if ack != SWD_ACK_OK {
-                    resp[3] = if ack == SWD_ACK_WAIT {
-                        DAP_TRANSFER_WAIT
-                    } else if ack == SWD_ACK_FAULT {
-                        DAP_TRANSFER_FAULT
-                    } else {
-                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
-                    };
-                    break;
-                }
-                if resp_idx + 4 <= resp.len() {
-                    resp[resp_idx..resp_idx + 4].copy_from_slice(&data.to_le_bytes());
-                    resp_idx += 4;
-                }
-                completed += 1;
-            }
-        }
-
-        if is_read && is_ap && resp[3] == DAP_TRANSFER_OK {
-            // Read final data word from RDBUFF
-            let rdbuff_wire = SwdTransport::build_request(false, true, 3);
-            let mut final_data = 0u32;
-            let mut ack = SWD_ACK_OK;
-            for _ in 0..wait_retry {
-                ack = swd.transfer(rdbuff_wire, &mut final_data);
-                if ack != SWD_ACK_WAIT {
-                    break;
-                }
-                cortex_m::asm::delay(1500);
-            }
-            if ack == SWD_ACK_OK {
-                if resp_idx >= 4 && resp_idx <= resp.len() {
-                    resp[resp_idx - 4..resp_idx].copy_from_slice(&final_data.to_le_bytes());
-                }
-            } else {
-                resp[3] = if ack == SWD_ACK_WAIT {
-                    DAP_TRANSFER_WAIT
-                } else if ack == SWD_ACK_FAULT {
-                    DAP_TRANSFER_FAULT
-                } else {
-                    DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
-                };
             }
         }
 

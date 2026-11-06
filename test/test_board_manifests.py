@@ -166,7 +166,7 @@ def test_asset_staging_pipeline():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         output_web_dir = tmp_path / "web_staged"
-        base_html_dir = REPO_ROOT / "firmware" / "html"
+        base_html_dir = REPO_ROOT / "webui"
 
         with open(BOARDS_DIR / "pico2" / "board.json", "r", encoding="utf-8") as f:
             data = json.load(f)

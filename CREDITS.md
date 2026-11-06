@@ -6,7 +6,7 @@ AgentLA is built upon and inspired by the incredible work of the open-source emb
 
 ## 1. Attribution: Direct Dependencies
 
-The following libraries, crates, and frontend frameworks are directly bundled into AgentLA firmware, board packages, and the embedded web desktop (`crates/agentla-bsp`, `boards/*`, `firmware-rs`, and `web-ui/`):
+The following libraries, crates, and frontend frameworks are directly bundled into AgentLA firmware, board packages, and the embedded web desktop (`crates/agentla-bsp`, `boards/*`, `firmware-rs`, and `webui/`):
 
 | Crate / Library | Project / Authors | Role in AgentLA |
 | :--- | :--- | :--- |

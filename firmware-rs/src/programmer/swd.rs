@@ -485,9 +485,13 @@ impl SwdTransport {
     }
 
     pub fn write_ap(&mut self, reg: u8, value: u32) -> Result<(), SwdError> {
+        self.write_ap_port(0, reg, value)
+    }
+
+    pub fn write_ap_port(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError> {
         for attempt in 0..2 {
             let apbank = (reg >> 4) & 0x0F;
-            self.select_ap(0, apbank)?;
+            self.select_ap(apsel, apbank)?;
             let req = Self::build_request(true, false, (reg >> 2) & 3);
             let mut val = value;
             for _ in 0..200 {
@@ -510,9 +514,13 @@ impl SwdTransport {
     }
 
     pub fn read_ap(&mut self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
+        self.read_ap_port(0, reg, value)
+    }
+
+    pub fn read_ap_port(&mut self, apsel: u8, reg: u8, value: &mut u32) -> Result<(), SwdError> {
         for attempt in 0..2 {
             let apbank = (reg >> 4) & 0x0F;
-            self.select_ap(0, apbank)?;
+            self.select_ap(apsel, apbank)?;
             let req = Self::build_request(true, true, (reg >> 2) & 3);
             let mut dummy = 0u32;
             let mut ok = false;

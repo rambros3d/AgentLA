@@ -96,7 +96,7 @@ def pack_webui(
                 continue
             full_path = Path(root) / f
             rel_path = full_path.relative_to(web_dir).as_posix()
-            # If not including user apps, skip web-ui/apps directory
+            # If not including user apps, skip webui/apps directory
             if not include_user_apps and (rel_path.startswith("apps/") or rel_path == "apps"):
                 continue
             asset_files.append((rel_path, full_path))
@@ -187,7 +187,7 @@ def pack_webui(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pack WebUI assets into a 512 KB LittleFS image and UF2")
-    parser.add_argument("--web-dir", default="web-ui", help="Path to web-ui directory")
+    parser.add_argument("--web-dir", default="webui", help="Path to webui directory")
     parser.add_argument("--output-img", default="build/webui.img", help="Output path for LittleFS image")
     parser.add_argument("--output-uf2", default="build/webui.uf2", help="Output path for UF2 file")
     parser.add_argument("--output-tar", default="build/webui.tar", help="Output path for update tarball")

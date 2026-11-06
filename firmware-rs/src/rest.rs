@@ -133,8 +133,11 @@ pub struct LogicAnalyzerVcd;
 pub struct ProgrammerReset;
 pub struct ProgrammerResetCatch;
 pub struct ProgrammerRescueStm32;
+pub struct ProgrammerRescueNrf;
 pub struct ProgrammerErase;
 pub struct ProgrammerRead;
+pub struct ProgrammerRttStatus;
+pub struct ProgrammerRttStream;
 pub struct BridgeState;
 pub struct BridgeI2cOn;
 pub struct BridgeI2cOff;
@@ -182,7 +185,7 @@ macro_rules! service {
     };
 }
 
-service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET");
+service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
@@ -661,6 +664,33 @@ impl ProgrammerRescueStm32 {
     }
 }
 
+impl ProgrammerRescueNrf {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        match crate::programmer::rescue_nrf_global() {
+            Ok(()) => {
+                send_json(
+                    request,
+                    response_writer,
+                    StatusCode::OK,
+                    r#"{"status":"ok","unprotected":true,"mass_erased":true,"message":"Nordic nRF CTRL-AP ERASEALL complete"}"#,
+                ).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"error","error":"{:?}"}}"#, e);
+                send_json(
+                    request,
+                    response_writer,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    resp.as_str(),
+                ).await
+            }
+        }
+    }
+}
+
 impl ProgrammerErase {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
@@ -682,6 +712,46 @@ impl ProgrammerRead {
         let mut resp = heapless::String::<128>::new();
         let _ = write!(resp, r#"{{"status":"ok","addr":134217728,"len":16,"data_hex":"{}"}}"#, hex.as_str());
         send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl ProgrammerRttStatus {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        let mut buf = heapless::String::<256>::new();
+        crate::programmer::rtt::rtt_status_json(&mut buf);
+        send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
+    }
+}
+
+impl ProgrammerRttStream {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        let mut chunk = [0u8; 256];
+        match crate::programmer::rtt::rtt_drain_global(&mut chunk) {
+            Ok(n) => {
+                let mut resp = heapless::String::<512>::new();
+                let _ = write!(resp, r#"{{"status":"ok","bytes_read":{},"data":""#, n);
+                for &b in &chunk[..n] {
+                    match b {
+                        b'"' => { let _ = resp.push_str("\\\""); }
+                        b'\\' => { let _ = resp.push_str("\\\\"); }
+                        b'\n' => { let _ = resp.push_str("\\n"); }
+                        b'\r' => { let _ = resp.push_str("\\r"); }
+                        b'\t' => { let _ = resp.push_str("\\t"); }
+                        0x20..=0x7E => { let _ = resp.push(b as char); }
+                        _ => { let _ = write!(resp, "\\u{:04x}", b); }
+                    }
+                }
+                let _ = resp.push_str(r#""}"#);
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::OK, r#"{"status":"error","message":"ERR RTT NOT FOUND"}"#).await
+            }
+        }
     }
 }
 

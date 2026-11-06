@@ -16,6 +16,9 @@ LIB_PATH = os.path.join(REPO_ROOT, "test", "libdecoders.so")
 def build_libdecoders():
     stub_dir = os.path.join(REPO_ROOT, "test", "pico_stub")
     src_dir = os.path.join(REPO_ROOT, "firmware", "src")
+    if not os.path.isdir(src_dir):
+        pytest.skip("Legacy C firmware sources not present (ported to firmware-rs/src/decoder.rs)", allow_module_level=True)
+        return
     c_files = [
         os.path.join(src_dir, "analyzer", "decode.c"),
         os.path.join(src_dir, "analyzer", "decode_can.c"),

@@ -198,6 +198,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(net::dhcp_server_task(stack).unwrap());
     spawner.spawn(net::dns_server_task(stack).unwrap());
     spawner.spawn(web::web_server_task(stack).unwrap());
+    spawner.spawn(crate::programmer::gdb_server::gdb_server_task(stack).unwrap());
 
     // 3c. LittleFS partition on internal flash. Must complete before the
     // watchdog task starts: a first-boot format erases 512 x 4 KiB sectors

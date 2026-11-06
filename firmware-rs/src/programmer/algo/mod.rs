@@ -27,7 +27,7 @@ impl FlashAlgorithmRunner {
             .map_err(|_| AlgoError::SwdError)
     }
 
-    pub fn exec_algo(
+    pub fn start_algo(
         cortex: &mut CortexM,
         entry: u32,
         r0: u32,
@@ -35,8 +35,7 @@ impl FlashAlgorithmRunner {
         r2: u32,
         r3: u32,
         sp: u32,
-        timeout_ms: u32,
-    ) -> Result<u32, AlgoError> {
+    ) -> Result<(), AlgoError> {
         // 1. Halt core
         cortex.halt().map_err(|_| AlgoError::SwdError)?;
 
@@ -77,10 +76,15 @@ impl FlashAlgorithmRunner {
             .write_core_reg(15, entry | 1)
             .map_err(|_| AlgoError::SwdError)?;
 
-        // 3. Resume core
+        // 3. Resume core non-blocking
         cortex.resume().map_err(|_| AlgoError::SwdError)?;
+        Ok(())
+    }
 
-        // 4. Synchronous execution monitor: poll DHCSR for HALT / BKPT
+    pub fn wait_algo_halt(
+        cortex: &mut CortexM,
+        timeout_ms: u32,
+    ) -> Result<u32, AlgoError> {
         let max_iterations = timeout_ms * 100;
         for _ in 0..max_iterations {
             if let Ok(dhcsr) = cortex.mem_read32(DHCSR) {
@@ -94,9 +98,22 @@ impl FlashAlgorithmRunner {
             cortex_m::asm::delay(1500); // 10 µs
         }
 
-        // Timeout: halt core
         let _ = cortex.halt();
         Err(AlgoError::Timeout)
+    }
+
+    pub fn exec_algo(
+        cortex: &mut CortexM,
+        entry: u32,
+        r0: u32,
+        r1: u32,
+        r2: u32,
+        r3: u32,
+        sp: u32,
+        timeout_ms: u32,
+    ) -> Result<u32, AlgoError> {
+        Self::start_algo(cortex, entry, r0, r1, r2, r3, sp)?;
+        Self::wait_algo_halt(cortex, timeout_ms)
     }
 
     pub fn flm_erase_sector(
@@ -386,6 +403,76 @@ impl FlashAlgorithmRunner {
         Ok(())
     }
 
+    pub fn flm_program_turbo_double_buffered(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code_base: u32,
+        target_flash_addr: u32,
+        data: &[u8],
+        page_size: u32,
+    ) -> Result<(), AlgoError> {
+        let buf0_addr = hdr.ram_base;
+        let buf1_addr = hdr.ram_base + page_size;
+        let entry = code_base + hdr.program_offset;
+
+        let mut offset = 0usize;
+        let first_chunk = (data.len() - offset).min(page_size as usize);
+
+        // 1. Fill Buffer 0 with Page 0
+        Self::download_ram(cortex, buf0_addr, &data[offset..offset + first_chunk])?;
+
+        // 2. Start target CPU on Page 0 (Buffer 0) non-blocking
+        Self::start_algo(
+            cortex,
+            entry,
+            target_flash_addr + offset as u32,
+            first_chunk as u32,
+            buf0_addr,
+            0,
+            hdr.stack_top,
+        )?;
+        offset += first_chunk;
+        let mut current_buf = 0;
+
+        // 3. Ping-pong loop: overlap SWD download of next page with target CPU burning
+        while offset < data.len() {
+            let next_buf = 1 - current_buf;
+            let next_buf_addr = if next_buf == 0 { buf0_addr } else { buf1_addr };
+            let next_chunk = (data.len() - offset).min(page_size as usize);
+
+            // Stream next page into next_buf over SWD while current_buf is being programmed
+            Self::download_ram(cortex, next_buf_addr, &data[offset..offset + next_chunk])?;
+
+            // Wait for running page to complete
+            let res = Self::wait_algo_halt(cortex, 2000)?;
+            if res != 0 {
+                return Err(AlgoError::ExecutionFailed(res));
+            }
+
+            // Immediately start target CPU on next_buf
+            Self::start_algo(
+                cortex,
+                entry,
+                target_flash_addr + offset as u32,
+                next_chunk as u32,
+                next_buf_addr,
+                0,
+                hdr.stack_top,
+            )?;
+
+            offset += next_chunk;
+            current_buf = next_buf;
+        }
+
+        // 4. Wait for final page to complete
+        let res = Self::wait_algo_halt(cortex, 2000)?;
+        if res != 0 {
+            return Err(AlgoError::ExecutionFailed(res));
+        }
+
+        Ok(())
+    }
+
     pub fn flm_flash_blob(
         cortex: &mut CortexM,
         hdr: &AlgoBlobHeader,
@@ -411,18 +498,30 @@ impl FlashAlgorithmRunner {
             curr_sector += sector_size;
         }
 
-        // 4. Program pages
-        let mut offset = 0usize;
-        while offset < data.len() {
-            let chunk_len = (data.len() - offset).min(page_size as usize);
-            Self::flm_program_page(
+        // 4. Program pages (Turbo double-buffered when SRAM permits)
+        let can_double_buffer = hdr.ram_size >= (2 * page_size) && page_size > 0;
+        if can_double_buffer && data.len() > page_size as usize {
+            Self::flm_program_turbo_double_buffered(
                 cortex,
                 hdr,
                 code_base,
-                target_flash_addr + offset as u32,
-                &data[offset..offset + chunk_len],
+                target_flash_addr,
+                data,
+                page_size,
             )?;
-            offset += chunk_len;
+        } else {
+            let mut offset = 0usize;
+            while offset < data.len() {
+                let chunk_len = (data.len() - offset).min(page_size as usize);
+                Self::flm_program_page(
+                    cortex,
+                    hdr,
+                    code_base,
+                    target_flash_addr + offset as u32,
+                    &data[offset..offset + chunk_len],
+                )?;
+                offset += chunk_len;
+            }
         }
 
         // 5. Verify
