@@ -133,6 +133,44 @@ impl EventSource for LogicAnalyzerEvents {
     }
 }
 
+pub struct OscilloscopeEvents;
+
+impl EventSource for OscilloscopeEvents {
+    async fn write_events<W: picoserve::io::Write>(
+        self,
+        mut writer: EventWriter<'_, W>,
+    ) -> Result<(), W::Error> {
+        let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(50));
+        loop {
+            ticker.next().await;
+            if let Ok(frame) = crate::instruments::oscilloscope::capture_frame() {
+                let m = &frame.metrics;
+                writer
+                    .write_event(
+                        "frame",
+                        format_args!(
+                            r#"{{"ch_mask":{},"sample_rate":{},"vpp":[{}.{:02},{}.{:02},{}.{:02},{}.{:02}],"vrms":[{}.{:02},{}.{:02},{}.{:02},{}.{:02}],"freq":[{},{},{},{}],"duty":[{},{},{},{}],"sample_count":{}}}"#,
+                            frame.ch_mask,
+                            frame.sample_rate,
+                            m[0].vpp_mv / 1000, (m[0].vpp_mv % 1000) / 10,
+                            m[1].vpp_mv / 1000, (m[1].vpp_mv % 1000) / 10,
+                            m[2].vpp_mv / 1000, (m[2].vpp_mv % 1000) / 10,
+                            m[3].vpp_mv / 1000, (m[3].vpp_mv % 1000) / 10,
+                            m[0].vrms_mv / 1000, (m[0].vrms_mv % 1000) / 10,
+                            m[1].vrms_mv / 1000, (m[1].vrms_mv % 1000) / 10,
+                            m[2].vrms_mv / 1000, (m[2].vrms_mv % 1000) / 10,
+                            m[3].vrms_mv / 1000, (m[3].vrms_mv % 1000) / 10,
+                            m[0].freq_hz, m[1].freq_hz, m[2].freq_hz, m[3].freq_hz,
+                            m[0].duty_percent, m[1].duty_percent, m[2].duty_percent, m[3].duty_percent,
+                            frame.sample_count
+                        ),
+                    )
+                    .await?;
+            }
+        }
+    }
+}
+
 pub fn make_app() -> picoserve::Router<impl PathRouter> {
     picoserve::Router::new()
         .route("/", get_service(File::html(crate::web_assets::INDEX_HTML)))
@@ -411,6 +449,23 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/profiles/boot", crate::rest::ProfilesBoot)
         .route_service("/api/profiles/save", crate::rest::ProfilesSave)
         .route_service("/api/profiles/delete", crate::rest::ProfilesDelete)
+        // --- Mixed-Signal Instrument Suite endpoints ---
+        .route_service("/api/v1/oscilloscope/data", crate::rest::ScopeData)
+        .route_service("/api/v1/oscilloscope/start", crate::rest::ScopeStart)
+        .route_service("/api/v1/oscilloscope/stop", crate::rest::ScopeStop)
+        .route_service("/api/v1/scope/data", crate::rest::ScopeData)
+        .route_service("/api/v1/scope/start", crate::rest::ScopeStart)
+        .route_service("/api/v1/scope/stop", crate::rest::ScopeStop)
+        .route("/api/v1/oscilloscope/stream", get(|| async move { picoserve::response::sse::EventStream(OscilloscopeEvents) }))
+        .route("/api/v1/scope/stream", get(|| async move { picoserve::response::sse::EventStream(OscilloscopeEvents) }))
+        .route_service("/api/v1/generator/start", crate::rest::GeneratorStart)
+        .route_service("/api/v1/generator/stop", crate::rest::GeneratorStop)
+        .route_service("/api/v1/generator/status", crate::rest::GeneratorStatus)
+        .route_service("/api/v1/led/pattern", crate::rest::LedPattern)
+        .route_service("/api/v1/led/analyze", crate::rest::LedAnalyze)
+        .route_service("/api/v1/glitch/arm", crate::rest::GlitchArm)
+        .route_service("/api/v1/glitch/disarm", crate::rest::GlitchDisarm)
+        .route_service("/api/v1/glitch/status", crate::rest::GlitchStatus)
 }
 
 

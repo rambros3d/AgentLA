@@ -55,8 +55,8 @@ use crate::programmer::pins::BRIDGE_PINS;
 /// Status LED pin — claimed by no flexible role.
 pub const LED_PIN: u32 = 25;
 /// Flexible pool (capable of dynamic claims); GPIO 26–29 are additionally analog-capable.
-pub const FLEX_PINS: [u32; 19] = [
-    0, 1, 2, 3, 11, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29,
+pub const FLEX_PINS: [u32; 23] = [
+    0, 1, 2, 3, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29,
 ];
 pub const FLEX_PIN_COUNT: u32 = FLEX_PINS.len() as u32;
 /// Adjectival-capable members of the flexible pool: GPIO 26, 27, 28, 29.
@@ -85,6 +85,10 @@ pub enum Driver {
     Gpio = 2,
     Adapter = 3,
     Capture = 4,
+    Oscilloscope = 5,
+    Generator = 6,
+    Ws2812 = 7,
+    Glitch = 8,
 }
 
 impl Driver {
@@ -100,6 +104,10 @@ impl Driver {
             2 => Some(Driver::Gpio),
             3 => Some(Driver::Adapter),
             4 => Some(Driver::Capture),
+            5 => Some(Driver::Oscilloscope),
+            6 => Some(Driver::Generator),
+            7 => Some(Driver::Ws2812),
+            8 => Some(Driver::Glitch),
             _ => None,
         }
     }
@@ -112,6 +120,10 @@ impl Driver {
             "gpio" => Some(Driver::Gpio),
             "adapter" => Some(Driver::Adapter),
             "capture" => Some(Driver::Capture),
+            "oscilloscope" | "scope" => Some(Driver::Oscilloscope),
+            "generator" => Some(Driver::Generator),
+            "ws2812" => Some(Driver::Ws2812),
+            "glitch" => Some(Driver::Glitch),
             _ => None,
         }
     }

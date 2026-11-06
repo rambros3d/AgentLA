@@ -524,6 +524,13 @@
                     </div>
 
                     <div class="stimulus-deck-body">
+                        <!-- Stimulus Deck Subtabs -->
+                        <div class="stimulus-tabs" id="stimulus-tabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); padding: 4px 12px; margin-bottom: 8px;">
+                            <button class="stimulus-tab active sub-btn" data-tab="generator">⚡ Signal Generator</button>
+                            <button class="stimulus-tab sub-btn" data-tab="led">🌈 WS2812 LED &amp; Analyzer</button>
+                            <button class="stimulus-tab sub-btn" data-tab="glitch">💥 Fault &amp; Glitch Injector</button>
+                        </div>
+
                         <!-- Pattern Gen -->
                         <div class="stimulus-pane active" id="pane-generator">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -582,6 +589,111 @@
                             <div style="flex: 1; min-height: 80px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px; display: flex; flex-direction: column;">
                                 <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Waveform Model Preview</div>
                                 <canvas id="gen-preview-canvas" style="width: 100%; height: 100%; flex: 1; display: block; border-radius: 4px;"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Pane 2: WS2812 Pattern & Analyzer -->
+                        <div class="stimulus-pane" id="pane-led" style="display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">Addressable LED (WS2812B/SK6812) Pattern &amp; Margin Analyzer</div>
+                                <span class="dynamic-registry-pill" id="led-status-pill">
+                                    <span id="led-status-text">Ready</span>
+                                </span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
+                                <div class="claims-field">
+                                    <label>Pin (GP10–29)</label>
+                                    <select class="compact-select" id="led-pin-select">
+                                        <option value="15" selected>GP15</option>
+                                        <option value="16">GP16</option>
+                                        <option value="17">GP17</option>
+                                        <option value="18">GP18</option>
+                                        <option value="19">GP19</option>
+                                        <option value="20">GP20</option>
+                                        <option value="21">GP21</option>
+                                        <option value="22">GP22</option>
+                                    </select>
+                                </div>
+                                <div class="claims-field">
+                                    <label>Pattern</label>
+                                    <select class="compact-select" id="led-pattern-select">
+                                        <option value="rainbow" selected>Rainbow Wheel</option>
+                                        <option value="solid">Solid White</option>
+                                        <option value="red">Solid Red</option>
+                                        <option value="green">Solid Green</option>
+                                        <option value="blue">Solid Blue</option>
+                                        <option value="chase">Chase Loop</option>
+                                    </select>
+                                </div>
+                                <div class="claims-field">
+                                    <label>LED Count</label>
+                                    <input type="number" class="cmd-input" id="led-count-input" value="8" min="1" max="64">
+                                </div>
+                            </div>
+                            <div class="control-bar" style="margin-top: 8px; gap: 8px;">
+                                <button class="action-btn outline" id="led-btn-send" style="border-color: var(--accent-green); color: var(--accent-green);">Send Pattern</button>
+                                <button class="action-btn outline" id="led-btn-analyze" style="border-color: var(--accent-blue); color: var(--accent-blue);">Analyze Line Timings</button>
+                            </div>
+                            <div id="led-analysis-card" style="margin-top: 8px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <span style="font-size: 11px; font-weight: 700; color: var(--text-primary);">Line Timing Margins</span>
+                                    <span class="badge" id="led-pass-badge" style="font-size: 10px; font-weight: 700;">PASS</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 11px; font-family: monospace;">
+                                    <div>T0H: <span id="led-stat-t0h" style="color: var(--color-primary); font-weight: 600;">352 ns</span></div>
+                                    <div>T1H: <span id="led-stat-t1h" style="color: var(--color-secondary); font-weight: 600;">705 ns</span></div>
+                                    <div>T0L: <span id="led-stat-t0l">798 ns</span></div>
+                                    <div>Reset: <span id="led-stat-reset">65 µs</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pane 3: Glitch Injector -->
+                        <div class="stimulus-pane" id="pane-glitch" style="display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">Cycle-Accurate Hardware Fault &amp; Glitch Injector (150 MHz)</div>
+                                <span class="dynamic-registry-pill" id="glitch-status-pill">
+                                    <span id="glitch-status-text">Disarmed</span>
+                                </span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+                                <div class="claims-field">
+                                    <label>Glitch Pin (OUT)</label>
+                                    <select class="compact-select" id="glitch-pin-select">
+                                        <option value="20" selected>GP20</option>
+                                        <option value="21">GP21</option>
+                                        <option value="22">GP22</option>
+                                        <option value="23">GP23</option>
+                                    </select>
+                                </div>
+                                <div class="claims-field">
+                                    <label>Trigger Pin (IN)</label>
+                                    <select class="compact-select" id="glitch-trig-select">
+                                        <option value="14" selected>GP14</option>
+                                        <option value="15">GP15</option>
+                                        <option value="16">GP16</option>
+                                        <option value="17">GP17</option>
+                                    </select>
+                                </div>
+                                <div class="claims-field">
+                                    <label>Trigger Edge</label>
+                                    <select class="compact-select" id="glitch-edge-select">
+                                        <option value="rising" selected>Rising Edge</option>
+                                        <option value="falling">Falling Edge</option>
+                                    </select>
+                                </div>
+                                <div class="claims-field">
+                                    <label>Delay (ns)</label>
+                                    <input type="number" class="cmd-input" id="glitch-delay-input" value="1250" min="10" max="10000000">
+                                </div>
+                                <div class="claims-field">
+                                    <label>Width (ns)</label>
+                                    <input type="number" class="cmd-input" id="glitch-width-input" value="33" min="13" max="1000000">
+                                </div>
+                            </div>
+                            <div class="control-bar" style="margin-top: 8px; gap: 8px;">
+                                <button class="action-btn outline" id="glitch-btn-arm" style="border-color: var(--accent-green); color: var(--accent-green);">Arm Glitch</button>
+                                <button class="action-btn outline" id="glitch-btn-disarm" style="display: none; border-color: var(--accent-red); color: var(--accent-red);">Disarm</button>
                             </div>
                         </div>
                     </div>

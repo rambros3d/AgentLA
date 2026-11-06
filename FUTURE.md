@@ -5,33 +5,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 1. Analog & Mixed-Signal Instruments
-
-- [ ] **4-Channel 500 kS/s Analog Oscilloscope**
-  - **Scope**: Leverage the RP2350 SAR ADC on GPIO 26–29 (ADC 0–3) to sample up to 500 kS/s across 4 channels.
-  - **Triggering**: Rising edge, falling edge, and programmable voltage threshold triggers.
-  - **Metrics**: Real-time computation of $V_{pp}, V_{rms}$, frequency, and duty cycle.
-  - **Interface**: Canvas waveform viewer in the DaisyUI Web Desktop, plus REST endpoint `/api/v1/oscilloscope/data` and SSE streaming (`/api/v1/oscilloscope/stream`).
-  - **Pin Lifecycle**: Dynamic toggling between digital logic analyzer channels and high-Z analog inputs via `pin_owner`.
-  - **Reference**: `openspec/specs/analog-oscilloscope/spec.md`.
-
-- [ ] **Digital Signal & Arbitrary Clock Generator**
-  - **Scope**: Drive external clock references (1 Hz to 75 MHz), variable PWM sweeps, and pulse bursts on any flexible pin (GPIO 10–29).
-  - **Use Case**: Providing external MCO/HSE clock sources to un-brick MCUs with disabled internal RC oscillators; bench stimulus for PWM servos/motors.
-  - **Reference**: `openspec/specs/digital-signal-generator/spec.md`.
-
-- [ ] **Addressable RGB LED Tester & Timing Analyzer (WS2812B / SK6812)**
-  - **Scope**: Dedicated PIO transmitter and receiver for WS2812B/SK6812 LED protocols.
-  - **Capabilities**: Drive test patterns (color wheels, sweeps, static RGBW) and measure timing margins (T0H, T0L, T1H, T1L, reset latch delay) to detect degraded signal integrity or timing violations on LED strings.
-  - **Endpoints**: `/api/v1/led/pattern`, `/api/v1/led/analyze`.
-
-- [ ] **Hardware Glitch & Fault Injection**
-  - **Scope**: Cycle-accurate PIO-based voltage and clock glitching engine with nanosecond-resolution delay and pulse-width controls.
-  - **Use Case**: Hardware security evaluation, fault injection testing, and brownout recovery verification.
-
----
-
-## 2. Target Debugging & Flashing Expansions
+## 1. Target Debugging & Flashing Expansions
 
 - [ ] **Vendor UART Bootloader Recovery Engine**
   - **Scope**: ST AN3155 USART bootloader and WCH single-wire bootloader support.

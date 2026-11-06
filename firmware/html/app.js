@@ -2683,6 +2683,45 @@ function initAnalogScope(container) {
     const ctx = canvas.getContext('2d');
 
     let animId = null;
+    let liveScopeData = null;
+    let sseSource = null;
+
+    function connectScopeStream() {
+        if (sseSource) return;
+        try {
+            sseSource = new EventSource('/api/v1/oscilloscope/stream');
+            sseSource.addEventListener('frame', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    liveScopeData = data;
+                    if (data.vpp && data.vpp[0] !== undefined) {
+                        const vppEl = document.getElementById('scope-stat-vpp');
+                        if (vppEl) vppEl.textContent = `${data.vpp[0].toFixed(2)}V`;
+                    }
+                    if (data.vrms && data.vrms[0] !== undefined) {
+                        const vrmsEl = document.getElementById('scope-stat-vrms');
+                        if (vrmsEl) vrmsEl.textContent = `${data.vrms[0].toFixed(2)}V`;
+                    }
+                    if (data.freq && data.freq[0] !== undefined) {
+                        const freqEl = document.getElementById('scope-stat-freq');
+                        if (freqEl) freqEl.textContent = formatFreq(data.freq[0]);
+                    }
+                    if (data.duty && data.duty[0] !== undefined) {
+                        const dutyEl = document.getElementById('scope-stat-duty');
+                        if (dutyEl) dutyEl.textContent = `${data.duty[0].toFixed(1)}%`;
+                    }
+                } catch (err) {}
+            });
+            sseSource.onerror = () => {
+                if (sseSource) {
+                    sseSource.close();
+                    sseSource = null;
+                    setTimeout(connectScopeStream, 3000);
+                }
+            };
+        } catch (err) {}
+    }
+    connectScopeStream();
 
     function renderScope() {
         if (!canvas.parentElement || canvas.style.display === 'none') {
@@ -3412,30 +3451,146 @@ function initGenerator(container) {
 
     if (btnStart) {
         btnStart.addEventListener('click', async () => {
-            const pin = pinSelect ? pinSelect.value : '12';
-            const freq = freqInput ? freqInput.value : '1000';
-            const duty = dutyInput ? dutyInput.value : '50';
-            await callMcp('cmd', 'OUTCLAIM', `pin=${pin}`);
-            await callMcp('cmd', 'OUTSET', `pin=${pin} freq=${freq} duty=${duty}`);
-            if (btnStart) btnStart.style.display = 'none';
-            if (btnStop) btnStop.style.display = 'inline-flex';
-            if (statusText) statusText.textContent = `PWM Active on GP${pin} (${freq} Hz, ${duty}%)`;
-            if (statusPill) statusPill.classList.add('active');
-            updateStimulusSummary(true);
+            const pin = pinSelect ? parseInt(pinSelect.value, 10) : 12;
+            const freq = freqInput ? parseInt(freqInput.value, 10) : 1000;
+            const duty = dutyInput ? parseInt(dutyInput.value, 10) : 50;
+            const type = $(container, '#gen-type-select')?.value || 'square';
+            const burst = type === 'burst' ? 64 : 0;
+            try {
+                const res = await fetch('/api/v1/generator/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin, freq, duty, burst })
+                });
+                if (btnStart) btnStart.style.display = 'none';
+                if (btnStop) btnStop.style.display = 'inline-flex';
+                if (statusText) statusText.textContent = `PWM Active on GP${pin} (${freq} Hz, ${duty}%)`;
+                if (statusPill) statusPill.classList.add('active');
+                updateStimulusSummary(true);
+            } catch (err) {}
             syncPinRegistry();
         });
     }
 
     if (btnStop) {
         btnStop.addEventListener('click', async () => {
-            const pin = pinSelect ? pinSelect.value : '12';
-            await callMcp('cmd', 'OUTRELEASE', `pin=${pin}`);
-            if (btnStart) btnStart.style.display = 'inline-flex';
-            if (btnStop) btnStop.style.display = 'none';
-            if (statusText) statusText.textContent = 'Output Inactive';
-            if (statusPill) statusPill.classList.remove('active');
-            updateStimulusSummary(false);
+            const pin = pinSelect ? parseInt(pinSelect.value, 10) : 12;
+            try {
+                await fetch('/api/v1/generator/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin })
+                });
+                if (btnStart) btnStart.style.display = 'inline-flex';
+                if (btnStop) btnStop.style.display = 'none';
+                if (statusText) statusText.textContent = 'Output Inactive';
+                if (statusPill) statusPill.classList.remove('active');
+                updateStimulusSummary(false);
+            } catch (err) {}
             syncPinRegistry();
+        });
+    }
+
+    // --- WS2812 Controls ---
+    const ledPinSelect = $(container, '#led-pin-select');
+    const ledPatternSelect = $(container, '#led-pattern-select');
+    const ledCountInput = $(container, '#led-count-input');
+    const ledBtnSend = $(container, '#led-btn-send');
+    const ledBtnAnalyze = $(container, '#led-btn-analyze');
+    const ledStatusText = $(container, '#led-status-text');
+    const ledAnalysisCard = $(container, '#led-analysis-card');
+
+    if (ledBtnSend) {
+        ledBtnSend.addEventListener('click', async () => {
+            const pin = ledPinSelect ? parseInt(ledPinSelect.value, 10) : 15;
+            const pattern = ledPatternSelect ? ledPatternSelect.value : 'rainbow';
+            const count = ledCountInput ? parseInt(ledCountInput.value, 10) : 8;
+            if (ledStatusText) ledStatusText.textContent = `Sending ${pattern}...`;
+            try {
+                await fetch('/api/v1/led/pattern', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin, pattern, count })
+                });
+                if (ledStatusText) ledStatusText.textContent = `Pattern Sent on GP${pin}`;
+            } catch (e) {
+                if (ledStatusText) ledStatusText.textContent = 'Failed to send pattern';
+            }
+        });
+    }
+
+    if (ledBtnAnalyze) {
+        ledBtnAnalyze.addEventListener('click', async () => {
+            const pin = ledPinSelect ? parseInt(ledPinSelect.value, 10) : 15;
+            if (ledStatusText) ledStatusText.textContent = `Analyzing GP${pin}...`;
+            try {
+                const res = await fetch(`/api/v1/led/analyze?pin=${pin}`);
+                const data = await res.json();
+                if (ledAnalysisCard) ledAnalysisCard.style.display = 'block';
+                const passBadge = document.getElementById('led-pass-badge');
+                if (passBadge) {
+                    passBadge.textContent = data.result || 'PASS';
+                    passBadge.className = `badge ${data.result === 'PASS' ? 'badge-success' : 'badge-error'}`;
+                }
+                const t0h = document.getElementById('led-stat-t0h');
+                if (t0h) t0h.textContent = `${data.t0h_ns} ns`;
+                const t1h = document.getElementById('led-stat-t1h');
+                if (t1h) t1h.textContent = `${data.t1h_ns} ns`;
+                const t0l = document.getElementById('led-stat-t0l');
+                if (t0l) t0l.textContent = `${data.t0l_ns} ns`;
+                const rst = document.getElementById('led-stat-reset');
+                if (rst) rst.textContent = `${data.reset_us} µs`;
+                if (ledStatusText) ledStatusText.textContent = `Analysis Complete: ${data.result}`;
+            } catch (e) {
+                if (ledStatusText) ledStatusText.textContent = 'Analysis Failed';
+            }
+        });
+    }
+
+    // --- Glitch Injector Controls ---
+    const glitchPinSelect = $(container, '#glitch-pin-select');
+    const glitchTrigSelect = $(container, '#glitch-trig-select');
+    const glitchEdgeSelect = $(container, '#glitch-edge-select');
+    const glitchDelayInput = $(container, '#glitch-delay-input');
+    const glitchWidthInput = $(container, '#glitch-width-input');
+    const glitchBtnArm = $(container, '#glitch-btn-arm');
+    const glitchBtnDisarm = $(container, '#glitch-btn-disarm');
+    const glitchStatusText = $(container, '#glitch-status-text');
+    const glitchStatusPill = $(container, '#glitch-status-pill');
+
+    if (glitchBtnArm) {
+        glitchBtnArm.addEventListener('click', async () => {
+            const pin = glitchPinSelect ? parseInt(glitchPinSelect.value, 10) : 20;
+            const trig_pin = glitchTrigSelect ? parseInt(glitchTrigSelect.value, 10) : 14;
+            const edge = glitchEdgeSelect ? glitchEdgeSelect.value : 'rising';
+            const delay_ns = glitchDelayInput ? parseInt(glitchDelayInput.value, 10) : 1250;
+            const width_ns = glitchWidthInput ? parseInt(glitchWidthInput.value, 10) : 33;
+
+            try {
+                await fetch('/api/v1/glitch/arm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin, trig_pin, edge, delay_ns, width_ns })
+                });
+                if (glitchBtnArm) glitchBtnArm.style.display = 'none';
+                if (glitchBtnDisarm) glitchBtnDisarm.style.display = 'inline-flex';
+                if (glitchStatusText) glitchStatusText.textContent = `Armed: GP${pin} (Trig GP${trig_pin})`;
+                if (glitchStatusPill) glitchStatusPill.classList.add('active');
+            } catch (e) {
+                if (glitchStatusText) glitchStatusText.textContent = 'Failed to arm';
+            }
+        });
+    }
+
+    if (glitchBtnDisarm) {
+        glitchBtnDisarm.addEventListener('click', async () => {
+            try {
+                await fetch('/api/v1/glitch/disarm', { method: 'POST' });
+                if (glitchBtnArm) glitchBtnArm.style.display = 'inline-flex';
+                if (glitchBtnDisarm) glitchBtnDisarm.style.display = 'none';
+                if (glitchStatusText) glitchStatusText.textContent = 'Disarmed';
+                if (glitchStatusPill) glitchStatusPill.classList.remove('active');
+            } catch (e) {}
         });
     }
 

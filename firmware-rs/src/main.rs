@@ -13,6 +13,7 @@ use static_cell::StaticCell;
 mod analyzer;
 mod decoder;
 mod bridge;
+pub mod instruments;
 mod mcp;
 mod apps;
 mod fs_http;

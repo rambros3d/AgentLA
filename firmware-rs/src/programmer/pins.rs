@@ -8,10 +8,10 @@ pub const PIN_SWDIO: usize = 5;
 pub const PIN_RESET: usize = 6;
 pub const PIN_BOOT0: usize = 7;
 
-/// Programmer-bridge pin block (GPIO 4–14, pin 11 deliberately excluded — it stays
-/// flexible). Single source of truth: `tristate_pins` below and the fixed claims in
+/// Programmer-bridge pin block (fixed programmatic resources GPIO 4–9).
+/// Single source of truth: `tristate_pins` below and the fixed claims in
 /// `crate::pin_owner` are seeded from this list.
-pub const BRIDGE_PINS: [usize; 10] = [4, 5, 6, 7, 8, 9, 10, 12, 13, 14];
+pub const BRIDGE_PINS: [usize; 6] = [4, 5, 6, 7, 8, 9];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetPort {

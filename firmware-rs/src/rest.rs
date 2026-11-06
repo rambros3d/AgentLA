@@ -98,6 +98,10 @@ fn owner_cap(name: &str) -> Option<u32> {
         "i2c" => Some(pin_owner::CAP_I2C),
         "pwm" => Some(pin_owner::CAP_PWM),
         "pio0" | "pio1" | "pio2" => Some(pin_owner::CAP_PIO),
+        "oscilloscope" | "scope" => Some(pin_owner::CAP_ADC),
+        "generator" => Some(pin_owner::CAP_PWM),
+        "ws2812" => Some(pin_owner::CAP_PIO),
+        "glitch" => Some(pin_owner::CAP_PIO),
         _ => None,
     }
 }
@@ -151,6 +155,17 @@ pub struct BridgeUartOn;
 pub struct BridgeUartOff;
 pub struct BridgeUartWrite;
 pub struct BridgeUartRead;
+pub struct ScopeData;
+pub struct ScopeStart;
+pub struct ScopeStop;
+pub struct GeneratorStart;
+pub struct GeneratorStop;
+pub struct GeneratorStatus;
+pub struct LedPattern;
+pub struct LedAnalyze;
+pub struct GlitchArm;
+pub struct GlitchDisarm;
+pub struct GlitchStatus;
 
 macro_rules! service {
     ($t:ty, $m:expr) => {
@@ -170,6 +185,10 @@ service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cO
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
 service!(BridgeUartOn, "POST"); service!(BridgeUartOff, "POST"); service!(BridgeUartWrite, "POST"); service!(BridgeUartRead, "GET");
+service!(ScopeData, "GET"); service!(ScopeStart, "POST"); service!(ScopeStop, "POST");
+service!(GeneratorStart, "POST"); service!(GeneratorStop, "POST"); service!(GeneratorStatus, "GET");
+service!(LedPattern, "POST"); service!(LedAnalyze, "GET");
+service!(GlitchArm, "POST"); service!(GlitchDisarm, "POST"); service!(GlitchStatus, "GET");
 
 // ============ implementations ============
 impl ProfilesList {
@@ -1051,5 +1070,275 @@ impl MethodHandlerService<(), ()> for SettingsEndpoint {
         } else {
             send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await
         }
+    }
+}
+
+// ============ Mixed-Signal Instrument Suite Handlers ============
+
+impl ScopeData {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        match crate::instruments::oscilloscope::capture_frame() {
+            Ok(frame) => {
+                let m = &frame.metrics;
+                let mut b = heapless::String::<1024>::new();
+                let _ = core::fmt::Write::write_fmt(
+                    &mut b,
+                    format_args!(
+                        r#"{{"status":"ok","sample_rate":{},"ch_mask":{},"vpp_mv":[{},{},{},{}],"vrms_mv":[{},{},{},{}],"freq_hz":[{},{},{},{}],"duty":[{},{},{},{}],"samples_len":{}}}"#,
+                        frame.sample_rate, frame.ch_mask,
+                        m[0].vpp_mv, m[1].vpp_mv, m[2].vpp_mv, m[3].vpp_mv,
+                        m[0].vrms_mv, m[1].vrms_mv, m[2].vrms_mv, m[3].vrms_mv,
+                        m[0].freq_hz, m[1].freq_hz, m[2].freq_hz, m[3].freq_hz,
+                        m[0].duty_percent, m[1].duty_percent, m[2].duty_percent, m[3].duty_percent,
+                        frame.sample_count
+                    ),
+                );
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(e) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"error":"{}"}}"#, e));
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, b.as_str()).await
+            }
+        }
+    }
+}
+
+impl ScopeStart {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let sample_rate = key_int(query, &body, "sample_rate").map(|v| v as u32).unwrap_or(125_000);
+        let ch_mask = key_int(query, &body, "ch_mask").map(|v| v as u8).unwrap_or(0x0F);
+        let trigger_ch = key_int(query, &body, "trigger_ch").map(|v| v as u8).unwrap_or(0);
+        let threshold_mv = key_int(query, &body, "threshold_mv").map(|v| v as u16).unwrap_or(1650);
+
+        let cfg = crate::instruments::oscilloscope::ScopeConfig {
+            sample_rate,
+            ch_mask,
+            trigger_ch,
+            trigger_type: crate::instruments::oscilloscope::TriggerType::Rising,
+            threshold_mv,
+        };
+
+        match crate::instruments::oscilloscope::start(cfg) {
+            Ok(()) => send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","running":true}"#).await,
+            Err(e) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"error":"{}"}}"#, e));
+                send_json(request, response_writer, StatusCode::CONFLICT, b.as_str()).await
+            }
+        }
+    }
+}
+
+impl ScopeStop {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::instruments::oscilloscope::stop();
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"stopped","running":false}"#).await
+    }
+}
+
+impl GeneratorStart {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let pin = key_int(query, &body, "pin").map(|v| v as u32).unwrap_or(12);
+        let freq_hz = key_int(query, &body, "freq").or_else(|| key_int(query, &body, "frequency")).map(|v| v as u32).unwrap_or(1000);
+        let duty_percent = key_int(query, &body, "duty").or_else(|| key_int(query, &body, "duty_cycle")).map(|v| v as u8).unwrap_or(50);
+        let burst_count = key_int(query, &body, "burst").or_else(|| key_int(query, &body, "count")).map(|v| v as u32).unwrap_or(0);
+
+        let cfg = crate::instruments::generator::GeneratorConfig {
+            pin,
+            freq_hz,
+            duty_percent,
+            burst_count,
+        };
+
+        match crate::instruments::generator::start(cfg) {
+            Ok(()) => {
+                let mut b = heapless::String::<192>::new();
+                let _ = core::fmt::Write::write_fmt(
+                    &mut b,
+                    format_args!(
+                        r#"{{"status":"ok","pin":{},"freq":{},"duty":{},"burst":{}}}"#,
+                        pin, freq_hz, duty_percent, burst_count
+                    ),
+                );
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(e) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"error":"{}"}}"#, e));
+                send_json(request, response_writer, StatusCode::CONFLICT, b.as_str()).await
+            }
+        }
+    }
+}
+
+impl GeneratorStop {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::instruments::generator::stop();
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"stopped","active":false}"#).await
+    }
+}
+
+impl GeneratorStatus {
+    async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let st = crate::instruments::generator::get_status();
+        let mut b = heapless::String::<192>::new();
+        let _ = core::fmt::Write::write_fmt(
+            &mut b,
+            format_args!(
+                r#"{{"status":"ok","active":{},"pin":{},"freq":{},"duty":{},"burst":{},"running":{}}}"#,
+                st.active, st.pin, st.freq_hz, st.duty_percent, st.burst_count, st.running
+            ),
+        );
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+
+impl LedPattern {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let pin = key_int(query, &body, "pin").map(|v| v as u32).unwrap_or(15);
+        let pattern_str = key_str(query, &body, "pattern").unwrap_or_else(|| {
+            let mut s = heapless::String::new();
+            let _ = s.push_str("rainbow");
+            s
+        });
+        let count = key_int(query, &body, "count").map(|v| v as usize).unwrap_or(8);
+
+        match crate::instruments::ws2812::drive_pattern(pin, pattern_str.as_str(), count) {
+            Ok(()) => {
+                let mut b = heapless::String::<160>::new();
+                let _ = core::fmt::Write::write_fmt(
+                    &mut b,
+                    format_args!(
+                        r#"{{"status":"ok","pin":{},"pattern":"{}","count":{}}}"#,
+                        pin, pattern_str.as_str(), count
+                    ),
+                );
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(e) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"error":"{}"}}"#, e));
+                send_json(request, response_writer, StatusCode::BAD_REQUEST, b.as_str()).await
+            }
+        }
+    }
+}
+
+impl LedAnalyze {
+    async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let pin = query_val(query, "pin").and_then(|v| v.parse::<u32>().ok()).unwrap_or(15);
+
+        match crate::instruments::ws2812::analyze_timing(pin) {
+            Ok(rep) => {
+                let mut b = heapless::String::<256>::new();
+                let _ = core::fmt::Write::write_fmt(
+                    &mut b,
+                    format_args!(
+                        r#"{{"status":"ok","pin":{},"t0h_ns":{},"t1h_ns":{},"t0l_ns":{},"t1l_ns":{},"reset_us":{},"result":"{}","tolerances":{{"t0h_min":200,"t0h_max":500,"t1h_min":550,"t1h_max":850}}}}"#,
+                        rep.pin, rep.t0h_ns, rep.t1h_ns, rep.t0l_ns, rep.t1l_ns, rep.reset_us,
+                        if rep.passed { "PASS" } else { "FAIL" }
+                    ),
+                );
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(e) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"error":"{}"}}"#, e));
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, b.as_str()).await
+            }
+        }
+    }
+}
+
+impl GlitchArm {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let glitch_pin = key_int(query, &body, "pin").map(|v| v as u32).unwrap_or(20);
+        let trigger_pin = key_int(query, &body, "trig_pin").or_else(|| key_int(query, &body, "trigger_pin")).map(|v| v as u32).unwrap_or(14);
+        let delay_ns = key_int(query, &body, "delay_ns").map(|v| v as u32).unwrap_or(1250);
+        let width_ns = key_int(query, &body, "width_ns").map(|v| v as u32).unwrap_or(33);
+        let edge_str = key_str(query, &body, "edge");
+        let edge = if let Some(e) = edge_str {
+            if e.as_str().eq_ignore_ascii_case("falling") {
+                crate::instruments::glitch::TriggerEdge::Falling
+            } else {
+                crate::instruments::glitch::TriggerEdge::Rising
+            }
+        } else {
+            crate::instruments::glitch::TriggerEdge::Rising
+        };
+
+        let cfg = crate::instruments::glitch::GlitchConfig {
+            glitch_pin,
+            trigger_pin,
+            edge,
+            delay_ns,
+            width_ns,
+            polarity: crate::instruments::glitch::GlitchPolarity::ActiveLow,
+        };
+
+        match crate::instruments::glitch::arm(cfg) {
+            Ok(()) => {
+                let mut b = heapless::String::<192>::new();
+                let _ = core::fmt::Write::write_fmt(
+                    &mut b,
+                    format_args!(
+                        r#"{{"status":"armed","pin":{},"trig_pin":{},"delay_ns":{},"width_ns":{}}}"#,
+                        glitch_pin, trigger_pin, delay_ns, width_ns
+                    ),
+                );
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(e) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut b, format_args!(r#"{{"error":"{}"}}"#, e));
+                send_json(request, response_writer, StatusCode::CONFLICT, b.as_str()).await
+            }
+        }
+    }
+}
+
+impl GlitchDisarm {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::instruments::glitch::disarm();
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"disarmed","armed":false}"#).await
+    }
+}
+
+impl GlitchStatus {
+    async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let st = crate::instruments::glitch::get_status();
+        let mut b = heapless::String::<256>::new();
+        let _ = core::fmt::Write::write_fmt(
+            &mut b,
+            format_args!(
+                r#"{{"status":"ok","armed":{},"pin":{},"trig_pin":{},"delay_ns":{},"width_ns":{},"triggered":{},"trigger_count":{}}}"#,
+                st.armed, st.glitch_pin, st.trigger_pin, st.delay_ns, st.width_ns, st.triggered, st.trigger_count
+            ),
+        );
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
     }
 }
