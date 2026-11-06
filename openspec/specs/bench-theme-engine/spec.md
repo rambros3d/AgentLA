@@ -4,7 +4,7 @@
 TBD - created by archiving change adaptive-touch-desktop-webui. Update Purpose after archive.
 ## Requirements
 ### Requirement: Deep Dark and High-Contrast Light Theme Switching
-The WebUI SHALL provide a theme engine supporting dark themes (such as "Forest" OKLCH) and high-contrast light themes (such as "Emerald" and "CaramelLatte" OKLCH) using pure DaisyUI v5 semantic tokens, enforcing flat resting surface elevation with 1px borders rather than dual-source neumorphic drop shadows or specular rim highlights. Compiled `themes.css` SHALL structure `:root` fallback variables such that specific theme rules (`[data-theme="emerald"]`, `[data-theme="caramellatte"]`, `[data-theme-scheme="light"]`) take precedence and override default `:root` variables without cascade collision.
+The WebUI SHALL provide a theme engine supporting dark themes (such as "Forest" OKLCH) and high-contrast light themes (such as "Emerald" and "CaramelLatte" OKLCH) using pure DaisyUI v5 semantic tokens, enforcing flat resting surface elevation with 1px borders rather than dual-source neumorphic drop shadows or specular rim highlights. Compiled `themes.css` SHALL structure `:root` fallback variables such that specific theme rules (`[data-theme="emerald"]`, `[data-theme="caramellatte"]`, `[data-theme-scheme="light"]`) take precedence and override default `:root` variables without cascade collision. Both `index.html` and `apps.html` SHALL specify `data-theme="forest"` as their default static HTML markup to guarantee consistent rendering before client scripts execute.
 
 #### Scenario: Default deep dark theme application
 - **WHEN** the WebUI loads without existing user preference
