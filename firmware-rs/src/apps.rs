@@ -9,7 +9,7 @@
 //! `blocking_write`/`blocking_erase` inside a critical section with CORE1
 //! paused, so short ops keep IRQ latency bounded.
 
-use crate::storage::{with_fs, FlashStorage};
+use crate::storage::{self, with_fs, FlashStorage};
 use core::fmt::Write as _;
 use core::str::FromStr;
 use heapless::String;
@@ -126,6 +126,12 @@ impl defmt::Format for UnpackError {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum TarTarget {
+    App(String<32>),
+    System,
+}
+
 /// Streaming ustar unpacker. Feed arbitrary byte chunks with [`Self::feed`];
 /// the state machine buffers partial 512-byte headers internally, so the
 /// caller may use any chunk size. Nothing is buffered beyond one block plus
@@ -133,6 +139,7 @@ impl defmt::Format for UnpackError {
 /// `write_chunk` calls (open/seek/write/close per chunk — no retained file
 /// handle, no `unsafe`).
 pub struct TarUnpacker {
+    target: TarTarget,
     app: String<32>,
     app_dir: String<64>,
     state: UnpackerState,
@@ -157,6 +164,7 @@ impl TarUnpacker {
         write!(app_dir, "/apps/{}", app.as_str()).map_err(|_| UnpackError::BadArchiveName)?;
 
         let this = Self {
+            target: TarTarget::App(app.0.clone()),
             app: app.0.clone(),
             app_dir,
             state: UnpackerState::Header,
@@ -191,6 +199,31 @@ impl TarUnpacker {
             Some(Ok(())) => {}
             Some(Err(e)) => return Err(UnpackError::LittleFs(e)),
             None => return Err(UnpackError::NotMounted),
+        }
+        Ok(this)
+    }
+
+    /// Create an unpacker targeting SYSTEM_FS root (`/`).
+    pub fn new_system() -> Result<Self, UnpackError> {
+        let this = Self {
+            target: TarTarget::System,
+            app: String::new(),
+            app_dir: String::new(),
+            state: UnpackerState::Header,
+            hdr_buf: [0; ustar::BLOCK_LEN],
+            hdr_bytes_have: 0,
+            file_size: 0,
+            file_bytes_written: 0,
+            padding_needed: 0,
+            padding_discarded: 0,
+            file_path: String::new(),
+            total_files: 0,
+            total_bytes: 0,
+        };
+
+        let mounted = storage::with_system_fs(|_| ()).is_some();
+        if !mounted {
+            return Err(UnpackError::NotMounted);
         }
         Ok(this)
     }
@@ -311,29 +344,51 @@ impl TarUnpacker {
         self.file_size = parse_octal(&self.hdr_buf[ustar::SIZE..ustar::SIZE + ustar::SIZE_LEN]);
         let typeflag = self.hdr_buf[ustar::TYPEFLAG] as char;
 
-        // Sanitize the entry path relative to the app dir (security-critical).
+        // Sanitize the entry path relative to target root.
         let is_dir = typeflag == '5' || raw.ends_with('/');
-        let rel = match sanitize_entry(&raw, self.app.as_str()) {
-            Ok(rel) => rel,
-            Err(()) => {
-                defmt::warn!("apps: rejected tar entry path (traversal guard)");
-                self.state = UnpackerState::Error;
-                return;
+        let is_system = matches!(self.target, TarTarget::System);
+
+        let rel = if is_system {
+            match sanitize_system_entry(&raw) {
+                Ok(rel) => rel,
+                Err(()) => {
+                    defmt::warn!("system: rejected tar entry path (traversal guard)");
+                    self.state = UnpackerState::Error;
+                    return;
+                }
+            }
+        } else {
+            match sanitize_entry(&raw, self.app.as_str()) {
+                Ok(rel) => rel,
+                Err(()) => {
+                    defmt::warn!("apps: rejected tar entry path (traversal guard)");
+                    self.state = UnpackerState::Error;
+                    return;
+                }
             }
         };
+
         if rel.is_empty() {
-            // Entry collapses to the app root (".", app-name/, ...) — skip.
+            // Entry collapses to the root (".", app-name/, ...) — skip.
             return;
         }
 
         let mut full_path = String::<MAX_PATH_LEN>::new();
-        if full_path.push_str(self.app_dir.as_str()).is_err()
-            || full_path.push('/').is_err()
-            || full_path.push_str(rel.as_str()).is_err()
-        {
-            self.state = UnpackerState::Error;
-            return;
+        if is_system {
+            if full_path.push('/').is_err() || full_path.push_str(rel.as_str()).is_err() {
+                self.state = UnpackerState::Error;
+                return;
+            }
+        } else {
+            if full_path.push_str(self.app_dir.as_str()).is_err()
+                || full_path.push('/').is_err()
+                || full_path.push_str(rel.as_str()).is_err()
+            {
+                self.state = UnpackerState::Error;
+                return;
+            }
         }
+
         let path = match PathBuf::try_from(full_path.as_str()) {
             Ok(p) => p,
             Err(_) => {
@@ -342,21 +397,34 @@ impl TarUnpacker {
             }
         };
 
-        let root_len = self.app_dir.len();
-        let full: &str = full_path.as_str();
-        let outcome = with_fs(|fs| -> Result<(), FsError> {
-            if is_dir {
-                match fs.create_dir_all(&path) {
-                    Ok(()) | Err(FsError::ENTRY_ALREADY_EXISTED) => Ok(()),
-                    Err(e) => Err(e),
+        let outcome = if is_system {
+            storage::with_system_fs(|fs| -> Result<(), FsError> {
+                if is_dir {
+                    match fs.create_dir_all(&path) {
+                        Ok(()) | Err(FsError::ENTRY_ALREADY_EXISTED) => Ok(()),
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    fs.write(&path, &[])
                 }
-            } else {
-                ensure_parents(fs, full, root_len)?;
-                // Create/truncate the destination file up front; data is then
-                // appended chunk-by-chunk with `write_chunk`.
-                fs.write(&path, &[])
-            }
-        });
+            })
+        } else {
+            let root_len = self.app_dir.len();
+            let full: &str = full_path.as_str();
+            with_fs(|fs| -> Result<(), FsError> {
+                if is_dir {
+                    match fs.create_dir_all(&path) {
+                        Ok(()) | Err(FsError::ENTRY_ALREADY_EXISTED) => Ok(()),
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    ensure_parents(fs, full, root_len)?;
+                    // Create/truncate the destination file up front; data is then
+                    // appended chunk-by-chunk with `write_chunk`.
+                    fs.write(&path, &[])
+                }
+            })
+        };
 
         match outcome {
             Some(Ok(())) => {
@@ -374,7 +442,7 @@ impl TarUnpacker {
                 }
             }
             Some(Err(e)) => {
-                defmt::warn!("apps: tar entry failed: {}", defmt::Debug2Format(&e));
+                defmt::warn!("tar entry failed: {}", defmt::Debug2Format(&e));
                 self.state = UnpackerState::Error;
             }
             None => self.state = UnpackerState::Error,
@@ -388,7 +456,10 @@ impl TarUnpacker {
             Err(_) => return Err(UnpackError::BadEntryPath),
         };
         let pos = OpenSeekFrom::Start(self.file_bytes_written);
-        let res = with_fs(|fs| fs.write_chunk(&path, chunk, pos));
+        let res = match self.target {
+            TarTarget::System => storage::with_system_fs(|fs| fs.write_chunk(&path, chunk, pos)),
+            TarTarget::App(_) => with_fs(|fs| fs.write_chunk(&path, chunk, pos)),
+        };
         res.ok_or(UnpackError::NotMounted)?
             .map_err(UnpackError::LittleFs)
     }
@@ -488,6 +559,52 @@ fn sanitize_entry(raw: &str, app_name: &str) -> Result<heapless::String<128>, ()
     // Reject the ecosystem namespace as a first component ("/apps/" guard).
     if norm == "apps" || norm.starts_with("apps/") {
         return Err(());
+    }
+
+    let mut rel = heapless::String::<128>::new();
+    let mut depth = 0usize;
+    for comp in norm.trim_end_matches('/').split('/') {
+        if comp.is_empty() || comp == "." {
+            continue;
+        }
+        if comp == ".." || comp.len() > 64 {
+            return Err(());
+        }
+        depth += 1;
+        if depth > MAX_PATH_DEPTH {
+            return Err(());
+        }
+        if !rel.is_empty() {
+            rel.push('/').map_err(|_| ())?;
+        }
+        rel.push_str(comp).map_err(|_| ())?;
+    }
+
+    if rel.len() > MAX_PATH_LEN {
+        return Err(());
+    }
+    Ok(rel)
+}
+
+/// System WebUI path sanitization.
+fn sanitize_system_entry(raw: &str) -> Result<heapless::String<128>, ()> {
+    if raw.contains('\\') || raw.contains('\0') {
+        return Err(());
+    }
+
+    let norm = raw.trim_start_matches(['.', '/']);
+    if norm.is_empty() {
+        return Ok(heapless::String::new());
+    }
+
+    // Drop optional leading directory components like webui/ or dist/
+    let norm = match norm.split_once('/') {
+        Some((first, rest)) if first == "webui" || first == "dist" || first == "build" || first == "web-ui" => rest,
+        _ => norm,
+    };
+
+    if norm.is_empty() {
+        return Ok(heapless::String::new());
     }
 
     let mut rel = heapless::String::<128>::new();
@@ -859,6 +976,68 @@ pub async fn install_tarball<R: picoserve::io::Read>(
 
     Ok(InstallReport {
         app: app.0.clone(),
+        files: unpacker.total_files,
+        bytes: unpacker.total_bytes,
+    })
+}
+
+/// WebUI update summary.
+pub struct WebUiUpdateReport {
+    pub files: u32,
+    pub bytes: u32,
+}
+
+/// Stream request body into the tar unpacker and write System WebUI to SYSTEM_FS.
+pub async fn update_system_webui<R: picoserve::io::Read>(
+    body: picoserve::request::RequestBody<'_, R>,
+) -> Result<WebUiUpdateReport, InstallError> {
+    if body.content_length() > storage::SYSTEM_FS_SIZE_BYTES {
+        return Err(InstallError::TooLarge);
+    }
+
+    let mut unpacker = match TarUnpacker::new_system() {
+        Ok(u) => u,
+        Err(UnpackError::NotMounted) => return Err(InstallError::NotMounted),
+        Err(e) => return Err(InstallError::Failed(e)),
+    };
+
+    let mut reader = body
+        .reader()
+        .with_different_timeout(embassy_time::Duration::from_secs(60));
+
+    let mut buf = [0u8; 1024];
+    let mut total = 0usize;
+
+    loop {
+        match reader.read(&mut buf).await {
+            Ok(0) => break,
+            Ok(n) => {
+                let _consumed = unpacker.feed(&buf[..n]);
+                total += n;
+                if total > storage::SYSTEM_FS_SIZE_BYTES {
+                    return Err(InstallError::TooLarge);
+                }
+                if unpacker.state() == UnpackerState::Done {
+                    break;
+                }
+            }
+            Err(_) => {
+                return Err(InstallError::Io);
+            }
+        }
+    }
+
+    if unpacker.state() != UnpackerState::Done {
+        return Err(InstallError::Incomplete);
+    }
+
+    defmt::info!(
+        "system: updated System WebUI ({} files, {} bytes)",
+        unpacker.total_files,
+        unpacker.total_bytes
+    );
+
+    Ok(WebUiUpdateReport {
         files: unpacker.total_files,
         bytes: unpacker.total_bytes,
     })

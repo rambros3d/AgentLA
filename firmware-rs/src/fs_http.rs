@@ -1,37 +1,26 @@
 //! Serving of uploaded app files out of LittleFS and the streaming tarball
-//! installer endpoints.
-//!
-//! Picoserve 0.20 API facts used here (verified against the 0.20.1 source):
-//! - `picoserve::response::chunked::{Chunks, ChunkedResponse}` provides the
-//!   streaming response body mechanism (chunked transfer encoding).
-//! - There is no `{*wildcard}` path syntax; remaining-path routing is done
-//!   with `Router::nest_service` + a `PathRouterService`, which receives the
-//!   rest of the path (already split into URL-encoded segments).
-//! - Path parameters are `parse_path_segment::<T: FromStr>()` inside a tuple
-//!   path description (no `{name}` brace syntax in string routes).
-//! - Request bodies are accessed via `request.body_connection.body()`; the
-//!   `RequestBodyReader` obtained from `RequestBody::reader()` supports
-//!   `with_different_timeout` to lift the RUDY-protection 3s read timeout for
-//!   large uploads.
+//! installer endpoints, plus dynamic streaming of System WebUI assets from
+//! SYSTEM_FS with transparent Gzip decompression / Content-Encoding: gzip.
 
 use core::fmt::Write as _;
 
 use littlefs2::io::OpenSeekFrom;
 use littlefs2::path::PathBuf;
 use picoserve::io::Read;
-use picoserve::response::chunked::{ChunkedResponse, ChunkWriter, Chunks, ChunksWritten};
 use picoserve::request::{Path, Request};
+use picoserve::response::chunked::{ChunkWriter, ChunkedResponse, Chunks, ChunksWritten};
 use picoserve::response::{IntoResponse, ResponseWriter, StatusCode};
-use picoserve::{ResponseSent, routing::PathRouterService};
+use picoserve::routing::PathRouterService;
+use picoserve::ResponseSent;
 
 use crate::apps::{self, AppParams};
-use crate::storage::with_fs;
+use crate::storage::{with_fs, with_system_fs};
 
 /// Size of a single LittleFS read/write chunk served or stored per lock hold.
 pub const FS_CHUNK: usize = 512;
 
 // ---------------------------------------------------------------------------
-// MIME handling (C parity with `get_mime_type` in app_routing.c)
+// MIME handling
 // ---------------------------------------------------------------------------
 
 pub fn mime_for(path: &str) -> &'static str {
@@ -58,12 +47,10 @@ pub fn mime_for(path: &str) -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// Streaming file body from LittleFS
+// Streaming file body from LittleFS (USER_FS)
 // ---------------------------------------------------------------------------
 
 /// A [`Chunks`] impl that streams one LittleFS file in 512-byte chunks.
-/// Each chunk re-opens the file (seek + read + close) so the FS mutex is only
-/// held for microseconds at a time and SSE/web traffic is never starved.
 pub struct AppFileChunks {
     path: PathBuf,
     mime: &'static str,
@@ -80,9 +67,6 @@ impl Chunks for AppFileChunks {
     ) -> Result<ChunksWritten, W::Error> {
         let mut pos: u32 = 0;
         loop {
-            // `read_chunk` opens, seeks, reads and closes the file, then
-            // returns `(data, total_file_length)` — the `Option` layer is the
-            // unmounted-filesystem case from `with_fs`.
             let read = with_fs(|fs| {
                 fs.read_chunk::<FS_CHUNK>(&self.path, OpenSeekFrom::Start(pos))
                     .ok()
@@ -98,9 +82,7 @@ impl Chunks for AppFileChunks {
     }
 }
 
-/// Build the LittleFS path `/apps/{name}/{rest...}` from the URL-decoded
-/// segments following the app name. Returns `None` on traversal attempts or
-/// bad encoding.
+/// Build the LittleFS path `/apps/{name}/{rest...}` from the URL-decoded segments.
 fn app_fs_path(app: &AppParams, rest: &Path<'_>) -> Option<PathBuf> {
     let mut path = heapless::String::<255>::new();
     write!(path, "/apps/{}", app.as_str()).ok()?;
@@ -134,8 +116,7 @@ fn app_fs_path(app: &AppParams, rest: &Path<'_>) -> Option<PathBuf> {
     PathBuf::try_from(path.as_str()).ok()
 }
 
-/// `nest_service` handler for `/apps/{name}/{*path}`: serve files straight
-/// from LittleFS, `{"status":"not_found"}` when missing.
+/// `nest_service` handler for `/apps/{name}/{*path}`: serve files straight from LittleFS.
 pub struct AppFiles;
 
 impl PathRouterService<(), (AppParams,)> for AppFiles {
@@ -147,7 +128,7 @@ impl PathRouterService<(), (AppParams,)> for AppFiles {
         request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        if request.parts.method() != "GET" {
+        if request.parts.method() != "GET" && request.parts.method() != "HEAD" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,
                 ("Content-Type", "application/json"),
@@ -180,6 +161,156 @@ impl PathRouterService<(), (AppParams,)> for AppFiles {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Dynamic Streaming file body from SYSTEM_FS (WebUI partition)
+// ---------------------------------------------------------------------------
+
+/// A [`Chunks`] impl that streams one file from SYSTEM_FS in 512-byte chunks.
+pub struct SystemFileChunks {
+    path: PathBuf,
+    mime: &'static str,
+}
+
+impl Chunks for SystemFileChunks {
+    fn content_type(&self) -> &'static str {
+        self.mime
+    }
+
+    async fn write_chunks<W: picoserve::io::Write>(
+        self,
+        mut writer: ChunkWriter<W>,
+    ) -> Result<ChunksWritten, W::Error> {
+        let mut pos: u32 = 0;
+        loop {
+            let read = with_system_fs(|fs| {
+                fs.read_chunk::<FS_CHUNK>(&self.path, OpenSeekFrom::Start(pos))
+                    .ok()
+            });
+            let Some((chunk, _file_len)) = read.flatten() else { break };
+            if chunk.is_empty() {
+                break;
+            }
+            writer.write_chunk(chunk.as_slice()).await?;
+            pos += chunk.len() as u32;
+        }
+        writer.finalize().await
+    }
+}
+
+/// Request handler for dynamically serving System WebUI files out of Partition 1 (`SYSTEM_FS`).
+/// Supports transparent pre-compressed gzip streaming with `Content-Encoding: gzip`
+/// and falls back to uncompressed or emergency recovery page if partition is uninitialized.
+pub struct SystemWebFile {
+    file_name: &'static str,
+    mime: &'static str,
+}
+
+impl SystemWebFile {
+    pub const fn new(file_name: &'static str, mime: &'static str) -> Self {
+        Self { file_name, mime }
+    }
+}
+
+impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        if request.parts.method() != "GET" && request.parts.method() != "HEAD" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let client_accepts_gzip = request
+            .parts
+            .headers()
+            .iter()
+            .any(|(name, value)| {
+                name == "accept-encoding"
+                    && value.as_str().map(|v| v.contains("gzip")).unwrap_or(false)
+            });
+
+        // 1. If client accepts gzip, prioritize pre-compressed `.gz` asset from SYSTEM_FS
+        if client_accepts_gzip {
+            let mut gz_name = heapless::String::<64>::new();
+            if write!(gz_name, "/{}.gz", self.file_name).is_ok() {
+                if let Ok(gz_path) = PathBuf::try_from(gz_name.as_str()) {
+                    let exists = with_system_fs(|fs| {
+                        fs.metadata(&gz_path).map(|m| m.is_file()).unwrap_or(false)
+                    })
+                    .unwrap_or(false);
+
+                    if exists {
+                        let chunks = SystemFileChunks {
+                            path: gz_path,
+                            mime: self.mime,
+                        };
+                        let resp = ChunkedResponse::new(chunks).into_response();
+                        let resp = resp.with_header("Content-Encoding", "gzip");
+                        let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
+                            resp.with_header("Cache-Control", "public, max-age=31536000")
+                        } else {
+                            resp.with_header("Cache-Control", "no-cache")
+                        };
+                        return resp
+                            .write_to(request.body_connection.finalize().await?, response_writer)
+                            .await;
+                    }
+                }
+            }
+        }
+
+        // 2. Try raw uncompressed file from SYSTEM_FS
+        let mut raw_name = heapless::String::<64>::new();
+        if write!(raw_name, "/{}", self.file_name).is_ok() {
+            if let Ok(raw_path) = PathBuf::try_from(raw_name.as_str()) {
+                let exists = with_system_fs(|fs| {
+                    fs.metadata(&raw_path).map(|m| m.is_file()).unwrap_or(false)
+                })
+                .unwrap_or(false);
+
+                if exists {
+                    let chunks = SystemFileChunks {
+                        path: raw_path,
+                        mime: self.mime,
+                    };
+                    let resp = ChunkedResponse::new(chunks).into_response();
+                    let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
+                        resp.with_header("Cache-Control", "public, max-age=31536000")
+                    } else {
+                        resp.with_header("Cache-Control", "no-cache")
+                    };
+                    return resp
+                        .write_to(request.body_connection.finalize().await?, response_writer)
+                        .await;
+                }
+            }
+        }
+
+        // 3. Fallback recovery for HTML pages if partition is unpopulated
+        if self.file_name == "index.html" || self.file_name == "apps.html" {
+            const RECOVERY_HTML: &str = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>AgentLA WebUI Setup</title><style>body{font-family:sans-serif;background:#181818;color:#eee;padding:2rem;line-height:1.5;}code{background:#333;padding:0.2rem 0.4rem;border-radius:4px;}</style></head><body><h2>AgentLA WebUI Partition Uninitialized</h2><p>The System WebUI filesystem partition is currently empty.</p><p>To initialize, please flash <code>webui.uf2</code> via USB BOOTSEL or upload a WebUI tarball to <code>POST /api/v1/system/webui/update</code>.</p></body></html>";
+            return (
+                StatusCode::OK,
+                ("Content-Type", "text/html; charset=utf-8"),
+                RECOVERY_HTML,
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        not_found(request, response_writer).await
+    }
+}
+
 async fn not_found<R: Read, W: ResponseWriter<Error = R::Error>>(
     request: Request<'_, R>,
     response_writer: W,
@@ -197,9 +328,6 @@ async fn not_found<R: Read, W: ResponseWriter<Error = R::Error>>(
 // Tarball install endpoint: POST /api/v1/apps/install/{name}
 // ---------------------------------------------------------------------------
 
-/// Custom [`picoserve::routing::MethodHandlerService`] so we can combine the
-/// path parameter (app name) with access to the raw streaming request body —
-/// handler-function extractors cannot see path parameters.
 pub struct AppInstall;
 
 impl picoserve::routing::MethodHandlerService<(), (AppParams,)> for AppInstall {
@@ -223,8 +351,6 @@ impl picoserve::routing::MethodHandlerService<(), (AppParams,)> for AppInstall {
 
         let report = apps::install_tarball(&name, request.body_connection.body()).await;
 
-        // One concrete response type for all outcomes: a bounded JSON body in
-        // a heapless string (no alloc, single match shape).
         let mut body = heapless::String::<128>::new();
         let mut code = StatusCode::OK;
         match report {
@@ -247,6 +373,74 @@ impl picoserve::routing::MethodHandlerService<(), (AppParams,)> for AppInstall {
                         apps::InstallError::Incomplete => "{\"error\":\"incomplete_archive\"}",
                         apps::InstallError::Io | apps::InstallError::Failed(_) => {
                             "{\"error\":\"install_failed\"}"
+                        }
+                    }
+                );
+                code = match e {
+                    apps::InstallError::TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+                    apps::InstallError::NotMounted => StatusCode::SERVICE_UNAVAILABLE,
+                    apps::InstallError::Incomplete => StatusCode::BAD_REQUEST,
+                    apps::InstallError::Io | apps::InstallError::Failed(_) => {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    }
+                };
+            }
+        };
+
+        (code, ("Content-Type", "application/json"), body.as_str())
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// System WebUI Live Update endpoint: POST /api/v1/system/webui/update
+// ---------------------------------------------------------------------------
+
+pub struct SystemWebUiUpdate;
+
+impl picoserve::routing::MethodHandlerService<()> for SystemWebUiUpdate {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        if method != "POST" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let report = apps::update_system_webui(request.body_connection.body()).await;
+
+        let mut body = heapless::String::<128>::new();
+        let mut code = StatusCode::OK;
+        match report {
+            Ok(r) => {
+                let _ = write!(
+                    body,
+                    r#"{{"status":"updated","files":{},"bytes":{}}}"#,
+                    r.files,
+                    r.bytes
+                );
+            }
+            Err(e) => {
+                let _ = write!(
+                    body,
+                    "{}",
+                    match e {
+                        apps::InstallError::TooLarge => "{\"error\":\"payload_too_large\"}",
+                        apps::InstallError::NotMounted => "{\"error\":\"fs_not_mounted\"}",
+                        apps::InstallError::Incomplete => "{\"error\":\"incomplete_archive\"}",
+                        apps::InstallError::Io | apps::InstallError::Failed(_) => {
+                            "{\"error\":\"update_failed\"}"
                         }
                     }
                 );
