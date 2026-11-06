@@ -42,7 +42,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 3. AI Agent (MCP) Hardware Tools
+## 2. AI Agent (MCP) Hardware Tools
 
 - [ ] **Autonomous Target Circuit Diagnostic (`mcp_target_diagnose`)**
   - **Scope**: One-shot agent tool that inspects target rail voltage, tests pin pull-ups, identifies floating vs. driven lines, probes IDCODE/DPIDR, and determines if the MCU core is running, halted, or in a HardFault loop.
@@ -55,7 +55,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 4. Web Desktop, Telemetry & Streaming
+## 3. Web Desktop, Telemetry & Streaming
 
 - [ ] **In-Browser Web Serial Terminal App (`/apps/terminal`)**
   - **Scope**: An xterm.js terminal client inside the DaisyUI Web Desktop OS (`http://10.10.10.10/apps/terminal`).
@@ -82,7 +82,7 @@ This document tracks upcoming and planned features for the **AgentLA RP2350 Firm
 
 ---
 
-## 5. Factory Test & Bench Automation (FCT Station)
+## 4. Factory Test & Bench Automation (FCT Station)
 
 - [ ] **Dynamic Current & Sleep Profiling with Overcurrent Trip (BakuProbe INA180)**
   - **Scope**: BakuProbe onboard TI INA180 current sense circuit integration.
