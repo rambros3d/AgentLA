@@ -54,3 +54,14 @@ The system SHALL provide an offline host packager tool `tools/pack_flm.py` to ex
 #### Scenario: Pack FLM to binary
 - **WHEN** the packager tool is invoked with a valid `.FLM` or ELF file
 - **THEN** it generates a `.bin` file prefixed with a 44-byte `AlgoBlobHeader` containing `Init`, `EraseSector`, `ProgramPage`, and `UnInit` offsets and SRAM stack layout
+
+### Requirement: Double-buffered concurrent flashing
+The system SHALL support double-buffered concurrent page programming during flash algorithm execution to overlap transport streaming with on-chip flash burning.
+
+#### Scenario: Ping-pong buffer execution
+- **WHEN** flashing a target whose algorithm blob specifies sufficient target SRAM for two page buffers
+- **THEN** the system alternates between Buffer 0 and Buffer 1, streaming chunk $N+1$ over SWD while the target CPU is actively executing ProgramPage on chunk $N$
+
+#### Scenario: Fallback for low-RAM targets
+- **WHEN** target SRAM is insufficient for two full page buffers
+- **THEN** the system automatically falls back to synchronous single-buffer flashing without failing
