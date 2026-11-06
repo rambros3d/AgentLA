@@ -6,6 +6,7 @@
 build/
 build*/
 target/
+!firmware-rs/src/programmer/target/
 *.o
 *.elf
 *.bin

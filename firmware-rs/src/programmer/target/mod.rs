@@ -1,4 +1,5 @@
 pub mod cortex_m;
+pub mod diagnostic;
 pub mod nrf;
 pub mod qingke;
 pub mod targets;

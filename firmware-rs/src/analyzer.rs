@@ -385,3 +385,102 @@ pub async fn capture_task(pio0: embassy_rp::Peri<'static, embassy_rp::peripheral
         }
     }
 }
+
+// ============================================================================
+// Autonomous Bus Sniffer Engine
+// ============================================================================
+
+pub fn sniff_bus(protocol: &str, duration_ms: u32) -> Result<heapless::String<1536>, &'static str> {
+    use core::fmt::Write as _;
+    let dur = duration_ms.clamp(50, 1000);
+    let is_i2c = protocol.eq_ignore_ascii_case("i2c");
+    let is_spi = protocol.eq_ignore_ascii_case("spi");
+
+    if !is_i2c && !is_spi {
+        return Err("unsupported protocol (supported: i2c, spi)");
+    }
+
+    if is_i2c {
+        // Pins: SDA=16, SCL=17
+        let pins = [16u32, 17u32];
+        let slot = pin_owner::claim(pin_owner::Driver::Capture, &pins, pin_owner::CAP_SIO)
+            .map_err(|_| "pins [16, 17] already claimed by an active peripheral driver or programmer session")?;
+
+        let mut samples = [0u8; 1024];
+        let count = samples.len();
+        for i in 0..count {
+            let gpio_in = pac::SIO.gpio_in(0).read();
+            // bit 0 = GPIO 16 (SDA), bit 1 = GPIO 17 (SCL)
+            samples[i] = ((gpio_in >> 16) & 3) as u8;
+            cortex_m::asm::delay(150); // ~1 µs delay
+        }
+
+        let _ = pin_owner::release(slot);
+
+        let mut txs = heapless::Vec::<crate::decoder::I2cDecodedTransaction, 32>::new();
+        let total_tx = crate::decoder::i2c_decode_transactions(&samples, 1, 0, &mut txs);
+
+        let mut addrs = heapless::Vec::<u8, 16>::new();
+        for tx in txs.iter() {
+            if !addrs.contains(&tx.addr) {
+                let _ = addrs.push(tx.addr);
+            }
+        }
+
+        let mut out = heapless::String::<1536>::new();
+        let _ = write!(out, r#"{{"protocol":"i2c","duration_ms":{},"total_transactions":{},"active_addresses":["#, dur, total_tx);
+        for (i, &a) in addrs.iter().enumerate() {
+            if i > 0 { let _ = out.push(','); }
+            let _ = write!(out, r#""0x{:02x}""#, a);
+        }
+        let _ = write!(out, r#"],"transactions":["#);
+        for (i, tx) in txs.iter().enumerate() {
+            if i > 0 { let _ = out.push(','); }
+            let dir = if tx.is_read { "read" } else { "write" };
+            let _ = write!(out, r#"{{"address":"0x{:02x}","direction":"{}","ack":{},"data":""#, tx.addr, dir, tx.ack);
+            for d in 0..tx.data_len as usize {
+                let _ = write!(out, "{:02x}", tx.data[d]);
+            }
+            let _ = write!(out, r#""}}"#);
+        }
+        let _ = write!(out, r#"]}}"#);
+        Ok(out)
+    } else {
+        // SPI: SCK=18, MOSI=19, MISO=20, CS=21
+        let pins = [18u32, 19u32, 20u32, 21u32];
+        let slot = pin_owner::claim(pin_owner::Driver::Capture, &pins, pin_owner::CAP_SIO)
+            .map_err(|_| "pins [18, 19, 20, 21] already claimed by an active peripheral driver or programmer session")?;
+
+        let mut samples = [0u8; 1024];
+        let count = samples.len();
+        for i in 0..count {
+            let gpio_in = pac::SIO.gpio_in(0).read();
+            // bit 0 = 18 (SCK), bit 1 = 19 (MOSI), bit 2 = 20 (MISO), bit 3 = 21 (CS)
+            samples[i] = ((gpio_in >> 18) & 0x0F) as u8;
+            cortex_m::asm::delay(150);
+        }
+
+        let _ = pin_owner::release(slot);
+
+        let mut txs = heapless::Vec::<crate::decoder::SpiDecodedTransaction, 32>::new();
+        let total_tx = crate::decoder::spi_decode_transactions(&samples, 0, 1, 2, 3, &mut txs);
+
+        let mut out = heapless::String::<1536>::new();
+        let _ = write!(out, r#"{{"protocol":"spi","duration_ms":{},"total_transactions":{},"transactions":["#, dur, total_tx);
+        for (i, tx) in txs.iter().enumerate() {
+            if i > 0 { let _ = out.push(','); }
+            let _ = write!(out, r#"{{"mosi":""#);
+            for d in 0..tx.data_len as usize {
+                let _ = write!(out, "{:02x}", tx.mosi[d]);
+            }
+            let _ = write!(out, r#"","miso":""#);
+            for d in 0..tx.data_len as usize {
+                let _ = write!(out, "{:02x}", tx.miso[d]);
+            }
+            let _ = write!(out, r#""}}"#);
+        }
+        let _ = write!(out, r#"]}}"#);
+        Ok(out)
+    }
+}
+
