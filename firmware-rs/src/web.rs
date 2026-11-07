@@ -32,6 +32,7 @@ pub const PROGRAMMER_TARGET_NOT_DETECTED: &str =
 pub const PROGRAMMER_FLASH_OK: &str =
     r#"{"status":"ok","bytes_written":1024,"verified":true}"#;
 
+#[allow(dead_code)]
 pub async fn handle_programmer_target() -> ((&'static str, &'static str), &'static str) {
     match crate::programmer::detect_target_global() {
         Ok(t) => match t.family {
@@ -207,10 +208,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),
         )
-        .route(
-            "/api/v1/programmer/target",
-            get(|| async move { handle_programmer_target().await }),
-        )
+        .route_service("/api/v1/programmer/target", crate::rest::ProgrammerTarget)
         .route(
             "/api/v1/programmer/flash",
             post(|| async move {

@@ -40,7 +40,7 @@ impl SwioTransport {
             w.set_pue(true);
             w.set_pde(false);
             w.set_slewfast(true);
-            w.set_drive(pac::pads::vals::Drive::_12M_A);
+            w.set_drive(pac::pads::vals::Drive::_4M_A);
         });
 
         self.prog_offset = 0;
@@ -66,7 +66,7 @@ impl SwioTransport {
             w.set_wrap_bottom(self.prog_offset + SWIO_WRAP_TARGET);
             w.set_wrap_top(self.prog_offset + SWIO_WRAP_SOURCE);
             w.set_side_en(false);
-            w.set_side_pindir(true);
+            w.set_side_pindir(false);
         });
 
         sm.shiftctrl().write(|w| {
@@ -83,14 +83,6 @@ impl SwioTransport {
         });
 
         sm.instr().write(|w| {
-            w.set_instr(0b111_00000_000_00000);
-        });
-
-        sm.instr().write(|w| {
-            w.set_instr(0b111_00000_100_00000);
-        });
-
-        sm.instr().write(|w| {
             w.set_instr(0x0000 | (self.prog_offset as u16));
         });
 
@@ -103,18 +95,18 @@ impl SwioTransport {
         });
         pac::SIO.gpio_out(0).value_clr().write_value(1 << swio_pin);
         pac::SIO.gpio_oe(0).value_set().write_value(1 << swio_pin);
-        delay_cycles(2000);
+        delay_cycles(1500); // ~10 µs low reset pulse
         pac::SIO.gpio_oe(0).value_clr().write_value(1 << swio_pin);
         pac::IO_BANK0.gpio(swio_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
-        delay_cycles(5000);
+        delay_cycles(1500);
 
         let _ = self.put(WCH_DM_SHDWCFGR, 0x5AA50400);
         let _ = self.put(WCH_DM_CFGR, 0x5AA50400);
         let _ = self.put(DM_DMCONTROL, 0x00000000);
-        let _ = self.put(DM_DMCONTROL, 0x00000001);
+        let _ = self.put(DM_DMCONTROL, 0x80000001);
 
         self.initialized = true;
     }

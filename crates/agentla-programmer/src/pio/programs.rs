@@ -28,35 +28,36 @@ pub const SWD_WRAP_SOURCE: u8 = 10;
 pub const SWD_WRAP_TARGET: u8 = 3;
 
 // ============================================================================
-// 2. WCH 1-Wire SWIO (swio.pio)
+// 2. WCH 1-Wire SWIO (Push-Pull Tx, Active Pull-Up Rx)
 // ============================================================================
-pub const SWIO_INSTRUCTIONS: [u16; 23] = [
-    0x82a0, //  0: pull   block           side 0 [2]
-    0x7158, //  1: out    y, 24           side 1 [1]
-    0xa242, //  2: nop                    side 0 [2]
-    0x7021, //  3: out    x, 1            side 1
-    0x1026, //  4: jmp    !x, 6           side 1
-    0xb542, //  5: nop                    side 1 [5]
-    0x02e3, //  6: jmp    !osre, 3        side 0 [2]
-    0x0030, //  7: jmp    !x, 16          side 0
-    0x0009, //  8: jmp    9               side 0
-    0xe03f, //  9: set    x, 31           side 0
-    0xb142, // 10: nop                    side 1 [1]
-    0xa242, // 11: nop                    side 0 [2]
-    0x4201, // 12: in     pins, 1         side 0 [2]
-    0x024a, // 13: jmp    x--, 10         side 0 [2]
-    0xa642, // 14: nop                    side 0 [6]
-    0x0a00, // 15: jmp    0               side 0 [10]
-    0x81a0, // 16: pull   block           side 0 [1]
-    0x7021, // 17: out    x, 1            side 1
-    0x1034, // 18: jmp    !x, 20          side 1
-    0xb542, // 19: nop                    side 1 [5]
-    0x02f1, // 20: jmp    !osre, 17       side 0 [2]
-    0xa642, // 21: nop                    side 0 [6]
-    0x0a00, // 22: jmp    0               side 0 [10]
+pub const SWIO_INSTRUCTIONS: [u16; 24] = [
+    0xf281, //  0: set pindirs, 1       side 1 [2]
+    0x90a0, //  1: pull   block         side 1 [0]
+    0x6158, //  2: out    y, 24         side 0 [1]
+    0xb242, //  3: nop                  side 1 [2]
+    0x6021, //  4: out    x, 1          side 0 [0]
+    0x0027, //  5: jmp    !x, 7         side 0 [0]
+    0xa542, //  6: nop                  side 0 [5]
+    0x12e4, //  7: jmp    !osre, 4      side 1 [2]
+    0x1031, //  8: jmp    !x, 17        side 1 [0]
+    0xf03f, //  9: set    x, 31         side 1 [0]
+    0xe181, // 10: set    pindirs, 1    side 0 [1]
+    0xb042, // 11: nop                  side 1 [0]
+    0xf180, // 12: set    pindirs, 0    side 1 [1]
+    0x5201, // 13: in     pins, 1       side 1 [2]
+    0x124a, // 14: jmp    x--, 10       side 1 [2]
+    0xf681, // 15: set    pindirs, 1    side 1 [6]
+    0x1a00, // 16: jmp    0             side 1 [10]
+    0x91a0, // 17: pull   block         side 1 [1]
+    0x6021, // 18: out    x, 1          side 0 [0]
+    0x0035, // 19: jmp    !x, 21        side 0 [0]
+    0xa542, // 20: nop                  side 0 [5]
+    0x12f2, // 21: jmp    !osre, 18     side 1 [2]
+    0xb642, // 22: nop                  side 1 [6]
+    0x1a00, // 23: jmp    0             side 1 [10]
 ];
 
-pub const SWIO_WRAP_SOURCE: u8 = 22;
+pub const SWIO_WRAP_SOURCE: u8 = 23;
 pub const SWIO_WRAP_TARGET: u8 = 0;
 
 // ============================================================================

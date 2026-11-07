@@ -26,8 +26,24 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             false
         }
         "probe_target" => {
-            let _ = write!(out, "transport=SWD/RVSWD/SWIO (ports 1-3 armed)");
-            false
+            let port_str = extract_string_arg(body, "port");
+            let target = match port_str {
+                Some("ch32v203") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v203),
+                Some("ch32v003") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003),
+                Some("bluepill") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::BluePill),
+                _ => crate::programmer::detect_target_global(),
+            };
+            match target {
+                Ok(info) => {
+                    let _ = write!(out, "detected=true name=\"{}\" family={:?} idcode=0x{:08X} flash={}KB",
+                        info.name, info.family, info.idcode, info.flash_size / 1024);
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, "detected=false error={:?}", e);
+                    true
+                }
+            }
         }
         "read_pins" => {
             let bank = pac::SIO.gpio_in(0).read();

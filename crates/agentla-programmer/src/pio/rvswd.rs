@@ -95,7 +95,7 @@ impl RvswdTransport {
 
         sm.pinctrl().write(|w| {
             w.set_sideset_base(clk_pin as u8);
-            w.set_sideset_count(2);
+            w.set_sideset_count(1);
             w.set_out_base(dio_pin as u8);
             w.set_out_count(1);
             w.set_set_base(dio_pin as u8);

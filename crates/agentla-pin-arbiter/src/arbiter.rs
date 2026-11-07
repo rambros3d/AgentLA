@@ -163,9 +163,9 @@ impl<Q: PinQuiesce> PinArbiter<Q> {
         pin < 32 && (self.fixed_mask & (1 << pin)) != 0
     }
 
-    /// Return the capability bitmask for a pin (0 if not in flexible pool).
+    /// Return the capability bitmask for a pin (0 if not in flexible or fixed pool).
     pub fn capabilities(&self, pin: u32) -> u32 {
-        if self.is_flex(pin) {
+        if self.is_flex(pin) || self.is_fixed(pin) {
             capabilities(pin)
         } else {
             0
@@ -271,7 +271,7 @@ impl<Q: PinQuiesce> PinArbiter<Q> {
             if self.owner_of(pin).is_some() {
                 return Err(ClaimError::Conflict);
             }
-            if !self.has_capability(pin, required_caps) {
+            if !allow_fixed && !self.has_capability(pin, required_caps) {
                 return Err(ClaimError::CapabilityMissing);
             }
         }

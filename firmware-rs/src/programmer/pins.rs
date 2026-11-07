@@ -31,9 +31,12 @@ pub enum TargetPort {
     Ch32v003, // GPIO 12 (SWIO), 13 (nRST), 14 (UART RX)
 }
 
-/// Tristate and safely float all programmer pins (bridge block, GPIO 4–14 excluding 11)
+/// All pins used across all 3 target ports
+pub const ALL_TARGET_PINS: [usize; 9] = [4, 5, 6, 8, 9, 10, 12, 13, 14];
+
+/// Tristate and safely float all programmer pins (all ports, GPIO 4–14)
 pub fn tristate_pins() {
-    for pin in BRIDGE_PINS {
+    for pin in ALL_TARGET_PINS {
         pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
         pac::PADS_BANK0.gpio(pin).modify(|w| {
             w.set_iso(false);
@@ -84,9 +87,18 @@ impl ProgrammerPins {
         tristate_pins();
         let mut transport = SwioTransport::new();
         match port {
-            TargetPort::Ch32v003 => transport.init_pin(12),
-            TargetPort::Ch32v203 => transport.init_pin(9),
-            TargetPort::BluePill => transport.init_pin(PIN_SWDIO),
+            TargetPort::Ch32v003 => {
+                drive_reset_pin(13, false);
+                transport.init_pin(12);
+            }
+            TargetPort::Ch32v203 => {
+                drive_reset_pin(10, false);
+                transport.init_pin(9);
+            }
+            TargetPort::BluePill => {
+                drive_reset_pin(PIN_RESET, false);
+                transport.init_pin(PIN_SWDIO);
+            }
         }
         SwioSession {
             transport,
@@ -102,9 +114,18 @@ impl ProgrammerPins {
         tristate_pins();
         let mut transport = RvswdTransport::new();
         match port {
-            TargetPort::Ch32v203 => transport.init_pins(8, 9),
-            TargetPort::BluePill => transport.init_pins(PIN_SWCLK, PIN_SWDIO),
-            TargetPort::Ch32v003 => transport.init_pins(PIN_SWCLK, PIN_SWDIO),
+            TargetPort::Ch32v203 => {
+                drive_reset_pin(10, false);
+                transport.init_pins(8, 9);
+            }
+            TargetPort::BluePill => {
+                drive_reset_pin(PIN_RESET, false);
+                transport.init_pins(PIN_SWCLK, PIN_SWDIO);
+            }
+            TargetPort::Ch32v003 => {
+                drive_reset_pin(13, false);
+                transport.init_pins(PIN_SWCLK, PIN_SWDIO);
+            }
         }
         RvswdSession {
             transport,
@@ -168,6 +189,7 @@ pub fn drive_reset_pin(pin: usize, assert_low: bool) {
     if assert_low {
         // Drive low
         pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
             w.set_pue(false);
@@ -181,6 +203,7 @@ pub fn drive_reset_pin(pin: usize, assert_low: bool) {
     } else {
         // Release high (input with pullup)
         pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_iso(false);
             w.set_ie(true);
             w.set_od(true);
             w.set_pue(true);
@@ -195,6 +218,7 @@ pub fn drive_reset_pin(pin: usize, assert_low: bool) {
 
 pub fn pulse_reset_pin(pin: usize) {
     pac::PADS_BANK0.gpio(pin).modify(|w| {
+        w.set_iso(false);
         w.set_ie(true);
         w.set_od(false);
         w.set_pue(false);
@@ -207,6 +231,7 @@ pub fn pulse_reset_pin(pin: usize) {
     pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
     cortex_m::asm::delay(3_000_000); // 20 ms
     pac::PADS_BANK0.gpio(pin).modify(|w| {
+        w.set_iso(false);
         w.set_ie(true);
         w.set_od(true);
         w.set_pue(true);
@@ -300,35 +325,39 @@ impl Drop for SwioSession {
 
 impl SwioSession {
     pub fn attach(&mut self) -> Result<u32, crate::programmer::swio::SwioError> {
-        // Halt and reset sequence matching proven PicoRVD / minichlink:
-        self.transport.put(0x10, 0x80000001); // Halt core
-        cortex_m::asm::delay(150_000);
-        self.transport.put(0x10, 0x80000003); // Assert NDMRESET
-        cortex_m::asm::delay(300_000);
-        self.transport.put(0x10, 0x80000001); // Release NDMRESET while holding halt
-        cortex_m::asm::delay(300_000);
-        self.transport.put(0x10, 0x90000001); // Ack havereset (bit 28)
-        cortex_m::asm::delay(150_000);
-        self.transport.put(0x10, 0x80000001); // Keep core halted
-        self.transport.put(0x18, 0x00000000); // Clear ABSTRACTAUTO
-        self.transport.put(0x16, 0x08000700); // Clear ABSTRACTCS errors (cmderr)
-        cortex_m::asm::delay(150_000);
+        // Retry loop matching minichlink DefaultSetupInterface / DefaultUnbrick
+        for _ in 0..50 {
+            self.transport.put(0x7E, 0x5AA50400); // DMSHDWCFGR
+            self.transport.put(0x7D, 0x5AA50400); // DMCFGR
+            self.transport.put(0x10, 0x80000001); // DMCONTROL haltreq + dmactive
+            self.transport.put(0x10, 0x80000001);
+            if let Ok(dmstatus) = self.transport.get(0x11) {
+                if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+                    return Ok(dmstatus);
+                }
+            }
+            cortex_m::asm::delay(30_000); // ~200 µs
+        }
 
-        let mut dmstatus = self.transport.get(0x11).unwrap_or(0);
-        if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
-            return Ok(dmstatus);
-        }
-        // Pulse nRESET on GPIO 13 and retry
+        // Pulse nRESET on GPIO 13, wait 15ms recovery, re-initialize SWIO pin
         pulse_reset_pin(13);
+        cortex_m::asm::delay(2_250_000); // 15 ms
         self.transport.init_pin(12);
-        self.transport.put(0x10, 0x80000001);
-        self.transport.put(0x18, 0x00000000);
-        self.transport.put(0x16, 0x08000700);
-        dmstatus = self.transport.get(0x11)?;
-        if dmstatus == 0 || dmstatus == 0xFFFFFFFF {
-            return Err(crate::programmer::swio::SwioError::Timeout);
+
+        for _ in 0..100 {
+            self.transport.put(0x7E, 0x5AA50400);
+            self.transport.put(0x7D, 0x5AA50400);
+            self.transport.put(0x10, 0x80000001);
+            self.transport.put(0x10, 0x80000001);
+            if let Ok(dmstatus) = self.transport.get(0x11) {
+                if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+                    return Ok(dmstatus);
+                }
+            }
+            cortex_m::asm::delay(30_000);
         }
-        Ok(dmstatus)
+
+        Err(crate::programmer::swio::SwioError::Timeout)
     }
 
     pub fn release(mut self) -> ProgrammerPins {
@@ -365,23 +394,28 @@ impl Drop for RvswdSession {
 
 impl RvswdSession {
     pub fn attach(&mut self) -> Result<u32, crate::programmer::rvswd::RvswdError> {
-        let mut dmstatus = self.transport.read(0x11).unwrap_or(0);
-        if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
-            return Ok(dmstatus);
-        }
         let _ = self.transport.reset();
-        dmstatus = self.transport.read(0x11).unwrap_or(0);
-        if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
-            return Ok(dmstatus);
+        for _ in 0..10 {
+            if let Ok(dmstatus) = self.transport.read(0x11) {
+                if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+                    return Ok(dmstatus);
+                }
+            }
+            let _ = self.transport.reset();
+            cortex_m::asm::delay(30_000);
         }
         // Pulse nRESET on GPIO 10 and retry
         pulse_reset_pin(10);
         let _ = self.transport.reset();
-        dmstatus = self.transport.read(0x11)?;
-        if dmstatus == 0 || dmstatus == 0xFFFFFFFF {
-            return Err(crate::programmer::rvswd::RvswdError::Timeout);
+        for _ in 0..10 {
+            if let Ok(dmstatus) = self.transport.read(0x11) {
+                if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+                    return Ok(dmstatus);
+                }
+            }
+            cortex_m::asm::delay(30_000);
         }
-        Ok(dmstatus)
+        Err(crate::programmer::rvswd::RvswdError::Timeout)
     }
 
     pub fn release(mut self) -> ProgrammerPins {

@@ -10,6 +10,7 @@ use core::fmt::Write as _;
 use rp_pac as pac;
 
 use crate::board::ActiveBoard;
+use agentla_bsp::BoardProfile;
 use crate::programmer::pins::{TargetPort, PIN_RESET, PIN_SWCLK, PIN_SWDIO};
 use crate::programmer::target::cortex_m::*;
 use crate::programmer::target::qingke::*;
@@ -384,11 +385,16 @@ impl TargetDiagnosticReport {
 pub fn run_target_diagnose(port_hint: Option<&str>) -> TargetDiagnosticReport {
     let rail_voltage_mv = measure_target_rail_mv();
     let rail_status = classify_rail_voltage(rail_voltage_mv);
-    let pins = probe_swd_pins(PIN_SWCLK, PIN_SWDIO, PIN_RESET);
+    let (swclk_pin, swdio_pin, nrst_pin) = match port_hint {
+        Some("ch32v003") => (14, 12, 13),
+        Some("ch32v203") => (8, 9, 10),
+        _ => (PIN_SWCLK, PIN_SWDIO, PIN_RESET),
+    };
+    let pins = probe_swd_pins(swclk_pin, swdio_pin, nrst_pin);
     let pin_integrity = pins.is_healthy();
 
-    // 1. If unpowered (< 0.5V), return immediately without entering connection loops
-    if rail_status == RailStatus::Unpowered {
+    // 1. If board has dedicated target power control/sense and rail is unpowered (< 0.5V), return early
+    if ActiveBoard::FEATURES.target_power_control && rail_status == RailStatus::Unpowered {
         let mut root_cause = heapless::String::new();
         let _ = write!(root_cause, "Target supply rail unpowered (< 0.5V)");
         return TargetDiagnosticReport {
@@ -417,6 +423,45 @@ pub fn run_target_diagnose(port_hint: Option<&str>) -> TargetDiagnosticReport {
 
         // Check if port_hint requests RISC-V specifically
         let try_rvswd = port_hint == Some("ch32v203") || port_hint == Some("ch32v003");
+
+        if port_hint == Some("ch32v003") {
+            // Fast-path: RISC-V 1-wire SWIO on Port 3 (GPIO 12 SWIO, 13 nRST)
+            let mut swio_session = pins_ref.into_swio_port(TargetPort::Ch32v003);
+            if let Ok(dmstatus) = swio_session.attach() {
+                if dmstatus != 0 && dmstatus != 0xFFFFFFFF {
+                    let mut qingke = QingKe::new_1wire(&mut swio_session.transport);
+                    let mcause = qingke.read_reg(0x342).unwrap_or(0);
+                    let mepc = qingke.read_reg(0x341).unwrap_or(0);
+                    let mtval = qingke.read_reg(0x343).unwrap_or(0);
+                    let pc = qingke.read_reg(0x7B1).ok();
+
+                    let status = if (dmstatus & (1 << 9)) != 0 { "halted" } else { "running" };
+                    let mut root_cause = heapless::String::new();
+                    synthesize_riscv_root_cause(dmstatus, mcause, mepc, mtval, &mut root_cause);
+
+                    *pins_ref = swio_session.release();
+                    return TargetDiagnosticReport {
+                        rail_voltage_mv,
+                        rail_status,
+                        pins,
+                        pin_integrity,
+                        target_connected: true,
+                        architecture: Some("RISC-V (QingKe V2 1-Wire)"),
+                        dpidr: None,
+                        cpuid: None,
+                        dhcsr: Some(dmstatus),
+                        cfsr: Some(mcause),
+                        hfsr: None,
+                        bfar: Some(mtval),
+                        pc,
+                        lr: None,
+                        status,
+                        root_cause,
+                    };
+                }
+            }
+            *pins_ref = swio_session.release();
+        }
 
         if !try_rvswd {
             // First try ARM SWD on BluePill (Port 1)

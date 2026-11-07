@@ -21,6 +21,7 @@ use target::cortex_m::CortexM;
 use target::qingke::QingKe;
 use target::targets::TargetInfo;
 use target::TargetError;
+use rp_pac as pac;
 
 pub static PROGRAMMER_PINS: Mutex<CriticalSectionRawMutex, RefCell<ProgrammerPins>> =
     Mutex::new(RefCell::new(ProgrammerPins::new()));
@@ -54,10 +55,11 @@ pub fn debug_probe_bluepill_global() -> (u32, u8, u32) {
 pub fn debug_probe_ch32v203_global() -> (u32, u32) {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
-        let rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
-        let dmstatus = rvswd_session.read(0x11).unwrap_or(0xDEADBEEF);
+        let mut rvswd_session = pins.into_rvswd_port(TargetPort::Ch32v203);
+        let dmstatus = rvswd_session.attach().unwrap_or(0xDEADBEEF);
+        let partid = rvswd_session.read(0x7F).unwrap_or(0);
         *pins = rvswd_session.release();
-        (dmstatus, 0)
+        (dmstatus, partid)
     })
 }
 
@@ -65,12 +67,14 @@ pub fn debug_probe_ch32v003_global() -> (u32, u32, u32, u32) {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
         let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
-        let dmstatus = swio_session.attach().unwrap_or(0);
+        let dmstatus_res = swio_session.attach();
+        let dmstatus = dmstatus_res.unwrap_or(0);
         let partid = swio_session.get(0x7F).unwrap_or(0);
-        let abstractcs = swio_session.get(0x16).unwrap_or(0);
-        let hartinfo = swio_session.get(0x12).unwrap_or(0);
+        let sm_pc = pac::PIO0.sm(0).addr().read();
+        let fstat = pac::PIO0.fstat().read().0;
+        let gpio_in = pac::SIO.gpio_in(0).read();
         *pins = swio_session.release();
-        (dmstatus, partid, abstractcs, hartinfo)
+        (dmstatus, partid, (sm_pc.0 << 16) | (fstat & 0xFFFF), gpio_in)
     })
 }
 
@@ -157,32 +161,64 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
             let _ = rvswd_session.attach();
             let mut qk = QingKe::new_2wire(&mut rvswd_session.transport);
             let _ = qk.halt();
-            let res = qk
-                .mem_read_block(addr, buf)
-                .map_err(|e| match e {
-                    target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
-                    target::qingke::QingKeError::Timeout => TargetError::FlashErrorCode(992),
-                    _ => TargetError::ProtocolError,
-                });
+
+            // minichlink fast PROGBUF read
+            let _ = qk.dmi_write(0x18, 0); // DMABSTRACTAUTO = 0
+            let _ = qk.dmi_write(0x20, 0x40044180); // DMPROGBUF0
+            let _ = qk.dmi_write(0x21, 0xc1040411); // DMPROGBUF1
+            let _ = qk.dmi_write(0x22, 0x9002c180); // DMPROGBUF2
+            let _ = qk.dmi_write(0x04, 0xe00000f4); // DMDATA0 = &DATA0
+            let _ = qk.dmi_write(0x17, 0x0023100a); // x10 = &DATA0
+            let _ = qk.dmi_write(0x04, 0xe00000f8); // DMDATA0 = &DATA1
+            let _ = qk.dmi_write(0x17, 0x0023100b); // x11 = &DATA1
+            let _ = qk.dmi_write(0x18, 1); // DMABSTRACTAUTO = 1
+            let _ = qk.dmi_write(0x05, addr); // DMDATA1 = addr
+
+            let mut offset = 0usize;
+            while offset + 4 <= buf.len() {
+                cortex_m::asm::delay(1500);
+                if let Ok(w) = qk.dmi_read(0x04) {
+                    buf[offset..offset + 4].copy_from_slice(&w.to_le_bytes());
+                }
+                offset += 4;
+            }
+
+            let _ = qk.dmi_write(0x18, 0);
             let _ = qk.resume();
             *pins = rvswd_session.release();
-            res
+            Ok(())
         }
         TargetPort::Ch32v003 => {
             let mut swio_session = pins.into_swio_port(TargetPort::Ch32v003);
             let _ = swio_session.attach();
             let mut qk = QingKe::new_1wire(&mut swio_session.transport);
             let _ = qk.halt();
-            let res = qk
-                .mem_read_block(addr, buf)
-                .map_err(|e| match e {
-                    target::qingke::QingKeError::CommandErrorCode(c) => TargetError::FlashErrorCode(c),
-                    target::qingke::QingKeError::Timeout => TargetError::FlashErrorCode(992),
-                    _ => TargetError::ProtocolError,
-                });
+
+            // minichlink fast PROGBUF read
+            let _ = qk.dmi_write(0x18, 0); // DMABSTRACTAUTO = 0
+            let _ = qk.dmi_write(0x20, 0x40044180); // DMPROGBUF0
+            let _ = qk.dmi_write(0x21, 0xc1040411); // DMPROGBUF1
+            let _ = qk.dmi_write(0x22, 0x9002c180); // DMPROGBUF2
+            let _ = qk.dmi_write(0x04, 0xe00000f4); // DMDATA0 = &DATA0
+            let _ = qk.dmi_write(0x17, 0x0023100a); // x10 = &DATA0
+            let _ = qk.dmi_write(0x04, 0xe00000f8); // DMDATA0 = &DATA1
+            let _ = qk.dmi_write(0x17, 0x0023100b); // x11 = &DATA1
+            let _ = qk.dmi_write(0x18, 1); // DMABSTRACTAUTO = 1
+            let _ = qk.dmi_write(0x05, addr); // DMDATA1 = addr
+
+            let mut offset = 0usize;
+            while offset + 4 <= buf.len() {
+                cortex_m::asm::delay(1500);
+                if let Ok(w) = qk.dmi_read(0x04) {
+                    buf[offset..offset + 4].copy_from_slice(&w.to_le_bytes());
+                }
+                offset += 4;
+            }
+
+            let _ = qk.dmi_write(0x18, 0);
             let _ = qk.resume();
             *pins = swio_session.release();
-            res
+            Ok(())
         }
     }
 }

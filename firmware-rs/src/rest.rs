@@ -42,6 +42,17 @@ fn key_int(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key:
     }
     None
 }
+fn key_u32(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key: &str) -> Option<u32> {
+    if let Some(v) = key_str(q, body, key) {
+        let s = v.as_str().trim();
+        if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+            return u32::from_str_radix(hex, 16).ok();
+        } else {
+            return s.parse::<u32>().ok();
+        }
+    }
+    None
+}
 fn key_str(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key: &str) -> Option<heapless::String<64>> {
     if let Some(v)=query_val(q,key){ return Some(v); }
     let mut pat = heapless::String::<64>::new();
@@ -130,6 +141,7 @@ pub struct LogicAnalyzerStatus;
 pub struct LogicAnalyzerConfig;
 pub struct LogicAnalyzerData;
 pub struct LogicAnalyzerVcd;
+pub struct ProgrammerTarget;
 pub struct ProgrammerReset;
 pub struct ProgrammerResetCatch;
 pub struct ProgrammerRescueStm32;
@@ -593,6 +605,59 @@ impl LogicAnalyzerVcd {
     }
 }
 
+impl ProgrammerTarget {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let port_str = key_str(query, &body, "port");
+        let result = match port_str.as_ref().map(|s| s.as_str()) {
+            Some("ch32v203") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v203),
+            Some("ch32v003") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003),
+            Some("bluepill") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::BluePill),
+            _ => crate::programmer::detect_target_global(),
+        };
+        match result {
+            Ok(target) => {
+                let mut resp = heapless::String::<256>::new();
+                let _ = write!(
+                    resp,
+                    r#"{{"status":"ok","detected":true,"family":"{:?}","name":"{}","idcode":"0x{:08X}","flash_base":"0x{:08X}","flash_size":{},"ram_base":"0x{:08X}","ram_size":{}}}"#,
+                    target.family, target.name, target.idcode, target.flash_base, target.flash_size, target.ram_base, target.ram_size
+                );
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<192>::new();
+                if port_str.as_ref().map(|s| s.as_str()) == Some("ch32v203") {
+                    let (dmstatus, partid) = crate::programmer::debug_probe_ch32v203_global();
+                    let _ = write!(
+                        resp,
+                        r#"{{"status":"error","detected":false,"port":"ch32v203","error":"{:?}","dmstatus":"0x{:08X}","partid":"0x{:08X}"}}"#,
+                        e, dmstatus, partid
+                    );
+                } else {
+                    let (dmstatus, partid, abstractcs, hartinfo) = crate::programmer::debug_probe_ch32v003_global();
+                    let _ = write!(
+                        resp,
+                        r#"{{"status":"error","detected":false,"port":"ch32v003","error":"{:?}","dmstatus":"0x{:08X}","partid":"0x{:08X}","abstractcs":"0x{:08X}","hartinfo":"0x{:08X}"}}"#,
+                        e, dmstatus, partid, abstractcs, hartinfo
+                    );
+                }
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+        }
+    }
+}
+
+impl MethodHandlerService<(), ()> for ProgrammerTarget {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error=R::Error>>(
+        &self, _state: &(), (): (), _method: &str, request: Request<'_, R>, response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        ProgrammerTarget::run(request, response_writer).await
+    }
+}
+
 impl ProgrammerReset {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
@@ -702,16 +767,34 @@ impl ProgrammerErase {
 impl ProgrammerRead {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let _ = read_body_str(&mut request).await;
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let port_str = key_str(query, &body, "port");
+        let port = match port_str.as_ref().map(|s| s.as_str()) {
+            Some("ch32v203") => crate::programmer::TargetPort::Ch32v203,
+            Some("ch32v003") => crate::programmer::TargetPort::Ch32v003,
+            _ => crate::programmer::TargetPort::BluePill,
+        };
+        let addr = key_u32(query, &body, "addr").unwrap_or(0x08000000);
+
         let mut buf = [0u8; 16];
-        let _ = crate::programmer::read_flash_global(0x08000000, &mut buf);
-        let mut hex = heapless::String::<64>::new();
-        for &b in &buf {
-            let _ = write!(hex, "{:02X}", b);
+        let res = crate::programmer::read_flash_port_global(port, addr, &mut buf);
+        match res {
+            Ok(_) => {
+                let mut hex = heapless::String::<64>::new();
+                for &b in &buf {
+                    let _ = write!(hex, "{:02X}", b);
+                }
+                let mut resp = heapless::String::<160>::new();
+                let _ = write!(resp, r#"{{"status":"ok","port":"{:?}","addr":{},"len":16,"data_hex":"{}"}}"#, port, addr, hex.as_str());
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"error","port":"{:?}","error":"{:?}"}}"#, port, e);
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, resp.as_str()).await
+            }
         }
-        let mut resp = heapless::String::<128>::new();
-        let _ = write!(resp, r#"{{"status":"ok","addr":134217728,"len":16,"data_hex":"{}"}}"#, hex.as_str());
-        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
     }
 }
 
