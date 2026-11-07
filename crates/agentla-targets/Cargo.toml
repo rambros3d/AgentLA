@@ -1,0 +1,37 @@
+[package]
+name = "agentla-targets"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Universal target microcontroller catalog, 20 parameterized hardware flash engines, and 3-tier cascade dispatcher"
+license = "Apache-2.0"
+
+[dependencies]
+
+[features]
+default = ["all-targets"]
+std = []
+stm32 = []
+nordic = []
+microchip = []
+nxp = []
+ti = []
+silabs = []
+renesas = []
+raspberrypi = []
+riscv = []
+rescue = []
+embedded-loaders = []
+all-targets = [
+    "stm32",
+    "nordic",
+    "microchip",
+    "nxp",
+    "ti",
+    "silabs",
+    "renesas",
+    "raspberrypi",
+    "riscv",
+    "rescue",
+    "embedded-loaders",
+]

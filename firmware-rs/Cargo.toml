@@ -33,6 +33,7 @@ agentla-debug-server = { path = "../crates/agentla-debug-server", features = ["d
 agentla-instruments = { path = "../crates/agentla-instruments", features = ["defmt"] }
 agentla-pin-arbiter = { path = "../crates/agentla-pin-arbiter", features = ["defmt"] }
 agentla-mcp = { path = "../crates/agentla-mcp" }
+agentla-targets = { path = "../crates/agentla-targets", default-features = false, features = ["all-targets"] }
 agentla-board-pico2 = { path = "../boards/pico2" }
 agentla-board-bakuprobe = { path = "../boards/bakuprobe", optional = true }
 

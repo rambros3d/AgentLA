@@ -26,3 +26,4 @@ pub use target::{
     QingKeError, QingKeFamily, QingKeWire, TargetError, TargetFamily, TargetInfo,
 };
 pub use traits::{RvswdIo, SwdIo, SwioIo};
+pub use agentla_targets as targets;

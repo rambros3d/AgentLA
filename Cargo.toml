@@ -8,6 +8,7 @@ members = [
     "crates/agentla-debug-server",
     "crates/agentla-instruments",
     "crates/agentla-pin-arbiter",
+    "crates/agentla-targets",
     "crates/agentla-mcp",
     "boards/pico2",
     "boards/bakuprobe",

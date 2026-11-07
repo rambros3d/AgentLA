@@ -7,6 +7,7 @@ description = "Hardware-agnostic debug and flash programming protocols with opti
 license = "Apache-2.0"
 
 [dependencies]
+agentla-targets = { path = "../agentla-targets", default-features = false, features = ["all-targets"] }
 rp-pac = { version = "7.0.0", features = ["rp235x"], optional = true }
 
 [features]

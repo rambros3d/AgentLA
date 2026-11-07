@@ -14,7 +14,7 @@ use crate::servo;
 
 pub const MAX_BODY: usize = 4096;
 
-pub fn handle_request(body: &[u8]) -> heapless::String<3072> {
+pub fn handle_request(body: &[u8]) -> heapless::String<4096> {
     let server = McpServer::with_handler(invoke_tool);
     server.handle_request(body)
 }

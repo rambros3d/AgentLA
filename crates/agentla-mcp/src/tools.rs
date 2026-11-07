@@ -128,6 +128,18 @@ pub const TOOL_SNIFF_BUS: Tool = Tool::new(
     r#"{"type":"object","properties":{"protocol":{"type":"string","enum":["i2c","spi"],"description":"Bus protocol to sniff"},"duration_ms":{"type":"integer","description":"Sniff duration in milliseconds (50 - 1000)"}},"required":["protocol"]}"#,
 );
 
+pub const TOOL_PROGRAMMER_UNBRICK: Tool = Tool::new(
+    "programmer_unbrick",
+    "Unbrick / mass-erase protected target microcontroller across STM32 RDP, Nordic APPROTECT, NXP MDM-AP, and Microchip SAMD",
+    r#"{"type":"object","properties":{"target":{"type":"string","description":"Target family or commercial part number"}}}"#,
+);
+
+pub const TOOL_CATALOG_LOOKUP: Tool = Tool::new(
+    "catalog_lookup",
+    "Query universal target catalog by part number or DevID to inspect flash/RAM size and direct engine",
+    r#"{"type":"object","properties":{"query":{"type":"string","description":"Part number prefix (e.g. STM32F401, nRF52840, CH32V003)"}},"required":["query"]}"#,
+);
+
 /// Three composite AI Agent hardware tools.
 pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_TARGET_DIAGNOSE,
@@ -135,8 +147,8 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (14 standard + 3 composite tools).
-pub static ALL_TOOLS: [Tool; 17] = [
+/// Full catalog of AgentLA tools (16 standard + 3 composite tools).
+pub static ALL_TOOLS: [Tool; 19] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
@@ -149,6 +161,8 @@ pub static ALL_TOOLS: [Tool; 17] = [
     TOOL_LOGIC_ANALYZER_DATA,
     TOOL_PROGRAMMER_READ,
     TOOL_PROGRAMMER_RESET,
+    TOOL_PROGRAMMER_UNBRICK,
+    TOOL_CATALOG_LOOKUP,
     TOOL_I2C_SCAN,
     TOOL_WS2812_TRANSMIT,
     TOOL_TARGET_DIAGNOSE,
