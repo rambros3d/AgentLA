@@ -22,7 +22,7 @@ impl FileExt for File {
     }
 }
 
-pub const SYSTEM_JSON: &str = r#"{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":150,"cores":2,"flash_bytes":4194304,"sram_bytes":532480,"littlefs_offset":"0x00190000","firmware":"AgentLA v1.0.0-rust","status":"healthy"}"#;
+pub const SYSTEM_JSON: &str = r#"{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":150,"cores":2,"flash_bytes":4194304,"sram_bytes":532480,"littlefs_offset":"0x00270000","firmware":"AgentLA v1.0.0-rust","status":"healthy"}"#;
 
 pub const PINS_JSON: &str = r#"{"status":"ok","count":30,"mcu":"RP2350A","pins":[{"pin":0,"name":"UART0_TX","mode":"UART"},{"pin":1,"name":"UART0_RX","mode":"UART"},{"pin":4,"name":"SWCLK","mode":"SWD"},{"pin":5,"name":"SWDIO","mode":"SWD"},{"pin":6,"name":"nRESET","mode":"GPIO"},{"pin":25,"name":"LED","mode":"OUTPUT"}]}"#;
 
@@ -196,14 +196,9 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             "/api/v1/system",
             get(|| async move { (("Content-Type", "application/json"), SYSTEM_JSON) }),
         )
-        .route(
-            "/api/v1/system/bootsel",
-            post(|| async move {
-                embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
-                embassy_rp::rom_data::reset_to_usb_boot(0, 0);
-                (("Content-Type", "application/json"), r#"{"status":"rebooting_bootsel"}"#)
-            }),
-        )
+        .route_service("/api/v1/system/firmware/status", crate::rest::FirmwareStatus)
+        .route_service("/api/v1/system/firmware/rollback", crate::rest::FirmwareRollback)
+        .route_service("/api/v1/system/firmware/ota", crate::rest::FirmwareOtaStream)
         .route(
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),

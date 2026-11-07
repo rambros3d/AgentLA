@@ -1,0 +1,9 @@
+[package]
+name = "agentla-boot-proto"
+version = "0.1.0"
+edition = "2021"
+description = "Shared protocol, structures, and CRC routines for AgentLA Dual-Slot Bootloader and OTA"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Completely zero dependencies for maximum portability and no-std embedded safety

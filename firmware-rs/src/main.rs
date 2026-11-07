@@ -12,6 +12,7 @@ use static_cell::StaticCell;
 
 mod analyzer;
 pub mod board;
+pub mod boot;
 mod decoder;
 mod bridge;
 pub mod instruments;
@@ -216,6 +217,13 @@ async fn main(spawner: embassy_executor::Spawner) {
         "LittleFS subsystem {}",
         if mounted { "ready" } else { "FAILED to mount (web fallback active)" }
     );
+
+    // 3d. Dual-Slot Boot Confirmation
+    // If running in candidate mode, confirm slot as permanently active now that
+    // core USB, networking, and filesystems have started successfully.
+    if let Err(()) = boot::ota_confirm() {
+        defmt::error!("Failed to confirm candidate OTA slot");
+    }
 
     // Initialize and tristate all programmer pins
     crate::programmer::pins::tristate_pins();

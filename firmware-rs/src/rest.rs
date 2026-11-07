@@ -206,6 +206,7 @@ service!(ScopeData, "GET"); service!(ScopeStart, "POST"); service!(ScopeStop, "P
 service!(GeneratorStart, "POST"); service!(GeneratorStop, "POST"); service!(GeneratorStatus, "GET");
 service!(LedPattern, "POST"); service!(LedAnalyze, "GET");
 service!(GlitchArm, "POST"); service!(GlitchDisarm, "POST"); service!(GlitchStatus, "GET");
+service!(FirmwareStatus, "GET"); service!(FirmwareRollback, "POST");
 
 // ============ implementations ============
 impl ProfilesList {
@@ -1556,5 +1557,252 @@ impl GlitchStatus {
             ),
         );
         send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+
+pub struct FirmwareStatus;
+pub struct FirmwareRollback;
+pub struct FirmwareOtaStream;
+
+impl FirmwareStatus {
+    async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let (bt, _) = crate::boot::get_boot_state();
+        let cur = crate::boot::current_executing_slot();
+        let mut b = heapless::String::<256>::new();
+        let cand = match bt.get_candidate_slot() {
+            Some(agentla_boot_proto::SlotId::SlotA) => "\"SlotA\"",
+            Some(agentla_boot_proto::SlotId::SlotB) => "\"SlotB\"",
+            None => "null",
+        };
+        let _ = core::fmt::Write::write_fmt(
+            &mut b,
+            format_args!(
+                r#"{{"active_slot":"{:?}","current_slot":"{:?}","candidate_slot":{},"state":"{:?}","boot_attempts":{},"slot_a_size":{},"slot_b_size":{},"firmware":"AgentLA v1.0.0-rust"}}"#,
+                bt.get_active_slot(), cur, cand, bt.get_state(), bt.boot_attempts, bt.slot_a_size, bt.slot_b_size
+            ),
+        );
+        send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+    }
+}
+
+impl FirmwareRollback {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        if crate::boot::ota_rollback().is_err() {
+            return send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"error":"rollback_failed"}"#).await;
+        }
+        let res = send_json(request, response_writer, StatusCode::OK, r#"{"status":"rollback_initiated","rebooting":true}"#).await;
+        embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
+        cortex_m::peripheral::SCB::sys_reset();
+        res
+    }
+}
+
+impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        (): (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "POST" {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::METHOD_NOT_ALLOWED,
+                r#"{"error":"method_not_allowed"}"#,
+            )
+            .await;
+        }
+
+        let mut reader = request.body_connection.body().reader();
+
+        // 1. Read 64-byte FirmwareHeader
+        let mut hdr_bytes = [0u8; agentla_boot_proto::FirmwareHeader::SIZE];
+        let mut hdr_read = 0;
+        while hdr_read < hdr_bytes.len() {
+            match reader.read(&mut hdr_bytes[hdr_read..]).await {
+                Ok(0) => break,
+                Ok(n) => hdr_read += n,
+                Err(_) => {
+                    return send_json(
+                        request,
+                        response_writer,
+                        StatusCode::BAD_REQUEST,
+                        r#"{"error":"stream_read_error"}"#,
+                    )
+                    .await;
+                }
+            }
+        }
+
+        if hdr_read < hdr_bytes.len() {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::BAD_REQUEST,
+                r#"{"error":"incomplete_header"}"#,
+            )
+            .await;
+        }
+
+        let hdr = match agentla_boot_proto::FirmwareHeader::from_bytes(&hdr_bytes) {
+            Some(h) => h,
+            None => {
+                return send_json(
+                    request,
+                    response_writer,
+                    StatusCode::BAD_REQUEST,
+                    r#"{"error":"invalid_header_or_crc"}"#,
+                )
+                .await;
+            }
+        };
+
+        if !hdr.matches_board(b"PICO2") && !hdr.matches_board(b"BAKUPROB") {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::BAD_REQUEST,
+                r#"{"error":"board_mismatch"}"#,
+            )
+            .await;
+        }
+
+        if hdr.payload_size as usize > crate::storage::SLOT_SIZE_BYTES {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::PAYLOAD_TOO_LARGE,
+                r#"{"error":"payload_too_large"}"#,
+            )
+            .await;
+        }
+
+        let cur_slot = crate::boot::current_executing_slot();
+        let target_slot = cur_slot.other();
+        let slot_base = target_slot.flash_offset();
+
+        // 2. Erase the inactive slot range in flash
+        let erase_len = ((hdr.payload_size as usize + 4095) / 4096) * 4096;
+        if crate::storage::flash_slot_erase(slot_base, slot_base + erase_len as u32).is_err() {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                r#"{"error":"flash_erase_failed"}"#,
+            )
+            .await;
+        }
+
+        // 3. Stream payload chunks, write in 256-byte pages, compute CRC32
+        let mut page_buf = [0xFFu8; 256];
+        let mut page_idx = 0;
+        let mut written_bytes = 0u32;
+        let mut crc_val = 0xFFFF_FFFFu32;
+
+        let mut chunk_buf = [0u8; 512];
+        loop {
+            let n = match reader.read(&mut chunk_buf).await {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => {
+                    return send_json(
+                        request,
+                        response_writer,
+                        StatusCode::BAD_REQUEST,
+                        r#"{"error":"payload_read_error"}"#,
+                    )
+                    .await;
+                }
+            };
+
+            for &b in &chunk_buf[..n] {
+                // CRC update
+                crc_val ^= b as u32;
+                for _ in 0..8 {
+                    if crc_val & 1 != 0 {
+                        crc_val = (crc_val >> 1) ^ 0xEDB8_8320;
+                    } else {
+                        crc_val >>= 1;
+                    }
+                }
+
+                page_buf[page_idx] = b;
+                page_idx += 1;
+                if page_idx == 256 {
+                    let page_offset = slot_base + written_bytes;
+                    if crate::storage::flash_slot_write(page_offset, &page_buf).is_err() {
+                        return send_json(
+                            request,
+                            response_writer,
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            r#"{"error":"flash_write_failed"}"#,
+                        )
+                        .await;
+                    }
+                    written_bytes += 256;
+                    page_buf.fill(0xFF);
+                    page_idx = 0;
+                }
+            }
+        }
+
+        // Write residual partial page
+        if page_idx > 0 {
+            let page_offset = slot_base + written_bytes;
+            if crate::storage::flash_slot_write(page_offset, &page_buf).is_err() {
+                return send_json(
+                    request,
+                    response_writer,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    r#"{"error":"flash_write_residual_failed"}"#,
+                )
+                .await;
+            }
+            written_bytes += page_idx as u32;
+        }
+
+        let computed_crc = !crc_val;
+        if written_bytes != hdr.payload_size || computed_crc != hdr.payload_crc {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::BAD_REQUEST,
+                r#"{"error":"payload_crc_mismatch"}"#,
+            )
+            .await;
+        }
+
+        // 4. Update Boot Table to stage candidate slot
+        if crate::boot::stage_candidate(target_slot, hdr.payload_size, hdr.payload_crc).is_err() {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                r#"{"error":"boot_table_update_failed"}"#,
+            )
+            .await;
+        }
+
+        let mut resp = heapless::String::<128>::new();
+        let _ = core::fmt::Write::write_fmt(
+            &mut resp,
+            format_args!(
+                r#"{{"status":"staged","slot":"{:?}","bytes":{},"crc":"0x{:08X}","rebooting":true}}"#,
+                target_slot, written_bytes, computed_crc
+            ),
+        );
+
+        let res = send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
+
+        embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
+        cortex_m::peripheral::SCB::sys_reset();
+
+        res
     }
 }

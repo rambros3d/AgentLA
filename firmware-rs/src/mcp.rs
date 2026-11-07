@@ -50,8 +50,17 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             let _ = write!(out, "input=0x{:08x}", bank);
             false
         }
-        "system_reboot_bootsel" => {
-            let _ = write!(out, "scheduled (deferred in this release)");
+        "system_firmware_status" => {
+            let (bt, _) = crate::boot::get_boot_state();
+            let cur = crate::boot::current_executing_slot();
+            let _ = write!(
+                out,
+                "current_slot={:?} active_slot={:?} state={:?} attempts={}",
+                cur,
+                bt.get_active_slot(),
+                bt.get_state(),
+                bt.boot_attempts
+            );
             false
         }
         "profile_status" => {

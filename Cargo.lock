@@ -31,6 +31,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "agentla-boot-proto"
+version = "0.1.0"
+
+[[package]]
+name = "agentla-bootloader"
+version = "0.1.0"
+dependencies = [
+ "agentla-boot-proto",
+ "cortex-m",
+ "cortex-m-rt",
+ "defmt 1.2.0",
+ "defmt-rtt",
+ "embassy-rp",
+ "embassy-time",
+ "panic-halt",
+]
+
+[[package]]
 name = "agentla-bridges"
 version = "0.1.0"
 dependencies = [
@@ -893,6 +911,7 @@ dependencies = [
  "agentla-analyzer",
  "agentla-board-bakuprobe",
  "agentla-board-pico2",
+ "agentla-boot-proto",
  "agentla-bridges",
  "agentla-bsp",
  "agentla-debug-server",
@@ -1323,6 +1342,12 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "panic-halt"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
 
 [[package]]
 name = "panic-probe"

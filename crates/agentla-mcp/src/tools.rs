@@ -44,9 +44,9 @@ pub const TOOL_READ_PINS: Tool = Tool::new(
     r#"{"type":"object","properties":{}}"#,
 );
 
-pub const TOOL_SYSTEM_REBOOT_BOOTSEL: Tool = Tool::new(
-    "system_reboot_bootsel",
-    "Reboot probe into BOOTSEL",
+pub const TOOL_SYSTEM_FIRMWARE_STATUS: Tool = Tool::new(
+    "system_firmware_status",
+    "Query A/B firmware OTA slot status and boot state",
     r#"{"type":"object","properties":{}}"#,
 );
 
@@ -152,7 +152,7 @@ pub static ALL_TOOLS: [Tool; 19] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
-    TOOL_SYSTEM_REBOOT_BOOTSEL,
+    TOOL_SYSTEM_FIRMWARE_STATUS,
     TOOL_PROFILE_STATUS,
     TOOL_SERVO_LIST,
     TOOL_LOGIC_ANALYZER_ARM,

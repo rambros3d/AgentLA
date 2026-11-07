@@ -34,11 +34,14 @@ agentla-instruments = { path = "../crates/agentla-instruments", features = ["def
 agentla-pin-arbiter = { path = "../crates/agentla-pin-arbiter", features = ["defmt"] }
 agentla-mcp = { path = "../crates/agentla-mcp" }
 agentla-targets = { path = "../crates/agentla-targets", default-features = false, features = ["all-targets"] }
+agentla-boot-proto = { path = "../crates/agentla-boot-proto" }
 agentla-board-pico2 = { path = "../boards/pico2" }
 agentla-board-bakuprobe = { path = "../boards/bakuprobe", optional = true }
 
 [features]
-default = ["board-pico2"]
+default = ["board-pico2", "slot-a"]
+slot-a = []
+slot-b = []
 board-pico2 = []
 board-bakuprobe = ["dep:agentla-board-bakuprobe"]
 
