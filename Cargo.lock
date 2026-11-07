@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "agentla-analyzer"
+version = "0.1.0"
+dependencies = [
+ "heapless 0.9.3",
+]
+
+[[package]]
 name = "agentla-board-bakuprobe"
 version = "0.1.0"
 dependencies = [
@@ -24,8 +31,59 @@ dependencies = [
 ]
 
 [[package]]
+name = "agentla-bridges"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "defmt 1.2.0",
+ "embedded-can",
+ "embedded-hal 1.0.0",
+ "heapless 0.9.3",
+]
+
+[[package]]
 name = "agentla-bsp"
 version = "0.1.0"
+
+[[package]]
+name = "agentla-debug-server"
+version = "0.1.0"
+dependencies = [
+ "defmt 1.2.0",
+ "embedded-io-async 0.7.0",
+ "heapless 0.9.3",
+]
+
+[[package]]
+name = "agentla-instruments"
+version = "0.1.0"
+dependencies = [
+ "defmt 1.2.0",
+ "heapless 0.9.3",
+]
+
+[[package]]
+name = "agentla-mcp"
+version = "0.1.0"
+dependencies = [
+ "defmt 1.2.0",
+ "heapless 0.9.3",
+]
+
+[[package]]
+name = "agentla-pin-arbiter"
+version = "0.1.0"
+dependencies = [
+ "defmt 1.2.0",
+ "heapless 0.9.3",
+]
+
+[[package]]
+name = "agentla-programmer"
+version = "0.1.0"
+dependencies = [
+ "rp-pac",
+]
 
 [[package]]
 name = "aho-corasick"
@@ -685,6 +743,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-can"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9d2e857f87ac832df68fa498d18ddc679175cf3d2e4aa893988e5601baf9438"
+dependencies = [
+ "nb 1.1.0",
+]
+
+[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -818,9 +885,16 @@ checksum = "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
 name = "firmware-rs"
 version = "0.1.0"
 dependencies = [
+ "agentla-analyzer",
  "agentla-board-bakuprobe",
  "agentla-board-pico2",
+ "agentla-bridges",
  "agentla-bsp",
+ "agentla-debug-server",
+ "agentla-instruments",
+ "agentla-mcp",
+ "agentla-pin-arbiter",
+ "agentla-programmer",
  "cortex-m",
  "cortex-m-rt",
  "defmt 1.2.0",

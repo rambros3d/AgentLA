@@ -1,0 +1,16 @@
+[package]
+name = "agentla-mcp"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Embedded Model Context Protocol (MCP) JSON-RPC 2.0 tool and resource dispatcher for AgentLA"
+license = "Apache-2.0"
+
+[dependencies]
+heapless = "0.9"
+defmt = { version = "1.0", optional = true }
+
+[features]
+default = []
+std = []
+defmt = ["dep:defmt", "heapless/defmt"]

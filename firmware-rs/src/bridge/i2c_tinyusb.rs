@@ -5,27 +5,16 @@
 //! `i2c-tiny-usb` protocol (drivers/i2c/busses/i2c-tiny-usb.c).
 //! Connects vendor control transfers on EP0 to AgentLA's hardware I2C bus master.
 
+pub use agentla_bridges::i2c_tinyusb::{
+    CMD_ECHO, CMD_GET_FUNC, CMD_GET_STATUS, CMD_I2C_IO, CMD_I2C_IO_BEGIN, CMD_I2C_IO_END,
+    CMD_I2C_IO_READ, CMD_SET_DELAY, I2C_FUNC_ALL, I2C_FUNC_I2C, I2C_FUNC_SMBUS_EMUL,
+    STATUS_ADDRESS_ACK, STATUS_ADDRESS_NAK, STATUS_IDLE, I2cTinyUsbError, I2cTinyUsbHandler,
+};
+
 use core::sync::atomic::{AtomicU8, Ordering};
 use crate::bridge::i2c::{
     hw_i2c_init, hw_i2c_read_byte, hw_i2c_start, hw_i2c_stop, hw_i2c_write_byte, I2C_PINS,
 };
-
-pub const CMD_ECHO: u8 = 0;
-pub const CMD_GET_FUNC: u8 = 1;
-pub const CMD_SET_DELAY: u8 = 2;
-pub const CMD_GET_STATUS: u8 = 3;
-pub const CMD_I2C_IO: u8 = 4;
-
-pub const CMD_I2C_IO_BEGIN: u8 = 1 << 0; // 0x01
-pub const CMD_I2C_IO_END: u8 = 1 << 1;   // 0x02
-
-pub const STATUS_IDLE: u8 = 0;
-pub const STATUS_ADDRESS_ACK: u8 = 1;
-pub const STATUS_ADDRESS_NAK: u8 = 2;
-
-pub const I2C_FUNC_I2C: u32 = 0x0000_0001;
-pub const I2C_FUNC_SMBUS_EMUL: u32 = 0x0EFF_0000;
-pub const I2C_FUNC_ALL: u32 = I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL; // 0x0EFF0001
 
 static LAST_STATUS: AtomicU8 = AtomicU8::new(STATUS_IDLE);
 

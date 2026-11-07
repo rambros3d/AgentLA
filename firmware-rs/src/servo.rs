@@ -82,113 +82,10 @@ pub const SLICES: usize = 12;
 pub const MAX_CHANNELS: usize = 8;
 
 // ---------------------------------------------------------------------------
-// Pure integer timing math (unit-tested, no hardware access)
+// Pure integer timing math (delegated to agentla_instruments::servo)
 // ---------------------------------------------------------------------------
 
-pub mod math {
-    use super::{MAX_FREQ_HZ, SYS_CLK_HZ};
-
-    /// Register values for one PWM slice.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
-    pub struct SliceConf {
-        pub div_int: u8,
-        pub div_frac: u8,
-        pub top: u16,
-    }
-
-    /// 50 Hz fast path: 1 µs effective tick at 150 MHz (`div 150`), 20 ms period
-    /// (`top 19999`), duty = pulse µs. Spec `servo-pwm-control::fifty-hertz-fast-path`.
-    pub const SERVO_50HZ: SliceConf = SliceConf {
-        div_int: 150,
-        div_frac: 0,
-        top: 19999,
-    };
-
-    /// Counter wrap counts `SYS·16 / (freq·(16·div_int + div_frac))`.
-    const fn wrap_counts(freq: u32, div_int: u8, div_frac: u8) -> u32 {
-        let denom = freq as u64 * (16u64 * div_int as u64 + div_frac as u64);
-        ((SYS_CLK_HZ as u64 * 16) / denom) as u32
-    }
-
-    /// Slice configuration for `freq` Hz (see module docs for the exact formulas).
-    /// `None` only for `freq == 0` (invalid); the 1..=100 000 Hz clamp applies inside.
-    pub fn slice_conf(freq: u32) -> Option<SliceConf> {
-        if freq == 0 {
-            return None;
-        }
-        if freq == 50 {
-            return Some(SERVO_50HZ);
-        }
-        let freq = freq.clamp(1, MAX_FREQ_HZ);
-
-        let units = SYS_CLK_HZ / (freq * 4096);
-        if units == 0 {
-            // Faster than div 1.0 can express with wrap ≤ 65534: div 1, wrap from clamp.
-            let counts = wrap_counts(freq, 1, 0);
-            let top = counts.saturating_sub(1).clamp(1, 65534) as u16;
-            return Some(SliceConf {
-                div_int: 1,
-                div_frac: 0,
-                top,
-            });
-        }
-
-        let mut units = units;
-        loop {
-            let div_int = (units >> 4).min(255) as u8;
-            let div_frac = (units & 0xF) as u8;
-            let counts = wrap_counts(freq, div_int, div_frac);
-            if counts >= 2 && counts - 1 <= 65534 {
-                return Some(SliceConf {
-                    div_int,
-                    div_frac,
-                    top: (counts - 1) as u16,
-                });
-            }
-            if div_int >= 255 {
-                // Divisor at maximum: the wrap no longer fits; clamp it (accepted
-                // frequency error, same policy as the C firmware's int-only clamp).
-                let top = counts.saturating_sub(1).clamp(1, 65534) as u16;
-                return Some(SliceConf {
-                    div_int,
-                    div_frac: 0,
-                    top,
-                });
-            }
-            units += 1; // slow the divisor one unit step and retry
-        }
-    }
-
-    /// Duty counts for `pulse_us` at `freq` Hz with wrap `top`:
-    /// `level = pulse_us·freq·(top+1) / 1_000_000` clamped to `[0, top+1]`
-    /// (64-bit intermediate, integer division only).
-    pub fn level_counts(pulse_us: u32, freq: u32, top: u16) -> u16 {
-        let level = (pulse_us as u64 * freq as u64 * (top as u64 + 1)) / 1_000_000;
-        level.clamp(0, top as u64 + 1) as u16
-    }
-
-    /// Continuous-throttle pulse mapping (C semantics verbatim, spec
-    /// `servo-pwm-control::servo-writing-semantics`): `|t| ≤ 5` → neutral 1500 µs;
-    /// `t ≥ 6` → forward linear 1520..max_us; `t ≤ −6` → reverse linear 1480..min_us
-    /// (`t = −100` = full reverse → min_us).
-    pub fn continuous_pulse(throttle: i32, min_us: u32, max_us: u32) -> u32 {
-        const NEUTRAL: i64 = 1500;
-        const BAND_LOW: i64 = 1480;
-        const BAND_HIGH: i64 = 1520;
-        let (min, max) = (min_us as i64, max_us as i64);
-        if (-5..=5).contains(&throttle) {
-            return NEUTRAL as u32;
-        }
-        let pulse = if throttle > 0 {
-            let t = throttle - 5; // 1..=95
-            BAND_HIGH + (max - BAND_HIGH) * t as i64 / 95
-        } else {
-            let t = -throttle - 5; // 1..=95
-            BAND_LOW - (BAND_LOW - min) * t as i64 / 95
-        };
-        pulse.clamp(min, max) as u32
-    }
-}
+pub use agentla_instruments::servo as math;
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -400,7 +297,7 @@ impl Engine {
         };
 
         // Claim through the pin-ownership registry (quiesces the pin first).
-        let slot = pin_owner::claim(Driver::Servo, &[pin], CAP_PWM).map_err(|e| match e.kind {
+        let slot = pin_owner::claim(Driver::Servo, &[pin], CAP_PWM).map_err(|e| match e {
             pin_owner::ClaimErrorKind::NoFreeSlots => EngineError::ClaimRegFull,
             pin_owner::ClaimErrorKind::Busy => EngineError::RegistryBusy,
             pin_owner::ClaimErrorKind::NotInPool | pin_owner::ClaimErrorKind::CapabilityMissing => {
@@ -520,102 +417,6 @@ impl Engine {
         Ok(())
     }
 }
-
-// ---------------------------------------------------------------------------
-// Unit tests (host-only; see note in pin_owner.rs — on-target behaviour under
-// the servo hardware round, task 5.4)
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::math::{continuous_pulse, level_counts, slice_conf, SliceConf};
-
-    /// Reference vectors: actual = SYS·16·100 / ((top+1)·(16·di+df)) Hz must match
-    /// `freq` within 1 % (exact on the spec fast path; frac-bit corrections close in).
-    const fn freq_actual_hz(conf: SliceConf) -> u64 {
-        let denom = (conf.top as u64 + 1) * (16u64 * conf.div_int as u64 + conf.div_frac as u64);
-        (super::SYS_CLK_HZ as u64 * 16 * 100) / denom
-    }
-
-    fn assert_freq(freq: u32, conf: SliceConf) {
-        let actual = freq_actual_hz(conf) as u32;
-        let err = actual.abs_diff(freq);
-        assert!(
-            err as u64 * 1000 <= freq as u64 * 10, // ≤ 1 % (exact for most cases)
-            "freq {} → {:?} → actual {} Hz",
-            freq,
-            conf,
-            actual
-        );
-    }
-
-    #[test]
-    fn servo_fast_path_is_exact() {
-        assert_eq!(slice_conf(50), Some(SliceConf { div_int: 150, div_frac: 0, top: 19999 }));
-        assert_eq!(freq_actual_hz(slice_conf(50).unwrap()), 50);
-    }
-
-    #[test]
-    fn generic_paths_hit_frequency() {
-        for freq in [1, 10, 100, 1000, 10000, 100000, 7, 333, 55555] {
-            let conf = slice_conf(freq).unwrap();
-            // div bounds per spec.
-            assert!((1..=255).contains(&conf.div_int), "div_int {:?}", conf);
-            assert!(conf.div_frac <= 15, "div_frac {:?}", conf);
-            assert!((1..=65534).contains(&conf.top), "top {:?}", conf);
-            assert_freq(freq, conf);
-        }
-        // Known exact case (frac bits lift the wrap into range): 1 kHz.
-        assert_eq!(
-            slice_conf(1000),
-            Some(SliceConf { div_int: 2, div_frac: 5, top: 64863 })
-        );
-        // Very high frequency: div 1, wrap 1500 → exactly 100 kHz.
-        assert_eq!(
-            slice_conf(100000),
-            Some(SliceConf { div_int: 1, div_frac: 0, top: 1499 })
-        );
-        // Degenerate low frequency (wrap clamped, error accepted like the C firmware).
-        let conf = slice_conf(1).unwrap();
-        assert_eq!(conf.div_int, 255);
-        assert_eq!(conf.top, 65534);
-    }
-
-    #[test]
-    fn invalid_frequency_rejected() {
-        assert_eq!(slice_conf(0), None);
-    }
-
-    #[test]
-    fn level_math_proportional() {
-        // Half period at 1 kHz → half of (top+1)
-        let conf = slice_conf(1000).unwrap();
-        assert_eq!(level_counts(500, 1000, conf.top), (conf.top + 1) / 2);
-        assert_eq!(level_counts(0, 1000, conf.top), 0);
-        assert_eq!(level_counts(1000, 1000, conf.top), conf.top + 1);
-        assert_eq!(level_counts(u32::MAX, 1000, conf.top), conf.top + 1); // clamped
-        // 50 Hz fast path level == pulse µs.
-        assert_eq!(level_counts(1500, 50, 19999), 1500);
-    }
-
-    #[test]
-    fn continuous_throttle_mapping() {
-        // Deadband |t| ≤ 5 → neutral 1500.
-        for t in [-5, 0, 5] {
-            assert_eq!(continuous_pulse(t, 500, 2500), 1500);
-        }
-        // Full reverse/forward reach the limits.
-        assert_eq!(continuous_pulse(-100, 500, 2500), 500);
-        assert_eq!(continuous_pulse(100, 500, 2500), 2500);
-        // Just past the deadband: forward 1520+σ, reverse 1480−σ.
-        assert_eq!(continuous_pulse(6, 500, 2500), 1520 + (1000 / 95));
-        assert_eq!(continuous_pulse(-6, 500, 2500), 1480 - (980 / 95));
-        // Midpoint sanity: full forward/reverse stay inside [min,max].
-        assert!(continuous_pulse(50, 500, 2500) > 1500);
-        assert!(continuous_pulse(-50, 500, 2500) < 1500);
-    }
-}
-
 
 // ---------------------------------------------------------------------------
 // Register write helpers (pac PWM block)

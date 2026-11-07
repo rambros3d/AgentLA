@@ -1,0 +1,14 @@
+[package]
+name = "agentla-analyzer"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Logic analyzer core, compression algorithms, VCD generator, and bus protocol decoders"
+license = "Apache-2.0"
+
+[dependencies]
+heapless = "0.9"
+
+[features]
+default = []
+std = []

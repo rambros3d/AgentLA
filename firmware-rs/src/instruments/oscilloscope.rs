@@ -16,18 +16,11 @@ use rp_pac as pac;
 use crate::board::ActiveBoard;
 use crate::pin_owner::{self, Driver, SlotId, CAP_ADC};
 use agentla_bsp::{AnalogFrontendConfig, BoardProfile};
+pub use agentla_instruments::scope::{compute_metrics, ChannelMetrics, TriggerType};
 
 pub const ADC_CLOCK_HZ: u32 = 48_000_000;
 pub const BUFFER_SIZE: usize = 1024;
 pub const SCOPE_PINS: [u32; 4] = [26, 27, 28, 29];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TriggerType {
-    None = 0,
-    Rising = 1,
-    Falling = 2,
-    Threshold = 3,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ScopeConfig {
@@ -46,29 +39,6 @@ impl Default for ScopeConfig {
             trigger_ch: 0,
             trigger_type: TriggerType::Rising,
             threshold_mv: 1650,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct ChannelMetrics {
-    pub min_mv: u16,
-    pub max_mv: u16,
-    pub vpp_mv: u16,
-    pub vrms_mv: u16,
-    pub freq_hz: u32,
-    pub duty_percent: u8,
-}
-
-impl Default for ChannelMetrics {
-    fn default() -> Self {
-        Self {
-            min_mv: 0,
-            max_mv: 0,
-            vpp_mv: 0,
-            vrms_mv: 0,
-            freq_hz: 0,
-            duty_percent: 0,
         }
     }
 }
@@ -343,7 +313,13 @@ pub fn capture_frame() -> Result<ScopeFrame, &'static str> {
 
     // Trigger detection and channel metrics calculation
     let mut metrics = [ChannelMetrics::default(); 4];
-    compute_all_metrics(&eng.raw_buffer, config.ch_mask, &mut metrics, config.sample_rate);
+    agentla_instruments::scope::compute_multi_channel_metrics(
+        &eng.raw_buffer,
+        config.ch_mask,
+        config.sample_rate,
+        3300,
+        &mut metrics,
+    );
 
     Ok(ScopeFrame {
         sample_rate: config.sample_rate,
@@ -353,116 +329,4 @@ pub fn capture_frame() -> Result<ScopeFrame, &'static str> {
         sample_count: BUFFER_SIZE,
         channels_active: active_pins_count,
     })
-}
-
-/// Compute Vpp, Vrms, Frequency, and Duty Cycle across active channels
-fn compute_all_metrics(
-    buffer: &[u16; BUFFER_SIZE],
-    ch_mask: u8,
-    metrics: &mut [ChannelMetrics; 4],
-    sample_rate: u32,
-) {
-    let mut active_chans: heapless::Vec<usize, 4> = heapless::Vec::new();
-    for i in 0..4 {
-        if (ch_mask & (1 << i)) != 0 {
-            let _ = active_chans.push(i);
-        }
-    }
-    if active_chans.is_empty() {
-        let _ = active_chans.push(0);
-    }
-
-    let num_ch = active_chans.len();
-
-    for (pos, &ch_idx) in active_chans.iter().enumerate() {
-        let mut min_val = 4095u32;
-        let mut max_val = 0u32;
-        let mut sum_sq: u64 = 0;
-        let mut count: u32 = 0;
-
-        let mut idx = pos;
-        while idx < BUFFER_SIZE {
-            let val = buffer[idx] as u32;
-            if val < min_val {
-                min_val = val;
-            }
-            if val > max_val {
-                max_val = val;
-            }
-            // Millivolt conversion: val * 3300 / 4095
-            let mv = (val * 3300) / 4095;
-            sum_sq += (mv as u64) * (mv as u64);
-            count += 1;
-            idx += num_ch;
-        }
-
-        if count == 0 {
-            continue;
-        }
-
-        let min_mv = ((min_val * 3300) / 4095) as u16;
-        let max_mv = ((max_val * 3300) / 4095) as u16;
-        let vpp_mv = max_mv.saturating_sub(min_mv);
-
-        // Vrms = sqrt(sum(v^2) / N)
-        let mean_sq = sum_sq / (count as u64);
-        let vrms_mv = integer_sqrt(mean_sq) as u16;
-
-        // Frequency and duty estimation via midpoint crossings
-        let mid_val = (min_val + max_val) / 2;
-        let mut high_count = 0u32;
-        let mut crossings = 0u32;
-        let mut last_state = buffer[pos] as u32 > mid_val;
-
-        let mut sample_idx = pos;
-        while sample_idx < BUFFER_SIZE {
-            let val = buffer[sample_idx] as u32;
-            let state = val > mid_val;
-            if state {
-                high_count += 1;
-            }
-            if state != last_state {
-                crossings += 1;
-                last_state = state;
-            }
-            sample_idx += num_ch;
-        }
-
-        let duty_percent = (((high_count as u64) * 100) / (count as u64)) as u8;
-
-        // Frequency: (crossings / 2) cycles over total duration
-        let ch_sample_rate = sample_rate / (num_ch as u32).max(1);
-        let freq_hz = if crossings >= 2 && vpp_mv > 100 {
-            let full_cycles = crossings / 2;
-            ((full_cycles as u64 * ch_sample_rate as u64) / (count as u64)) as u32
-        } else {
-            0
-        };
-
-        metrics[ch_idx] = ChannelMetrics {
-            min_mv,
-            max_mv,
-            vpp_mv,
-            vrms_mv,
-            freq_hz,
-            duty_percent,
-        };
-    }
-}
-
-/// Integer square root calculation
-fn integer_sqrt(val: u64) -> u64 {
-    if val == 0 {
-        return 0;
-    }
-    let mut x0 = val / 2;
-    if x0 == 0 {
-        return 1;
-    }
-    let mut x1 = (x0 + val / x0) / 2;
-    while x1 < x0 {
-        x0 = x1;
-        x1 = (x0 + val / x0) / 2;
-    }
-    x0
 }

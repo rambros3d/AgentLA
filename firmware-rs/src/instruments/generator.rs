@@ -85,36 +85,7 @@ static ACTIVE_BURST: AtomicU32 = AtomicU32::new(0);
 
 /// Calculate PWM slice parameters (integer div, frac div, top wrap)
 pub fn calculate_slice_params(freq_hz: u32) -> (u8, u8, u16) {
-    let freq = freq_hz.clamp(1, 75_000_000);
-
-    if freq >= 75_000_000 {
-        return (1, 0, 1); // 75 MHz square wave
-    }
-
-    if freq >= 100_000 {
-        // Fast path for high frequencies (div = 1.0)
-        let top = ((SYS_CLK_HZ / freq).saturating_sub(1)).clamp(1, 65534) as u16;
-        return (1, 0, top);
-    }
-
-    // Generic path for 1 Hz .. 100 kHz with fractional divider
-    // Units of 1/16 divisor step
-    let mut units = (SYS_CLK_HZ / (freq * 4096)).max(16);
-    let mut top: u64 = 65535;
-
-    while units <= 4096 {
-        let div_int = (units / 16).clamp(1, 255);
-        let div_frac = (units % 16) as u8;
-        let counts = (SYS_CLK_HZ as u64 * 16) / ((freq as u64) * (units as u64));
-        if counts > 0 && counts - 1 <= 65534 {
-            top = counts - 1;
-            return (div_int as u8, div_frac, top as u16);
-        }
-        units += 1;
-    }
-
-    // Lowest frequencies: max divisor (255 + 15/16)
-    (255, 15, (top.min(65534)) as u16)
+    agentla_instruments::generator::calculate_slice_params(SYS_CLK_HZ, freq_hz).into_tuple()
 }
 
 /// Start outputting signal on the specified GPIO pin
@@ -214,14 +185,7 @@ fn configure_pwm(pin: u32, freq_hz: u32, duty_percent: u8) {
     let (div_int, div_frac, top) = calculate_slice_params(freq_hz);
 
     // Compute duty level
-    let duty_clamped = duty_percent.min(100);
-    let level = if duty_clamped == 0 {
-        0u16
-    } else if duty_clamped == 100 {
-        top.saturating_add(1)
-    } else {
-        (((duty_clamped as u32) * ((top as u32) + 1)) / 100) as u16
-    };
+    let level = agentla_instruments::generator::duty_to_level(top, duty_percent);
 
     let ch = pac::PWM.ch(slice);
 

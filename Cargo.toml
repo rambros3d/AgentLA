@@ -2,6 +2,13 @@
 resolver = "2"
 members = [
     "crates/agentla-bsp",
+    "crates/agentla-analyzer",
+    "crates/agentla-programmer",
+    "crates/agentla-bridges",
+    "crates/agentla-debug-server",
+    "crates/agentla-instruments",
+    "crates/agentla-pin-arbiter",
+    "crates/agentla-mcp",
     "boards/pico2",
     "boards/bakuprobe",
     "boards/templates",

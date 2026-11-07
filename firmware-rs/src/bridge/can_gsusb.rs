@@ -12,6 +12,19 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use rp_pac as pac;
 
+pub use agentla_bridges::gs_usb::{
+    calculate_bitrate, validate_host_format, GsControlAction, GsDeviceBerr, GsDeviceBittiming,
+    GsDeviceBtConst, GsDeviceConfig, GsDeviceMode, GsHostConfig, GsHostFrame, GsUsbEngine,
+    GsUsbError, GS_CAN_BASIC_FEATURES, GS_CAN_EFF_FLAG, GS_CAN_EFF_MASK, GS_CAN_ERR_FLAG,
+    GS_CAN_ERR_MASK, GS_CAN_FEATURE_LISTEN_ONLY, GS_CAN_FEATURE_LOOP_BACK, GS_CAN_FEATURE_TERMINATION,
+    GS_CAN_FEATURE_TRIPLE_SAMPLE, GS_CAN_HOST_FORMAT_LITTLE_ENDIAN, GS_CAN_MODE_RESET,
+    GS_CAN_MODE_START, GS_CAN_RTR_FLAG, GS_CAN_SFF_MASK, GS_USB_BREQ_BERR, GS_USB_BREQ_BITTIMING,
+    GS_USB_BREQ_BT_CONST, GS_USB_BREQ_BT_CONST_EXT, GS_USB_BREQ_DATA_BITTIMING,
+    GS_USB_BREQ_DEVICE_CONFIG, GS_USB_BREQ_GET_BERR, GS_USB_BREQ_GET_TERMINATION,
+    GS_USB_BREQ_HOST_FORMAT, GS_USB_BREQ_IDENTIFY, GS_USB_BREQ_MODE, GS_USB_BREQ_SET_TERMINATION,
+    GS_USB_BREQ_TIMESTAMP, GS_USB_BREQ_USER_ID,
+};
+
 use crate::board::ActiveBoard;
 use crate::pin_owner::{self, ClaimError, Driver, SlotId};
 use agentla_bsp::BoardProfile;
@@ -32,81 +45,6 @@ pub const CAN_TERM_PIN: u32 = match ActiveBoard::ADAPTERS.can {
     None => 22,
 };
 pub const CAN_PINS: [u32; 3] = [CAN_TX_PIN, CAN_RX_PIN, CAN_TERM_PIN];
-
-pub const GS_CAN_MODE_RESET: u32 = 0;
-pub const GS_CAN_MODE_START: u32 = 1;
-
-pub const GS_USB_BREQ_HOST_FORMAT: u8 = 0;
-pub const GS_USB_BREQ_BITTIMING: u8 = 1;
-pub const GS_USB_BREQ_MODE: u8 = 2;
-pub const GS_USB_BREQ_BERR: u8 = 3;
-pub const GS_USB_BREQ_BT_CONST: u8 = 4;
-pub const GS_USB_BREQ_DEVICE_CONFIG: u8 = 5;
-pub const GS_USB_BREQ_TIMESTAMP: u8 = 6;
-pub const GS_USB_BREQ_IDENTIFY: u8 = 7;
-pub const GS_USB_BREQ_SET_TERMINATION: u8 = 12;
-pub const GS_USB_BREQ_GET_TERMINATION: u8 = 13;
-
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct GsHostConfig {
-    pub byte_order: u32,
-}
-
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct GsDeviceConfig {
-    pub reserved1: u8,
-    pub reserved2: u8,
-    pub reserved3: u8,
-    pub icount: u8,
-    pub sw_version: u32,
-    pub hw_version: u32,
-}
-
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct GsDeviceBtConst {
-    pub feature: u32,
-    pub fclk_can: u32,
-    pub tseg1_min: u32,
-    pub tseg1_max: u32,
-    pub tseg2_min: u32,
-    pub tseg2_max: u32,
-    pub sjw_max: u32,
-    pub brp_min: u32,
-    pub brp_max: u32,
-    pub brp_inc: u32,
-}
-
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct GsDeviceBittiming {
-    pub prop_seg: u32,
-    pub phase_seg1: u32,
-    pub phase_seg2: u32,
-    pub sjw: u32,
-    pub brp: u32,
-}
-
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct GsDeviceMode {
-    pub mode: u32,
-    pub flags: u32,
-}
-
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct GsHostFrame {
-    pub echo_id: u32,
-    pub can_id: u32,
-    pub can_dlc: u8,
-    pub channel: u8,
-    pub flags: u8,
-    pub reserved: u8,
-    pub data: [u8; 8],
-}
 
 static CAN_MODE: AtomicU32 = AtomicU32::new(GS_CAN_MODE_RESET);
 static CAN_TERMINATION: AtomicBool = AtomicBool::new(false);
@@ -192,9 +130,7 @@ pub fn adapter_can_get_bitrate() -> u32 {
 }
 
 pub fn adapter_can_set_bittiming(bt: &GsDeviceBittiming) {
-    let t_total = 1 + bt.prop_seg + bt.phase_seg1 + bt.phase_seg2;
-    if bt.brp > 0 && t_total > 0 {
-        let br = 48_000_000 / (bt.brp * t_total);
+    if let Some(br) = calculate_bitrate(48_000_000, bt) {
         BITRATE.store(br, Ordering::Relaxed);
     }
 }

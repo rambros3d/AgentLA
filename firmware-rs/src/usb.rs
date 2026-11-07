@@ -70,6 +70,20 @@ impl Handler for VendorControlHandler {
             return Some(OutResponse::Accepted);
         }
 
+        if req_cmd == crate::bridge::can_gsusb::GS_USB_BREQ_MODE
+            && data.len() >= core::mem::size_of::<crate::bridge::can_gsusb::GsDeviceMode>()
+        {
+            let mode_buf: crate::bridge::can_gsusb::GsDeviceMode = unsafe {
+                core::ptr::read_unaligned(data.as_ptr() as *const _)
+            };
+            if mode_buf.mode == crate::bridge::can_gsusb::GS_CAN_MODE_START {
+                crate::bridge::can_gsusb::adapter_can_start();
+            } else if mode_buf.mode == crate::bridge::can_gsusb::GS_CAN_MODE_RESET {
+                crate::bridge::can_gsusb::adapter_can_standby();
+            }
+            return Some(OutResponse::Accepted);
+        }
+
         match req_cmd {
             crate::bridge::i2c_tinyusb::CMD_SET_DELAY => {
                 Some(OutResponse::Accepted)
@@ -86,20 +100,6 @@ impl Handler for VendorControlHandler {
                         core::ptr::read_unaligned(data.as_ptr() as *const _)
                     };
                     crate::bridge::can_gsusb::adapter_can_set_bittiming(&bt);
-                }
-                Some(OutResponse::Accepted)
-            }
-
-            crate::bridge::can_gsusb::GS_USB_BREQ_MODE => {
-                if data.len() >= core::mem::size_of::<crate::bridge::can_gsusb::GsDeviceMode>() {
-                    let mode_buf: crate::bridge::can_gsusb::GsDeviceMode = unsafe {
-                        core::ptr::read_unaligned(data.as_ptr() as *const _)
-                    };
-                    if mode_buf.mode == crate::bridge::can_gsusb::GS_CAN_MODE_START {
-                        crate::bridge::can_gsusb::adapter_can_start();
-                    } else if mode_buf.mode == crate::bridge::can_gsusb::GS_CAN_MODE_RESET {
-                        crate::bridge::can_gsusb::adapter_can_standby();
-                    }
                 }
                 Some(OutResponse::Accepted)
             }
@@ -141,6 +141,13 @@ impl Handler for VendorControlHandler {
             let addr = (req.index & 0x7F) as u8;
             let len = (req.length as usize).min(buf.len());
             crate::bridge::i2c_tinyusb::i2c_io_read(addr, &mut buf[..len], is_end);
+            return Some(InResponse::Accepted(&buf[..len]));
+        }
+
+        if req_cmd == crate::bridge::can_gsusb::GS_USB_BREQ_BERR && req.length >= 8 {
+            let zeros = [0u8; 8];
+            let len = (req.length as usize).min(8).min(buf.len());
+            buf[..len].copy_from_slice(&zeros[..len]);
             return Some(InResponse::Accepted(&buf[..len]));
         }
 
@@ -228,13 +235,6 @@ impl Handler for VendorControlHandler {
                 let ts_bytes = ts.to_le_bytes();
                 let len = (req.length as usize).min(4).min(buf.len());
                 buf[..len].copy_from_slice(&ts_bytes[..len]);
-                Some(InResponse::Accepted(&buf[..len]))
-            }
-
-            crate::bridge::can_gsusb::GS_USB_BREQ_BERR => {
-                let zeros = [0u8; 8];
-                let len = (req.length as usize).min(8).min(buf.len());
-                buf[..len].copy_from_slice(&zeros[..len]);
                 Some(InResponse::Accepted(&buf[..len]))
             }
 

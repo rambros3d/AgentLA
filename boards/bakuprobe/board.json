@@ -20,136 +20,323 @@
     "cores": "Dual ARM Cortex-M33 / Hazard3 RISC-V",
     "clock_max_mhz": 150,
     "sram_bytes": 532480,
-    "flash_bytes": 16777216
+    "flash_bytes": 16777216,
+    "flash_chip": "Winbond W25Q128JW (16MB, 1.8V SPI NOR on QSPI_IOVDD)"
   },
   "gpio_range": [0, 47],
-  "power_architecture": {
-    "usb_c": {
-      "standard": "USB 2.0 Full-Speed Type-C (5V VBUS up to 1.5A/3A)",
-      "cc_pins": "Dual 5.1k pulldown resistors for standard Type-C host detection",
-      "protection": "ST USBLC6-2SC6 high-speed ESD + resettable PTC polyfuse"
-    },
-    "dc_barrel_jack": {
-      "enabled": true,
-      "connector": "5.5mm x 2.1mm / 2.5mm Center-Positive",
-      "voltage_range": "7.0V - 24.0V",
-      "protection": "P-FET reverse-polarity protection + SMBJ24A TVS diode"
-    },
-    "regulators": {
-      "main_buck": "TI TPS54302 (5.0V 3A Step-Down for DC Jack) with Ideal Diode OR-ing",
-      "digital_ldo": "TI TLV75533 (3.3V 500mA)",
-      "analog_ldo": "TI TPS7A2033 (3.3V Ultra-Low-Noise 12uVrms)",
-      "vref_precision_ic": "TI REF3030 (3.000V +/-0.2% 35ppm/C)"
-    },
-    "target_power": {
-      "voltage_range": "1.2V - 5.0V",
-      "firmware_switchable": true,
-      "current_sense_ic": "TI INA180 (GP46 / ADC6)",
-      "voltage_sense_divider": "10:1 (GP47 / ADC7)"
-    }
+  "spare_gpios": [7, 23, 24, 25],
+  "emergency_button": {
+    "pin": 5,
+    "active_state": "LOW",
+    "function": "Hardware Emergency Stop / Safe Mode profile trip"
   },
-  "level_shifting": {
-    "zone1_programmer": {
-      "chip": "TI TXS0108E",
-      "voltage_range": "1.2V - 5.0V",
-      "target_reference_rail": "VTARGET"
-    },
-    "zone3_bus_masters": {
-      "chip": "TI TXS0108E / TXB0108",
-      "voltage_range": "1.2V - 5.0V",
-      "target_reference_rail": "VTARGET"
-    }
+  "header_neopixels": {
+    "pin": 6,
+    "protocol": "WS2812B / SK6805 (800 kHz PIO0 DMA)",
+    "led_package": "1515 SMD (1.5mm x 1.5mm)",
+    "count": 40,
+    "features": "Individual color-coded role, voltage, logic activity, and fault display for every header pin"
   },
   "features": {
     "onboard_led": null,
     "vref_volts": 3.0,
-    "vref_precision_ic": "REF3030",
+    "vref_precision_ic": "TI REF3030AIDBZT (3.000V +/-0.2%, 35ppm/C)",
     "has_hardware_can": true,
     "has_hardware_rs485": true,
+    "has_i2c_adapter": true,
+    "has_socketcan": true,
     "target_current_sense": true,
     "target_power_control": true,
     "qwiic_stemma_qt": true
   },
+  "power_architecture": {
+    "usb_c": {
+      "standard": "USB 2.0 Full-Speed Type-C (5V VBUS up to 1.5A/3A)",
+      "protection": "UMW USBLC6-2SC6 high-speed ESD + resettable PTC polyfuse"
+    },
+    "dc_barrel_jack": {
+      "enabled": true,
+      "connector": "5.5mm x 2.1mm / 2.5mm Center-Positive",
+      "voltage_range": "0.0V - 24.0V",
+      "max_current_a": 20.0,
+      "pwm_switch": "High-Efficiency N-FET + TI LM5106 gate driver (GP1 / DC24V_PWM, up to 20 kHz)",
+      "inductive_clamp": "V10150 / SS54 Schottky flyback diode + TVS suppressor",
+      "current_sense": "TI INA240A1 across 2mOhm shunt -> ADS1118 Ch 3",
+      "voltage_sense": "Precision resistor divider -> ADS1118 Ch 2"
+    },
+    "regulators": {
+      "digital_3v3_ldo": "MKSemi AMS1117-3.3V (SOT-89)",
+      "digital_1v8_ldo": "MKSemi AMS1117-1.8V (SOT-89)",
+      "analog_filter": "Ferrite Bead BLM18PG121 + 100nF + 2.2uF passive LC",
+      "vref_precision_ic": "TI REF3030AIDBZT (3.000V +/-0.2%, 35ppm/C)"
+    },
+    "target_power": {
+      "voltage_selection": "Manual 3-way switch (1.8V, 3.3V, 5.0V)",
+      "voltage_auto_detect": "10:1 resistor divider -> ADS1118 Ch 0",
+      "current_sense_ic": "TI INA180A2 (G=50) -> ADS1118 Ch 1",
+      "high_side_switch": "P-FET controlled by Shift Reg Bit 24 (TARGET_PWR_EN)",
+      "current_sensing": {
+        "architecture": "PPK2-Style Dynamic Auto-Bypass (1uA to 500mA)",
+        "shunts": "0.05 Ohm (Active) in series with 10 Ohm (Sleep)",
+        "auto_bypass_fet": "SI2301 / DMP3099 P-FET",
+        "fast_comparator": "TI TLV3691 / SGM8743 (<50ns) -> GP0 (TARGET_RANGE_FLAG)",
+        "brownout_clamp": "BAT54 sub-nanosecond Schottky diode",
+        "amplifier": "TI INA180A2 (G=50) -> ADS1118 Ch 1"
+      }
+    }
+  },
+  "internal_instrumentation": {
+    "power_adc": {
+      "chip": "TI ADS1118IRUGR",
+      "interface": "Dedicated SPI0 (SCK=GP10, MOSI=GP11, MISO=GP8, CS=GP9)",
+      "channels": {
+        "ch0": "Target Rail Voltage (10:1 divider)",
+        "ch1": "Target Current Draw (TI INA180)",
+        "ch2": "24V Aux DC Voltage (divider)",
+        "ch3": "24V Aux DC Current Draw (TI INA240 20A shunt)"
+      }
+    },
+    "shift_registers": {
+      "chip": "4x 74HC595 / 74LVC595 cascaded (32 bits total)",
+      "interface": "Dedicated PIO0 Bus (Clock GP3, Data GP4, Latch GP2)",
+      "shift_time_us": 1.28,
+      "byte1_mso_gain_low": "Bits 0..7 (MSO Ch 0..3 2-bit gain selectors)",
+      "byte2_mso_gain_high": "Bits 8..15 (MSO Ch 4..7 2-bit gain selectors)",
+      "byte3_la_dir": "Bits 16..23 (Pod 4 LA_DIR[0..7] per-channel direction: 0=In, 1=Out)",
+      "byte4_system_enables": "Bits 24..31 (TARGET_PWR_EN, PROG_OE, BUS_OE, CAN_TERM, CAN_STBY, RS485_DE, BOOT0, nTRST)"
+    }
+  },
+  "pio_partitioning": {
+    "pio0": {
+      "gpiobase": 0,
+      "window": "GPIO 0 .. 31",
+      "state_machines": {
+        "sm0": "Header Pin Micro-RGB NeoPixel String (WS2812 DMA on GP6)",
+        "sm1": "Dedicated 32-bit Shift Register Driver (1.28us on GP3, GP4, GP2)"
+      }
+    },
+    "pio1": {
+      "gpiobase": 0,
+      "window": "GPIO 0 .. 31",
+      "state_machines": {
+        "sm0": "Pod 1 Target SWD/JTAG Bit Engine (GP14..17)",
+        "sm1_sm2": "Pod 2 CAN-FD Physical Layer (TX GP19 / RX GP22)",
+        "sm3": "Pod 3 MIPI I3C 12.5 MHz Protocol Engine (SDA GP26, SCL GP27)"
+      }
+    },
+    "pio2": {
+      "gpiobase": 16,
+      "window": "GPIO 16 .. 47",
+      "state_machines": {
+        "sm0": "Pod 4 Logic Analyzer Capture (150 MS/s on GP32..39)",
+        "sm1": "Pod 4 Pattern Generator Output (150 MS/s on GP32..39)",
+        "sm2": "Pod 5 MSO Digital Mode Capture (150 MS/s on GP40..47)"
+      }
+    }
+  },
   "zones": {
-    "zone1_programmer": {
-      "name": "Target Programmer Header",
-      "gpio_range": [0, 9],
-      "connector": "2x5 1.27mm / 2.54mm ARM Debug with 1.2V-5.0V Level Translation",
+    "zone0_power": {
+      "name": "Power Telemetry & Instrumentation",
+      "gpio_range": [0, 11],
       "pins": {
-        "trst": 0,
-        "tdo": 1,
-        "boot0": 2,
-        "tdi": 3,
-        "swclk": 4,
-        "swdio": 5,
-        "nrst": 6,
-        "sdi": 7,
-        "uart_tx": 8,
-        "uart_rx": 9
+        "target_range_flag": 0,
+        "dc24v_pwm": 1,
+        "sr_latch": 2,
+        "sr_clk": 3,
+        "sr_data": 4,
+        "emergency_btn": 5,
+        "neopixel_data": 6,
+        "spare_gpio7": 7,
+        "int_spi0_rx": 8,
+        "ads1118_cs": 9,
+        "int_spi0_sck": 10,
+        "int_spi0_tx": 11
+      }
+    },
+    "zone1_programmer": {
+      "name": "Target Programmer Header (Pod 1)",
+      "gpio_range": [12, 18],
+      "connector": "10-Pin 1.27mm / 2.54mm Shrouded ARM Debug Header",
+      "transceivers": "2x SN74LVC4T245 (1.65V - 5.5V dual-rail push-pull)",
+      "enable_control": "Shift Register Bit 25 (PROG_OE)",
+      "swdio_topology": "CMSIS-DAP Split-Resistor (0ns hardware turnaround)",
+      "pins": {
+        "uart_tx": 12,
+        "uart_rx": 13,
+        "swclk": 14,
+        "swdio": 15,
+        "tdi": 16,
+        "tdo": 17,
+        "nrst": 18
       }
     },
     "zone2_transceivers": {
-      "name": "Industrial Differential Transceivers",
-      "gpio_range": [10, 15],
+      "name": "Industrial Differential Transceivers (Pod 2)",
+      "gpio_range": [19, 22],
       "can_fd": {
-        "chip": "TCAN334",
-        "tx_pin": 10,
-        "rx_pin": 11,
-        "term_120ohm_relay_pin": 12,
-        "connector": "3-Pin Screw Terminal (CAN_H, CAN_L, GND)"
+        "chip": "SIT1044QTK (5 Mbps)",
+        "tx_pin": 19,
+        "rx_pin": 22,
+        "term_120ohm_relay_pin": "Shift Register Bit 27 (CAN_TERM_EN)",
+        "standby": "Shift Register Bit 28 (CAN_STBY)",
+        "connector": "3.5mm Pluggable Screw Terminal (CAN_H, CAN_L, GND)"
       },
       "rs485": {
-        "chip": "SN65HVD3082",
-        "tx_pin": 13,
-        "rx_pin": 14,
-        "de_re_pin": 15,
-        "connector": "3-Pin Screw Terminal (A, B, GND)"
+        "chip": "TI SN75176BDQ",
+        "tx_pin": 20,
+        "rx_pin": 21,
+        "de_re_pin": "Shift Register Bit 29 (RS485_DE)",
+        "connector": "3.5mm Pluggable Screw Terminal (A, B, GND)"
+      },
+      "pins": {
+        "can_tx": 19,
+        "rs485_tx": 20,
+        "rs485_rx": 21,
+        "can_rx": 22
       }
     },
     "zone3_bus_masters": {
-      "name": "Dedicated Bus Master Pod & Quick-Connect",
-      "gpio_range": [16, 23],
-      "connector": "2x5 2.54mm Shrouded Header with 1.2V-5.0V Level Translation",
-      "qwiic_stemma_qt": "4-pin JST-SH 1.0mm (SDA=GP16, SCL=GP17, 3.3V, GND)",
+      "name": "Dedicated External Bus Master (Pod 3)",
+      "gpio_range": [26, 31],
+      "connector": "2x5 2.54mm Shrouded Header + 4-Pin JST-SH 1.0mm Qwiic / STEMMA QT",
+      "dedicated_external": "100% dedicated to external target DUT; 0 internal sensors/chips attached",
+      "qwiic_stemma_qt": "4-pin JST-SH 1.0mm (SDA=GP26, SCL=GP27, 3.3V, GND)",
       "i2c_i3c": {
-        "sda_pin": 16,
-        "scl_pin": 17
+        "chip": "TI TCA39306DCUR (0.9V - 5.5V, Ron=3.5 Ohm, <1ns delay)",
+        "protocol": "12.5 MHz MIPI I3C v1.1.1 + Legacy I2C (100k/400k/1M)",
+        "sda_pin": 26,
+        "scl_pin": 27
       },
       "spi": {
-        "sck_pin": 18,
-        "mosi_pin": 19,
-        "miso_pin": 20,
-        "cs_pin": 21
+        "chip": "TI SN74LVC4T245 (1.65V - 5.5V dual-supply push-pull)",
+        "miso_pin": 28,
+        "cs_pin": 29,
+        "sck_pin": 30,
+        "mosi_pin": 31
       },
-      "aux_uart": {
-        "tx_pin": 22,
-        "rx_pin": 23
+      "enable_control": "Shift Register Bit 26 (BUS_OE)",
+      "pins": {
+        "i2c_sda": 26,
+        "i2c_scl": 27,
+        "spi_miso": 28,
+        "spi_cs": 29,
+        "spi_sck": 30,
+        "spi_mosi": 31
       }
     },
     "zone4_logic_analyzer": {
-      "name": "16-Channel Logic Analyzer & Pattern Generator",
-      "gpio_range": [24, 39],
-      "channels_count": 16,
-      "base_pin": 24,
+      "name": "8-Channel Logic Analyzer & Pattern Generator (Pod 4)",
+      "gpio_range": [32, 39],
+      "channels_count": 8,
+      "base_pin": 32,
+      "transceivers": "8x 74LVC1T45 single-bit dual-supply transceivers (1.65V - 5.5V, 150 MS/s)",
+      "direction_control": "Shift Register Bits 16..23 (LA_DIR[0..7], independent per channel)",
+      "connector": "2x8 2.54mm Shrouded Header with interleaved GND",
       "max_sample_rate_hz": 150000000,
-      "connector": "2x10 2.54mm Header with Alternating GND",
-      "pwm_pattern_generator": true
+      "pwm_pattern_generator": true,
+      "pins": {
+        "la_ch0": 32,
+        "la_ch1": 33,
+        "la_ch2": 34,
+        "la_ch3": 35,
+        "la_ch4": 36,
+        "la_ch5": 37,
+        "la_ch6": 38,
+        "la_ch7": 39
+      }
     },
     "zone5_analog_scope": {
-      "name": "8-Channel Analog Oscilloscope Front-End",
+      "name": "8-Channel Mixed-Signal Oscilloscope Front-End (Pod 5)",
       "gpio_range": [40, 47],
       "adc_channels": [0, 1, 2, 3, 4, 5, 6, 7],
       "vref_volts": 3.0,
-      "channels": {
-        "scope_ch1": { "pin": 40, "adc": 0, "connector": "BNC / SMA", "attenuator": "1x/10x" },
-        "scope_ch2": { "pin": 41, "adc": 1, "connector": "BNC / SMA", "attenuator": "1x/10x" },
-        "scope_ch3": { "pin": 42, "adc": 2, "connector": "SMA / Header", "attenuator": "1x" },
-        "scope_ch4": { "pin": 43, "adc": 3, "connector": "SMA / Header", "attenuator": "1x" },
-        "aux_ch5": { "pin": 44, "adc": 4, "connector": "Pin Header", "attenuator": "1x" },
-        "aux_ch6": { "pin": 45, "adc": 5, "connector": "Pin Header", "attenuator": "1x" },
-        "current_sense": { "pin": 46, "adc": 6, "ic": "INA180", "target": "Target Current Draw" },
-        "vtarget_sense": { "pin": 47, "adc": 7, "divider": "10x", "target": "Target VCC (1.2V-5.0V)" }
+      "op_amps": "2x Quad SGM8054 / TP1564 (250 MHz GBW, 130 V/us, RRIO)",
+      "attenuator_switches": "4x WCH CH444G Dual 4:1 analog switches (5 Ohm Ron, 550 MHz)",
+      "gain_settings": ["25.0V (1x)", "12.5V (2x)", "5.0V (5x)", "2.5V (10x)"],
+      "gain_control": "Shift Register Bits 0..15 (2 bits per channel)",
+      "input_impedance": "1 MOhm (50V DC safe continuous fault tolerance)",
+      "dual_personality": "12-bit SAR ADC + 150 MS/s digital PIO2 capture",
+      "connector": "2x8 2.54mm Shrouded Header with interleaved GND",
+      "pins": {
+        "mso_ch0": 40,
+        "mso_ch1": 41,
+        "mso_ch2": 42,
+        "mso_ch3": 43,
+        "mso_ch4": 44,
+        "mso_ch5": 45,
+        "mso_ch6": 46,
+        "mso_ch7": 47
       }
+    }
+  },
+  "pods": {
+    "pod1_programmer": {
+      "name": "Target Programmer & Debugger",
+      "transceivers": "2x TI SN74LVC4T245 (1.65V - 5.5V dual-supply)",
+      "enable_control": "Shift Register Bit 25 (PROG_OE)",
+      "swdio_topology": "CMSIS-DAP Split-Resistor (0ns hardware turnaround)",
+      "pins": {
+        "uart_tx": 12,
+        "uart_rx": 13,
+        "swdclk_tck": 14,
+        "swdio_tms_sdi": 15,
+        "tdi": 16,
+        "tdo": 17,
+        "nreset": 18
+      }
+    },
+    "pod2_industrial": {
+      "name": "Industrial Differential Transceivers",
+      "rs485": {
+        "chip": "TI SN75176BDQ",
+        "tx_pin": 20,
+        "rx_pin": 21,
+        "de_pin": "Shift Register Bit 29 (RS485_DE)"
+      },
+      "can_fd": {
+        "chip": "SIT1044QTK (5 Mbps)",
+        "tx_pin": 19,
+        "rx_pin": 22,
+        "term_relay": "Shift Register Bit 27 (CAN_TERM_EN)",
+        "standby": "Shift Register Bit 28 (CAN_STBY)"
+      }
+    },
+    "pod3_bus_masters": {
+      "name": "Dedicated External Bus Master (100% Isolated)",
+      "qwiic_stemma_qt": "4-pin JST-SH 1.0mm (SDA=GP26, SCL=GP27, 3.3V, GND)",
+      "spi1": {
+        "chip": "TI SN74LVC4T245 (1.65V - 5.5V, 50+ MHz)",
+        "miso_pin": 28,
+        "cs_pin": 29,
+        "sck_pin": 30,
+        "mosi_pin": 31
+      },
+      "i2c_i3c": {
+        "chip": "TI TCA39306DCUR (0.9V - 5.5V)",
+        "protocol": "12.5 MHz MIPI I3C v1.1.1 + Legacy I2C (100k/400k/1M)",
+        "sda_pin": 26,
+        "scl_pin": 27
+      },
+      "enable_control": "Shift Register Bit 26 (BUS_OE)"
+    },
+    "pod4_logic_analyzer": {
+      "name": "8-Channel Bidirectional Logic Analyzer & Pattern Generator",
+      "transceivers": "8x 74LVC1T45 single-bit dual-supply transceivers (1.65V - 5.5V, 150 MS/s)",
+      "direction_control": "Shift Register Bits 16..23 (LA_DIR[0..7])",
+      "pins": [32, 33, 34, 35, 36, 37, 38, 39],
+      "multi_personality": "Any channel dynamically switchable between logic capture, pattern stimulus, hardware trigger, or PWM frequency counting (up to 100+ MHz)",
+      "connector": "2x8 2.54mm Shrouded Header with interleaved GND"
+    },
+    "pod5_mso": {
+      "name": "8-Channel Mixed-Signal Oscilloscope Front-End",
+      "op_amps": "2x Quad SGMICRO SGM8054 / 3PEAK TP1564 (250 MHz, 130 V/us, RRIO)",
+      "attenuator_switches": "4x WCH CH444G Dual 4:1 analog switches (5 Ohm Ron, 550 MHz)",
+      "gain_settings": ["25.0V (1x)", "12.5V (2x)", "5.0V (5x)", "2.5V (10x)"],
+      "gain_control": "Shift Register Bits 0..15 (2 bits per channel)",
+      "input_impedance": "1 MOhm (50V DC safe continuous fault tolerance)",
+      "adc_pins": [40, 41, 42, 43, 44, 45, 46, 47],
+      "dual_personality": "12-bit SAR ADC + 150 MS/s digital PIO2 capture",
+      "connector": "2x8 2.54mm Shrouded Header with interleaved GND"
     }
   }
 }

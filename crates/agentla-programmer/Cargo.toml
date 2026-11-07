@@ -1,0 +1,15 @@
+[package]
+name = "agentla-programmer"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Hardware-agnostic debug and flash programming protocols with optional RP2350 PIO drivers"
+license = "Apache-2.0"
+
+[dependencies]
+rp-pac = { version = "7.0.0", features = ["rp235x"], optional = true }
+
+[features]
+default = []
+std = []
+rp2350-pio = ["dep:rp-pac"]

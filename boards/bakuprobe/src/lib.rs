@@ -30,41 +30,41 @@ impl BoardProfile for BakuProbeBoard {
     const GPIO_COUNT: u32 = 48;
 
     const PROGRAMMER: ProgrammerPins = ProgrammerPins {
-        swclk: 4,
-        swdio: 5,
-        nrst: 6,
-        boot0: 2,
-        sdi: 7,
-        uart_tx: 8,
-        uart_rx: 9,
-        trst: Some(0),
-        tdo: Some(1),
-        tdi: Some(3),
+        swclk: 14,
+        swdio: 15,
+        nrst: 18,
+        boot0: 30,
+        sdi: 15,
+        uart_tx: 12,
+        uart_rx: 13,
+        trst: None,
+        tdo: Some(17),
+        tdi: Some(16),
     };
 
     const ADAPTERS: AdapterPins = AdapterPins {
         can: Some(CanPins {
-            tx: 10,
-            rx: 11,
-            term: Some(12),
+            tx: 19,
+            rx: 22,
+            term: None,
         }),
         rs485: Some(Rs485Pins {
-            tx: 13,
-            rx: 14,
-            de_re: 15,
+            tx: 20,
+            rx: 21,
+            de_re: 29,
         }),
-        default_i2c: I2cPins { sda: 16, scl: 17 },
+        default_i2c: I2cPins { sda: 26, scl: 27 },
         default_spi: SpiPins {
-            sck: 18,
-            mosi: 19,
-            miso: 20,
-            cs: 21,
+            sck: 30,
+            mosi: 31,
+            miso: 28,
+            cs: 29,
         },
-        default_uart: UartPins { tx: 22, rx: 23 },
-        default_ws2812: None,
+        default_uart: UartPins { tx: 12, rx: 13 },
+        default_ws2812: Some(6),
     };
 
-    const FLEXIBLE: FlexiblePool = FlexiblePool::new(24, 39);
+    const FLEXIBLE: FlexiblePool = FlexiblePool::new(32, 39);
 
     const FEATURES: BoardFeatures = BoardFeatures {
         onboard_led: None,
@@ -77,13 +77,11 @@ impl BoardProfile for BakuProbeBoard {
     };
 
     fn analog_frontend() -> AnalogFrontendConfig {
-        AnalogFrontendConfig::Pga113 {
-            adc_pin: 40,
-            cs_pin: 21,
-            sck_pin: 18,
-            mosi_pin: 19,
-            gains: &[1, 2, 5, 10, 20, 50, 100, 200],
-            has_vcal: true,
+        AnalogFrontendConfig::Direct {
+            adc_pins: &[40, 41, 42, 43, 44, 45, 46, 47],
+            adc_channels: &[0, 1, 2, 3, 4, 5, 6, 7],
+            attenuation: 1,
+            dual_personality: true,
         }
     }
 

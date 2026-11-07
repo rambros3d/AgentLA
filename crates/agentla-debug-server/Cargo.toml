@@ -1,0 +1,17 @@
+[package]
+name = "agentla-debug-server"
+version = "0.1.0"
+edition = "2024"
+authors = ["AgentLA Authors"]
+description = "Transport-agnostic GDB Remote Serial Protocol (RSP) stub and SEGGER RTT for AgentLA"
+license = "Apache-2.0"
+
+[dependencies]
+embedded-io-async = "0.7.0"
+heapless = "0.9"
+defmt = { version = "1.0", optional = true }
+
+[features]
+default = []
+std = []
+defmt = ["dep:defmt", "heapless/defmt"]

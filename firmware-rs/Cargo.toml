@@ -26,6 +26,13 @@ embedded-io-async = "0.7.0"
 portable-atomic = { version = "1.11", features = ["critical-section"] }
 heapless = "0.9"
 agentla-bsp = { path = "../crates/agentla-bsp" }
+agentla-analyzer = { path = "../crates/agentla-analyzer" }
+agentla-programmer = { path = "../crates/agentla-programmer", features = ["rp2350-pio"] }
+agentla-bridges = { path = "../crates/agentla-bridges", features = ["defmt"] }
+agentla-debug-server = { path = "../crates/agentla-debug-server", features = ["defmt"] }
+agentla-instruments = { path = "../crates/agentla-instruments", features = ["defmt"] }
+agentla-pin-arbiter = { path = "../crates/agentla-pin-arbiter", features = ["defmt"] }
+agentla-mcp = { path = "../crates/agentla-mcp" }
 agentla-board-pico2 = { path = "../boards/pico2" }
 agentla-board-bakuprobe = { path = "../boards/bakuprobe", optional = true }
 

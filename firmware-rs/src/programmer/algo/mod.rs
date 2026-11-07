@@ -1,32 +1,25 @@
+//! CMSIS FLM flash algorithm execution engine and direct flash controllers.
+
 pub mod blobs;
 
+pub use agentla_programmer::algo::*;
 pub use blobs::{AlgoBlobHeader, STM32F1_ALGO_CODE, STM32F1_ALGO_HDR};
-use crate::programmer::target::cortex_m::{CortexM, DHCSR, DHCSR_S_HALT};
-use crate::programmer::target::targets::{TargetFamily, TargetInfo};
+
+use crate::programmer::target::cortex_m::CortexM;
+use crate::programmer::target::targets::TargetInfo;
 use core::fmt::Write;
 use littlefs2::io::OpenSeekFrom;
 use littlefs2::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlgoError {
-    SwdError,
-    Timeout,
-    ExecutionFailed(u32),
-    VerifyMismatch { addr: u32, expected: u8, actual: u8 },
-    UnsupportedTarget,
-    AlgoNotFound,
-    AlgoInvalid,
-}
-
 pub struct FlashAlgorithmRunner;
 
 impl FlashAlgorithmRunner {
+    #[inline(always)]
     pub fn download_ram(cortex: &mut CortexM, addr: u32, data: &[u8]) -> Result<(), AlgoError> {
-        cortex
-            .mem_write_block(addr, data)
-            .map_err(|_| AlgoError::SwdError)
+        agentla_programmer::algo::FlashAlgorithmRunner::download_ram(cortex, addr, data)
     }
 
+    #[inline(always)]
     pub fn start_algo(
         cortex: &mut CortexM,
         entry: u32,
@@ -36,72 +29,15 @@ impl FlashAlgorithmRunner {
         r3: u32,
         sp: u32,
     ) -> Result<(), AlgoError> {
-        // 1. Halt core
-        cortex.halt().map_err(|_| AlgoError::SwdError)?;
-
-        // 2. Set up registers R0-R3, SP, LR, PC
-        cortex
-            .write_core_reg(0, r0)
-            .map_err(|_| AlgoError::SwdError)?;
-        cortex
-            .write_core_reg(1, r1)
-            .map_err(|_| AlgoError::SwdError)?;
-        cortex
-            .write_core_reg(2, r2)
-            .map_err(|_| AlgoError::SwdError)?;
-        cortex
-            .write_core_reg(3, r3)
-            .map_err(|_| AlgoError::SwdError)?;
-
-        if sp != 0 {
-            cortex
-                .write_core_reg(13, sp)
-                .map_err(|_| AlgoError::SwdError)?; // SP
-        }
-
-        // LR points to BKPT 0 opcode (0xBE00) placed at sp - 4
-        let lr = if sp >= 4 {
-            let bkpt_addr = sp - 4;
-            let _ = cortex.mem_write32(bkpt_addr, 0xBE00BE00);
-            bkpt_addr | 1
-        } else {
-            0x00000000
-        };
-        cortex
-            .write_core_reg(14, lr)
-            .map_err(|_| AlgoError::SwdError)?;
-
-        // PC = entry | 1 (Thumb bit)
-        cortex
-            .write_core_reg(15, entry | 1)
-            .map_err(|_| AlgoError::SwdError)?;
-
-        // 3. Resume core non-blocking
-        cortex.resume().map_err(|_| AlgoError::SwdError)?;
-        Ok(())
+        agentla_programmer::algo::FlashAlgorithmRunner::start_algo(cortex, entry, r0, r1, r2, r3, sp)
     }
 
-    pub fn wait_algo_halt(
-        cortex: &mut CortexM,
-        timeout_ms: u32,
-    ) -> Result<u32, AlgoError> {
-        let max_iterations = timeout_ms * 100;
-        for _ in 0..max_iterations {
-            if let Ok(dhcsr) = cortex.mem_read32(DHCSR) {
-                if (dhcsr & DHCSR_S_HALT) != 0 {
-                    let result = cortex
-                        .read_core_reg(0)
-                        .map_err(|_| AlgoError::SwdError)?;
-                    return Ok(result);
-                }
-            }
-            cortex_m::asm::delay(1500); // 10 µs
-        }
-
-        let _ = cortex.halt();
-        Err(AlgoError::Timeout)
+    #[inline(always)]
+    pub fn wait_algo_halt(cortex: &mut CortexM, timeout_ms: u32) -> Result<u32, AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::wait_algo_halt(cortex, timeout_ms)
     }
 
+    #[inline(always)]
     pub fn exec_algo(
         cortex: &mut CortexM,
         entry: u32,
@@ -112,33 +48,20 @@ impl FlashAlgorithmRunner {
         sp: u32,
         timeout_ms: u32,
     ) -> Result<u32, AlgoError> {
-        Self::start_algo(cortex, entry, r0, r1, r2, r3, sp)?;
-        Self::wait_algo_halt(cortex, timeout_ms)
+        agentla_programmer::algo::FlashAlgorithmRunner::exec_algo(cortex, entry, r0, r1, r2, r3, sp, timeout_ms)
     }
 
+    #[inline(always)]
     pub fn flm_erase_sector(
         cortex: &mut CortexM,
         hdr: &AlgoBlobHeader,
         code_base: u32,
         sector_addr: u32,
     ) -> Result<(), AlgoError> {
-        let entry = code_base + hdr.erase_offset;
-        let res = Self::exec_algo(
-            cortex,
-            entry,
-            sector_addr,
-            0,
-            0,
-            0,
-            hdr.stack_top,
-            2000,
-        )?;
-        if res != 0 {
-            return Err(AlgoError::ExecutionFailed(res));
-        }
-        Ok(())
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_erase_sector(cortex, hdr, code_base, sector_addr)
     }
 
+    #[inline(always)]
     pub fn flm_program_page(
         cortex: &mut CortexM,
         hdr: &AlgoBlobHeader,
@@ -146,27 +69,10 @@ impl FlashAlgorithmRunner {
         page_addr: u32,
         data: &[u8],
     ) -> Result<(), AlgoError> {
-        // 1. Download payload data into SRAM buffer
-        Self::download_ram(cortex, hdr.ram_base, data)?;
-
-        // 2. Invoke ProgramPage(page_addr, size, ram_base)
-        let entry = code_base + hdr.program_offset;
-        let res = Self::exec_algo(
-            cortex,
-            entry,
-            page_addr,
-            data.len() as u32,
-            hdr.ram_base,
-            0,
-            hdr.stack_top,
-            2000,
-        )?;
-        if res != 0 {
-            return Err(AlgoError::ExecutionFailed(res));
-        }
-        Ok(())
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_program_page(cortex, hdr, code_base, page_addr, data)
     }
 
+    #[inline(always)]
     pub fn flm_verify(
         cortex: &mut CortexM,
         hdr: &AlgoBlobHeader,
@@ -174,138 +80,96 @@ impl FlashAlgorithmRunner {
         addr: u32,
         data: &[u8],
     ) -> Result<bool, AlgoError> {
-        if hdr.verify_offset == 0 {
-            // Direct readback verify
-            let mut buf = [0u8; 64];
-            let mut offset = 0usize;
-            while offset < data.len() {
-                let chunk_len = (data.len() - offset).min(buf.len());
-                cortex
-                    .mem_read_block(addr + offset as u32, &mut buf[..chunk_len])
-                    .map_err(|_| AlgoError::SwdError)?;
-                if buf[..chunk_len] != data[offset..offset + chunk_len] {
-                    return Ok(false);
-                }
-                offset += chunk_len;
-            }
-            return Ok(true);
-        }
-
-        Self::download_ram(cortex, hdr.ram_base, data)?;
-        let entry = code_base + hdr.verify_offset;
-        let res = Self::exec_algo(
-            cortex,
-            entry,
-            addr,
-            data.len() as u32,
-            hdr.ram_base,
-            0,
-            hdr.stack_top,
-            2000,
-        )?;
-        Ok(res == 0)
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_verify(cortex, hdr, code_base, addr, data)
     }
 
-    // Direct hardware flash unlock and operations for STM32F1 & PY32
+    #[inline(always)]
     pub fn stm32f1_unlock(cortex: &mut CortexM) -> Result<(), AlgoError> {
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022004);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x45670123);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022004);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0xCDEF89AB);
-        // Clear status register error flags (PGERR, WRPRTERR, EOP)
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34);
-        Ok(())
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32f1_unlock(cortex)
     }
 
+    #[inline(always)]
     pub fn stm32f1_wait_bsy(cortex: &mut CortexM) -> Result<(), AlgoError> {
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-        for _ in 0..10_000 {
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
-            let mut sr = 0u32;
-            if cortex.swd.read_ap(crate::programmer::swd::AP_DRW, &mut sr).is_ok() {
-                if (sr & 0x01) == 0 {
-                    if (sr & 0x14) != 0 {
-                        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
-                        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34);
-                        return Err(AlgoError::ExecutionFailed(sr));
-                    }
-                    return Ok(());
-                }
-            }
-            cortex_m::asm::delay(1500);
-        }
-        Err(AlgoError::Timeout)
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32f1_wait_bsy(cortex)
     }
 
+    #[inline(always)]
     pub fn stm32f1_erase_sector(cortex: &mut CortexM, sector_addr: u32) -> Result<(), AlgoError> {
-        Self::stm32f1_unlock(cortex)?;
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34); // Clear EOP and error flags
-
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x02); // PER=1
-
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022014);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, sector_addr); // AR = sector_addr
-
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x42); // STRT=1, PER=1
-
-        Self::stm32f1_wait_bsy(cortex)?;
-
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x00); // Clear PER
-        Ok(())
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32f1_erase_sector(cortex, sector_addr)
     }
 
-    pub fn stm32f1_program_page(
+    #[inline(always)]
+    pub fn stm32f1_program_page(cortex: &mut CortexM, addr: u32, data: &[u8]) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32f1_program_page(cortex, addr, data)
+    }
+
+    #[inline(always)]
+    pub fn flm_init(
         cortex: &mut CortexM,
-        addr: u32,
-        data: &[u8],
+        hdr: &AlgoBlobHeader,
+        code_base: u32,
+        flash_addr: u32,
+        clk: u32,
+        func: u32,
     ) -> Result<(), AlgoError> {
-        Self::stm32f1_unlock(cortex)?;
-        let mut offset = 0usize;
-        while offset < data.len() {
-            let halfword = if offset + 1 < data.len() {
-                (data[offset] as u16) | ((data[offset + 1] as u16) << 8)
-            } else {
-                data[offset] as u16 | 0xFF00
-            };
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_init(cortex, hdr, code_base, flash_addr, clk, func)
+    }
 
-            // 1. Clear EOP and error flags in FLASH_SR
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x4002200C);
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x34);
+    #[inline(always)]
+    pub fn flm_uninit(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code_base: u32,
+        func: u32,
+    ) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_uninit(cortex, hdr, code_base, func)
+    }
 
-            // 2. Set PG=1 in FLASH_CR
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x01);
+    #[inline(always)]
+    pub fn flm_program_turbo_double_buffered(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code_base: u32,
+        target_flash_addr: u32,
+        data: &[u8],
+        page_size: u32,
+    ) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_program_turbo_double_buffered(
+            cortex,
+            hdr,
+            code_base,
+            target_flash_addr,
+            data,
+            page_size,
+        )
+    }
 
-            // 3. Program halfword using 16-bit CSW access with byte lane positioning
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_16BIT);
-            let curr_addr = addr + offset as u32;
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, curr_addr);
-            let packed = (halfword as u32) << (8 * (curr_addr & 2));
-            let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, packed);
-
-            // 4. Wait for BSY clear
-            Self::stm32f1_wait_bsy(cortex)?;
-            offset += 2;
-        }
-
-        // Clear PG bit
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-        let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x00);
-        Ok(())
+    #[inline(always)]
+    pub fn flm_flash_blob(
+        cortex: &mut CortexM,
+        hdr: &AlgoBlobHeader,
+        code: &[u8],
+        target_ram_base: u32,
+        target_flash_addr: u32,
+        data: &[u8],
+        sector_size: u32,
+        page_size: u32,
+    ) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::flm_flash_blob(
+            cortex,
+            hdr,
+            code,
+            target_ram_base,
+            target_flash_addr,
+            data,
+            sector_size,
+            page_size,
+        )
     }
 
     pub fn load_algo_from_fs(name: &str, buf: &mut [u8]) -> Result<(AlgoBlobHeader, usize), AlgoError> {
         let mut path_str = heapless::String::<64>::new();
-        let _ = core::write!(path_str, "/system/algo/{}.bin", name);
+        let _ = write!(path_str, "/system/algo/{}.bin", name);
         let path = PathBuf::try_from(path_str.as_str()).map_err(|_| AlgoError::AlgoNotFound)?;
 
         let read_result = crate::storage::with_system_fs(|fs| {
@@ -352,189 +216,6 @@ impl FlashAlgorithmRunner {
         Ok((hdr, bytes_read))
     }
 
-    pub fn flm_init(
-        cortex: &mut CortexM,
-        hdr: &AlgoBlobHeader,
-        code_base: u32,
-        flash_addr: u32,
-        clk: u32,
-        func: u32,
-    ) -> Result<(), AlgoError> {
-        let entry = code_base + hdr.init_offset;
-        let res = Self::exec_algo(
-            cortex,
-            entry,
-            flash_addr,
-            clk,
-            func,
-            0,
-            hdr.stack_top,
-            2000,
-        )?;
-        if res != 0 {
-            return Err(AlgoError::ExecutionFailed(res));
-        }
-        Ok(())
-    }
-
-    pub fn flm_uninit(
-        cortex: &mut CortexM,
-        hdr: &AlgoBlobHeader,
-        code_base: u32,
-        func: u32,
-    ) -> Result<(), AlgoError> {
-        if hdr.uninit_offset == 0 {
-            return Ok(());
-        }
-        let entry = code_base + hdr.uninit_offset;
-        let res = Self::exec_algo(
-            cortex,
-            entry,
-            func,
-            0,
-            0,
-            0,
-            hdr.stack_top,
-            2000,
-        )?;
-        if res != 0 {
-            return Err(AlgoError::ExecutionFailed(res));
-        }
-        Ok(())
-    }
-
-    pub fn flm_program_turbo_double_buffered(
-        cortex: &mut CortexM,
-        hdr: &AlgoBlobHeader,
-        code_base: u32,
-        target_flash_addr: u32,
-        data: &[u8],
-        page_size: u32,
-    ) -> Result<(), AlgoError> {
-        let buf0_addr = hdr.ram_base;
-        let buf1_addr = hdr.ram_base + page_size;
-        let entry = code_base + hdr.program_offset;
-
-        let mut offset = 0usize;
-        let first_chunk = (data.len() - offset).min(page_size as usize);
-
-        // 1. Fill Buffer 0 with Page 0
-        Self::download_ram(cortex, buf0_addr, &data[offset..offset + first_chunk])?;
-
-        // 2. Start target CPU on Page 0 (Buffer 0) non-blocking
-        Self::start_algo(
-            cortex,
-            entry,
-            target_flash_addr + offset as u32,
-            first_chunk as u32,
-            buf0_addr,
-            0,
-            hdr.stack_top,
-        )?;
-        offset += first_chunk;
-        let mut current_buf = 0;
-
-        // 3. Ping-pong loop: overlap SWD download of next page with target CPU burning
-        while offset < data.len() {
-            let next_buf = 1 - current_buf;
-            let next_buf_addr = if next_buf == 0 { buf0_addr } else { buf1_addr };
-            let next_chunk = (data.len() - offset).min(page_size as usize);
-
-            // Stream next page into next_buf over SWD while current_buf is being programmed
-            Self::download_ram(cortex, next_buf_addr, &data[offset..offset + next_chunk])?;
-
-            // Wait for running page to complete
-            let res = Self::wait_algo_halt(cortex, 2000)?;
-            if res != 0 {
-                return Err(AlgoError::ExecutionFailed(res));
-            }
-
-            // Immediately start target CPU on next_buf
-            Self::start_algo(
-                cortex,
-                entry,
-                target_flash_addr + offset as u32,
-                next_chunk as u32,
-                next_buf_addr,
-                0,
-                hdr.stack_top,
-            )?;
-
-            offset += next_chunk;
-            current_buf = next_buf;
-        }
-
-        // 4. Wait for final page to complete
-        let res = Self::wait_algo_halt(cortex, 2000)?;
-        if res != 0 {
-            return Err(AlgoError::ExecutionFailed(res));
-        }
-
-        Ok(())
-    }
-
-    pub fn flm_flash_blob(
-        cortex: &mut CortexM,
-        hdr: &AlgoBlobHeader,
-        code: &[u8],
-        target_ram_base: u32,
-        target_flash_addr: u32,
-        data: &[u8],
-        sector_size: u32,
-        page_size: u32,
-    ) -> Result<(), AlgoError> {
-        let code_base = target_ram_base;
-        // 1. Download algorithm code to target SRAM
-        Self::download_ram(cortex, code_base, code)?;
-
-        // 2. Call Init(target_flash_addr, 0, 1 = Erase)
-        Self::flm_init(cortex, hdr, code_base, target_flash_addr, 0, 1)?;
-
-        // 3. Erase sectors
-        let mut curr_sector = target_flash_addr & !(sector_size - 1);
-        let end_addr = target_flash_addr + data.len() as u32;
-        while curr_sector < end_addr {
-            Self::flm_erase_sector(cortex, hdr, code_base, curr_sector)?;
-            curr_sector += sector_size;
-        }
-
-        // 4. Program pages (Turbo double-buffered when SRAM permits)
-        let can_double_buffer = hdr.ram_size >= (2 * page_size) && page_size > 0;
-        if can_double_buffer && data.len() > page_size as usize {
-            Self::flm_program_turbo_double_buffered(
-                cortex,
-                hdr,
-                code_base,
-                target_flash_addr,
-                data,
-                page_size,
-            )?;
-        } else {
-            let mut offset = 0usize;
-            while offset < data.len() {
-                let chunk_len = (data.len() - offset).min(page_size as usize);
-                Self::flm_program_page(
-                    cortex,
-                    hdr,
-                    code_base,
-                    target_flash_addr + offset as u32,
-                    &data[offset..offset + chunk_len],
-                )?;
-                offset += chunk_len;
-            }
-        }
-
-        // 5. Verify
-        let ok = Self::flm_verify(cortex, hdr, code_base, target_flash_addr, data)?;
-        if !ok {
-            return Err(AlgoError::ExecutionFailed(1));
-        }
-
-        // 6. UnInit
-        Self::flm_uninit(cortex, hdr, code_base, 2)?;
-        Ok(())
-    }
-
     pub fn flash_target_with_fs(
         cortex: &mut CortexM,
         algo_name: &str,
@@ -550,14 +231,12 @@ impl FlashAlgorithmRunner {
         Self::flm_flash_blob(cortex, &hdr, code, target_ram_base, target_flash_addr, data, sector_size, page_size)
     }
 
-    // High level flash write + verify for any target
     pub fn flash_target(
         cortex: &mut CortexM,
         target: &TargetInfo,
         addr: u32,
         data: &[u8],
     ) -> Result<(), AlgoError> {
-        // 1. If device family has a matching LittleFS algorithm blob in /system/algo/, try running it
         if let Some(algo_name) = target.family.algo_name() {
             if let Ok(()) = Self::flash_target_with_fs(
                 cortex,
@@ -571,63 +250,6 @@ impl FlashAlgorithmRunner {
                 return Ok(());
             }
         }
-
-        // 2. Hardware-specific fallback or built-in algorithm
-        match target.family {
-            TargetFamily::Stm32F1 | TargetFamily::Py32F0 => {
-                // Erase sectors
-                let sector_size = target.sector_size;
-                let mut curr_sector = addr & !(sector_size - 1);
-                let end_addr = addr + data.len() as u32;
-                while curr_sector < end_addr {
-                    Self::stm32f1_erase_sector(cortex, curr_sector)?;
-                    curr_sector += sector_size;
-                }
-                // Program pages
-                let mut offset = 0usize;
-                while offset < data.len() {
-                    let chunk_len = (data.len() - offset).min(target.page_size as usize);
-                    Self::stm32f1_program_page(
-                        cortex,
-                        addr + offset as u32,
-                        &data[offset..offset + chunk_len],
-                    )?;
-                    offset += chunk_len;
-                }
-                // Verify
-                let mut readback = [0u8; 64];
-                let mut v_offset = 0usize;
-                while v_offset < data.len() {
-                    let chunk_len = (data.len() - v_offset).min(readback.len());
-                    cortex
-                        .mem_read_block(addr + v_offset as u32, &mut readback[..chunk_len])
-                        .map_err(|_| AlgoError::SwdError)?;
-                    for i in 0..chunk_len {
-                        if readback[i] != data[v_offset + i] {
-                            return Err(AlgoError::VerifyMismatch {
-                                addr: addr + (v_offset + i) as u32,
-                                expected: data[v_offset + i],
-                                actual: readback[i],
-                            });
-                        }
-                    }
-                    v_offset += chunk_len;
-                }
-                Ok(())
-            }
-            _ => {
-                // For other Cortex targets, download and run FLM blob runner
-                let code_base = target.ram_base;
-                Self::download_ram(cortex, code_base, STM32F1_ALGO_CODE)?;
-                let hdr = STM32F1_ALGO_HDR;
-                Self::flm_erase_sector(cortex, &hdr, code_base, addr)?;
-                Self::flm_program_page(cortex, &hdr, code_base, addr, data)?;
-                let ok = Self::flm_verify(cortex, &hdr, code_base, addr, data)?;
-                if !ok {
-                    return Err(AlgoError::ExecutionFailed(1));
-                }
-                Ok(())
-            }
-        }
+        agentla_programmer::algo::FlashAlgorithmRunner::flash_target(cortex, target, addr, data)
     }
 }
