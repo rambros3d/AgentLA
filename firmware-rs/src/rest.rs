@@ -1590,6 +1590,15 @@ impl FirmwareRollback {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let _ = read_body_str(&mut request).await;
+        let cur = crate::boot::current_executing_slot();
+        let target = cur.other();
+        let target_xip = target.xip_address();
+        let sp = unsafe { *(target_xip as *const u32) };
+        let pc = unsafe { *((target_xip + 4) as *const u32) };
+        let valid = (sp >= 0x2000_0000 && sp <= 0x2008_2000) && (pc >= target_xip && pc < target_xip + 1200 * 1024);
+        if !valid {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"alternate_slot_empty_or_corrupt"}"#).await;
+        }
         if crate::boot::ota_rollback().is_err() {
             return send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"error":"rollback_failed"}"#).await;
         }
@@ -1619,7 +1628,11 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .await;
         }
 
-        let mut reader = request.body_connection.body().reader();
+        let mut reader = request
+            .body_connection
+            .body()
+            .reader()
+            .with_different_timeout(embassy_time::Duration::from_secs(60));
 
         // 1. Read 64-byte FirmwareHeader
         let mut hdr_bytes = [0u8; agentla_boot_proto::FirmwareHeader::SIZE];
@@ -1687,19 +1700,7 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
         let target_slot = cur_slot.other();
         let slot_base = target_slot.flash_offset();
 
-        // 2. Erase the inactive slot range in flash
-        let erase_len = ((hdr.payload_size as usize + 4095) / 4096) * 4096;
-        if crate::storage::flash_slot_erase(slot_base, slot_base + erase_len as u32).is_err() {
-            return send_json(
-                request,
-                response_writer,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                r#"{"error":"flash_erase_failed"}"#,
-            )
-            .await;
-        }
-
-        // 3. Stream payload chunks, write in 256-byte pages, compute CRC32
+        // 2. Stream payload chunks, erase 4 KB sectors on demand, write in 256-byte pages
         let mut page_buf = [0xFFu8; 256];
         let mut page_idx = 0;
         let mut written_bytes = 0u32;
@@ -1722,6 +1723,20 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             };
 
             for &b in &chunk_buf[..n] {
+                // Erase 4 KB sector right before writing its first byte
+                if written_bytes % 4096 == 0 && page_idx == 0 {
+                    let sec_start = slot_base + written_bytes;
+                    if crate::storage::flash_slot_erase(sec_start, sec_start + 4096).is_err() {
+                        return send_json(
+                            request,
+                            response_writer,
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            r#"{"error":"flash_erase_failed"}"#,
+                        )
+                        .await;
+                    }
+                }
+
                 // CRC update
                 crc_val ^= b as u32;
                 for _ in 0..8 {
