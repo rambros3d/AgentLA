@@ -37,7 +37,7 @@ impl Resource {
     }
 }
 
-pub static DEFAULT_RESOURCES: [Resource; 2] = [
+pub static DEFAULT_RESOURCES: [Resource; 3] = [
     Resource::new(
         "agentla://info",
         "AgentLA System Info",
@@ -49,6 +49,12 @@ pub static DEFAULT_RESOURCES: [Resource; 2] = [
         "AgentLA Pin Allocation",
         Some("GPIO pin assignments and subsystem allocations"),
         "application/json",
+    ),
+    Resource::new(
+        "agentla://skills/mcu-autonomous-testing",
+        "MCU Autonomous Testing Playbook",
+        Some("Universal closed-loop hardware testing, firmware validation, and HardFault triage guide"),
+        "text/markdown",
     ),
 ];
 
@@ -176,6 +182,13 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                             let _ = write!(
                                 out,
                                 r#"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://pinout","mimeType":"application/json","text":"{{\"reserved\":\"GPIO0-GPIO9\",\"flexible\":\"GPIO10-GPIO29\"}}"}}]}}}}"#,
+                                id_frag
+                            );
+                        }
+                        "agentla://skills/mcu-autonomous-testing" => {
+                            let _ = write!(
+                                out,
+                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/mcu-autonomous-testing","mimeType":"text/markdown","text":"# Universal MCU Autonomous Testing Playbook\n\nEndpoint: http://10.10.10.10/skills/mcu-autonomous-testing/SKILL.md\n\nPhases:\n1. Auto-Discovery & Health Audit\n2. Pre-Flash Invariant Check & Deployment\n3. Boot Settling (100ms) & Console Handshake\n4. Multi-Protocol Interactive Stimulus\n5. Autonomous HardFault Triage (target_diagnose)"}}]}}}}"##,
                                 id_frag
                             );
                         }

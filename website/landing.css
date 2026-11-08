@@ -296,7 +296,7 @@ a:hover {
 }
 
 .hero-container {
-    max-width: 860px;
+    max-width: 1080px;
     margin: 0 auto;
 }
 
@@ -463,6 +463,95 @@ a:hover {
     display: flex;
     gap: 10px;
     align-items: center;
+}
+
+/* Live Interactive Device Preview Bezel */
+.hero-preview-frame {
+    max-width: 1040px;
+    width: 100%;
+    margin: 40px auto 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg, 12px);
+    background: var(--bg-surface);
+    overflow: hidden;
+    text-align: left;
+    box-shadow: 0 12px 36px -10px rgba(0, 0, 0, 0.4);
+}
+
+.frame-window-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--color-base-300);
+    border-bottom: 1px solid var(--border-color);
+    gap: 12px;
+}
+
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ctrl-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot-red { background: #ff5f56; }
+.dot-yellow { background: #ffbd2e; }
+.dot-green { background: #27c93f; }
+
+.frame-window-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.frame-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.frame-fullscreen-btn {
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 3px 10px;
+}
+
+.frame-viewport {
+    position: relative;
+    width: 100%;
+    height: 520px;
+    background: #0d1117;
+}
+
+.preview-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .frame-viewport {
+        height: 380px;
+    }
+    .frame-window-title {
+        font-size: 10px;
+    }
 }
 
 /* Section Common */

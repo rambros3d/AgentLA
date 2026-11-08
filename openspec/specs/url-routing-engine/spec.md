@@ -1,7 +1,7 @@
 # url-routing-engine Specification
 
 ## Purpose
-URL routing engine handling factory WebUI serving, root redirection, LittleFS custom application routes, bridge script injection, SPA fallbacks, and REST API dispatch.
+URL routing engine handling factory WebUI serving, root redirection to canonical routes, LittleFS custom application routes, bridge script injection, SPA fallbacks, and REST API dispatch.
 
 ## Requirements
 
@@ -13,56 +13,56 @@ The HTTP server SHALL append `<script src="/agentla-bridge.js" defer></script>` 
 - **THEN** the server returns HTTP 200 with the bridge script tag appended and matching `Content-Length`.
 
 ### Requirement: Factory WebUI Root Serving Invariant
-The HTTP server SHALL serve the factory WebUI workbench from ROM fsdata for requests matching `/lab`, `/lab/`, and `/lab/index.html`. Requests to root `/` SHALL be handled by the root redirection handler or default landing route.
+The HTTP server SHALL serve the factory WebUI workbench (`lab.html`) for requests matching canonical instrument routes: `/scope`, `/debug`, `/adapter`, `/pins`, `/agent`, and direct requests to `/lab.html`. Requests to root `/` SHALL be handled by the root redirection handler returning HTTP 302 Found to `default_home_route`.
 
-#### Scenario: Navigating to lab route
-- **WHEN** a client requests `http://10.10.10.10/lab` or `http://10.10.10.10/lab/` or `http://10.10.10.10/lab/index.html`
-- **THEN** the server serves the factory WebUI workbench (`index.html`) from ROM fsdata with HTTP 200 OK.
+#### Scenario: Navigating to canonical scope route
+- **WHEN** a client requests `http://10.10.10.10/scope` or `http://10.10.10.10/scope/`
+- **THEN** the server serves the WebUI workbench (`lab.html`) with HTTP 200 OK.
+
+#### Scenario: Navigating to direct lab.html route
+- **WHEN** a client requests `http://10.10.10.10/lab.html`
+- **THEN** the server serves the WebUI workbench (`lab.html`) with HTTP 200 OK.
 
 #### Scenario: Root route redirection
 - **WHEN** a client requests `http://10.10.10.10/`
-- **THEN** the server returns HTTP 302 Found redirecting to the configured default home route.
-
-#### Scenario: Navigating to root URL
-- **WHEN** a client requests `http://10.10.10.10/` or `http://10.10.10.10/index.html`
-- **THEN** the server serves the default factory WebUI from ROM fsdata with HTTP 200 OK.
+- **THEN** the server returns HTTP 302 Found redirecting to the configured `default_home_route` (default: `/home`).
 
 ### Requirement: App Launcher Route Resolution
-The HTTP server SHALL route requests for `/apps` and `/apps/` to the built-in App Launcher page compiled into ROM fsdata.
+The HTTP server SHALL route requests for `/home`, `/home/`, and direct requests to `/index.html` to the built-in App Launcher catalog (`index.html`) compiled into LittleFS system storage.
 
 #### Scenario: Navigating to launcher URL
-- **WHEN** a client requests `http://10.10.10.10/apps` or `http://10.10.10.10/apps/`
-- **THEN** the server serves the App Launcher dashboard from ROM fsdata with HTTP 200 OK.
+- **WHEN** a client requests `http://10.10.10.10/home` or `http://10.10.10.10/home/`
+- **THEN** the server serves the App Launcher catalog (`index.html`) with HTTP 200 OK.
+
+#### Scenario: Navigating to index.html route
+- **WHEN** a client requests `http://10.10.10.10/index.html`
+- **THEN** the server serves the App Launcher catalog (`index.html`) with HTTP 200 OK.
 
 ### Requirement: Custom App Routing with Trailing Slash Normalization
-The HTTP server SHALL resolve custom user frontends under `/apps/{app-name}/` from LittleFS and normalize directory roots.
+The HTTP server SHALL resolve custom user frontends under `/app/{app-name}/` from LittleFS and normalize directory roots.
 
 #### Scenario: Missing trailing slash redirect
-- **WHEN** a client requests `http://10.10.10.10/apps/can-sniffer`
-- **THEN** the server returns HTTP 301 Moved Permanently with `Location: /apps/can-sniffer/`.
+- **WHEN** a client requests `http://10.10.10.10/app/can-sniffer`
+- **THEN** the server returns HTTP 301 Moved Permanently with `Location: /app/can-sniffer/`.
 
 #### Scenario: Serving custom app index
-- **WHEN** a client requests `http://10.10.10.10/apps/can-sniffer/`
-- **THEN** the server serves `/apps/can-sniffer/index.html` from LittleFS with `Content-Type: text/html`.
+- **WHEN** a client requests `http://10.10.10.10/app/can-sniffer/`
+- **THEN** the server serves `/app/can-sniffer/index.html` from LittleFS with `Content-Type: text/html`.
 
 ### Requirement: SPA Routing Fallback
 The HTTP server SHALL serve the app's `index.html` when a requested subpath under an installed app does not match an existing file and has no static file extension.
 
-#### Scenario: Client-side routing path request
-- **WHEN** a client requests `http://10.10.10.10/apps/can-sniffer/dashboard/filters` and no such file exists on flash
-- **THEN** the server serves `/apps/can-sniffer/index.html` with HTTP 200 OK.
+#### Scenario: Client-side routing fallback
+- **WHEN** a client requests a non-existent path without file extension under an installed app route
+- **THEN** the server serves the app's `index.html` with HTTP 200 OK.
 
-#### Scenario: Missing static asset 404
-- **WHEN** a client requests `http://10.10.10.10/apps/can-sniffer/assets/missing.png` and the file does not exist
-- **THEN** the server returns HTTP 404 Not Found.
+### Requirement: Standalone Device Diagnostics Routing
+The HTTP server SHALL route requests for `/device`, `/device/`, and direct requests to `/device.html` to the ROM-embedded `device.html` asset, bypassing LittleFS filesystem lookups.
 
-### Requirement: Hardware REST and Legacy Alias Routing
-The HTTP server routing engine SHALL intercept all requests under `/api/v1/` as well as legacy profile routes `/api/profiles` and `/api/profiles/apply`, dispatching them to `rest_api_handle` before attempting filesystem lookups.
+#### Scenario: Navigating to canonical device route
+- **WHEN** a client requests `http://10.10.10.10/device` or `http://10.10.10.10/device.html`
+- **THEN** the server returns HTTP 200 OK with `Content-Type: text/html` serving the ROM-embedded diagnostics page.
 
-#### Scenario: Dispatching legacy profile route
-- **WHEN** client sends a request to `/api/profiles` or `/api/profiles/apply`
-- **THEN** `app_routing` matches the URI and forwards the request to `rest_api_handle`, returning appropriate JSON responses with HTTP 200.
-
-#### Scenario: Dispatching hardware instrument REST routes
-- **WHEN** client sends a request to `/api/v1/pins`, `/api/v1/bus/i2c/scan`, or `/api/v1/analyzer/status`
-- **THEN** `app_routing` routes the request to the REST API engine.
+#### Scenario: Trailing slash redirection for device route
+- **WHEN** a client requests `http://10.10.10.10/device/`
+- **THEN** the server returns HTTP 301 Moved Permanently redirecting to `/device`.

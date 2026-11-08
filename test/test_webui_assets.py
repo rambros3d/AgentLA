@@ -39,24 +39,31 @@ def test_theme_compiler_root_cascade_order():
     assert forest_match is not None
 
 
-def test_index_html_clean_header_and_landing_setting():
-    """Verify index.html has clean top bar (no redundant launcher pills) and landing page selector."""
-    index_html_path = HTML_DIR / "index.html"
-    assert index_html_path.exists()
-    content = index_html_path.read_text(encoding="utf-8")
+def test_lab_html_clean_header_and_landing_setting():
+    """Verify lab.html (Workbench SPA) has clean top bar (no redundant launcher pills) and landing page selector."""
+    lab_html_path = HTML_DIR / "lab.html"
+    assert lab_html_path.exists(), "webui/lab.html must exist"
+    content = lab_html_path.read_text(encoding="utf-8")
 
     # 1. Redundant nav pill removed
     assert '<nav class="header-nav-links"' not in content, "Redundant nav pill container must be removed"
     assert 'class="preset-pill">App Launcher</a>' not in content
 
-    # 2. Brand logo acts as link to /home/
-    assert 'href="/home/"' in content, "Brand logo must link to /home/"
+    # 2. Brand logo acts as link to /home
+    assert ('href="/home"' in content or 'href="/home/"' in content), "Brand logo must link to /home"
     assert 'id="brand-logo"' in content
 
-    # 3. Settings modal includes landing page selector
+    # 3. Settings modal includes landing page selector with canonical routes
     assert 'id="settings-default-home-route-select"' in content, "Landing page selector must be present"
-    assert 'value="/home/"' in content
-    assert 'value="/scope/"' in content
+    assert 'value="/home"' in content
+    assert 'value="/scope"' in content
+    assert 'value="/debug"' in content
+    assert 'value="/adapter"' in content
+    assert 'value="/pins"' in content
+    assert 'value="/agent"' in content
+    assert 'value="/terminal"' in content
+    assert 'value="/lab"' not in content, "Legacy /lab route must be removed"
+    assert 'value="/apps"' not in content, "Legacy /apps route must be removed"
 
     # 4. Uses relative asset links compatible with both firmware and GitHub Pages
     assert 'href="style.css"' in content
@@ -64,11 +71,11 @@ def test_index_html_clean_header_and_landing_setting():
     assert 'src="app.js"' in content
 
 
-def test_apps_html_unified_os_launcher():
-    """Verify apps.html has DaisyUI styling, squircle grid, spotlight search, and shared settings modal."""
-    apps_html_path = HTML_DIR / "apps.html"
-    assert apps_html_path.exists()
-    content = apps_html_path.read_text(encoding="utf-8")
+def test_index_html_unified_os_launcher():
+    """Verify index.html (Launcher & Catalog) has DaisyUI styling, squircle grid, spotlight search, and shared settings modal."""
+    index_html_path = HTML_DIR / "index.html"
+    assert index_html_path.exists(), "webui/index.html must exist"
+    content = index_html_path.read_text(encoding="utf-8")
 
     # 1. No legacy #0d1117 block
     assert "background-color: var(--bg-canvas" in content
@@ -143,22 +150,53 @@ def test_pure_daisyui_stylesheet_and_token_invariants():
     assert ".progress" in content, "DaisyUI .progress component class missing in style.css"
     assert ".status" in content, "DaisyUI .status indicator dot class missing in style.css"
 
+    # 3. Comprehensive layout utility layer present
+    assert ".grid" in content, "CSS Grid utility missing in style.css"
+    assert ".grid-cols-4" in content, ".grid-cols-4 missing in style.css"
+    assert ".md\\:grid-cols-2" in content, "Responsive md:grid-cols-2 missing in style.css"
+    assert ".gap-4" in content, ".gap-4 missing in style.css"
+    assert ".flex-col" in content, ".flex-col missing in style.css"
+    assert ".items-center" in content, ".items-center missing in style.css"
+    assert ".justify-between" in content, ".justify-between missing in style.css"
+    assert ".p-4" in content, ".p-4 missing in style.css"
+    assert ".w-full" in content, ".w-full missing in style.css"
 
-def test_index_html_daisyui_markup_components():
-    """Verify index.html adopts DaisyUI navbar, telemetry stats, table zebra, and mockup-code."""
-    index_html_path = HTML_DIR / "index.html"
-    assert index_html_path.exists()
-    content = index_html_path.read_text(encoding="utf-8")
 
-    assert "navbar" in content, "index.html top bar must use DaisyUI .navbar"
-    assert "navbar-start" in content, "index.html navbar must include .navbar-start"
-    assert "navbar-end" in content, "index.html navbar must include .navbar-end"
-    assert "scope-telemetry-stats" in content, "index.html scope telemetry container missing"
-    assert "stats-horizontal" in content, "index.html scope telemetry must use DaisyUI .stats-horizontal"
-    assert "stat-title" in content, "index.html scope telemetry must use .stat-title"
-    assert "stat-value" in content, "index.html scope telemetry must use .stat-value"
-    assert "table-zebra" in content, "index.html packet/log table must use DaisyUI .table-zebra"
-    assert "mockup-code" in content, "index.html terminal display must use DaisyUI .mockup-code"
+def test_daisyui_bundle_distribution_and_linking():
+    """Verify daisyui.css bundle exists, is linked by html files and user apps, and routed in firmware."""
+    daisyui_path = HTML_DIR / "daisyui.css"
+    assert daisyui_path.exists(), "daisyui.css must exist in webui/"
+    content = daisyui_path.read_text(encoding="utf-8")
+    assert "daisyUI" in content
+
+    # Check routing in web.rs
+    web_rs = REPO_ROOT / "firmware-rs" / "src" / "web.rs"
+    assert web_rs.exists()
+    web_content = web_rs.read_text(encoding="utf-8")
+    assert '"/daisyui.css"' in web_content, "web.rs must route /daisyui.css"
+
+    # Check user apps link daisyui.css
+    for app in ["servo-master", "can-sniffer"]:
+        app_html = REPO_ROOT / "apps" / app / "index.html"
+        assert app_html.exists()
+        assert 'href="/daisyui.css"' in app_html.read_text(encoding="utf-8"), f"{app} must link /daisyui.css"
+
+
+def test_lab_html_daisyui_markup_components():
+    """Verify lab.html (Workbench SPA) adopts DaisyUI navbar, telemetry stats, table zebra, and mockup-code."""
+    lab_html_path = HTML_DIR / "lab.html"
+    assert lab_html_path.exists(), "webui/lab.html must exist"
+    content = lab_html_path.read_text(encoding="utf-8")
+
+    assert "navbar" in content, "lab.html top bar must use DaisyUI .navbar"
+    assert "navbar-start" in content, "lab.html navbar must include .navbar-start"
+    assert "navbar-end" in content, "lab.html navbar must include .navbar-end"
+    assert "scope-telemetry-stats" in content, "lab.html scope telemetry container missing"
+    assert "stats-horizontal" in content, "lab.html scope telemetry must use DaisyUI .stats-horizontal"
+    assert "stat-title" in content, "lab.html scope telemetry must use .stat-title"
+    assert "stat-value" in content, "lab.html scope telemetry must use .stat-value"
+    assert "table-zebra" in content, "lab.html packet/log table must use DaisyUI .table-zebra"
+    assert "mockup-code" in content, "lab.html terminal display must use DaisyUI .mockup-code"
 
 
 def test_app_js_dynamic_canvas_token_binding():
@@ -173,17 +211,17 @@ def test_app_js_dynamic_canvas_token_binding():
 
 
 def test_modal_hidden_by_default_and_no_bogus_selector():
-    """Verify style.css does not have bogus dialog selectors that permanently open div modals, and apps.html hides modals initially."""
+    """Verify style.css does not have bogus dialog selectors that permanently open div modals, and index.html hides modals initially."""
     style_css_path = HTML_DIR / "style.css"
     content = style_css_path.read_text(encoding="utf-8")
 
     assert ":not(dialog:not(.modal-open))" not in content, "Bogus selector found in style.css"
     assert ".modal {" in content
 
-    apps_html_path = HTML_DIR / "apps.html"
-    apps_content = apps_html_path.read_text(encoding="utf-8")
-    assert 'id="modal-settings"' in apps_content
-    assert 'style="display: none;"' in apps_content
+    launcher_html_path = HTML_DIR / "index.html"
+    launcher_content = launcher_html_path.read_text(encoding="utf-8")
+    assert 'id="modal-settings"' in launcher_content
+    assert 'style="display: none;"' in launcher_content
 
 
 def test_landing_page_light_theme_tokens_and_syntax():
@@ -201,7 +239,7 @@ def test_landing_page_light_theme_tokens_and_syntax():
 def test_cross_page_theme_synchronization():
     """Verify all pages (workbench, launcher, user apps) implement multi-tab/iframe theme synchronization."""
     app_js = (HTML_DIR / "app.js").read_text(encoding="utf-8")
-    apps_html = (HTML_DIR / "apps.html").read_text(encoding="utf-8")
+    launcher_html = (HTML_DIR / "index.html").read_text(encoding="utf-8")
     bridge_js = (HTML_DIR / "agentla-bridge.js").read_text(encoding="utf-8")
     servo_path = HTML_DIR.parent / "apps" / "servo-master" / "index.html"
     if not servo_path.exists():
@@ -210,17 +248,84 @@ def test_cross_page_theme_synchronization():
 
     # 1. All layers listen to storage events
     assert "window.addEventListener('storage'" in app_js, "app.js must listen to storage events"
-    assert "window.addEventListener('storage'" in apps_html, "apps.html must listen to storage events"
+    assert "window.addEventListener('storage'" in launcher_html, "index.html must listen to storage events"
     assert "window.addEventListener('storage'" in bridge_js, "agentla-bridge.js must listen to storage events"
 
     # 2. All layers use BroadcastChannel('agentla-theme-channel')
     assert "agentla-theme-channel" in app_js, "app.js must use agentla-theme-channel"
-    assert "agentla-theme-channel" in apps_html, "apps.html must use agentla-theme-channel"
+    assert "agentla-theme-channel" in launcher_html, "index.html must use agentla-theme-channel"
     assert "agentla-theme-channel" in bridge_js, "agentla-bridge.js must use agentla-theme-channel"
 
     # 3. User app integration
     assert '<script src="/agentla-bridge.js"></script>' in servo_index, "servo-master must include agentla-bridge.js"
     assert 'data-theme="forest"' in servo_index, "servo-master must default to forest theme"
+
+
+def test_mock_bridge_in_webui_and_excluded_from_pack(tmp_path):
+    """Verify mock-bridge.js lives in webui/ for demo simulation, but is strictly filtered out of LittleFS packaging."""
+    mock_bridge = HTML_DIR / "mock-bridge.js"
+    assert mock_bridge.exists(), "mock-bridge.js must exist directly in webui/ for standalone simulation"
+    assert "simState" in mock_bridge.read_text(encoding="utf-8")
+
+    import importlib.util
+    pack_script = REPO_ROOT / "tools" / "pack_webui.py"
+    spec = importlib.util.spec_from_file_location("pack_webui_mod", pack_script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    out_img = tmp_path / "test.img"
+    out_uf2 = tmp_path / "test.uf2"
+    out_tar = tmp_path / "test.tar"
+
+    result = mod.pack_webui(
+        web_dir=HTML_DIR,
+        output_img=out_img,
+        output_uf2=out_uf2,
+        output_tar=out_tar,
+        include_user_apps=False,
+    )
+
+    packed_files = result["asset_names"]
+    assert "mock-bridge.js" not in packed_files, "mock-bridge.js MUST NOT be packaged into LittleFS image"
+    assert not any("mock" in f for f in packed_files), "No mock simulation files allowed in LittleFS"
+
+
+def test_build_portal_staging_pipeline(tmp_path):
+    """Verify build_portal.py cleanly stages website landing page and webui demo without symlinks."""
+    import importlib.util
+    build_script = REPO_ROOT / "tools" / "build_portal.py"
+    assert build_script.exists()
+    spec = importlib.util.spec_from_file_location("build_portal_mod", build_script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    out_site = tmp_path / "portal_site"
+    res = mod.stage_portal(REPO_ROOT, out_site, clean=True, board="demo")
+
+    assert (out_site / "index.html").exists(), "Landing page must be at root"
+    assert (out_site / "landing.css").exists()
+    assert (out_site / "landing.js").exists()
+    assert (out_site / ".nojekyll").exists()
+
+    # Demo directory checks
+    demo_dir = out_site / "demo"
+    assert (demo_dir / "index.html").exists(), "Launcher catalog must be in demo/"
+    assert (demo_dir / "lab.html").exists(), "WebUI workbench must be in demo/"
+    assert (demo_dir / "terminal.html").exists(), "Serial terminal must be in demo/"
+    assert (demo_dir / "mock-bridge.js").exists(), "mock-bridge.js must be in demo/"
+    assert (demo_dir / "board.json").exists(), "Demo board profile must be in demo/"
+    assert (demo_dir / "app.js").exists()
+    assert (demo_dir / "style.css").exists()
+    assert (demo_dir / "themes.css").exists()
+
+    # Landing page iframe embed check
+    landing_html = (out_site / "index.html").read_text(encoding="utf-8")
+    assert 'src="demo/lab.html?embed=1"' in landing_html, "Hero section must embed demo iframe"
+    assert "Launch Fullscreen Workbench" in landing_html
+
+    # Embed mode support in webui
+    webui_html = (demo_dir / "lab.html").read_text(encoding="utf-8")
+    assert "is-embedded" in webui_html
 
 
 if __name__ == "__main__":

@@ -330,37 +330,39 @@ def test_rest_api_payload_shapes():
     assert safe_json["pins_quiesced"] is True
 
 
-def test_apps_html_assets_and_integration():
-    """Verify built-in ROM App Launcher UI (apps.html) contents and build staging."""
-    apps_html_path = REPO_ROOT / "webui" / "apps.html"
-    index_html_path = REPO_ROOT / "webui" / "index.html"
+def test_launcher_and_workbench_html_assets_and_integration():
+    """Verify built-in ROM App Launcher UI (index.html) and Workbench (lab.html) contents and build staging."""
+    launcher_path = REPO_ROOT / "webui" / "index.html"
+    workbench_path = REPO_ROOT / "webui" / "lab.html"
 
-    assert apps_html_path.exists(), "webui/apps.html must exist"
-    assert index_html_path.exists(), "webui/index.html must exist"
+    assert launcher_path.exists(), "webui/index.html (launcher) must exist"
+    assert workbench_path.exists(), "webui/lab.html (workbench) must exist"
 
-    apps_html = apps_html_path.read_text(encoding="utf-8")
-    index_html = index_html_path.read_text(encoding="utf-8")
+    launcher_html = launcher_path.read_text(encoding="utf-8")
+    workbench_html = workbench_path.read_text(encoding="utf-8")
 
-    # 1. apps.html structure checks
-    assert "storage-bar" in apps_html or "storage-dock" in apps_html
-    assert "App Store" in apps_html
-    assert "parseTarMetadata" in apps_html
-    assert "/api/v1/apps/storage" in apps_html
-    assert "/api/v1/apps/install" in apps_html
-    assert "spotlight-search" in apps_html
-    assert "modal-settings" in apps_html
-    assert "Scope" in apps_html
-    assert "Debugger" in apps_html
-    assert "Pin Control" in apps_html
-    assert "Console" in apps_html
+    # 1. Launcher (index.html) structure checks
+    assert "storage-bar" in launcher_html or "storage-dock" in launcher_html
+    assert "App Store" in launcher_html
+    assert "parseTarMetadata" in launcher_html
+    assert "/api/v1/apps/storage" in launcher_html
+    assert "/api/v1/apps/install" in launcher_html
+    assert "spotlight-search" in launcher_html
+    assert "modal-settings" in launcher_html
+    assert "Scope" in launcher_html
+    assert "Debugger" in launcher_html
+    assert "Pin Control" in launcher_html
+    assert "Console" in launcher_html
+    assert "daisyui.css" in launcher_html, "index.html (launcher) must link daisyui.css"
 
-    # 2. Navigation toggle in index.html
-    assert "/apps" in index_html, "index.html must include navigation link to /apps"
-    assert "settings-default-home-route-select" in index_html, "index.html settings modal must include landing route selector"
+    # 2. Navigation toggle in lab.html (links to launcher /home/)
+    assert "/home" in workbench_html, "lab.html must include navigation link to launcher"
+    assert "settings-default-home-route-select" in workbench_html, "lab.html settings modal must include landing route selector"
 
-    # 3. Injected bridge script
+    # 3. Injected bridge script & DaisyUI bundle
     bridge_path = REPO_ROOT / "webui" / "agentla-bridge.js"
     assert bridge_path.exists(), "webui/agentla-bridge.js must exist"
+    assert (REPO_ROOT / "webui" / "daisyui.css").exists(), "webui/daisyui.css must exist"
 
 
 if __name__ == "__main__":

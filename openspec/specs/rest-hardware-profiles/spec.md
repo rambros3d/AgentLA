@@ -6,49 +6,45 @@ Enables querying, applying, persisting, saving, and deleting the 32 hardware pro
 ## Requirements
 
 ### Requirement: RESTful Hardware Profile Slot Listing
-The HTTP server SHALL provide `GET /api/v1/profiles` (and alias `GET /api/profiles`) returning a JSON object with `active_slot`, `active_name`, and a `slots` array of all 32 slots (ID, name, `in_use`, `is_boot`, `read_only` flags; slot 0 reported as the read-only Safe State). The response SHALL be constructed in a bounded buffer sized for the full 32-slot listing, and SHALL return an explicit HTTP 500 `{"error":"overflow"}` response rather than silently truncating the array.
+The HTTP server SHALL provide `GET /api/v1/profiles` returning a JSON object containing `active_profile`, `boot_profile`, and a `profiles` array of existing profiles on `USER_FS` (with `id`, `name`, `description`, `is_boot`, and `read_only` fields).
 
 #### Scenario: Querying profile slots
-- **WHEN** client sends `GET /api/v1/profiles` or `GET /api/profiles`
-- **THEN** server returns HTTP 200 with the complete `active_slot` / `active_name` / 32-slot listing (every in-use slot present).
+- **WHEN** client sends `GET /api/v1/profiles`
+- **THEN** server returns HTTP 200 OK with the active profile ID, boot profile ID, and an array of existing profile objects.
 
 #### Scenario: Listing buffer would overflow
 - **WHEN** the constructed listing cannot fit its bounded buffer
 - **THEN** server returns HTTP 500 with `{"error":"overflow"}` instead of a truncated list.
 
 ### Requirement: RESTful Hardware Profile Application
-The HTTP server SHALL provide `POST /api/v1/profiles/apply` (and alias `POST /api/profiles/apply`) accepting `?slot=<id>` or a JSON body `{ "slot": <id> }` to apply a saved profile slot. Applicable statuses: success reports `{"status":"applied","slot":N,"name":"…"}`, invalid or empty slot returns HTTP 400 `{"error":"invalid slot"}`, out-of-range (not 0..32) slot returns HTTP 400, and a slot that is not in use returns HTTP 404 `{"error":"slot not in use"}`.
+The HTTP server SHALL provide `POST /api/v1/profiles/apply` accepting a JSON body `{"id": "<profile_id>"}` (or `?id=<profile_id>`) to apply a saved profile from `USER_FS`.
 
 #### Scenario: Successfully applying profile slot
-- **WHEN** client sends `POST /api/v1/profiles/apply?slot=1` (or JSON body `{ "slot": 1 }`) and slot 1 is in use
-- **THEN** server applies slot 1 as the active profile and returns HTTP 200 with `{ "status": "applied", "slot": 1, "name": "…" }`.
+- **WHEN** client sends `POST /api/v1/profiles/apply` with `{"id": "can_sniffer"}` and the profile exists
+- **THEN** server applies the profile, updates active profile state, and returns HTTP 200 with `{"status":"applied","id":"can_sniffer","name":"..."}`.
 
 #### Scenario: Applying invalid or empty slot
-- **WHEN** client sends `POST /api/v1/profiles/apply` with an empty, corrupted, or not-in-use slot ID
-- **THEN** server returns an explicit 400 or 404 JSON error body and changes no pin state.
+- **WHEN** client sends `POST /api/v1/profiles/apply` with a non-existent profile ID
+- **THEN** server returns HTTP 404 `{"error":"profile not found"}` and alters no pin state.
 
 ### Requirement: RESTful Boot Profile Selection
-The HTTP server SHALL provide `POST /api/v1/profiles/boot` accepting `?slot=<id>` or a JSON body `{ "slot": <id> }` to configure the default profile activated at power-on boot. Slot 0 or an explicit clear SHALL remove the boot-default designation from every slot (ensure power cycles boot into Safe State).
+The HTTP server SHALL provide `POST /api/v1/profiles/boot` accepting a JSON body `{"id": "<profile_id>"}` (or `?id=<profile_id>`) to designate the startup profile. Providing an empty string or `"safe_state"` removes the boot-default designation.
 
 #### Scenario: Setting boot default profile
-- **WHEN** client sends `POST /api/v1/profiles/boot` with `{ "slot": 2 }` and slot 2 is in use
-- **THEN** server updates slot 2 header flags to `BOOT_DEFAULT`, clears the flag on every other slot, and returns HTTP 200 with `{ "status": "boot_default_set", "slot": 2 }`.
+- **WHEN** client sends `POST /api/v1/profiles/boot` with `{"id": "logic_analyzer"}`
+- **THEN** server writes the boot marker file in `USER_FS` and returns HTTP 200 with `{"status":"boot_default_set","id":"logic_analyzer"}`.
 
 #### Scenario: Clearing boot profile back to Safe State
-- **WHEN** client sends `POST /api/v1/profiles/boot` with `{ "slot": 0 }`
-- **THEN** server ensures no slot carries `BOOT_DEFAULT` and returns HTTP 200 with `{ "status": "boot_default_set", "slot": 0 }`, and subsequent power cycles boot with no profile applied.
+- **WHEN** client sends `POST /api/v1/profiles/boot` with `{"id": ""}`
+- **THEN** server deletes the boot marker file and returns HTTP 200 with `{"status":"boot_default_set","id":""}`.
 
 ### Requirement: Profile save and delete endpoints
-The HTTP server SHALL provide `POST /api/v1/profiles/save` and `POST /api/v1/profiles/delete` (and alias `POST /api/profiles/delete`) accepting slot and (for save) name/`is_boot` parameters via query or JSON body.
+The HTTP server SHALL provide `POST /api/v1/profiles/save` and `POST /api/v1/profiles/delete` accepting JSON payloads. Save writes or updates `/profiles/<id>.json` on `USER_FS`; delete removes the designated profile file (rejecting attempts to delete read-only templates or Safe State).
 
 #### Scenario: Saving a profile slot
-- **WHEN** client sends `POST /api/v1/profiles/save?slot=3&name=MyProfile` (or JSON body)
-- **THEN** server writes the slot record (payload stays metadata-only, currently the literal `{}` as in the C firmware) and returns HTTP 200 with `{ "status": "saved", "slot": 3, "name": "MyProfile" }`.
+- **WHEN** client sends `POST /api/v1/profiles/save` with a profile JSON body
+- **THEN** server writes the file to `USER_FS` and returns HTTP 200 with `{"status":"saved","id":"..."}`.
 
 #### Scenario: Deleting a slot
-- **WHEN** client sends `POST /api/v1/profiles/delete?slot=3` with slot 3 in use
-- **THEN** server blanks the slot record and returns HTTP 200 with `{ "status": "deleted", "slot": 3 }`; deleting slot 0 or a `READ_ONLY` slot returns HTTP 400.
-
-#### Scenario: Errors
-- **WHEN** save/delete targets a nonexistent (blank) record or an out-of-range slot
-- **THEN** server returns an appropriate HTTP 400 or HTTP 404 error response.
+- **WHEN** client sends `POST /api/v1/profiles/delete` with `{"id": "custom_profile"}`
+- **THEN** server deletes the file and returns HTTP 200 with `{"status":"deleted","id":"custom_profile"}`; deleting `safe_state` or a read-only profile returns HTTP 400.

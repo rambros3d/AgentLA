@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>AgentLA - WebUI Partition Recovery</title>
+<style>
+:root{--bg:#09090b;--panel:#111114;--border:#27272a;--border-bright:#3f3f46;--fg:#f4f4f5;--fg-dim:#71717a;--warn:#f59e0b;--warn-bg:#261805;--font:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0;border-radius:0!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:12px;line-height:1.5;padding:16px;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.container{width:100%;max-width:540px;display:flex;flex-direction:column;gap:12px}
+header{border:1px solid var(--border-bright);background:var(--panel);padding:12px;display:flex;justify-content:space-between;align-items:center}
+.hdr-title{font-size:13px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;gap:10px}
+.tag{border:1px solid var(--warn);color:var(--warn);background:var(--warn-bg);padding:2px 8px;font-size:10px;font-weight:700}
+.card{border:1px solid var(--border);background:var(--panel);padding:16px;display:flex;flex-direction:column;gap:12px}
+.card-hdr{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--fg-dim);border-bottom:1px solid var(--border);padding-bottom:6px;display:flex;justify-content:space-between}
+p{color:var(--fg-dim);font-size:12px}
+code{background:#1c1c22;border:1px solid var(--border-bright);padding:1px 5px;color:var(--fg);font-size:11px}
+.drop-zone{border:2px dashed var(--border-bright);background:#0d0d10;padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .15s}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--fg)}
+.drop-zone span{display:block;color:var(--fg-dim);font-size:11px;margin-top:6px}
+input[type="file"]{display:none}
+.btn-group{display:flex;flex-wrap:wrap;gap:8px}
+button{background:#18181b;color:var(--fg);border:1px solid var(--border-bright);padding:8px 14px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+button:hover{background:#27272a;border-color:var(--fg)}
+button.primary{background:var(--fg);color:#000;border-color:var(--fg)}
+button.primary:hover{background:#e4e4e7}
+button.diag{border-color:#38bdf8;color:#38bdf8;background:#082f49}
+button.diag:hover{background:#0369a1;color:#fff}
+.progress{height:4px;width:100%;background:#18181b;border:1px solid var(--border);display:none;margin-top:4px}
+.progress-bar{height:100%;width:0%;background:var(--fg)}
+.status-msg{font-size:11px;color:var(--fg-dim);min-height:16px;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="hdr-title">AGENTLA // SYSTEM_FS RECOVERY</div>
+    <div class="tag">UNINITIALIZED</div>
+  </header>
+
+  <div class="card">
+    <div class="card-hdr"><span>PARTITION STATE</span><span>512 KB @ 0x00260000</span></div>
+    <p>Partition 1 (<code>SYSTEM_FS</code>) is unpopulated or missing web assets. Choose a method below to restore the System WebUI distribution.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span>RESTORE METHOD A // AUTO UPDATE CLOUD</span><span>RECOMMENDED</span></div>
+    <p>Pull the verified <code>webui.tar</code> release asset from GitHub via browser client and stream directly to on-probe flash.</p>
+    <div class="status-msg" id="cloudStatus">Ready to query GitHub.</div>
+    <div class="btn-group">
+      <button class="primary" onclick="pullFromGitHub()">Download now (RECOMMENDED)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span>RESTORE METHOD B // LOCAL ARCHIVE</span><span>TARBALL UPLOAD</span></div>
+    <div class="drop-zone" id="dropZone" onclick="$('tarInput').click()">
+      <strong>CLICK TO SELECT WEBUI.TAR</strong>
+      <span>or drag and drop archive file here</span>
+    </div>
+    <input type="file" id="tarInput" accept=".tar" onchange="handleFileSelect(this.files[0])">
+    <div class="progress" id="progWrap"><div class="progress-bar" id="progBar"></div></div>
+    <div class="status-msg" id="statusMsg">Ready for upload.</div>
+    <div class="btn-group">
+      <button id="btnUpload" onclick="uploadTar()" disabled>Flash SYSTEM_FS</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span>DEVELOPER CONSOLE</span><span>ROM UTILITY</span></div>
+    <p>Access the self-contained In-ROM Developer Diagnostics Console for flash partition inspection, hands-free USB BOOTSEL, A/B slot rollback, and hardware telemetry.</p>
+    <div class="btn-group">
+      <button class="diag" onclick="location.href='/device'">Open Diagnostics Console (/device)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let selectedFile = null;
+
+const dz = $('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  if(e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+});
+
+function handleFileSelect(file){
+  if(!file) return;
+  selectedFile = file;
+  $('statusMsg').textContent = `SELECTED: ${file.name} (${Math.round(file.size/1024)} KB)`;
+  $('btnUpload').disabled = false;
+}
+
+async function uploadTar(){
+  if(!selectedFile) return;
+  $('btnUpload').disabled = true;
+  $('progWrap').style.display = 'block';
+  $('progBar').style.width = '30%';
+  $('statusMsg').textContent = 'STREAMING TO SYSTEM_FS...';
+
+  try{
+    const r = await fetch('/api/v1/system/webui/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-tar' },
+      body: selectedFile
+    });
+    if(r.ok){
+      $('progBar').style.width = '100%';
+      $('statusMsg').textContent = 'RESTORE SUCCESSFUL! Reloading WebUI in 2 seconds...';
+      setTimeout(() => location.href = '/home', 2000);
+    } else {
+      $('progBar').style.width = '0%';
+      $('statusMsg').textContent = `RESTORE FAILED (HTTP ${r.status})`;
+      $('btnUpload').disabled = false;
+    }
+  }catch(e){
+    $('statusMsg').textContent = 'NETWORK ERROR: ' + e.message;
+    $('btnUpload').disabled = false;
+  }
+}
+
+async function pullFromGitHub(){
+  const s = $('cloudStatus');
+  s.textContent = 'CHECKING GITHUB RELEASES...';
+  try{
+    const r = await fetch('https://api.github.com/repos/sun-point/AgentLA-firmware/releases/latest');
+    if(!r.ok){ s.textContent = 'GITHUB QUERY FAILED (HTTP ' + r.status + ')'; return; }
+    const rel = await r.json();
+    const asset = rel.assets && rel.assets.find(a => a.name.includes('webui') && a.name.endsWith('.tar'));
+    if(!asset){ s.textContent = 'NO WEBUI.TAR ASSET IN LATEST RELEASE'; return; }
+    s.textContent = 'DOWNLOADING ' + asset.name + '...';
+    const dr = await fetch(asset.browser_download_url);
+    const blob = await dr.blob();
+    s.textContent = 'FLASHING SYSTEM_FS...';
+    const ur = await fetch('/api/v1/system/webui/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-tar' },
+      body: blob
+    });
+    if(ur.ok){
+      s.textContent = 'RESTORE SUCCESSFUL! Reloading in 2 seconds...';
+      setTimeout(() => location.href = '/home', 2000);
+    } else {
+      s.textContent = 'FLASH FAILED (HTTP ' + ur.status + ')';
+    }
+  }catch(e){
+    s.textContent = 'CLOUD RESTORE ERROR: ' + e.message;
+  }
+}
+</script>
+</body>
+</html>

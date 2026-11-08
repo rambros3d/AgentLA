@@ -42,6 +42,7 @@ pub fn mime_for(path: &str) -> &'static str {
         "woff2" => "font/woff2",
         "wasm" => "application/wasm",
         "txt" => "text/plain",
+        "md" | "markdown" => "text/markdown; charset=utf-8",
         _ => "application/octet-stream",
     }
 }
@@ -224,6 +225,8 @@ impl Chunks for SystemFileChunks {
     }
 }
 
+pub const RECOVERY_HTML: &str = include_str!("../assets/recovery.html");
+
 /// Request handler for dynamically serving System WebUI files out of Partition 1 (`SYSTEM_FS`).
 /// Supports transparent pre-compressed gzip streaming with `Content-Encoding: gzip`
 /// and falls back to uncompressed or emergency recovery page if partition is uninitialized.
@@ -288,11 +291,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
                     };
                     let resp = ChunkedResponse::new(chunks).into_response();
                     let resp = resp.with_header("Content-Encoding", "gzip");
-                    let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
-                        resp.with_header("Cache-Control", "public, max-age=31536000")
-                    } else {
-                        resp.with_header("Cache-Control", "no-cache")
-                    };
+                    let resp = resp.with_header("Cache-Control", "no-cache, must-revalidate");
                     return resp
                         .write_to(request.body_connection.finalize().await?, response_writer)
                         .await;
@@ -313,11 +312,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
                     mime: self.mime,
                 };
                 let resp = ChunkedResponse::new(chunks).into_response();
-                let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
-                    resp.with_header("Cache-Control", "public, max-age=31536000")
-                } else {
-                    resp.with_header("Cache-Control", "no-cache")
-                };
+                let resp = resp.with_header("Cache-Control", "no-cache, must-revalidate");
                 return resp
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
@@ -338,11 +333,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
                 };
                 let resp = ChunkedResponse::new(chunks).into_response();
                 let resp = resp.with_header("Content-Encoding", "gzip");
-                let resp = if self.file_name.ends_with(".css") || self.file_name.ends_with(".js") {
-                    resp.with_header("Cache-Control", "public, max-age=31536000")
-                } else {
-                    resp.with_header("Cache-Control", "no-cache")
-                };
+                let resp = resp.with_header("Cache-Control", "no-cache, must-revalidate");
                 return resp
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
@@ -350,8 +341,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
         }
 
         // 4. Fallback recovery for HTML pages if partition is unpopulated
-        if self.file_name == "index.html" || self.file_name == "apps.html" {
-            const RECOVERY_HTML: &str = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>AgentLA WebUI Setup</title><style>body{font-family:sans-serif;background:#181818;color:#eee;padding:2rem;line-height:1.5;}code{background:#333;padding:0.2rem 0.4rem;border-radius:4px;}</style></head><body><h2>AgentLA WebUI Partition Uninitialized</h2><p>The System WebUI filesystem partition is currently empty.</p><p>To initialize, please flash <code>webui.uf2</code> via USB BOOTSEL or upload a WebUI tarball to <code>POST /api/v1/system/webui/update</code>.</p></body></html>";
+        if self.file_name == "index.html" || self.file_name == "lab.html" || self.file_name == "terminal.html" {
             return (
                 StatusCode::OK,
                 ("Content-Type", "text/html; charset=utf-8"),

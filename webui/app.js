@@ -102,7 +102,7 @@ const themeState = {
     mode: 'system', // 'system' | 'light' | 'dark'
     defaultLightTheme: 'emerald',
     defaultDarkTheme: 'forest',
-    defaultHomeRoute: '/lab',
+    defaultHomeRoute: '/home',
     availableThemes: [
         { name: 'forest', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: true, custom: false },
         { name: 'emerald', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: true, custom: false },
@@ -343,7 +343,7 @@ async function saveSettings() {
         theme_mode: themeState.mode,
         default_light_theme: themeState.defaultLightTheme,
         default_dark_theme: themeState.defaultDarkTheme,
-        default_home_route: themeState.defaultHomeRoute || '/home/',
+        default_home_route: themeState.defaultHomeRoute || '/home',
         active_profile: "Default Lab Bench"
     };
     try {
@@ -440,17 +440,15 @@ async function populateLandingPageDropdown() {
     const selRoute = document.getElementById('settings-default-home-route-select');
     if (!selRoute) return;
 
-    const currentVal = themeState.defaultHomeRoute || '/home/';
+    const currentVal = themeState.defaultHomeRoute || '/home';
     selRoute.innerHTML = `
-        <option value="/home/">Home Launcher (/home/)</option>
-        <option value="/scope/">Scope (/scope/)</option>
-        <option value="/adapter/">Protocol Adapter (/adapter/)</option>
-        <option value="/debug/">SWD Debugger (/debug/)</option>
-        <option value="/pin/">Pin Control (/pin/)</option>
-        <option value="/terminal/">Terminal (/terminal/)</option>
-        <option value="/agent/">MCP Agent Console (/agent/)</option>
-        <option value="/apps">Legacy Apps (/apps)</option>
-        <option value="/lab">Legacy Lab (/lab)</option>
+        <option value="/home">Home Launcher (/home)</option>
+        <option value="/scope">Scope &amp; Logic Analyzer (/scope)</option>
+        <option value="/debug">Target Debugger (/debug)</option>
+        <option value="/adapter">Protocol Bus Masters (/adapter)</option>
+        <option value="/pins">Pin Crossbar Matrix (/pins)</option>
+        <option value="/agent">MCP Agent Console (/agent)</option>
+        <option value="/terminal">Serial Terminal (/terminal)</option>
     `;
 
     try {
@@ -882,15 +880,15 @@ function switchMode(mode, updateUrl = true) {
     if (updateUrl !== false) {
         try {
             const routeMap = {
-                'scope': '/scope/',
-                'adapters': '/adapter/',
-                'target': '/debug/',
-                'pins': '/pin/',
-                'console': '/agent/'
+                'scope': '/scope',
+                'adapters': '/adapter',
+                'target': '/debug',
+                'pins': '/pins',
+                'console': '/agent'
             };
             const currentPath = window.location.pathname;
             const targetPath = routeMap[primaryMode];
-            if (targetPath && (currentPath.startsWith('/scope') || currentPath.startsWith('/adapter') || currentPath.startsWith('/debug') || currentPath.startsWith('/target') || currentPath.startsWith('/pin') || currentPath.startsWith('/agent') || currentPath.startsWith('/console'))) {
+            if (targetPath && (currentPath.startsWith('/scope') || currentPath.startsWith('/adapter') || currentPath.startsWith('/debug') || currentPath.startsWith('/pins') || currentPath.startsWith('/agent'))) {
                 if (currentPath !== targetPath) {
                     history.pushState(null, '', targetPath);
                 }
@@ -4712,7 +4710,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                            window.location.pathname.endsWith('.html');
             if (isDemo) {
                 e.preventDefault();
-                window.location.href = 'apps.html';
+                window.location.href = 'index.html';
             }
         });
     }
@@ -4763,13 +4761,13 @@ function applyHashMode() {
     } else if (path.startsWith('/adapter')) {
         switchMode('adapters', false);
         return;
-    } else if (path.startsWith('/debug') || path.startsWith('/target')) {
+    } else if (path.startsWith('/debug')) {
         switchMode('target', false);
         return;
-    } else if (path.startsWith('/pin')) {
+    } else if (path.startsWith('/pins')) {
         switchMode('pins', false);
         return;
-    } else if (path.startsWith('/agent') || path.startsWith('/console')) {
+    } else if (path.startsWith('/agent')) {
         switchMode('console', false);
         return;
     }

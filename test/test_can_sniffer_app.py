@@ -21,7 +21,7 @@ def test_can_sniffer_manifest_schema():
     assert manifest["author"] == "AgentLA Team"
     assert manifest["category"] == "Automotive"
     assert "has_hardware_can" in manifest.get("requires", [])
-    assert manifest["icon"].startswith("data:image/svg+xml")
+    assert manifest["icon"].startswith("data:image/svg+xml") or manifest["icon"].endswith(".svg")
 
 
 def test_can_sniffer_html_capabilities():

@@ -5,38 +5,38 @@ Manages non-volatile flash-backed hardware configuration profiles, slot persiste
 
 ## Requirements
 
-### Requirement: 32-Slot Non-Volatile Flash Profile Storage
-The firmware SHALL allocate a dedicated 64 KB sector block at the upper boundary of RP2350 flash memory (`PICO_FLASH_SIZE_BYTES - 64KB`) partitioned into 32 individual 2 KB profile slots, with Slot 0 reserved as a read-only factory Safe State.
+### Requirement: Declarative Profile Storage in LittleFS
+The firmware SHALL manage hardware configuration profiles as declarative JSON files within `USER_FS` on LittleFS, with `safe_state` reserved as a read-only factory default.
 
 #### Scenario: Storing a profile in flash
-- **WHEN** a client issues a `POST /api/profiles` with a valid JSON workbench state
-- **THEN** the firmware SHALL validate the payload, compute its CRC32, write the header and payload into an available flash slot, and return the allocated slot ID.
+- **WHEN** a client issues a `POST /api/v1/profiles/save` with a valid JSON profile
+- **THEN** the firmware validates the payload, writes the document to `/profiles/<id>.json` on `USER_FS`, and returns HTTP 200 OK.
 
 #### Scenario: Flash persistence across power cycles
-- **WHEN** the probe is power-cycled or connected to a different host computer
-- **THEN** all saved profiles in flash SHALL remain intact and queryable via `GET /api/profiles`.
+- **WHEN** the probe is power-cycled or reconnected
+- **THEN** all saved profiles in `USER_FS` remain intact and queryable via `GET /api/v1/profiles`.
 
 #### Scenario: Applying an empty or corrupted slot
-- **WHEN** client applies a slot where CRC fails or slot is empty
-- **THEN** hardware remains in Safe State and 400 is returned.
+- **WHEN** client applies a profile that is missing or corrupt
+- **THEN** hardware remains in Safe State and HTTP 400 is returned.
 
 ### Requirement: Profile Application Handover Sequence
-The firmware SHALL execute a safe transition sequence when activating a profile: abort active DMA streams, tri-state all pins to SIO inputs, discharge the target power rail for 5ms, apply new pin claims, and safely re-energize target power.
+The firmware SHALL execute a safe transition sequence when activating a profile: abort active DMA streams, tri-state all pins to SIO inputs, discharge the target power rail for 5ms, apply target power settings, and claim designated pins for their drivers.
 
 #### Scenario: Applying a valid profile
-- **WHEN** a client issues a `POST /api/profiles/{id}/apply`
-- **THEN** the probe SHALL quiesce existing claims, verify pin assignments, apply new driver/observer roles, configure instrument peripherals, and return success.
+- **WHEN** a client issues a `POST /api/v1/profiles/apply` with `{"id": "logic_analyzer"}`
+- **THEN** the probe quiesces existing claims, discharges rails for 5 ms, claims the requested pins for designated drivers, applies power configuration, and returns HTTP 200 OK.
 
 ### Requirement: Boot Default Profile Setting
-The firmware SHALL allow marking one user profile slot as the boot default, which auto-applies on startup after the hardware safe-initialization phase.
+The firmware SHALL designate the default profile applied at startup via the `/profiles/boot_default` pointer in `USER_FS`.
 
 #### Scenario: Designating a boot profile
-- **WHEN** a client issues a `POST /api/profiles/{id}/boot`
-- **THEN** the firmware SHALL set the `is_boot` flag for slot `{id}`, clear the flag on all other slots, and update the flash header.
+- **WHEN** a client issues a `POST /api/v1/profiles/boot` with `{"id": "can_sniffer"}`
+- **THEN** the firmware writes `"can_sniffer"` to `/profiles/boot_default` on `USER_FS` and returns HTTP 200 OK.
 
 #### Scenario: Clearing boot profile back to Safe State
-- **WHEN** a client issues a `POST /api/profiles/0/boot` or clears the boot flag
-- **THEN** the firmware SHALL ensure that subsequent power cycles remain strictly in Safe State.
+- **WHEN** a client issues a `POST /api/v1/profiles/boot` with `{"id": ""}` or `{"id": "safe_state"}`
+- **THEN** the firmware removes `/profiles/boot_default` so subsequent boots remain strictly in Safe State.
 
 ### Requirement: WebUI Profile JSON-RPC and Simulation Fidelity
 The WebUI Profile Management interface SHALL faithfully support both hardware probe communication and in-browser mock simulation across profile listing, creation, and application.
@@ -48,16 +48,6 @@ The WebUI Profile Management interface SHALL faithfully support both hardware pr
 #### Scenario: In-browser hardware profile simulation
 - **WHEN** the WebUI runs in demo or simulation mode without physical hardware
 - **THEN** profile transitions simulate realistic pin allocation tables and safe-state resets.
-
-### Requirement: Slot record binary format parity
-The on-flash profile header and record binary representation SHALL maintain byte-exact alignment and CRC32 verification compatibility across C and Rust firmware implementations.
-
-#### Scenario: Record written by Rust readable by external tooling
-- **WHEN** a profile is saved to flash
-- **THEN** the binary struct layout matches the canonical C struct definition with identical field offsets and CRC32 calculation.
-
-### Requirement: Save and erase are short critical-section bursting
-Profile flash erase and program operations SHALL execute within bounded critical sections disabling interrupts only during the minimal SPI write burst, preventing long latency spikes.
 
 #### Scenario: Saving a profile
 - **WHEN** a save profile operation writes a 2 KB sector

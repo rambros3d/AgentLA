@@ -23,24 +23,18 @@ pub const SLOT_SIZE_BYTES: usize = 1200 * 1024; // 1,228,800 bytes (0x0012C000)
 pub const SLOT_B_OFFSET: u32 = 0x00130000;
 pub const FIRMWARE_SLOTS_END: u32 = 0x00260000;
 
-/// Profile slots window: 64 KB (32 × 2 KiB slots), starting at 0x00260000.
-/// Only `crate::profile` may touch bytes inside it.
-pub const PROFILE_WINDOW_START: u32 = 0x00260000;
-pub const PROFILE_WINDOW_SIZE: usize = 64 * 1024;
-pub const PROFILE_WINDOW_END: u32 = SYSTEM_FS_OFFSET; // 0x00270000
-
 /// SYSTEM_FS partition: 512 KB (128 sectors of 4 KB). Fixed across all boards.
-pub const SYSTEM_FS_OFFSET: u32 = 0x00270000;
+pub const SYSTEM_FS_OFFSET: u32 = 0x00260000;
 pub const SYSTEM_FS_SIZE_BYTES: usize = 512 * 1024;
 pub const SYSTEM_BLOCK_COUNT: usize = SYSTEM_FS_SIZE_BYTES / BLOCK_SIZE; // 128 blocks
-pub const SYSTEM_FS_END: u32 = SYSTEM_FS_OFFSET + SYSTEM_FS_SIZE_BYTES as u32; // 0x002F0000
+pub const SYSTEM_FS_END: u32 = SYSTEM_FS_OFFSET + SYSTEM_FS_SIZE_BYTES as u32; // 0x002E0000
 
 /// USER_FS partition: dynamically sized to `FLASH_END - 16KB`.
-pub const USER_FS_OFFSET: u32 = SYSTEM_FS_END; // 0x002F0000
+pub const USER_FS_OFFSET: u32 = SYSTEM_FS_END; // 0x002E0000
 pub const FLASH_RESERVED_TRAIL_BYTES: usize = 16 * 1024; // 16 KB
 pub const USER_FS_END: u32 = (FLASH_SIZE_BYTES - FLASH_RESERVED_TRAIL_BYTES) as u32;
 pub const USER_FS_SIZE_BYTES: usize = (USER_FS_END - USER_FS_OFFSET) as usize;
-pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE; // 268 blocks (Pico 2) or 3340 blocks (BakuProbe)
+pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE; // 284 blocks (Pico 2) or 3340 blocks (BakuProbe)
 
 // Backwards compatibility aliases
 pub const LITTLEFS_START_OFFSET: u32 = USER_FS_OFFSET;
@@ -160,6 +154,25 @@ pub fn with_user_fs<R>(f: impl FnOnce(&Filesystem<'static, UserFlashStorage>) ->
     let guard = USER_FS_MUTEX.try_lock().ok()?;
     let fs = guard.as_ref()?.filesystem();
     Some(f(fs))
+}
+
+pub fn erase_and_format_partition(part: &str) -> Result<(), ()> {
+    match part {
+        "system" => {
+            let mut guard = flash_guard();
+            let flash = guard.as_mut().unwrap();
+            flash.blocking_erase(SYSTEM_FS_OFFSET, SYSTEM_FS_END).map_err(|_| ())?;
+            SYSTEM_FS_WAS_FORMATTED.store(true, portable_atomic::Ordering::Relaxed);
+        }
+        "user" => {
+            let mut guard = flash_guard();
+            let flash = guard.as_mut().unwrap();
+            flash.blocking_erase(USER_FS_OFFSET, USER_FS_END).map_err(|_| ())?;
+            USER_FS_WAS_FORMATTED.store(true, portable_atomic::Ordering::Relaxed);
+        }
+        _ => return Err(()),
+    }
+    Ok(())
 }
 
 /// Backward compatibility alias: `with_fs` routes to `with_user_fs`.
@@ -334,55 +347,4 @@ pub fn flash_slot_write(offset: u32, data: &[u8]) -> Result<(), ()> {
             .map_err(|_| ())?;
     }
     Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Profile-window primitives. The ONLY callers are in `crate::profile`;
-// every function asserts accesses stay inside `PROFILE_WINDOW_START..PROFILE_WINDOW_END`
-// so the region-disjointness with the LittleFS partition is enforced at debug build level.
-// ---------------------------------------------------------------------------
-
-/// Zero-copy-speed XIP read of `buf.len()` bytes from the profile window into `buf`.
-pub fn profile_flash_read(offset: u32, buf: &mut [u8]) {
-    debug_assert!(
-        offset >= PROFILE_WINDOW_START
-            && (offset as usize + buf.len()) <= PROFILE_WINDOW_END as usize,
-        "profile read outside window"
-    );
-    let ptr = (FLASH_BASE as usize + offset as usize) as *const u8;
-    unsafe {
-        core::ptr::copy_nonoverlapping(ptr, buf.as_mut_ptr(), buf.len());
-    }
-}
-
-/// Erase a `[from, to)` range inside the profile window (4 KiB sectors).
-pub fn profile_flash_erase(from: u32, to: u32) {
-    debug_assert!(
-        from >= PROFILE_WINDOW_START
-            && to <= PROFILE_WINDOW_END
-            && from < to
-            && (from - PROFILE_WINDOW_START) % BLOCK_SIZE as u32 == 0,
-        "profile erase outside window / unaligned"
-    );
-    flash_guard()
-        .as_mut()
-        .unwrap()
-        .blocking_erase(from, to)
-        .expect("flash erase");
-}
-
-/// Program a range inside the profile window in page-granular 256 B bursts.
-pub fn profile_flash_write(offset: u32, data: &[u8]) {
-    debug_assert!(
-        offset >= PROFILE_WINDOW_START
-            && (offset as usize + data.len()) <= PROFILE_WINDOW_END as usize,
-        "profile write outside window"
-    );
-    let mut guard = flash_guard();
-    let flash = guard.as_mut().unwrap();
-    for (page, chunk) in data.chunks(256).enumerate() {
-        flash
-            .blocking_write(offset + (page * 256) as u32, chunk)
-            .expect("flash program");
-    }
 }

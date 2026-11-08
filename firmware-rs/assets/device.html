@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='https://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath opacity='0.5' d='M2.34594 11.2501C2.12458 10.5866 2 9.92019 2 9.26044C2 3.3495 7.50016 0.662637 12 5.49877C16.4998 0.662637 22 3.34931 22 9.2604C22 9.92017 21.8754 10.5866 21.6541 11.2501H18.6361L18.5241 11.25C17.9784 11.2491 17.4937 11.2483 17.0527 11.4447C16.6116 11.6411 16.2879 12.002 15.9233 12.4084L15.8485 12.4918L14.8192 13.6354C14.7164 13.7496 14.5379 13.7463 14.4401 13.6277L10.8889 9.32318C10.7493 9.15391 10.6 8.97281 10.454 8.8384C10.2839 8.68188 10.0325 8.50581 9.68096 8.4847C9.32945 8.46359 9.05875 8.60829 8.87115 8.74333C8.71006 8.8593 8.54016 9.02123 8.38136 9.17258L6.85172 10.6294C6.37995 11.0787 6.28151 11.1553 6.17854 11.1964C6.07557 11.2376 5.9515 11.2501 5.3 11.2501H2.34594Z' fill='%23ef4444'/%3E%3Cpath d='M21.6538 11.2499H18.6359L18.5239 11.2497C17.9781 11.2489 17.4935 11.2481 17.0524 11.4445C16.6114 11.6409 16.2876 12.0018 15.9231 12.4082L15.8482 12.4915L14.819 13.6352C14.7162 13.7494 14.5377 13.7461 14.4399 13.6275L10.8886 9.32297C10.7491 9.1537 10.5998 8.9726 10.4537 8.83819C10.2837 8.68166 10.0322 8.5056 9.68072 8.48449C9.32922 8.46337 9.05852 8.60808 8.87092 8.74312C8.70983 8.85908 8.53993 9.02101 8.38113 9.17236L6.85149 10.6292C6.37972 11.0785 6.28128 11.155 6.17831 11.1962C6.07534 11.2374 5.95126 11.2499 5.29977 11.2499H2.3457C3.38166 14.3548 6.5372 17.3936 8.9615 19.3705C10.2935 20.4567 10.9595 20.9998 11.9998 20.9998C13.0401 20.9998 13.7061 20.4567 15.038 19.3705C17.4623 17.3936 20.6179 14.3548 21.6538 11.2499Z' fill='%23ef4444'/%3E%3C/svg%3E">
+<title>AgentLA - Device Diagnostics &amp; Developer Console</title>
+<style>
+:root{--bg:#09090b;--panel:#111114;--border:#27272a;--border-bright:#3f3f46;--fg:#f4f4f5;--fg-dim:#71717a;--fg-muted:#45454a;--danger:#ef4444;--danger-bg:#270707;--warn:#f59e0b;--warn-bg:#261805;--font:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0;border-radius:0!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:12px;line-height:1.4;padding:12px}
+header{border:1px solid var(--border-bright);background:var(--panel);padding:10px 12px;margin-bottom:12px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+.hdr-title{font-size:13px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;gap:10px}
+.tag{border:1px solid var(--border-bright);padding:1px 6px;font-size:10px;color:var(--fg-dim)}
+.tag-alert{border-color:var(--danger);color:var(--danger);background:var(--danger-bg)}
+.btn-group{display:flex;flex-wrap:wrap;gap:6px}
+button{font-family:var(--font);font-size:11px;font-weight:600;padding:5px 10px;background:#18181b;color:var(--fg);border:1px solid var(--border-bright);cursor:pointer;text-transform:uppercase;letter-spacing:0.5px}
+button:hover{background:var(--fg);color:#000;border-color:var(--fg)}
+button:active{background:#ccc}
+button:disabled{opacity:0.3;cursor:not-allowed}
+button.danger{border-color:var(--danger);color:var(--danger);background:var(--danger-bg)}
+button.danger:hover{background:var(--danger);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:8px}
+.card.full{grid-column:1/-1}
+.card-hdr{font-size:11px;font-weight:700;color:var(--fg-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:1px}
+.card-hdr span.title{color:var(--fg)}
+.d-list{display:flex;flex-direction:column;gap:4px}
+.row{display:flex;justify-content:space-between;align-items:baseline}
+.row .lbl{color:var(--fg-dim)}
+.row .dots{flex:1;border-bottom:1px dotted var(--border-bright);margin:0 8px;min-width:16px}
+.row .val{font-weight:600;color:var(--fg);white-space:nowrap}
+.part-bar{display:flex;width:100%;border:1px solid var(--border-bright);background:#080808;margin:6px 0;overflow:hidden}
+.part-seg{border-right:1px solid var(--border-bright);padding:6px 2px;text-align:center;font-size:10px;font-weight:700;color:var(--fg-dim);background:#0d0d10}
+.part-seg:last-child{border-right:none}
+.part-seg.active{background:var(--fg);color:#000}
+.part-seg.active .seg-sub{color:#000}
+.seg-sub{font-size:9px;font-weight:400;color:var(--fg-muted);display:block;margin-top:2px}
+.part-table{display:flex;flex-direction:column;gap:2px;font-size:11px;margin-top:4px}
+.pt-row{display:grid;grid-template-columns:120px 100px 100px 80px 100px 1fr;gap:8px;padding:3px 6px;border-bottom:1px solid var(--border)}
+.pt-row.header{font-weight:700;color:var(--fg-dim);border-bottom:1px solid var(--border-bright)}
+.pt-row:not(.header):hover{background:#18181c}
+.pin-matrix{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.pod-section{display:flex;flex-direction:column;gap:5px}
+.pod-hdr{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim);padding-bottom:3px;border-bottom:1px solid var(--border)}
+.pin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+.pin{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);background:#0d0d0f;padding:6px 10px;font-size:11px}
+.pin:hover{border-color:var(--border-bright);background:#131317}
+.pin.claimed{border-color:var(--border-bright);background:#18181c}
+.pin.prog{border-color:#22d3ee;border-style:dashed;background:#0d1820}
+.pin-id{font-weight:700;color:var(--fg)}
+.pin-state{font-size:10px;font-weight:700;letter-spacing:0.5px}
+.progress{height:4px;width:100%;background:#18181b;border:1px solid var(--border);margin-top:4px;display:none}
+.progress-bar{height:100%;width:0%;background:var(--fg)}
+.status-msg{font-size:10px;color:var(--fg-dim);min-height:14px;word-break:break-all}
+input[type="file"]{display:none}
+select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);padding:4px 6px;font-family:var(--font);font-size:11px}
+.modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px}
+.modal-box{background:#111114;border:1px solid var(--border-bright);width:100%;max-width:440px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px}
+.modal-hdr .title{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--fg)}
+.modal-body{font-size:12px;color:var(--fg-dim);line-height:1.5;min-height:36px}
+.tag-warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
+.recovery-banner{border-color:var(--warn)!important;background:#141008;padding:12px;display:none;flex-direction:column;gap:10px}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:4px}
+.rec-box{border:1px solid var(--border-bright);background:#0d0d10;padding:12px;display:flex;flex-direction:column;gap:8px}
+.rec-box .rec-title{font-size:11px;font-weight:700;color:var(--warn);letter-spacing:1px}
+.drop-zone{border:2px dashed var(--border-bright);background:#08080a;padding:16px 12px;text-align:center;cursor:pointer;transition:border-color .15s}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--fg);background:#111115}
+.drop-zone strong{font-size:11px;color:var(--fg);display:block}
+.drop-zone span{font-size:10px;color:var(--fg-dim);display:block;margin-top:4px}
+@media (max-width:720px){
+  .pt-row{grid-template-columns:100px 80px 80px 1fr}
+  .pt-row span:nth-child(2),.pt-row span:nth-child(3){display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-title">
+    <span>AGENTLA // SYSTEM_INFO</span>
+    <span class="tag" id="boardChip">RP2350</span>
+    <span class="tag" id="sysAlarm">STATUS: OK</span>
+  </div>
+  <div class="btn-group">
+    <button onclick="nav('/')">WebUI</button>
+    <button id="btnToggleRec" onclick="toggleRecoveryBanner()">Recovery</button>
+    <button onclick="triggerReboot()">Reboot</button>
+  </div>
+</header>
+
+<div class="grid">
+  <!-- Dynamic Recovery Banner (Expands automatically if SYSTEM_FS is unpopulated/corrupted or ?recovery=1) -->
+  <div class="card full recovery-banner" id="recoveryBanner">
+    <div class="card-hdr" style="border-bottom-color:var(--warn)">
+      <span class="title" style="color:var(--warn)">⚠️ SYSTEM_FS RECOVERY MODE // PARTITION UNPOPULATED OR CORRUPTED</span>
+      <span class="tag tag-warn">RECOVERY ACTIVE</span>
+    </div>
+    <p style="color:var(--fg-dim);font-size:11px">
+      Partition 1 (<code>SYSTEM_FS</code> @ 0x00260000) is unpopulated or missing required web assets. Select a restore method below to flash the WebUI distribution:
+    </p>
+    <div class="rec-grid">
+      <div class="rec-box">
+        <span class="rec-title">RESTORE METHOD A // CLOUD AUTO UPDATE</span>
+        <p style="color:var(--fg-dim);font-size:11px">Pull verified <code>webui.tar</code> release asset from GitHub via client browser and stream directly to flash.</p>
+        <button id="btnRecAuto" class="primary" onclick="onlineUpdate('web')" style="margin-top:auto" disabled>Auto Update from GitHub</button>
+      </div>
+      <div class="rec-box">
+        <span class="rec-title">RESTORE METHOD B // LOCAL ARCHIVE DROPZONE</span>
+        <div class="drop-zone" id="recDropZone" onclick="$('fileWeb').click()">
+          <strong>CLICK TO SELECT WEBUI.TAR</strong>
+          <span>or drag and drop archive file here</span>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="recProgress"><div class="progress-bar" id="recBar"></div></div>
+    <div class="status-msg" id="recStatus" style="color:var(--warn)">Awaiting user recovery action...</div>
+  </div>
+  <!-- Card 1: MCU & Silicon -->
+  <div class="card">
+    <div class="card-hdr"><span class="title">MCU &amp; Silicon</span><span class="tag" id="boardId">pico2</span></div>
+    <div class="d-list">
+      <div class="row"><span class="lbl">CORE_CHIP</span><span class="dots"></span><span class="val" id="coreChip">RP2350B</span></div>
+      <div class="row"><span class="lbl">CORE_TYPE</span><span class="dots"></span><span class="val" id="coreType">Dual ARM Cortex-M33 / Hazard3 RISC-V</span></div>
+      <div class="row"><span class="lbl">CORE_CLOCK</span><span class="dots"></span><span class="val" id="mcuClock">150 MHz</span></div>
+      <div class="row"><span class="lbl">SRAM_MEM</span><span class="dots"></span><span class="val" id="sramUsage">-- / 520 KB</span></div>
+      <div class="row"><span class="lbl">FLASH_ROM</span><span class="dots"></span><span class="val" id="flashSize">4096 KB</span></div>
+    </div>
+  </div>
+
+  <!-- Card 2: Power & Thermal -->
+  <div class="card">
+    <div class="card-hdr"><span class="title">Power &amp; Thermal</span><span class="tag" id="telemetryStatus">Normal</span></div>
+    <div class="d-list">
+      <div class="row"><span class="lbl">V_SYS</span><span class="dots"></span><span class="val" id="vSys">-- V</span></div>
+      <div class="row"><span class="lbl">V_TARGET</span><span class="dots"></span><span class="val" id="vTarget">-- V</span></div>
+      <div class="row"><span class="lbl">I_TARGET</span><span class="dots"></span><span class="val" id="iTarget">-- mA</span></div>
+      <div class="row"><span class="lbl">CORE_TEMP</span><span class="dots"></span><span class="val" id="tempC">-- °C</span></div>
+    </div>
+  </div>
+
+  <!-- Card 3: Firmware (Dual A/B OTA) -->
+  <div class="card">
+    <div class="card-hdr"><span class="title">Firmware (Dual A/B OTA)</span><span class="tag" id="fwSlotTag">SLOT_A</span></div>
+    <div class="d-list">
+      <div class="row"><span class="lbl">ACTIVE_SLOT</span><span class="dots"></span><span class="val" id="fwSlots">SlotA / SlotA</span></div>
+      <div class="row"><span class="lbl">CANDIDATE</span><span class="dots"></span><span class="val" id="fwCandidate">None</span></div>
+      <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVersion">AgentLA v1.0.0</span></div>
+      <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwUpdate">Checking...</span></div>
+    </div>
+    <div class="progress" id="fwProgress"><div class="progress-bar" id="fwBar"></div></div>
+    <div class="status-msg" id="fwStatus">Ready.</div>
+    <div class="btn-group" style="margin-top:4px">
+      <button id="btnFwOnline" onclick="onlineUpdate('fw')" disabled>Auto Update</button>
+      <button onclick="$('fileFw').click()">Flash .bin</button>
+      <button onclick="rollbackFw()">Rollback</button>
+      <button class="danger" onclick="triggerBootsel()">Force BOOTSEL</button>
+      <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
+    </div>
+  </div>
+
+  <!-- Card 4: WebUI & Storage (SYSTEM_FS) -->
+  <div class="card">
+    <div class="card-hdr"><span class="title">WebUI &amp; Storage (SYSTEM_FS)</span><span class="tag" id="fsTag">512 KB</span></div>
+    <div class="d-list">
+      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="fsSize">-- / 512 KB</span></div>
+      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00270000</span></div>
+      <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
+      <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="webVersion">v1.0.0</span></div>
+      <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webUpdate">Checking...</span></div>
+    </div>
+    <div class="progress" id="webProgress"><div class="progress-bar" id="webBar"></div></div>
+    <div class="status-msg" id="webStatus">Ready.</div>
+    <div class="btn-group" style="margin-top:4px">
+      <button id="btnWebOnline" onclick="onlineUpdate('web')" disabled>Auto Update</button>
+      <button onclick="$('fileWeb').click()">Flash .tar</button>
+      <button class="danger" onclick="formatFs('system')">Format SYSTEM_FS</button>
+      <input type="file" id="fileWeb" accept=".tar" onchange="uploadLocal('/api/v1/system/webui/update', this.files[0], false)">
+    </div>
+  </div>
+
+  <!-- Card 5: User Storage (USER_FS) -->
+  <div class="card">
+    <div class="card-hdr"><span class="title">User Storage (USER_FS)</span><span class="tag" id="userFsTag">1072 KB</span></div>
+    <div class="d-list">
+      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="userFsSize">-- / 1072 KB</span></div>
+      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x002F0000</span></div>
+      <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
+    </div>
+    <div class="status-msg" id="userFsMsg">Ready.</div>
+    <div class="btn-group" style="margin-top:4px">
+      <button class="danger" onclick="formatFs('user')">Format USER_FS</button>
+    </div>
+  </div>
+
+  <!-- Card 6: Flash Partitions -->
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">Flash Partitions</span>
+      <span class="tag" id="flashGeoTag">RP2350 4096 KB</span>
+    </div>
+    <div class="part-bar">
+      <div class="part-seg" style="flex:16" title="Boot Switcher &amp; Metadata (16 KB) [0x00000000]">BOOT<br><span class="seg-sub">16K</span></div>
+      <div class="part-seg active" id="segSlotA" style="flex:1200" title="Firmware Slot A (1200 KB) [0x00004000]">SLOT_A<br><span class="seg-sub" id="lblSlotA">1.2M [RUN]</span></div>
+      <div class="part-seg" id="segSlotB" style="flex:1200" title="Firmware Slot B (1200 KB) [0x00130000]">SLOT_B<br><span class="seg-sub" id="lblSlotB">1.2M [OTA]</span></div>
+      <div class="part-seg" style="flex:512" title="SYSTEM_FS LittleFS (512 KB) [0x00260000]">SYSTEM_FS<br><span class="seg-sub">512K (LFS)</span></div>
+      <div class="part-seg" style="flex:1136" title="USER_FS LittleFS (1136 KB) [0x002E0000]">USER_FS<br><span class="seg-sub">1.1M (LFS)</span></div>
+      <div class="part-seg" style="flex:16" title="Reserved Trail (16 KB) [0x003FC000]">END<br><span class="seg-sub">16K</span></div>
+    </div>
+    <div class="part-table">
+      <div class="pt-row header"><span>PARTITION</span><span>START</span><span>END</span><span>SIZE</span><span>TYPE</span><span>ROLE / STATUS</span></div>
+      <div class="pt-row"><span>BOOT_TABLE</span><span>0x00000000</span><span>0x00004000</span><span>16 KB</span><span>ROM</span><span>Bootloader Switcher</span></div>
+      <div class="pt-row" id="rowSlotA"><span>FW_SLOT_A</span><span>0x00004000</span><span>0x00130000</span><span>1200 KB</span><span>XIP_FLASH</span><span id="roleSlotA">Active Firmware [Running]</span></div>
+      <div class="pt-row" id="rowSlotB"><span>FW_SLOT_B</span><span>0x00130000</span><span>0x00260000</span><span>1200 KB</span><span>XIP_FLASH</span><span id="roleSlotB">Alternate Firmware [Standby]</span></div>
+      <div class="pt-row"><span>SYSTEM_FS</span><span>0x00260000</span><span>0x002E0000</span><span>512 KB</span><span>LITTLEFS2</span><span>WebUI &amp; System Bundle</span></div>
+      <div class="pt-row"><span>USER_FS</span><span>0x002E0000</span><span>0x003FC000</span><span>1136 KB</span><span>LITTLEFS2</span><span>User Apps, Profiles &amp; Data</span></div>
+    </div>
+  </div>
+
+  <!-- Card 7: Pin Diagnostics -->
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">Pin Diagnostics</span>
+      <button class="danger" style="padding:2px 8px;font-size:10px" onclick="releaseAllPins()">Emergency Release All</button>
+    </div>
+    <div class="pin-matrix" id="pinMatrix"></div>
+  </div>
+</div>
+
+<!-- In-Page Neo-Industrial Confirmation Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox">
+    <div class="modal-hdr">
+      <span class="title" id="modalTitle">ACTION CONFIRMATION</span>
+      <span class="tag tag-alert" id="modalTag">CAUTION</span>
+    </div>
+    <div class="modal-body" id="modalMsg">Are you sure you want to proceed?</div>
+    <div class="btn-group" style="justify-content:flex-end;margin-top:8px">
+      <button onclick="closeModal(false)">Cancel</button>
+      <button class="danger" id="modalConfirm" onclick="closeModal(true)">Execute Action</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let latestRel = null;
+let confirmResolver = null;
+let installedFwVer = 'v1.0.0';
+let installedWebVer = 'v1.0.0';
+
+function nav(p){ window.location.href = p; }
+
+function showConfirm(title, msg, isDanger = true){
+  return new Promise(resolve => {
+    $('modalTitle').textContent = title;
+    $('modalMsg').textContent = msg;
+    $('modalConfirm').className = isDanger ? 'danger' : '';
+    $('modalTag').textContent = isDanger ? 'DANGER' : 'PROMPT';
+    $('modalTag').className = 'tag ' + (isDanger ? 'tag-alert' : '');
+    $('modalOverlay').style.display = 'flex';
+    confirmResolver = resolve;
+  });
+}
+
+function closeModal(res){
+  $('modalOverlay').style.display = 'none';
+  if(confirmResolver){
+    confirmResolver(res);
+    confirmResolver = null;
+  }
+}
+
+async function fetchJSON(u, o={}){
+  try{ const r = await fetch(u, o); return r.ok ? await r.json() : null; }
+  catch(e){ return null; }
+}
+
+async function loadTelemetry(){
+  const t = await fetchJSON('/api/v1/system/telemetry');
+  if(!t) return;
+  if(t.v_sys_mv) $('vSys').textContent = (t.v_sys_mv/1000).toFixed(2) + ' V';
+  if(t.v_target_mv) $('vTarget').textContent = (t.v_target_mv/1000).toFixed(2) + ' V';
+  if(t.i_target_ma !== undefined) $('iTarget').textContent = t.i_target_ma + ' mA';
+  if(t.temp_c !== undefined) $('tempC').textContent = t.temp_c + ' °C';
+  if(t.sram_used_bytes && t.sram_total_bytes){
+    $('sramUsage').textContent = Math.round(t.sram_used_bytes/1024) + ' / ' + Math.round(t.sram_total_bytes/1024) + ' KB';
+  }
+  if(t.lfs_used_bytes && t.lfs_total_bytes){
+    const u = Math.round(t.lfs_used_bytes/1024), tot = Math.round(t.lfs_total_bytes/1024);
+    if($('fsSize')) $('fsSize').textContent = u + ' / ' + tot + ' KB';
+    if($('fsTag')) $('fsTag').textContent = tot + ' KB';
+  }
+  if(t.user_lfs_used_bytes && t.user_lfs_total_bytes){
+    const uu = Math.round(t.user_lfs_used_bytes/1024), utot = Math.round(t.user_lfs_total_bytes/1024);
+    if($('userFsSize')) $('userFsSize').textContent = uu + ' / ' + utot + ' KB';
+    if($('userFsTag')) $('userFsTag').textContent = utot + ' KB';
+  } else {
+    if($('userFsSize')) $('userFsSize').textContent = '-- / 1072 KB';
+  }
+  const al = $('sysAlarm'), ts = $('telemetryStatus');
+  if(t.alarm && t.alarm !== 'none'){
+    al.textContent = 'ALARM: ' + t.alarm.toUpperCase();
+    al.className = 'tag tag-alert';
+    ts.textContent = 'Alarm: ' + t.alarm;
+    ts.className = 'tag tag-alert';
+  } else {
+    al.textContent = 'STATUS: OK';
+    al.className = 'tag';
+    ts.textContent = 'Normal';
+    ts.className = 'tag';
+  }
+  const params = new URLSearchParams(window.location.search);
+  const forceRec = params.get('recovery') === '1' || params.get('mode') === 'recovery';
+  const lfsEmpty = !t.lfs_used_bytes || t.lfs_used_bytes === 0;
+  if($('recoveryBanner') && (forceRec || lfsEmpty)){
+    $('recoveryBanner').style.display = 'flex';
+  }
+  renderPins(t.pins || []);
+}
+
+async function loadManifest(){
+  const m = await fetchJSON('/api/board/manifest');
+  if(!m) return;
+  if(m.name) $('boardChip').textContent = m.name;
+  if(m.board_id) $('boardId').textContent = m.board_id;
+  if(m.version){
+    installedWebVer = m.version.startsWith('v') ? m.version : ('v' + m.version);
+    if($('webVersion')) $('webVersion').textContent = installedWebVer;
+  }
+  if(m.mcu){
+    const chip = m.mcu.chip || 'RP2350B';
+    const cores = m.mcu.cores || 'Dual ARM Cortex-M33 / Hazard3 RISC-V';
+    if($('coreChip')) $('coreChip').textContent = chip;
+    if($('coreType')) $('coreType').textContent = cores;
+    if(m.mcu.clock_max_mhz) $('mcuClock').textContent = m.mcu.clock_max_mhz + ' MHz';
+    if(m.mcu.flash_bytes){
+      const flashKb = Math.round(m.mcu.flash_bytes/1024);
+      if($('flashSize')) $('flashSize').textContent = flashKb + ' KB';
+      $('flashGeoTag').textContent = chip + ' ' + flashKb + ' KB';
+    }
+  }
+}
+
+async function loadFirmwareStatus(){
+  const fw = await fetchJSON('/api/v1/system/firmware/status');
+  if(!fw) return;
+  const curSlot = fw.current_slot || 'SlotA';
+  const isA = curSlot === 'SlotA';
+  $('fwSlots').textContent = (fw.active_slot || 'SlotA') + ' / ' + curSlot;
+  $('fwSlotTag').textContent = curSlot.toUpperCase();
+  const rawFw = fw.firmware || 'AgentLA v1.0.0-rust';
+  const mFw = rawFw.match(/v\d+(\.\d+)*/i);
+  installedFwVer = mFw ? mFw[0] : 'v1.0.0';
+  $('fwVersion').textContent = installedFwVer;
+  $('fwCandidate').textContent = fw.candidate_slot ? fw.candidate_slot : 'None';
+
+  // Update Visual Flash Partition Map segment states
+  $('segSlotA').className = 'part-seg ' + (isA ? 'active' : '');
+  $('segSlotB').className = 'part-seg ' + (!isA ? 'active' : '');
+  $('lblSlotA').textContent = '1.2M ' + (isA ? '[RUN]' : '[STANDBY]');
+  $('lblSlotB').textContent = '1.2M ' + (!isA ? '[RUN]' : '[STANDBY]');
+  $('roleSlotA').textContent = isA ? 'Active Firmware [Running]' : 'Alternate Firmware [Standby]';
+  $('roleSlotB').textContent = !isA ? 'Active Firmware [Running]' : 'Alternate Firmware [Standby]';
+}
+
+const PODS = [
+  { name: 'ZONE 0 // POWER & SYSTEM INSTRUMENTATION', start: 0, end: 11 },
+  { name: 'POD 1 // TARGET PROGRAMMER & SWD', start: 12, end: 18 },
+  { name: 'POD 2 // INDUSTRIAL TRANSCEIVERS', start: 19, end: 22 },
+  { name: 'POD 3 // EXTERNAL BUS & ADC', start: 23, end: 29 }
+];
+
+function getPinInfo(owner, pin){
+  switch(owner){
+    case 'programmer':
+      return { text: 'PROGRAMMER', color: '#22d3ee', label: 'Programmer / SWD' };
+    case 'adapter':
+      if(pin === 12 || pin === 13) return { text: 'UART', color: '#c084fc', label: 'UART Serial' };
+      if(pin === 19 || pin === 20) return { text: 'CAN-FD', color: '#fbbf24', label: 'CAN-FD Transceiver' };
+      return { text: 'BRIDGE', color: '#fbbf24', label: 'Bus Bridge' };
+    case 'capture':
+      return { text: 'ANALYZER', color: '#4ade80', label: 'Logic Analyzer' };
+    case 'oscilloscope':
+      return { text: 'SCOPE', color: '#4ade80', label: 'Oscilloscope' };
+    case 'generator':
+      return { text: 'GENERATOR', color: '#4ade80', label: 'Pattern Generator' };
+    case 'free':
+      return { text: 'FREE', color: '#64748b', label: 'Free (Hi-Z)' };
+    default:
+      return { text: (owner || 'CLAIMED').toUpperCase(), color: '#fbbf24', label: `Claimed (${owner})` };
+  }
+}
+
+function renderPins(pins){
+  const m = $('pinMatrix');
+  if(!m) return;
+  m.innerHTML = '';
+  for(const pod of PODS){
+    const sec = document.createElement('div');
+    sec.className = 'pod-section';
+    const hdr = document.createElement('div');
+    hdr.className = 'pod-hdr';
+    hdr.textContent = pod.name;
+    sec.appendChild(hdr);
+
+    const grid = document.createElement('div');
+    grid.className = 'pin-grid';
+
+    for(let i = pod.start; i <= pod.end; i++){
+      const p = pins.find(x => x.pin === i) || { pin: i, owner: 'free' };
+      const info = getPinInfo(p.owner, i);
+      const div = document.createElement('div');
+      const isFree = p.owner === 'free';
+      div.className = 'pin ' + (isFree ? '' : (p.owner === 'programmer' ? 'prog' : 'claimed'));
+      div.title = `GP${i < 10 ? '0' + i : i}: ${info.label}`;
+      div.innerHTML = `<span class="pin-id">GP${i < 10 ? '0' + i : i}</span><span class="pin-state" style="color:${info.color}">${info.text}</span>`;
+      grid.appendChild(div);
+    }
+    sec.appendChild(grid);
+    m.appendChild(sec);
+  }
+}
+
+function compareUpdate(installed, remote){
+  if(!remote) return 'OFFLINE (USE LOCAL)';
+  const norm = v => (v || '').toLowerCase().replace(/^v/, '').trim();
+  const iParts = norm(installed).split('.').map(x => parseInt(x, 10) || 0);
+  const rParts = norm(remote).split('.').map(x => parseInt(x, 10) || 0);
+  let isNewer = false;
+  for(let i=0; i<Math.max(iParts.length, rParts.length); i++){
+    const iv = iParts[i] || 0, rv = rParts[i] || 0;
+    if(rv > iv){ isNewer = true; break; }
+    if(rv < iv){ isNewer = false; break; }
+  }
+  return isNewer ? remote : 'UP TO DATE';
+}
+
+function toggleRecoveryBanner(){
+  const b = $('recoveryBanner');
+  if(!b) return;
+  b.style.display = (b.style.display === 'none' || !b.style.display) ? 'flex' : 'none';
+}
+
+async function checkGitHub(){
+  try{
+    const r = await fetch('https://api.github.com/repos/sun/AgentLA/releases/latest');
+    if(!r.ok) throw new Error();
+    latestRel = await r.json();
+    const tag = latestRel.tag_name || 'v1.0.0';
+    const fwUp = compareUpdate(installedFwVer, tag);
+    const webUp = compareUpdate(installedWebVer, tag);
+    if($('fwUpdate')) $('fwUpdate').textContent = fwUp;
+    if($('webUpdate')) $('webUpdate').textContent = webUp;
+    $('btnFwOnline').disabled = false;
+    $('btnWebOnline').disabled = false;
+    if($('btnRecAuto')) $('btnRecAuto').disabled = false;
+  } catch(e){
+    if($('fwUpdate')) $('fwUpdate').textContent = 'OFFLINE (USE LOCAL)';
+    if($('webUpdate')) $('webUpdate').textContent = 'OFFLINE (USE LOCAL)';
+  }
+}
+
+async function uploadFile(url, data, isFw){
+  const p = isFw ? $('fwProgress') : $('webProgress');
+  const b = isFw ? $('fwBar') : $('webBar');
+  const s = isFw ? $('fwStatus') : $('webStatus');
+  p.style.display = 'block'; b.style.width = '30%';
+  s.textContent = 'TRANSMITTING PAYLOAD...';
+  if(!isFw && $('recProgress')){
+    $('recProgress').style.display = 'block';
+    $('recBar').style.width = '30%';
+    $('recStatus').textContent = 'TRANSMITTING WEBUI PAYLOAD...';
+  }
+  try{
+    const res = await fetch(url, { method: 'POST', body: data });
+    b.style.width = '100%';
+    if(!isFw && $('recBar')) $('recBar').style.width = '100%';
+    if(res.ok){
+      s.textContent = 'PAYLOAD STAGED SUCCESSFULLY.';
+      if(!isFw && $('recStatus')) $('recStatus').textContent = 'WEBUI RESTORED SUCCESSFULLY! Reloading...';
+      setTimeout(() => {
+        p.style.display = 'none'; b.style.width = '0%';
+        if(!isFw && $('recProgress')){ $('recProgress').style.display = 'none'; $('recBar').style.width = '0%'; }
+      }, 2000);
+      if(isFw && await showConfirm('FIRMWARE STAGED', 'Firmware written to candidate slot. Reboot now to activate?', false)){
+        triggerReboot();
+      } else if(!isFw){
+        setTimeout(() => location.reload(), 1500);
+      }
+      return true;
+    } else {
+      s.textContent = 'TRANSMISSION ERROR: HTTP ' + res.status;
+      if(!isFw && $('recStatus')) $('recStatus').textContent = 'RESTORE ERROR: HTTP ' + res.status;
+      return false;
+    }
+  }catch(e){
+    s.textContent = 'IO ERROR: ' + e.message;
+    if(!isFw && $('recStatus')) $('recStatus').textContent = 'IO ERROR: ' + e.message;
+    return false;
+  }
+}
+
+async function onlineUpdate(type){
+  if(!latestRel || !latestRel.assets) return;
+  const isFw = type === 'fw';
+  const match = isFw ? a => a.name.endsWith('.bin') || a.name.includes('firmware') : a => a.name.endsWith('.tar');
+  const asset = latestRel.assets.find(match);
+  if(!asset){
+    const s = isFw ? $('fwStatus') : $('webStatus');
+    s.textContent = 'NO MATCHING ASSET IN RELEASE';
+    return;
+  }
+  const s = isFw ? $('fwStatus') : $('webStatus');
+  s.textContent = 'PULLING ' + asset.name + '...';
+  try{
+    const r = await fetch(asset.browser_download_url);
+    const blob = await r.blob();
+    const ep = isFw ? '/api/v1/system/firmware/ota' : '/api/v1/system/webui/update';
+    await uploadFile(ep, blob, isFw);
+  }catch(e){
+    s.textContent = 'PULL FAILED: ' + e.message;
+  }
+}
+
+function uploadLocal(ep, file, isFw){
+  if(!file) return;
+  uploadFile(ep, file, isFw);
+}
+
+async function rollbackFw(){
+  if(!await showConfirm('FIRMWARE ROLLBACK', 'Revert bootloader active slot pointer to previous firmware slot?', true)) return;
+  const r = await fetch('/api/v1/system/firmware/rollback', { method: 'POST' });
+  if(r.ok){
+    $('fwStatus').textContent = 'Rollback committed. Rebooting...';
+    setTimeout(() => location.reload(), 2000);
+  }
+}
+
+async function releaseAllPins(){
+  if(!await showConfirm('EMERGENCY PIN RELEASE', 'Release all 30 GPIO pin allocations to High-Z free state?', true)) return;
+  const r = await fetch('/api/v1/system/pins/release_all', { method: 'POST' });
+  if(r.ok) loadTelemetry();
+}
+
+async function togglePin(state){
+  const el = $('probePin');
+  if(!el) return;
+  const pin = parseInt(el.value, 10);
+  const st = $('probeStatus');
+  if(st) st.textContent = `SET GP${pin} -> ${state.toUpperCase()}...`;
+  const r = await fetch('/api/v1/system/pins/toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin, state })
+  });
+  if(r.ok){ st.textContent = `GP${pin} -> ${state.toUpperCase()}`; loadTelemetry(); }
+  else { st.textContent = `GP${pin} ERROR`; }
+}
+
+async function triggerReboot(){
+  if(!await showConfirm('SYSTEM RESET', 'Trigger immediate hardware reset of AgentLA?', false)) return;
+  await fetch('/api/v1/system/reboot', { method: 'POST' });
+  setTimeout(() => location.reload(), 2000);
+}
+
+async function triggerBootsel(){
+  if(!await showConfirm('FORCE USB BOOTSEL', 'Drop board into RP2350 USB UF2 bootloader drive mode?', true)) return;
+  await fetch('/api/v1/system/bootsel', { method: 'POST' });
+}
+
+async function formatFs(part){
+  if(!await showConfirm('DANGER // FORMAT PARTITION', `Format ${part.toUpperCase()}_FS? All stored partition data will be permanently erased.`, true)) return;
+  const st = part === 'system' ? $('webStatus') : $('userFsMsg');
+  st.textContent = `ERASING & FORMATTING ${part.toUpperCase()}...`;
+  const r = await fetch('/api/v1/system/fs/format', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ partition: part, confirm: true })
+  });
+  if(r.ok){ st.textContent = `FORMAT ${part.toUpperCase()} OK`; loadTelemetry(); }
+  else { st.textContent = `FORMAT ERROR`; }
+}
+
+async function init(){
+  const recDz = $('recDropZone');
+  if(recDz){
+    recDz.addEventListener('dragover', e => { e.preventDefault(); recDz.classList.add('dragover'); });
+    recDz.addEventListener('dragleave', () => recDz.classList.remove('dragover'));
+    recDz.addEventListener('drop', e => {
+      e.preventDefault();
+      recDz.classList.remove('dragover');
+      if(e.dataTransfer.files.length) uploadLocal('/api/v1/system/webui/update', e.dataTransfer.files[0], false);
+    });
+  }
+  await loadManifest();
+  await loadFirmwareStatus();
+  await loadTelemetry();
+  checkGitHub();
+}
+init();
+setInterval(() => { if(!document.hidden) loadTelemetry(); }, 3000);
+</script>
+</body>
+</html>

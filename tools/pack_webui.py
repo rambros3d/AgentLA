@@ -24,7 +24,7 @@ except ImportError:
 
 # RP2350 Family ID for UF2
 RP2350_ARM_FAMILY_ID = 0xe48bff59
-DEFAULT_FLASH_OFFSET = 0x10190000
+DEFAULT_FLASH_OFFSET = 0x10260000
 BLOCK_SIZE = 4096
 BLOCK_COUNT = 128
 PARTITION_SIZE = BLOCK_SIZE * BLOCK_COUNT  # 512 KB (524,288 bytes)
@@ -115,6 +115,25 @@ def pack_webui(
                 rel_path = f"packages/{full_path.relative_to(pkg_dir).as_posix()}"
                 asset_files.append((rel_path, full_path))
 
+    # Also include universal agent skills from SKILLS directory
+    skills_dir = (web_dir.parent / "SKILLS").resolve()
+    if skills_dir.is_dir():
+        for root, _, files in os.walk(skills_dir, followlinks=True):
+            for f in sorted(files):
+                if f.startswith(".") or f.endswith(".tmp") or f.endswith(".bak"):
+                    continue
+                full_path = Path(root) / f
+                rel_path = f"skills/{full_path.relative_to(skills_dir).as_posix()}"
+                asset_files.append((rel_path, full_path))
+
+    # Automatically regenerate apps/catalog.json from apps/*/app.json manifests
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+        from build_catalog import generate_catalog
+        generate_catalog()
+    except Exception as e:
+        print(f"[pack_webui] Warning: auto build_catalog skipped: {e}")
+
     # Official app store catalog at apps/catalog.json
     apps_catalog = (web_dir.parent / "apps" / "catalog.json").resolve()
     if apps_catalog.is_file():
@@ -155,8 +174,9 @@ def pack_webui(
         with fs.open(lfs_gz_path, "wb") as f:
             f.write(gz_data)
 
-        # For small assets or non-compressible files, also write uncompressed variant
-        if len(raw_data) <= 4096 or rel_name.endswith(".json") or rel_name.endswith(".svg") or rel_name.endswith(".bin") or rel_name.endswith(".tar"):
+        # For small assets (<= 2KB), also write uncompressed variant.
+        # Larger bundles, HTML, CSS, JS, and app packages are served pre-compressed with Content-Encoding: gzip.
+        if len(raw_data) <= 2048 and not rel_name.endswith(".tar"):
             lfs_raw_path = f"/{rel_name}"
             ensure_parent_dirs(fs, lfs_raw_path)
             with fs.open(lfs_raw_path, "wb") as f:
@@ -204,6 +224,7 @@ def pack_webui(
         "img_path": output_img,
         "uf2_path": output_uf2,
         "tar_path": output_tar,
+        "asset_names": [rel for rel, _ in asset_files],
     }
 
 

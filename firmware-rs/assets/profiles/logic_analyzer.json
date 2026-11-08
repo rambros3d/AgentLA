@@ -1,0 +1,28 @@
+{
+  "id": "logic_analyzer",
+  "name": "Logic Analyzer (8-Ch)",
+  "description": "Standard 8-channel logic capture on GP0-GP7 with 100MHz timing.",
+  "is_boot": false,
+  "read_only": false,
+  "power": {
+    "v_target_enabled": false,
+    "v_target_mv": 0,
+    "overcurrent_limit_ma": 500
+  },
+  "pins": [
+    { "pin": 0, "driver": "capture", "label": "D0" },
+    { "pin": 1, "driver": "capture", "label": "D1" },
+    { "pin": 2, "driver": "capture", "label": "D2" },
+    { "pin": 3, "driver": "capture", "label": "D3" },
+    { "pin": 4, "driver": "capture", "label": "D4" },
+    { "pin": 5, "driver": "capture", "label": "D5" },
+    { "pin": 6, "driver": "capture", "label": "D6" },
+    { "pin": 7, "driver": "capture", "label": "D7" }
+  ],
+  "instruments": {
+    "logic_analyzer": {
+      "sample_rate_hz": 100000000,
+      "channels": 8
+    }
+  }
+}

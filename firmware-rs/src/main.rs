@@ -29,6 +29,7 @@ mod usb;
 mod web;
 mod web_assets;
 mod web_desktop;
+pub mod device_html;
 pub mod programmer;
 pub mod ols;
 pub mod telemetry;
@@ -203,7 +204,7 @@ async fn main(spawner: embassy_executor::Spawner) {
         gateway: Some(net::STATIC_IP),
     });
 
-    static STACK_RESOURCES: StaticCell<embassy_net::StackResources<8>> = StaticCell::new();
+    static STACK_RESOURCES: StaticCell<embassy_net::StackResources<24>> = StaticCell::new();
     let resources = STACK_RESOURCES.init(embassy_net::StackResources::new());
     let (stack, net_runner) =
         embassy_net::new(composite.net_device, net_config, resources, 0x12345678);
@@ -222,15 +223,16 @@ async fn main(spawner: embassy_executor::Spawner) {
     // (profile window 0x180000..0x190000, see storage.rs).
     let flash = Flash::new_blocking(p.FLASH);
 
-    // Profile boot-default scan BEFORE the LittleFS mount: purely XIP (read-only,
-    // zero-copy) and never erases at boot (design decision 5).
-    profile::scan_boot_default();
-
     let mounted = storage::init_filesystem(flash);
     defmt::info!(
         "LittleFS subsystem {}",
         if mounted { "ready" } else { "FAILED to mount (web fallback active)" }
     );
+
+    if mounted {
+        rest::init_settings_from_fs();
+        profile::scan_boot_default().await;
+    }
 
     // 3d. Dual-Slot Boot Confirmation
     // If running in candidate mode, confirm slot as permanently active now that

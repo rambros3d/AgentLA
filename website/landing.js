@@ -32,6 +32,11 @@ function initLandingThemeEngine() {
 
         try {
             localStorage.setItem('agentla-theme', effectiveTheme);
+            if (window.BroadcastChannel) {
+                const bc = new BroadcastChannel('agentla-theme-channel');
+                bc.postMessage({ theme: effectiveTheme, mode: mode });
+                bc.close();
+            }
         } catch (_) {}
 
         if (btn) {
@@ -59,6 +64,25 @@ function initLandingThemeEngine() {
             if (mode === 'system') apply();
         });
     }
+
+    try {
+        if (window.BroadcastChannel) {
+            const bc = new BroadcastChannel('agentla-theme-channel');
+            bc.onmessage = (e) => {
+                if (e.data && e.data.theme) {
+                    document.documentElement.setAttribute('data-theme', e.data.theme);
+                    const isLight = (e.data.theme === 'emerald' || e.data.theme === 'caramellatte' || e.data.theme === 'light');
+                    document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+                }
+            };
+        }
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'agentla-theme' || e.key === 'agentla-theme-mode') {
+                mode = localStorage.getItem('agentla-theme-mode') || 'system';
+                apply();
+            }
+        });
+    } catch (_) {}
 
     apply();
 }

@@ -1,0 +1,21 @@
+{
+  "id": "uart_passthrough",
+  "name": "UART Passthrough Bridge",
+  "description": "GP0 (TX) and GP1 (RX) configured for high-speed serial bridge.",
+  "is_boot": false,
+  "read_only": false,
+  "power": {
+    "v_target_enabled": true,
+    "v_target_mv": 3300,
+    "overcurrent_limit_ma": 500
+  },
+  "pins": [
+    { "pin": 0, "driver": "adapter", "label": "UART_TX" },
+    { "pin": 1, "driver": "adapter", "label": "UART_RX" }
+  ],
+  "instruments": {
+    "uart": {
+      "baud": 115200
+    }
+  }
+}

@@ -163,6 +163,88 @@ pub fn transmit_colors(colors: &[(u8, u8, u8)]) -> Result<u32, ()> {
     Ok(colors.len() as u32)
 }
 
+/// Transmit raw byte stream over single-wire (WS2812/SK6812/WS2811/WS2813/WS2815) on any pin.
+pub fn transmit_raw_bytes_pin(pin: u32, bytes: &[u8], reset_us: u32) -> Result<usize, ()> {
+    if pin > 29 { return Err(()); }
+    unsafe {
+        pac::IO_BANK0.gpio(pin as usize).ctrl().write(|w| {
+            w.set_funcsel(5);
+        });
+        pac::PADS_BANK0.gpio(pin as usize).modify(|w| {
+            w.set_iso(false);
+            w.set_ie(false);
+            w.set_od(false);
+            w.set_pue(false);
+            w.set_pde(false);
+        });
+        pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
+    }
+    cortex_m::interrupt::free(|_| {
+        for &byte in bytes {
+            for bit_idx in (0..8).rev() {
+                let bit = (byte >> bit_idx) & 1;
+                if bit == 1 {
+                    unsafe { pac::SIO.gpio_out(0).value_set().write_value(1 << pin); }
+                    cortex_m::asm::delay(35);
+                    unsafe { pac::SIO.gpio_out(0).value_clr().write_value(1 << pin); }
+                    cortex_m::asm::delay(20);
+                } else {
+                    unsafe { pac::SIO.gpio_out(0).value_set().write_value(1 << pin); }
+                    cortex_m::asm::delay(18);
+                    unsafe { pac::SIO.gpio_out(0).value_clr().write_value(1 << pin); }
+                    cortex_m::asm::delay(35);
+                }
+            }
+        }
+        unsafe { pac::SIO.gpio_out(0).value_clr().write_value(1 << pin); }
+        let cycles = reset_us.max(50) * 35;
+        cortex_m::asm::delay(cycles);
+    });
+    Ok(bytes.len())
+}
+
+/// Transmit clocked SPI 2-wire bitstream (APA102/DotStar/SK9822/WS2801) on any data and clock pins.
+pub fn transmit_clocked_bytes(data_pin: u32, clk_pin: u32, bytes: &[u8]) -> Result<usize, ()> {
+    if data_pin > 29 || clk_pin > 29 { return Err(()); }
+    unsafe {
+        for &p in &[data_pin, clk_pin] {
+            pac::IO_BANK0.gpio(p as usize).ctrl().write(|w| w.set_funcsel(5));
+            pac::PADS_BANK0.gpio(p as usize).modify(|w| {
+                w.set_iso(false);
+                w.set_ie(false);
+                w.set_od(false);
+                w.set_pue(false);
+                w.set_pde(false);
+            });
+            pac::SIO.gpio_oe(0).value_set().write_value(1 << p);
+            pac::SIO.gpio_out(0).value_clr().write_value(1 << p);
+        }
+    }
+    cortex_m::interrupt::free(|_| {
+        for &byte in bytes {
+            for bit_idx in (0..8).rev() {
+                let bit = (byte >> bit_idx) & 1;
+                unsafe {
+                    if bit == 1 {
+                        pac::SIO.gpio_out(0).value_set().write_value(1 << data_pin);
+                    } else {
+                        pac::SIO.gpio_out(0).value_clr().write_value(1 << data_pin);
+                    }
+                    pac::SIO.gpio_out(0).value_set().write_value(1 << clk_pin);
+                    cortex_m::asm::delay(3);
+                    pac::SIO.gpio_out(0).value_clr().write_value(1 << clk_pin);
+                    cortex_m::asm::delay(3);
+                }
+            }
+        }
+        unsafe {
+            pac::SIO.gpio_out(0).value_clr().write_value(1 << data_pin);
+            pac::SIO.gpio_out(0).value_clr().write_value(1 << clk_pin);
+        }
+    });
+    Ok(bytes.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

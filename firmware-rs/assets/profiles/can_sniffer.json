@@ -1,0 +1,22 @@
+{
+  "id": "can_sniffer",
+  "name": "CAN Bus Sniffer & Logger",
+  "description": "GP4 (RX) and GP5 (TX) claimed for GS-USB CAN bridge controller.",
+  "is_boot": false,
+  "read_only": false,
+  "power": {
+    "v_target_enabled": true,
+    "v_target_mv": 3300,
+    "overcurrent_limit_ma": 500
+  },
+  "pins": [
+    { "pin": 4, "driver": "adapter", "label": "CAN_RX" },
+    { "pin": 5, "driver": "adapter", "label": "CAN_TX" }
+  ],
+  "instruments": {
+    "can": {
+      "bitrate": 500000,
+      "listen_only": false
+    }
+  }
+}

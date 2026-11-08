@@ -5,6 +5,7 @@
 # Build artifacts
 build/
 build*/
+_site/
 target/
 !firmware-rs/src/programmer/target/
 *.o

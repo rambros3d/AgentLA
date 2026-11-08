@@ -1,0 +1,14 @@
+{
+  "id": "safe_state",
+  "name": "Safe State (Hi-Z)",
+  "description": "Default fail-safe state with all GPIO pins configured as High-Z inputs.",
+  "is_boot": true,
+  "read_only": true,
+  "power": {
+    "v_target_enabled": false,
+    "v_target_mv": 0,
+    "overcurrent_limit_ma": 500
+  },
+  "pins": [],
+  "instruments": {}
+}

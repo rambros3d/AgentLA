@@ -19,8 +19,8 @@
                  window.location.search.includes('demo=1') ||
                  window.location.pathname.endsWith('.html');
 
-    var homeUrl = isDemo ? (window.location.pathname.includes('/apps/') ? '../../apps.html' : 'apps.html') : '/home/';
-    var labUrl = isDemo ? (window.location.pathname.includes('/apps/') ? '../../index.html' : 'index.html') : '/scope/';
+    var homeUrl = isDemo ? (window.location.pathname.includes('/apps/') ? '../../index.html' : 'index.html') : '/home';
+    var labUrl = isDemo ? (window.location.pathname.includes('/apps/') ? '../../lab.html' : 'lab.html') : '/scope';
 
     // -------------------------------------------------------------------------
     // Universal Theme Synchronization Engine

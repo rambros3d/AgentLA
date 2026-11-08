@@ -114,6 +114,7 @@ fn test_resources_list() {
     assert!(res.contains(r#""resources":["#));
     assert!(res.contains(r#""uri":"agentla://info""#));
     assert!(res.contains(r#""uri":"agentla://pinout""#));
+    assert!(res.contains(r#""uri":"agentla://skills/mcu-autonomous-testing""#));
 }
 
 #[test]
@@ -130,7 +131,12 @@ fn test_resources_read() {
     assert!(res_pin.contains(r#""contents":[{"uri":"agentla://pinout""#));
     assert!(res_pin.contains(r#"GPIO0-GPIO9"#));
 
-    let req_unknown = br#"{"jsonrpc":"2.0","id":9,"method":"resources/read","params":{"uri":"agentla://unknown"}}"#;
+    let req_skill = br#"{"jsonrpc":"2.0","id":9,"method":"resources/read","params":{"uri":"agentla://skills/mcu-autonomous-testing"}}"#;
+    let res_skill = server.handle_request(req_skill);
+    assert!(res_skill.contains(r#""contents":[{"uri":"agentla://skills/mcu-autonomous-testing""#));
+    assert!(res_skill.contains(r#"Universal MCU Autonomous Testing Playbook"#));
+
+    let req_unknown = br#"{"jsonrpc":"2.0","id":10,"method":"resources/read","params":{"uri":"agentla://unknown"}}"#;
     let res_unknown = server.handle_request(req_unknown);
     assert!(res_unknown.contains(r#""code":-32602"#));
 }

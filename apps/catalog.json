@@ -1,27 +1,71 @@
 {
   "version": "1.0.0",
+  "name": "AgentLA Official Catalog",
   "apps": [
+    {
+      "id": "can-sniffer",
+      "name": "CAN Bus Analyzer",
+      "version": "1.2.0",
+      "author": "AgentLA Team",
+      "description": "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, frame transmission, and 120\u03a9 termination control.",
+      "category": "Automotive",
+      "tags": [
+        "Automotive",
+        "CAN",
+        "Analyzer"
+      ],
+      "requires": [
+        "has_hardware_can"
+      ],
+      "size_bytes": 40960,
+      "icon_url": "can-sniffer/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/can-sniffer",
+      "package_url": "/packages/can-sniffer.tar"
+    },
+    {
+      "id": "neopixel-control",
+      "name": "Neopixel Control",
+      "version": "1.0.0",
+      "author": "AgentLA Team",
+      "description": "Multi-protocol addressable LED controller supporting WS2812, SK6812 RGBW, APA102, WS2811/13/15, with 1D/2D visualizers, 60 FPS shaders, and power telemetry.",
+      "category": "Lighting",
+      "tags": [
+        "Lighting",
+        "FastLED",
+        "Addressable LED",
+        "Neopixel",
+        "SPI",
+        "WS2812"
+      ],
+      "requires": [
+        "ws2812",
+        "gpio_flexible"
+      ],
+      "size_bytes": 61440,
+      "icon_url": "neopixel-control/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/neopixel-control",
+      "package_url": "/packages/neopixel-control.tar"
+    },
     {
       "id": "servo-master",
       "name": "Servo Master",
       "version": "1.0.0",
       "author": "AgentLA Team",
       "description": "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
-      "requires": ["pwm", "gpio_flexible"],
-      "tags": ["Robotics", "PWM", "Actuation"],
+      "category": "Robotics",
+      "tags": [
+        "Robotics",
+        "PWM",
+        "Actuation"
+      ],
+      "requires": [
+        "pwm",
+        "gpio_flexible"
+      ],
       "size_bytes": 51200,
+      "icon_url": "servo-master/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo-master",
       "package_url": "/packages/servo-master.tar"
-    },
-    {
-      "id": "can-sniffer",
-      "name": "CAN Bus Analyzer",
-      "version": "1.2.0",
-      "author": "AgentLA Team",
-      "description": "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, frame transmission, and 120Ω termination control.",
-      "requires": ["has_hardware_can"],
-      "tags": ["Automotive", "CAN", "Analyzer"],
-      "size_bytes": 30720,
-      "package_url": "/packages/can-sniffer.tar"
     }
   ]
 }

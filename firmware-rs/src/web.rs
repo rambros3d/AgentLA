@@ -188,39 +188,114 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 )
             }),
         )
-        // --- System Apps & Instruments ----------------------------------
-        .route("/home", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
-        .route("/home/", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
-        .route("/scope", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/scope/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/adapter", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/adapter/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/adapters", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/adapters/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/debug", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/debug/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/target", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/target/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/pin", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/pin/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/pins", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/pins/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        // --- Canonical System Apps & Instruments ------------------------
+        .route("/home", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/home/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/home"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/scope", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        .route("/scope/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/scope"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/adapter", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        .route("/adapter/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/adapter"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/debug", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        .route("/debug/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/debug"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/pins", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        .route("/pins/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/pins"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/agent", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        .route("/agent/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/agent"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/terminal", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
-        .route("/terminal/", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
+        .route("/terminal/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/terminal"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/terminal.html", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
-        .route("/agent", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/agent/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/console", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/console/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        // Legacy aliases
-        .route("/lab", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/lab/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/apps", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
-        .route("/apps/", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
-        .route("/apps.html", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/lab.html", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        // In-ROM Device Diagnostics & Developer Console (Zero LittleFS dependency)
+        .route("/device", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/device.html", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/device/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/device"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/diagnostics", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/diagnostics.html", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/diagnostics/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/device"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        // Subpath asset fallbacks (for browsers resolving relative to /home/ or /scope/)
+        .route("/home/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
+        .route("/home/daisyui.css", get_service(crate::fs_http::SystemWebFile::new("daisyui.css", "text/css")))
+        .route("/home/themes.css", get_service(crate::fs_http::SystemWebFile::new("themes.css", "text/css")))
+        .route("/scope/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
+        .route("/scope/daisyui.css", get_service(crate::fs_http::SystemWebFile::new("daisyui.css", "text/css")))
+        .route("/scope/themes.css", get_service(crate::fs_http::SystemWebFile::new("themes.css", "text/css")))
+        .route("/scope/app.js", get_service(crate::fs_http::SystemWebFile::new("app.js", "application/javascript")))
         .route("/app.js", get_service(crate::fs_http::SystemWebFile::new("app.js", "application/javascript")))
         .route("/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
+        .route("/daisyui.css", get_service(crate::fs_http::SystemWebFile::new("daisyui.css", "text/css")))
         .route("/agentla-bridge.js", get_service(crate::fs_http::SystemWebFile::new("agentla-bridge.js", "application/javascript")))
         .route("/themes.css", get_service(crate::fs_http::SystemWebFile::new("themes.css", "text/css")))
         .route("/themes.json", get_service(crate::fs_http::SystemWebFile::new("themes.json", "application/json")))
@@ -228,6 +303,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/wallpaper.svg", get_service(crate::fs_http::SystemWebFile::new("wallpaper.svg", "image/svg+xml")))
         .route("/logo.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::LOGO_SVG)))
         .route("/favicon.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::FAVICON_SVG)))
+        .route("/favicon.ico", get_service(File::from_content("image/svg+xml", crate::web_assets::FAVICON_SVG)))
         .route("/pinout.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::PINOUT_SVG)))
         .route("/ok.json", get_service(crate::fs_http::SystemWebFile::new("ok.json", "application/json")))
         .route("/mcp.json", get_service(crate::fs_http::SystemWebFile::new("mcp.json", "application/json")))
@@ -235,7 +311,14 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/apps/catalog.json", get_service(crate::fs_http::SystemWebFile::new("apps/catalog.json", "application/json")))
         .route("/packages/servo-master.tar", get_service(crate::fs_http::SystemWebFile::new("packages/servo-master.tar", "application/x-tar")))
         .route("/packages/can-sniffer.tar", get_service(crate::fs_http::SystemWebFile::new("packages/can-sniffer.tar", "application/x-tar")))
+        .route("/packages/neopixel-control.tar", get_service(crate::fs_http::SystemWebFile::new("packages/neopixel-control.tar", "application/x-tar")))
+        .route("/skills/mcu-autonomous-testing/SKILL.md", get_service(crate::fs_http::SystemWebFile::new("skills/mcu-autonomous-testing/SKILL.md", "text/markdown; charset=utf-8")))
         .route_service("/api/v1/system/webui/update", crate::fs_http::SystemWebUiUpdate)
+        .route_service("/api/v1/system/bootsel", crate::rest::SystemBootsel)
+        .route_service("/api/v1/system/reboot", crate::rest::SystemReboot)
+        .route_service("/api/v1/system/pins/release_all", crate::rest::SystemPinsReleaseAll)
+        .route_service("/api/v1/system/pins/toggle", crate::rest::SystemPinsToggle)
+        .route_service("/api/v1/system/fs/format", crate::rest::SystemFsFormat)
         .route(
             "/api/v1/system",
             get(|| async move { (("Content-Type", "application/json"), SYSTEM_JSON) }),
@@ -247,6 +330,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/telemetry/stream", crate::rest::SystemTelemetryStream)
         .route_service("/api/v1/terminal/ws", crate::rest::TerminalWebSocket)
         .route_service("/api/v1/can/ws", crate::rest::CanWebSocket)
+        .route_service("/api/v1/led/ws", crate::rest::LedWebSocket)
         .route(
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),
@@ -579,11 +663,39 @@ pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
     let mut tcp_tx_buf_3 = [0u8; 1536];
     let server_3 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_3);
 
-    defmt::info!("HTTP server listening on TCP :80 with 4 concurrent worker sockets");
-    embassy_futures::join::join4(
-        server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0),
-        server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1),
-        server_2.listen_and_serve(2, stack, 80, &mut tcp_rx_buf_2, &mut tcp_tx_buf_2),
-        server_3.listen_and_serve(3, stack, 80, &mut tcp_rx_buf_3, &mut tcp_tx_buf_3),
+    let mut http_buf_4 = [0u8; 2048];
+    let mut tcp_rx_buf_4 = [0u8; 1536];
+    let mut tcp_tx_buf_4 = [0u8; 1536];
+    let server_4 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_4);
+
+    let mut http_buf_5 = [0u8; 2048];
+    let mut tcp_rx_buf_5 = [0u8; 1536];
+    let mut tcp_tx_buf_5 = [0u8; 1536];
+    let server_5 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_5);
+
+    let mut http_buf_6 = [0u8; 2048];
+    let mut tcp_rx_buf_6 = [0u8; 1536];
+    let mut tcp_tx_buf_6 = [0u8; 1536];
+    let server_6 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_6);
+
+    let mut http_buf_7 = [0u8; 2048];
+    let mut tcp_rx_buf_7 = [0u8; 1536];
+    let mut tcp_tx_buf_7 = [0u8; 1536];
+    let server_7 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_7);
+
+    defmt::info!("HTTP server listening on TCP :80 with 8 concurrent worker sockets");
+    embassy_futures::join::join(
+        embassy_futures::join::join4(
+            server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0),
+            server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1),
+            server_2.listen_and_serve(2, stack, 80, &mut tcp_rx_buf_2, &mut tcp_tx_buf_2),
+            server_3.listen_and_serve(3, stack, 80, &mut tcp_rx_buf_3, &mut tcp_tx_buf_3),
+        ),
+        embassy_futures::join::join4(
+            server_4.listen_and_serve(4, stack, 80, &mut tcp_rx_buf_4, &mut tcp_tx_buf_4),
+            server_5.listen_and_serve(5, stack, 80, &mut tcp_rx_buf_5, &mut tcp_tx_buf_5),
+            server_6.listen_and_serve(6, stack, 80, &mut tcp_rx_buf_6, &mut tcp_tx_buf_6),
+            server_7.listen_and_serve(7, stack, 80, &mut tcp_rx_buf_7, &mut tcp_tx_buf_7),
+        ),
     ).await;
 }

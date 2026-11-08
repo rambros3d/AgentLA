@@ -51,6 +51,11 @@ fn key_u32(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key:
             return s.parse::<u32>().ok();
         }
     }
+    if let Some(i) = key_int(q, body, key) {
+        if i >= 0 {
+            return Some(i as u32);
+        }
+    }
     None
 }
 fn key_str(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key: &str) -> Option<heapless::String<64>> {
@@ -183,6 +188,11 @@ pub struct LedAnalyze;
 pub struct GlitchArm;
 pub struct GlitchDisarm;
 pub struct GlitchStatus;
+pub struct SystemBootsel;
+pub struct SystemReboot;
+pub struct SystemPinsReleaseAll;
+pub struct SystemPinsToggle;
+pub struct SystemFsFormat;
 
 macro_rules! service {
     ($t:ty, $m:expr) => {
@@ -207,26 +217,37 @@ service!(GeneratorStart, "POST"); service!(GeneratorStop, "POST"); service!(Gene
 service!(LedPattern, "POST"); service!(LedAnalyze, "GET");
 service!(GlitchArm, "POST"); service!(GlitchDisarm, "POST"); service!(GlitchStatus, "GET");
 service!(FirmwareStatus, "GET"); service!(FirmwareRollback, "POST");
+service!(SystemBootsel, "POST"); service!(SystemReboot, "POST"); service!(SystemPinsReleaseAll, "POST"); service!(SystemPinsToggle, "POST"); service!(SystemFsFormat, "POST");
 
 // ============ implementations ============
 impl ProfilesList {
-    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let mut body = heapless::String::<2048>::new();
-        let _ = write!(body, r#"{{"active_slot":{},"active_name":"{}","slots":["#, profile::active_slot(), profile::active_name().as_str());
-        let mut first=true;
-        for slot in 0..profile::SLOT_COUNT {
-            if !first { let _=body.push(','); } first=false;
-            match profile::read_slot(slot) {
-                profile::SlotRead::SafeState(_) => { let _ = write!(body, r#"{{"id":0,"name":"Safe State (Hi-Z)","in_use":true,"is_boot":false,"read_only":true}}"#); }
-                profile::SlotRead::InUse(h) => {
-                    let _=write!(body, r#"{{"id":{},"name":"{}","in_use":true,"is_boot":{},"read_only":{}}}"#, slot, h.name.as_str(), (h.flags & profile::FLAG_BOOT_DEFAULT)!=0, (h.flags & profile::FLAG_READ_ONLY)!=0);
-                }
-                profile::SlotRead::Empty => { let _=write!(body, r#"{{"id":{},"name":"empty","in_use":false,"is_boot":false,"read_only":false}}"#, slot); }
-                profile::SlotRead::Corrupt => { let _=write!(body, r#"{{"id":{},"name":"corrupt","in_use":false,"is_boot":false,"read_only":false}}"#, slot); }
+        let _ = write!(
+            body,
+            r#"{{"active_profile":"{}","active_name":"{}","boot_profile":"{}","profiles":["#,
+            profile::active_id().as_str(),
+            profile::active_name().as_str(),
+            profile::boot_id().as_str()
+        );
+        let mut first = true;
+        profile::list_profiles(|p| {
+            if !first {
+                let _ = body.push(',');
             }
-        }
-        let _=body.push_str("]}");
+            first = false;
+            let _ = write!(
+                body,
+                r#"{{"id":"{}","name":"{}","description":"{}","is_boot":{},"read_only":{}}}"#,
+                p.id.as_str(),
+                p.name.as_str(),
+                p.description.as_str(),
+                p.is_boot,
+                p.read_only
+            );
+        });
+        let _ = body.push_str("]}");
         send_json(request, response_writer, StatusCode::OK, body.as_str()).await
     }
 }
@@ -235,65 +256,89 @@ impl ProfilesApply {
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
-        let slot = key_int(query, &body, "slot");
-        let Some(slot)=slot else { return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"Invalid profile slot"}"#).await; };
-        if slot<1 || (slot as u32)>=profile::SLOT_COUNT as u32 { return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"Invalid profile slot"}"#).await; }
-        match profile::read_slot(slot as u32) {
-            profile::SlotRead::Empty => { return send_json(request, response_writer, StatusCode::NOT_FOUND, r#"{"error":"slot not in use"}"#).await; }
-            profile::SlotRead::Corrupt => { return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"Invalid profile slot"}"#).await; }
-            _ => {}
-        }
-        match profile::apply_slot(slot as u32).await {
-            Ok(a) => {
-                let mut b=heapless::String::<128>::new();
-                let _=write!(b, r#"{{"status":"applied","slot":{},"name":"{}"}}"#, a.slot, a.name.as_str());
+        let id = key_str(query, &body, "id").or_else(|| key_str(query, &body, "slot"));
+        let Some(id) = id else {
+            return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"missing profile id"}"#).await;
+        };
+        match profile::apply_profile(id.as_str()).await {
+            Ok(name) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = write!(b, r#"{{"ok":true,"status":"applied","id":"{}","name":"{}"}}"#, id.as_str(), name.as_str());
                 send_json(request, response_writer, StatusCode::OK, b.as_str()).await
             }
-            Err(_) => send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"error":"apply failed"}"#).await,
+            Err(profile::ProfileError::NotFound) => {
+                send_json(request, response_writer, StatusCode::NOT_FOUND, r#"{"ok":false,"error":"profile not found"}"#).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"ok":false,"error":"apply failed"}"#).await
+            }
         }
     }
 }
 impl ProfilesBoot {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let query=request.parts.query();
-        let body=read_body_str(&mut request).await;
-        let slot = key_int(query,&body,"slot").unwrap_or(0);
-        if slot<0 || (slot as i32)>=profile::SLOT_COUNT as i32 { return send_json(request,response_writer,StatusCode::BAD_REQUEST,r#"{"error":"Invalid profile slot"}"#).await; }
-        match profile::set_boot_default(slot as u32) {
-            Ok(()) => { let mut b=heapless::String::<64>::new(); let _=write!(b,r#"{{"status":"boot_default_set","slot":{}}}"#,slot); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
-            Err(_) => send_json(request,response_writer,StatusCode::BAD_REQUEST,r#"{"error":"Invalid profile slot"}"#).await,
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let id = key_str(query, &body, "id").or_else(|| key_str(query, &body, "slot")).unwrap_or_default();
+        match profile::set_boot_default(id.as_str()) {
+            Ok(()) => {
+                let mut b = heapless::String::<64>::new();
+                let _ = write!(b, r#"{{"ok":true,"status":"boot_default_set","id":"{}"}}"#, id.as_str());
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(_) => send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"ok":false,"error":"set boot failed"}"#).await,
         }
     }
 }
 impl ProfilesSave {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let query=request.parts.query();
-        let body=read_body_str(&mut request).await;
-        let slot=key_int(query,&body,"slot").unwrap_or(-1);
-        if slot<1 || slot as u32>=profile::SLOT_COUNT { return send_json(request,response_writer,StatusCode::BAD_REQUEST,r#"{"error":"Invalid profile slot"}"#).await; }
-        if let profile::SlotRead::InUse(h)=profile::read_slot(slot as u32){ if h.flags & profile::FLAG_READ_ONLY!=0 { return send_json(request,response_writer,StatusCode::BAD_REQUEST,r#"{"error":"slot read only"}"#).await } }
-        let mut name_tmp = heapless::String::<64>::new(); let _ = name_tmp.push_str("Custom Profile"); let name = key_str(query,&body,"name").unwrap_or(name_tmp);
-        let is_boot=key_str(query,&body,"is_boot").map(|v|parse_bool(v.as_str())).unwrap_or(false);
-        match profile::save_profile(slot as u32, name.as_str(), is_boot, profile::METADATA_PAYLOAD) {
-            Ok(()) => { let mut b=heapless::String::<128>::new(); let _=write!(b,r#"{{"status":"saved","slot":{},"name":"{}"}}"#,slot,name.as_str()); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
-            Err(_) => send_json(request,response_writer,StatusCode::INTERNAL_SERVER_ERROR,r#"{"error":"save failed"}"#).await,
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let id = key_str(query, &body, "id").or_else(|| key_str(query, &body, "name"));
+        let Some(id) = id else {
+            return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"ok":false,"error":"missing profile id"}"#).await;
+        };
+        match profile::save_profile_doc(id.as_str(), body.as_bytes()) {
+            Ok(()) => {
+                let mut b = heapless::String::<128>::new();
+                let _ = write!(b, r#"{{"ok":true,"status":"saved","id":"{}"}}"#, id.as_str());
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(profile::ProfileError::ReadOnly) => {
+                send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"ok":false,"error":"profile is read only"}"#).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"ok":false,"error":"save failed"}"#).await
+            }
         }
     }
 }
 impl ProfilesDelete {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let query=request.parts.query();
-        let body=read_body_str(&mut request).await;
-        let slot=key_int(query,&body,"slot").unwrap_or(-1);
-        if slot<1 || slot as u32>=profile::SLOT_COUNT { return send_json(request,response_writer,StatusCode::BAD_REQUEST,r#"{"error":"slot read only"}"#).await; }
-        let r=profile::delete_profile(slot as u32);
-        if r.is_ok() {
-            let mut b=heapless::String::<64>::new(); let _=write!(b,r#"{{"status":"deleted","slot":{}}}"#,slot); send_json(request,response_writer,StatusCode::OK,b.as_str()).await
-        } else {
-            send_json(request,response_writer,StatusCode::NOT_FOUND,r#"{"error":"slot not in use"}"#).await
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let id = key_str(query, &body, "id").or_else(|| key_str(query, &body, "slot"));
+        let Some(id) = id else {
+            return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"ok":false,"error":"missing profile id"}"#).await;
+        };
+        match profile::delete_profile_doc(id.as_str()) {
+            Ok(()) => {
+                let mut b = heapless::String::<64>::new();
+                let _ = write!(b, r#"{{"ok":true,"status":"deleted","id":"{}"}}"#, id.as_str());
+                send_json(request, response_writer, StatusCode::OK, b.as_str()).await
+            }
+            Err(profile::ProfileError::ReadOnly) => {
+                send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"ok":false,"error":"cannot delete read only profile"}"#).await
+            }
+            Err(profile::ProfileError::NotFound) => {
+                send_json(request, response_writer, StatusCode::NOT_FOUND, r#"{"ok":false,"error":"profile not found"}"#).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"ok":false,"error":"delete failed"}"#).await
+            }
         }
     }
 }
@@ -1240,14 +1285,70 @@ static UI_SETTINGS: embassy_sync::blocking_mutex::Mutex<
 pub fn get_default_home_route() -> heapless::String<64> {
     UI_SETTINGS.lock(|cell| {
         let s = cell.borrow();
-        if s.default_home_route.is_empty() {
+        if s.default_home_route.is_empty() || s.default_home_route == "/lab" || s.default_home_route == "/apps" {
             let mut r = heapless::String::new();
-            let _ = r.push_str("/home/");
+            let _ = r.push_str("/home");
             r
         } else {
-            s.default_home_route.clone()
+            let mut r = s.default_home_route.clone();
+            if r.len() > 1 && r.ends_with('/') {
+                let _ = r.pop();
+            }
+            r
         }
     })
+}
+
+pub fn init_settings_from_fs() {
+    let _ = crate::storage::with_user_fs(|fs| {
+        let Ok(path) = littlefs2::path::PathBuf::try_from("/system/settings.json") else { return };
+        if let Ok(data) = fs.read::<512>(&path) {
+            if let Ok(body) = core::str::from_utf8(&data) {
+                UI_SETTINGS.lock(|cell| {
+                    let mut s = cell.borrow_mut();
+                    if let Some(m) = key_str(None, body, "theme_mode") {
+                        s.theme_mode = m;
+                    }
+                    if let Some(l) = key_str(None, body, "default_light_theme") {
+                        s.default_light_theme = l;
+                    }
+                    if let Some(d) = key_str(None, body, "default_dark_theme") {
+                        s.default_dark_theme = d;
+                    }
+                    if let Some(h) = key_str(None, body, "default_home_route") {
+                        s.default_home_route = h;
+                    }
+                    if let Some(p) = key_str(None, body, "active_profile") {
+                        s.active_profile = p;
+                    }
+                });
+            }
+        }
+    });
+}
+
+fn save_settings_to_fs() {
+    let mut body = heapless::String::<256>::new();
+    UI_SETTINGS.lock(|cell| {
+        let s = cell.borrow();
+        let theme_mode = if s.theme_mode.is_empty() { "system" } else { s.theme_mode.as_str() };
+        let light_theme = if s.default_light_theme.is_empty() { "emerald" } else { s.default_light_theme.as_str() };
+        let dark_theme = if s.default_dark_theme.is_empty() { "forest" } else { s.default_dark_theme.as_str() };
+        let home_route = if s.default_home_route.is_empty() { "/home" } else { s.default_home_route.as_str() };
+        let profile = if s.active_profile.is_empty() { "Safe State" } else { s.active_profile.as_str() };
+        let _ = write!(
+            body,
+            r#"{{"theme_mode":"{}","default_light_theme":"{}","default_dark_theme":"{}","default_home_route":"{}","active_profile":"{}"}}"#,
+            theme_mode, light_theme, dark_theme, home_route, profile
+        );
+    });
+
+    let _ = crate::storage::with_user_fs(|fs| {
+        let Ok(dir) = littlefs2::path::PathBuf::try_from("/system") else { return };
+        let _ = fs.create_dir_all(&dir);
+        let Ok(path) = littlefs2::path::PathBuf::try_from("/system/settings.json") else { return };
+        let _ = fs.write(&path, body.as_bytes());
+    });
 }
 
 impl MethodHandlerService<(), ()> for SettingsEndpoint {
@@ -1267,7 +1368,7 @@ impl MethodHandlerService<(), ()> for SettingsEndpoint {
                 let theme_mode = if s.theme_mode.is_empty() { "system" } else { s.theme_mode.as_str() };
                 let light_theme = if s.default_light_theme.is_empty() { "emerald" } else { s.default_light_theme.as_str() };
                 let dark_theme = if s.default_dark_theme.is_empty() { "forest" } else { s.default_dark_theme.as_str() };
-                let home_route = if s.default_home_route.is_empty() { "/home/" } else { s.default_home_route.as_str() };
+                let home_route = if s.default_home_route.is_empty() { "/home" } else { s.default_home_route.as_str() };
                 let profile = if s.active_profile.is_empty() { "Safe State" } else { s.active_profile.as_str() };
                 let _ = write!(
                     body,
@@ -1296,6 +1397,7 @@ impl MethodHandlerService<(), ()> for SettingsEndpoint {
                     s.active_profile = p;
                 }
             });
+            save_settings_to_fs();
             send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok"}"#).await
         } else {
             send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await
@@ -1615,10 +1717,106 @@ impl FirmwareRollback {
         if crate::boot::ota_rollback().is_err() {
             return send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"error":"rollback_failed"}"#).await;
         }
-        let res = send_json(request, response_writer, StatusCode::OK, r#"{"status":"rollback_initiated","rebooting":true}"#).await;
+        let _ = send_json(request, response_writer, StatusCode::OK, r#"{"status":"rollback_initiated","rebooting":true}"#).await;
         embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
-        cortex_m::peripheral::SCB::sys_reset();
+        cortex_m::peripheral::SCB::sys_reset()
+    }
+}
+
+impl SystemBootsel {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        defmt::warn!("Rebooting into USB BOOTSEL mode via ROM call...");
+        let res = send_json(request, response_writer, StatusCode::OK, r#"{"status":"bootsel_initiated"}"#).await;
+        embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+        embassy_rp::rom_data::reset_to_usb_boot(0, 0);
         res
+    }
+}
+
+impl SystemReboot {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        defmt::warn!("Rebooting core via SCB sys_reset...");
+        let _ = send_json(request, response_writer, StatusCode::OK, r#"{"status":"rebooting"}"#).await;
+        embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+        cortex_m::peripheral::SCB::sys_reset()
+    }
+}
+
+impl SystemPinsReleaseAll {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        crate::pin_owner::quiesce_and_reset();
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"all_pins_released"}"#).await
+    }
+}
+
+impl SystemPinsToggle {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let body = read_body_str(&mut request).await;
+        let pin = key_u32(request.parts.query(), body.as_str(), "pin").unwrap_or(255);
+        let state = key_str(request.parts.query(), body.as_str(), "state").unwrap_or_else(|| heapless::String::try_from("input").unwrap());
+
+        if pin >= 30 {
+            return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"invalid_pin"}"#).await;
+        }
+
+        match state.as_str() {
+            "high" => {
+                rp_pac::PADS_BANK0.gpio(pin as usize).modify(|w| {
+                    w.set_iso(false);
+                    w.set_ie(true);
+                    w.set_od(false);
+                });
+                rp_pac::SIO.gpio_out(0).value_set().write_value(1u32 << pin);
+                rp_pac::SIO.gpio_oe(0).value_set().write_value(1u32 << pin);
+                rp_pac::IO_BANK0.gpio(pin as usize).ctrl().write(|w| {
+                    w.set_funcsel(5);
+                });
+            }
+            "low" => {
+                rp_pac::PADS_BANK0.gpio(pin as usize).modify(|w| {
+                    w.set_iso(false);
+                    w.set_ie(true);
+                    w.set_od(false);
+                });
+                rp_pac::SIO.gpio_out(0).value_clr().write_value(1u32 << pin);
+                rp_pac::SIO.gpio_oe(0).value_set().write_value(1u32 << pin);
+                rp_pac::IO_BANK0.gpio(pin as usize).ctrl().write(|w| {
+                    w.set_funcsel(5);
+                });
+            }
+            _ => {
+                crate::pin_owner::quiesce_pin(pin);
+            }
+        }
+
+        let mut resp = heapless::String::<128>::new();
+        let _ = core::fmt::Write::write_fmt(&mut resp, format_args!(r#"{{"status":"ok","pin":{},"state":"{}"}}"#, pin, state.as_str()));
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl SystemFsFormat {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let body = read_body_str(&mut request).await;
+        let part = key_str(request.parts.query(), body.as_str(), "partition").unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+        match crate::storage::erase_and_format_partition(part.as_str()) {
+            Ok(()) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = core::fmt::Write::write_fmt(&mut resp, format_args!(r#"{{"status":"formatted","partition":"{}"}}"#, part.as_str()));
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"error":"format_failed"}"#).await
+            }
+        }
     }
 }
 
@@ -2068,6 +2266,141 @@ impl picoserve::routing::MethodHandlerService<()> for CanWebSocket {
 
         upgrade
             .on_upgrade(CanWsCallback)
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
+}
+
+pub struct LedWebSocket;
+
+struct LedWsCallback;
+
+impl picoserve::response::ws::WebSocketCallback for LedWsCallback {
+    async fn run<R: picoserve::io::Read, W: picoserve::io::Write<Error = R::Error>>(
+        self,
+        mut rx: picoserve::response::ws::SocketRx<R>,
+        mut tx: picoserve::response::ws::SocketTx<W>,
+    ) -> Result<(), W::Error> {
+        let mut msg_buf = [0u8; 1536];
+        let mut claimed_slot: Option<crate::pin_owner::SlotId> = None;
+        let mut current_data_pin = 22u32;
+        let mut current_clk_pin: Option<u32> = None;
+        let mut is_clocked = false;
+        let mut reset_us = 65u32;
+
+        if let Ok(slot) = crate::pin_owner::claim(crate::pin_owner::Driver::Ws2812, &[current_data_pin], crate::pin_owner::CAP_PIO) {
+            claimed_slot = Some(slot);
+        }
+
+        loop {
+            match rx.next_message(&mut msg_buf, core::future::pending::<()>()).await {
+                Ok(picoserve::futures::Either::First(Ok(picoserve::response::ws::Message::Text(s)))) => {
+                    if s.contains(r#""cmd":"config""#) || s.contains(r#""cmd": "config""#) {
+                        let req_pin = key_u32(None, s, "data_pin").unwrap_or(current_data_pin);
+                        let req_clk = key_u32(None, s, "clk_pin");
+                        let req_proto = key_str(None, s, "protocol");
+                        let req_reset = key_u32(None, s, "reset_us").unwrap_or(65);
+                        reset_us = req_reset;
+
+                        let wants_clocked = req_clk.is_some() || req_proto.as_ref().map(|p| p.contains("apa102") || p.contains("dotstar") || p.contains("ws2801") || p.contains("sk9822")).unwrap_or(false);
+
+                        if let Some(slot) = claimed_slot.take() {
+                            let _ = crate::pin_owner::release(slot);
+                        }
+
+                        let claim_res = if wants_clocked {
+                            if let Some(clk) = req_clk {
+                                current_clk_pin = Some(clk);
+                                is_clocked = true;
+                                crate::pin_owner::claim(crate::pin_owner::Driver::Ws2812, &[req_pin, clk], crate::pin_owner::CAP_PIO)
+                            } else {
+                                is_clocked = false;
+                                current_clk_pin = None;
+                                crate::pin_owner::claim(crate::pin_owner::Driver::Ws2812, &[req_pin], crate::pin_owner::CAP_PIO)
+                            }
+                        } else {
+                            is_clocked = false;
+                            current_clk_pin = None;
+                            crate::pin_owner::claim(crate::pin_owner::Driver::Ws2812, &[req_pin], crate::pin_owner::CAP_PIO)
+                        };
+
+                        match claim_res {
+                            Ok(slot) => {
+                                claimed_slot = Some(slot);
+                                current_data_pin = req_pin;
+                                let mut ack = heapless::String::<128>::new();
+                                let _ = core::write!(ack, r#"{{"status":"ok","data_pin":{},"clk_pin":{:?},"clocked":{}}}"#, current_data_pin, current_clk_pin, is_clocked);
+                                let _ = tx.send_text(ack.as_str()).await;
+                                let _ = tx.flush().await;
+                            }
+                            Err(e) => {
+                                let mut err = heapless::String::<128>::new();
+                                let _ = core::write!(err, r#"{{"status":"error","message":"pin conflict: {:?}"}}"#, e);
+                                let _ = tx.send_text(err.as_str()).await;
+                                let _ = tx.flush().await;
+                            }
+                        }
+                    }
+                }
+                Ok(picoserve::futures::Either::First(Ok(picoserve::response::ws::Message::Binary(bytes)))) => {
+                    if is_clocked {
+                        if let Some(clk) = current_clk_pin {
+                            let _ = crate::bridge::ws2812::transmit_clocked_bytes(current_data_pin, clk, bytes);
+                        }
+                    } else {
+                        let _ = crate::bridge::ws2812::transmit_raw_bytes_pin(current_data_pin, bytes, reset_us);
+                    }
+                    let _ = tx.send_binary(&[0x06]).await;
+                    let _ = tx.flush().await;
+                }
+                _ => break,
+            }
+        }
+
+        if let Some(slot) = claimed_slot.take() {
+            let _ = crate::pin_owner::release(slot);
+        }
+        Ok(())
+    }
+}
+
+impl picoserve::routing::MethodHandlerService<()> for LedWebSocket {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::METHOD_NOT_ALLOWED,
+                r#"{"error":"method_not_allowed"}"#,
+            )
+            .await;
+        }
+
+        use picoserve::extract::FromRequest;
+        let upgrade = match picoserve::response::ws::WebSocketUpgrade::from_request(
+            &(),
+            request.parts,
+            request.body_connection.body(),
+        )
+        .await
+        {
+            Ok(u) => u,
+            Err(e) => {
+                return e
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        upgrade
+            .on_upgrade(LedWsCallback)
             .write_to(request.body_connection.finalize().await?, response_writer)
             .await
     }

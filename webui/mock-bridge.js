@@ -392,7 +392,7 @@
                     const parsed = JSON.parse(init.body);
                     const prev = localStorage.getItem('agentla_sim_settings');
                     const merged = Object.assign({}, prev ? JSON.parse(prev) : {}, parsed);
-                    if (!merged.default_home_route) merged.default_home_route = "/lab";
+                    if (!merged.default_home_route) merged.default_home_route = "/home";
                     localStorage.setItem('agentla_sim_settings', JSON.stringify(merged));
                 } catch(e) {}
                 return new Response(JSON.stringify({ status: "ok", settings_saved: true }), {
@@ -405,11 +405,11 @@
                 theme_mode: "system",
                 default_light_theme: "emerald",
                 default_dark_theme: "forest",
-                default_home_route: "/lab",
+                default_home_route: "/home",
                 active_profile: "Default Lab Bench"
             };
             if (!data.default_home_route) {
-                data.default_home_route = "/lab";
+                data.default_home_route = "/home";
             }
             return new Response(JSON.stringify(data), {
                 status: 200,
