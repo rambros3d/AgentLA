@@ -3,27 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="dark">
   <title>CAN Bus Analyzer — AgentLA</title>
+  <script>
+    // Restore system theme immediately before render to avoid flash
+    (function() {
+      var savedMode = localStorage.getItem('agentla-theme-mode');
+      var saved = localStorage.getItem('agentla-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+        var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+        document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+      } else if (savedMode === 'light') {
+        document.documentElement.setAttribute('data-theme', 'emerald');
+        document.documentElement.setAttribute('data-theme-scheme', 'light');
+      } else if (savedMode === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'forest');
+        document.documentElement.setAttribute('data-theme-scheme', 'dark');
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.setAttribute('data-theme', 'emerald');
+        document.documentElement.setAttribute('data-theme-scheme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'forest');
+        document.documentElement.setAttribute('data-theme-scheme', 'dark');
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="../../style.css">
   <link rel="stylesheet" href="../../themes.css">
   <script src="/agentla-bridge.js"></script>
-  <style>
-    /* Monospace formatting for CAN frame hex & payload */
-    .id-cell {
-      color: var(--color-primary, #38bdf8);
-      font-weight: 600;
-    }
-    .id-ext {
-      color: var(--color-secondary, #c084fc);
-    }
-    .bytes-cell {
-      letter-spacing: 0.08em;
-    }
-    .ascii-cell {
-      color: var(--text-secondary, #94a3b8);
-    }
-  </style>
 </head>
 <body class="min-h-screen flex flex-col bg-base-100 text-base-content overflow-hidden select-none">
 
@@ -357,12 +364,12 @@
       tr.innerHTML = `
         <td class="text-base-content/50">${frameCount}</td>
         <td class="text-base-content/70">+${relTime}</td>
-        <td class="id-cell ${frame.ext ? 'id-ext' : ''}">${hexId}</td>
+        <td class="font-semibold ${frame.ext ? 'text-secondary' : 'text-primary'}">${hexId}</td>
         <td><span class="badge badge-xs ${frame.ext ? 'badge-secondary' : 'badge-primary'}">${extStr}</span></td>
         <td><span class="badge badge-xs ${frame.rtr ? 'badge-warning' : 'badge-ghost'}">${rtrStr}</span></td>
         <td>${frame.dlc || 0}</td>
-        <td class="bytes-cell font-bold">${formattedBytes}</td>
-        <td class="ascii-cell">${ascii}</td>
+        <td class="tracking-wider font-bold text-base-content">${formattedBytes}</td>
+        <td class="text-base-content/60">${ascii}</td>
       `;
       canTbody.appendChild(tr);
 
