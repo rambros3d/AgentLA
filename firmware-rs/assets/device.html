@@ -212,10 +212,10 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 
   <!-- Card 5: User Storage (USER_FS) -->
   <div class="card">
-    <div class="card-hdr"><span class="title">User Storage (USER_FS)</span><span class="tag" id="userFsTag">1072 KB</span></div>
+    <div class="card-hdr"><span class="title">User Storage (USER_FS)</span><span class="tag" id="userFsTag">1504 KB</span></div>
     <div class="d-list">
-      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="userFsSize">-- / 1072 KB</span></div>
-      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x002F0000</span></div>
+      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="userFsSize">-- / 1504 KB</span></div>
+      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00284000</span></div>
       <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
     </div>
     <div class="status-msg" id="userFsMsg">Ready.</div>
@@ -600,12 +600,12 @@ async function loadTelemetry(){
     if($('fsSize')) $('fsSize').textContent = u + ' / ' + tot + ' KB';
     if($('fsTag')) $('fsTag').textContent = tot + ' KB';
   }
-  if(t.user_lfs_used_bytes && t.user_lfs_total_bytes){
-    const uu = Math.round(t.user_lfs_used_bytes/1024), utot = Math.round(t.user_lfs_total_bytes/1024);
+  if(t.user_lfs_total_bytes !== undefined && t.user_lfs_total_bytes > 0){
+    const uu = Math.round((t.user_lfs_used_bytes || 0)/1024), utot = Math.round(t.user_lfs_total_bytes/1024);
     if($('userFsSize')) $('userFsSize').textContent = uu + ' / ' + utot + ' KB';
     if($('userFsTag')) $('userFsTag').textContent = utot + ' KB';
   } else {
-    if($('userFsSize')) $('userFsSize').textContent = '-- / 1072 KB';
+    if($('userFsSize')) $('userFsSize').textContent = '-- / 1504 KB';
   }
   const al = $('sysAlarm'), ts = $('telemetryStatus');
   if(t.alarm && t.alarm !== 'none'){

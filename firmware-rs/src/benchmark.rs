@@ -17,13 +17,13 @@ pub struct Step {
 }
 
 pub const STEPS: [Step; 12] = [
-    Step { mhz: 150, vsel: 11, disable_limit: false, refdiv: 1, fbdiv: 75,  postdiv1: 6, postdiv2: 1, qmi_div: 2 }, // 1.10V
+    Step { mhz: 150, vsel: 11, disable_limit: false, refdiv: 1, fbdiv: 125, postdiv1: 5, postdiv2: 2, qmi_div: 2 }, // 1.10V
     Step { mhz: 200, vsel: 12, disable_limit: false, refdiv: 1, fbdiv: 100, postdiv1: 6, postdiv2: 1, qmi_div: 2 }, // 1.15V
     Step { mhz: 250, vsel: 13, disable_limit: false, refdiv: 1, fbdiv: 125, postdiv1: 6, postdiv2: 1, qmi_div: 2 }, // 1.20V
     Step { mhz: 300, vsel: 14, disable_limit: false, refdiv: 1, fbdiv: 75,  postdiv1: 3, postdiv2: 1, qmi_div: 3 }, // 1.25V
     Step { mhz: 350, vsel: 16, disable_limit: true,  refdiv: 2, fbdiv: 175, postdiv1: 3, postdiv2: 1, qmi_div: 3 }, // 1.35V
-    Step { mhz: 400, vsel: 17, disable_limit: true,  refdiv: 1, fbdiv: 100, postdiv1: 3, postdiv2: 1, qmi_div: 4 }, // 1.40V
-    Step { mhz: 450, vsel: 18, disable_limit: true,  refdiv: 1, fbdiv: 75,  postdiv1: 2, postdiv2: 1, qmi_div: 4 }, // 1.50V
+    Step { mhz: 400, vsel: 18, disable_limit: true,  refdiv: 1, fbdiv: 100, postdiv1: 3, postdiv2: 1, qmi_div: 4 }, // 1.50V
+    Step { mhz: 450, vsel: 19, disable_limit: true,  refdiv: 1, fbdiv: 75,  postdiv1: 2, postdiv2: 1, qmi_div: 4 }, // 1.60V
     Step { mhz: 500, vsel: 19, disable_limit: true,  refdiv: 1, fbdiv: 125, postdiv1: 3, postdiv2: 1, qmi_div: 4 }, // 1.60V
     Step { mhz: 540, vsel: 19, disable_limit: true,  refdiv: 1, fbdiv: 90,  postdiv1: 2, postdiv2: 1, qmi_div: 5 }, // 1.60V
     Step { mhz: 600, vsel: 20, disable_limit: true,  refdiv: 1, fbdiv: 100, postdiv1: 2, postdiv2: 1, qmi_div: 5 }, // 1.65V
@@ -199,9 +199,9 @@ pub fn execute_step_in_ram(step: Step) -> bool {
         false
     };
 
-    // 4. Always restore safe 150 MHz / 1.10V before returning to flash
+    // 4. Always restore safe 150 MHz / 1.10V (fbdiv=125, postdiv1=5, postdiv2=2)
     set_qmi_divisor_raw(2);
-    let _ = configure_pll_sys_raw(1, 75, 6, 1);
+    let _ = configure_pll_sys_raw(1, 125, 5, 2);
     set_core_voltage_raw(11, false);
 
     pass

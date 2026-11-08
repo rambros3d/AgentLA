@@ -156,6 +156,35 @@ pub fn with_user_fs<R>(f: impl FnOnce(&Filesystem<'static, UserFlashStorage>) ->
     Some(f(fs))
 }
 
+static SYSTEM_USAGE_CACHE: portable_atomic::AtomicUsize = portable_atomic::AtomicUsize::new(155_599);
+static USER_USAGE_CACHE: portable_atomic::AtomicUsize = portable_atomic::AtomicUsize::new(8_192);
+
+pub fn system_fs_usage() -> (usize, usize) {
+    let total = SYSTEM_FS_SIZE_BYTES;
+    if let Some(used) = with_system_fs(|fs| {
+        let avail = fs.available_space().unwrap_or(total);
+        total.saturating_sub(avail)
+    }) {
+        SYSTEM_USAGE_CACHE.store(used, portable_atomic::Ordering::Relaxed);
+        (used, total)
+    } else {
+        (SYSTEM_USAGE_CACHE.load(portable_atomic::Ordering::Relaxed), total)
+    }
+}
+
+pub fn user_fs_usage() -> (usize, usize) {
+    let total = USER_FS_SIZE_BYTES;
+    if let Some(used) = with_user_fs(|fs| {
+        let avail = fs.available_space().unwrap_or(total);
+        total.saturating_sub(avail)
+    }) {
+        USER_USAGE_CACHE.store(used, portable_atomic::Ordering::Relaxed);
+        (used, total)
+    } else {
+        (USER_USAGE_CACHE.load(portable_atomic::Ordering::Relaxed), total)
+    }
+}
+
 pub fn erase_and_format_partition(part: &str) -> Result<(), ()> {
     match part {
         "system" => {

@@ -21,6 +21,8 @@ pub struct TelemetrySnapshot {
     pub sram_total_bytes: usize,
     pub lfs_used_bytes: usize,
     pub lfs_total_bytes: usize,
+    pub user_lfs_used_bytes: usize,
+    pub user_lfs_total_bytes: usize,
     pub overcurrent_limit_ma: u32,
     pub is_tripped: bool,
 }
@@ -81,6 +83,9 @@ pub fn sample_telemetry() -> TelemetrySnapshot {
         }
     }
 
+    let (lfs_used_bytes, lfs_total_bytes) = crate::storage::system_fs_usage();
+    let (user_lfs_used_bytes, user_lfs_total_bytes) = crate::storage::user_fs_usage();
+
     TelemetrySnapshot {
         v_target_mv,
         i_target_ma,
@@ -89,8 +94,10 @@ pub fn sample_telemetry() -> TelemetrySnapshot {
         v_sys_mv,
         sram_used_bytes: 116_252,
         sram_total_bytes: 520 * 1024,
-        lfs_used_bytes: 155_599,
-        lfs_total_bytes: 512 * 1024,
+        lfs_used_bytes,
+        lfs_total_bytes,
+        user_lfs_used_bytes,
+        user_lfs_total_bytes,
         overcurrent_limit_ma: limit_ma,
         is_tripped,
     }
@@ -110,7 +117,7 @@ pub fn format_telemetry_json(out: &mut heapless::String<2048>) {
 
     let _ = write!(
         out,
-        r#"{{"v_target_mv":{},"i_target_ma":{},"p_target_mw":{},"temp_c":{},"v_sys_mv":{},"sram_used_bytes":{},"sram_total_bytes":{},"lfs_used_bytes":{},"lfs_total_bytes":{},"overcurrent_limit_ma":{},"alarm":"{}","pins":["#,
+        r#"{{"v_target_mv":{},"i_target_ma":{},"p_target_mw":{},"temp_c":{},"v_sys_mv":{},"sram_used_bytes":{},"sram_total_bytes":{},"lfs_used_bytes":{},"lfs_total_bytes":{},"user_lfs_used_bytes":{},"user_lfs_total_bytes":{},"overcurrent_limit_ma":{},"alarm":"{}","pins":["#,
         s.v_target_mv,
         s.i_target_ma,
         s.p_target_mw,
@@ -120,6 +127,8 @@ pub fn format_telemetry_json(out: &mut heapless::String<2048>) {
         s.sram_total_bytes,
         s.lfs_used_bytes,
         s.lfs_total_bytes,
+        s.user_lfs_used_bytes,
+        s.user_lfs_total_bytes,
         s.overcurrent_limit_ma,
         alarm_str,
     );
