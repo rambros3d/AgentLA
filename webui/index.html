@@ -74,8 +74,11 @@
             background-color: var(--bg-canvas, var(--bg-primary));
         }
 
-        /* Ensure smooth vertical scrolling for apps launcher workspace */
+        /* Ensure smooth vertical scrolling and center alignment for apps launcher workspace */
         #main-workspace.launcher-workspace {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             height: 100% !important;
@@ -84,15 +87,22 @@
             scroll-behavior: smooth;
         }
 
-        /* Persistent App-Shell Viewport Container & Geometry */
+        .launcher-container {
+            margin-left: auto !important;
+            margin-right: auto !important;
+            width: 100% !important;
+            max-width: 1080px !important;
+        }
+
+        /* Persistent App-Shell Viewport Container & Geometry (Full-Bleed) */
         .app-viewport-container {
             position: fixed;
             top: 48px;
-            bottom: 84px;
+            bottom: 0;
             left: 0;
             right: 0;
             width: 100%;
-            height: calc(100vh - 132px);
+            height: calc(100vh - 48px);
             z-index: 10;
             background: var(--color-base-100);
             overflow: hidden;
@@ -1005,7 +1015,7 @@
 
             if (hash === '#/' || hash === '#/launcher' || hash === '#/home' || hash === '') {
                 // Show Launchpad Workspace
-                if (mainWorkspace) mainWorkspace.style.display = 'block';
+                if (mainWorkspace) mainWorkspace.style.display = 'flex';
                 if (viewportContainer) viewportContainer.style.display = 'none';
                 if (topBarActiveApp) topBarActiveApp.style.display = 'none';
                 if (launcherDockBtn) launcherDockBtn.classList.add('active');

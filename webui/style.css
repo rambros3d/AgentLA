@@ -314,8 +314,6 @@ progress.progress::-moz-progress-bar {
     margin-right: 6px;
     box-shadow: 0 0 8px rgba(215, 25, 33, 0.8);
 }
-    box-shadow: 0 0 8px rgba(215, 25, 33, 0.8);
-}
 
 /* --------------------------------------------------------------------------
    2. Base & Dynamic Viewport Units
@@ -4765,6 +4763,8 @@ body.no-transparency {
 .launcher-container {
     width: 100%;
     max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
     display: flex;
     flex-direction: column;
     gap: 32px;
@@ -4863,20 +4863,22 @@ body.no-transparency {
 
 .floating-glass-dock {
     position: fixed;
-    bottom: 20px;
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 4px 10px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
     background: color-mix(in oklch, var(--color-base-100) 88%, transparent);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
-    border-radius: 8px;
-    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.45);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
     box-sizing: border-box;
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
 }
@@ -4912,19 +4914,6 @@ body.no-transparency {
 .dock-icon-btn.active {
     background: color-mix(in oklch, var(--color-primary) 18%, transparent);
     color: var(--color-primary);
-}
-
-.dock-icon-btn.active::after {
-    content: '';
-    position: absolute;
-    bottom: 3px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #D71921;
-    box-shadow: 0 0 6px #D71921;
 }
 
 .dock-icon-btn[data-dock-tooltip]::before {
@@ -4991,13 +4980,6 @@ body.no-transparency {
     border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
     border-radius: 8px;
     box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.55);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    z-index: 101;
-    animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    box-sizing: border-box;
-}
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -5736,10 +5718,11 @@ body.no-transparency {
 
 @media (max-width: 640px) {
     .floating-glass-dock {
-        bottom: 12px;
-        padding: 6px 10px;
+        bottom: 0;
+        padding: 4px 8px;
+        padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
         gap: 4px;
-        max-width: 95vw;
+        max-width: 98vw;
     }
     .dock-icon-btn {
         width: 36px;
