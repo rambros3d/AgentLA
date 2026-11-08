@@ -23,10 +23,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install ARM Embedded Toolchain
+      - name: Install ARM Embedded Toolchain & Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
+          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi clang libclang-dev
+          GCC_ARM_INC=$(arm-none-eabi-gcc -E -Wp,-v -xc /dev/null 2>&1 | grep "^ /" | tr "\n" " " | sed "s/  */ -I/g" | sed "s/^ -I/-I/" | sed "s/ -I$//")
+          echo "BINDGEN_EXTRA_CLANG_ARGS=${GCC_ARM_INC}" >> $GITHUB_ENV
+          echo "Clang Include Flags: ${GCC_ARM_INC}"
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable

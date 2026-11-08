@@ -594,3 +594,896 @@ impl picoserve::routing::MethodHandlerService<()> for SystemWebUiUpdate {
     }
 }
 
+
+
+// ---------------------------------------------------------------------------
+// Filesystem REST API Endpoints: /api/v1/fs/*
+// ---------------------------------------------------------------------------
+
+pub fn decode_url_percent(input: &str) -> heapless::String<128> {
+    let mut out = heapless::String::<128>::new();
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex_slice = match core::str::from_utf8(&bytes[i + 1..i + 3]) {
+                Ok(s) => s,
+                Err(_) => {
+                    let _ = out.push(bytes[i] as char);
+                    i += 1;
+                    continue;
+                }
+            };
+            if let Ok(val) = u8::from_str_radix(hex_slice, 16) {
+                let _ = out.push(val as char);
+                i += 3;
+                continue;
+            }
+        } else if bytes[i] == b'+' {
+            let _ = out.push(' ');
+            i += 1;
+            continue;
+        }
+        let _ = out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
+}
+
+pub fn sanitize_fs_path(raw: &str) -> Option<heapless::String<128>> {
+    let decoded = decode_url_percent(raw);
+    let s = decoded.as_str().trim();
+    if s.contains('\\') || s.contains('\0') {
+        return None;
+    }
+    for seg in s.split('/') {
+        if seg == ".." {
+            return None;
+        }
+    }
+    let mut clean = heapless::String::<128>::new();
+    if !s.starts_with('/') {
+        let _ = clean.push('/');
+    }
+    let mut last_was_slash = clean.ends_with('/');
+    for ch in s.chars() {
+        if ch == '/' {
+            if !last_was_slash {
+                let _ = clean.push('/');
+                last_was_slash = true;
+            }
+        } else {
+            let _ = clean.push(ch);
+            last_was_slash = false;
+        }
+    }
+    if clean.len() > 1 && clean.ends_with('/') {
+        let _ = clean.pop();
+    }
+    if clean.is_empty() {
+        let _ = clean.push('/');
+    }
+    Some(clean)
+}
+
+fn ensure_parent_dirs_user(
+    fs: &littlefs2::fs::Filesystem<'static, crate::storage::UserFlashStorage>,
+    full: &str,
+) {
+    let bytes = full.as_bytes();
+    for i in 1..bytes.len() {
+        if bytes[i] == b'/' {
+            if let Ok(dir_path) = PathBuf::try_from(&full[..i]) {
+                let _ = fs.create_dir_all(&dir_path);
+            }
+        }
+    }
+}
+
+/// Helper to serialize directory entries into a JSON array buffer.
+fn serialize_dir_entries<S: littlefs2::driver::Storage>(
+    fs: &littlefs2::fs::Filesystem<'static, S>,
+    path_str: &str,
+    out: &mut heapless::String<2048>,
+) -> Result<(), littlefs2::io::Error> {
+    let mut first = true;
+    let _ = out.push('[');
+
+    let target_path = if path_str == "/" || path_str.is_empty() {
+        PathBuf::try_from(".").map_err(|_| littlefs2::io::Error::IO)?
+    } else {
+        PathBuf::try_from(path_str).map_err(|_| littlefs2::io::Error::IO)?
+    };
+
+    let res = fs.read_dir_and_then(&target_path, |dir| {
+        for entry in dir.by_ref() {
+            let Ok(entry) = entry else { continue };
+            let name = entry.file_name().as_str();
+            if name == "." || name == ".." {
+                continue;
+            }
+            if !first {
+                let _ = out.push(',');
+            }
+            first = false;
+            let m = entry.metadata();
+            let is_dir = m.is_dir();
+            let size = if is_dir { 0 } else { m.len() };
+            let _ = write!(
+                out,
+                r#"{{"name":"{}","is_dir":{},"size":{}}}"#,
+                name, is_dir, size
+            );
+        }
+        Ok(())
+    });
+
+    if res.is_err() && (path_str == "/" || path_str.is_empty()) {
+        if let Ok(root_path) = PathBuf::try_from("/") {
+            out.clear();
+            first = true;
+            let _ = out.push('[');
+            let _ = fs.read_dir_and_then(&root_path, |dir| {
+                for entry in dir.by_ref() {
+                    let Ok(entry) = entry else { continue };
+                    let name = entry.file_name().as_str();
+                    if name == "." || name == ".." {
+                        continue;
+                    }
+                    if !first {
+                        let _ = out.push(',');
+                    }
+                    first = false;
+                    let m = entry.metadata();
+                    let is_dir = m.is_dir();
+                    let size = if is_dir { 0 } else { m.len() };
+                    let _ = write!(
+                        out,
+                        r#"{{"name":"{}","is_dir":{},"size":{}}}"#,
+                        name, is_dir, size
+                    );
+                }
+                Ok(())
+            });
+        }
+    }
+
+    let _ = out.push(']');
+    Ok(())
+}
+
+/// GET /api/v1/fs/stat
+pub struct FsStat;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsStat {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        let (sys_used, sys_total) = crate::storage::system_fs_usage();
+        let (usr_used, usr_total) = crate::storage::user_fs_usage();
+
+        let mut body = heapless::String::<256>::new();
+        let _ = write!(
+            body,
+            r#"{{"system":{{"total_bytes":{},"used_bytes":{},"read_only":true}},"user":{{"total_bytes":{},"used_bytes":{},"read_only":false}}}}"#,
+            sys_total, sys_used, usr_total, usr_used
+        );
+
+        let finalizer = request.body_connection.finalize().await?;
+        (
+            StatusCode::OK,
+            [
+                ("Content-Type", "application/json"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+            ],
+            body.as_str(),
+        )
+            .write_to(finalizer, response_writer)
+            .await
+    }
+}
+
+/// GET /api/v1/fs/list?root={system|user}&path={path}
+pub struct FsList;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsList {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        if request.parts.method() != "GET" && request.parts.method() != "HEAD" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let root = crate::rest::query_val(query, "root")
+            .unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+        let raw_path = crate::rest::query_val(query, "path")
+            .unwrap_or_else(|| heapless::String::try_from("/").unwrap());
+
+        let clean_path = match sanitize_fs_path(raw_path.as_str()) {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_path\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let mut out = heapless::String::<2048>::new();
+        let is_system = root.as_str() == "system";
+
+        let outcome = if is_system {
+            with_system_fs(|fs| serialize_dir_entries(fs, clean_path.as_str(), &mut out))
+        } else {
+            crate::storage::with_user_fs(|fs| serialize_dir_entries(fs, clean_path.as_str(), &mut out))
+        };
+
+        let (code, body): (StatusCode, &str) = match outcome {
+            Some(Ok(())) => (StatusCode::OK, out.as_str()),
+            Some(Err(_)) => (StatusCode::NOT_FOUND, "{\"error\":\"directory_not_found\"}"),
+            None => (StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_not_mounted\"}"),
+        };
+
+        (
+            code,
+            [
+                ("Content-Type", "application/json"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+            ],
+            body,
+        )
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
+}
+
+/// GET /api/v1/fs/read?root={system|user}&path={path}
+pub struct FsRead;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsRead {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        if request.parts.method() != "GET" && request.parts.method() != "HEAD" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let root = crate::rest::query_val(query, "root")
+            .unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+        let raw_path = match crate::rest::query_val(query, "path") {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_path_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let clean_path = match sanitize_fs_path(raw_path.as_str()) {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_path\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let pbuf = match PathBuf::try_from(clean_path.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"path_too_long\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let is_system = root.as_str() == "system";
+        let mime = mime_for(clean_path.as_str());
+
+        if is_system {
+            let exists = with_system_fs(|fs| fs.metadata(&pbuf).map(|m| m.is_file()).unwrap_or(false))
+                .unwrap_or(false);
+            if !exists {
+                return (
+                    StatusCode::NOT_FOUND,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"file_not_found\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+
+            let chunks = SystemFileChunks { path: pbuf, mime };
+            let resp = ChunkedResponse::new(chunks).into_response();
+            let resp = resp.with_header("Cache-Control", "no-cache, no-store, must-revalidate");
+            return resp
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let exists = crate::storage::with_user_fs(|fs| fs.metadata(&pbuf).map(|m| m.is_file()).unwrap_or(false))
+            .unwrap_or(false);
+        if !exists {
+            return (
+                StatusCode::NOT_FOUND,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"file_not_found\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let chunks = AppFileChunks { path: pbuf, mime };
+        let resp = ChunkedResponse::new(chunks).into_response();
+        let resp = resp.with_header("Cache-Control", "no-cache, no-store, must-revalidate");
+        resp.write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
+}
+
+/// POST /api/v1/fs/write?root={root}&path={path}
+/// Body contains raw data to write.
+/// If root=system, strictly rejects with 403 Forbidden.
+pub struct FsWrite;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsWrite {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        let method = request.parts.method();
+        if method != "POST" && method != "PUT" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let root = crate::rest::query_val(query, "root")
+            .unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+
+        // Strict partition boundary enforcement: system_fs is immutable ROM
+        if root.as_str() == "system" {
+            return (
+                StatusCode::FORBIDDEN,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"system_fs is read-only\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let raw_path = match crate::rest::query_val(query, "path") {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_path_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let clean_path = match sanitize_fs_path(raw_path.as_str()) {
+            Some(p) if p.as_str() != "/" => p,
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_path\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let pbuf = match PathBuf::try_from(clean_path.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"path_too_long\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        // Truncate/create file and ensure parent dirs exist
+        let init_res = crate::storage::with_user_fs(|fs| {
+            ensure_parent_dirs_user(fs, clean_path.as_str());
+            fs.write(&pbuf, &[])
+        });
+
+        match init_res {
+            Some(Ok(())) => {}
+            Some(Err(_)) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"fs_init_write_failed\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+            None => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"fs_not_mounted\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        }
+
+        // Stream body chunks into LittleFS
+        let mut reader = request.body_connection.body().reader();
+        let mut buf = [0u8; 512];
+        let mut pos: u32 = 0;
+        let mut write_err = false;
+
+        loop {
+            let n = match reader.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => {
+                    write_err = true;
+                    break;
+                }
+            };
+
+            let res = crate::storage::with_user_fs(|fs| {
+                fs.write_chunk(&pbuf, &buf[..n], OpenSeekFrom::Start(pos))
+            });
+
+            match res {
+                Some(Ok(())) => {
+                    pos += n as u32;
+                }
+                _ => {
+                    write_err = true;
+                    break;
+                }
+            }
+        }
+
+        let finalizer = request.body_connection.finalize().await?;
+        if write_err {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"fs_write_chunk_failed\"}",
+            )
+                .write_to(finalizer, response_writer)
+                .await
+        } else {
+            let mut resp = heapless::String::<128>::new();
+            let _ = write!(
+                resp,
+                r#"{{"status":"ok","bytes_written":{},"path":"{}"}}"#,
+                pos,
+                clean_path.as_str()
+            );
+            (
+                StatusCode::OK,
+                [
+                    ("Content-Type", "application/json"),
+                    ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ],
+                resp.as_str(),
+            )
+                .write_to(finalizer, response_writer)
+                .await
+        }
+    }
+}
+
+/// DELETE /api/v1/fs/entry?root={root}&path={path}
+/// Also supports POST /api/v1/fs/entry?root={root}&path={path}
+/// Strictly rejects with 403 Forbidden if root=system.
+pub struct FsEntry;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsEntry {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        let method = request.parts.method();
+        if method != "DELETE" && method != "POST" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let root = crate::rest::query_val(query, "root")
+            .unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+
+        if root.as_str() == "system" {
+            return (
+                StatusCode::FORBIDDEN,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"system_fs is read-only\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let raw_path = match crate::rest::query_val(query, "path") {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_path_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let clean_path = match sanitize_fs_path(raw_path.as_str()) {
+            Some(p) if p.as_str() != "/" => p,
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"cannot_delete_root\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let pbuf = match PathBuf::try_from(clean_path.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"path_too_long\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let outcome = crate::storage::with_user_fs(|fs| {
+            let is_dir = fs.metadata(&pbuf).map(|m| m.is_dir()).unwrap_or(false);
+            if is_dir {
+                fs.remove_dir_all(&pbuf)
+            } else {
+                fs.remove(&pbuf)
+            }
+        });
+
+        let finalizer = request.body_connection.finalize().await?;
+        match outcome {
+            Some(Ok(())) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"deleted","path":"{}"}}"#, clean_path.as_str());
+                (StatusCode::OK, ("Content-Type", "application/json"), resp.as_str())
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            Some(Err(_)) => {
+                (StatusCode::NOT_FOUND, ("Content-Type", "application/json"), "{\"error\":\"entry_not_found\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            None => {
+                (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_not_mounted\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+        }
+    }
+}
+
+/// POST /api/v1/fs/mkdir?root={root}&path={path}
+/// Strictly rejects with 403 Forbidden if root=system.
+pub struct FsMkdir;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsMkdir {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        let method = request.parts.method();
+        if method != "POST" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let root = crate::rest::query_val(query, "root")
+            .unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+
+        if root.as_str() == "system" {
+            return (
+                StatusCode::FORBIDDEN,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"system_fs is read-only\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let raw_path = match crate::rest::query_val(query, "path") {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_path_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let clean_path = match sanitize_fs_path(raw_path.as_str()) {
+            Some(p) if p.as_str() != "/" => p,
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_path\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let pbuf = match PathBuf::try_from(clean_path.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"path_too_long\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let outcome = crate::storage::with_user_fs(|fs| fs.create_dir_all(&pbuf));
+        let finalizer = request.body_connection.finalize().await?;
+
+        match outcome {
+            Some(Ok(())) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"created","path":"{}"}}"#, clean_path.as_str());
+                (StatusCode::OK, ("Content-Type", "application/json"), resp.as_str())
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            Some(Err(_)) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, ("Content-Type", "application/json"), "{\"error\":\"mkdir_failed\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            None => {
+                (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_not_mounted\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+        }
+    }
+}
+
+/// POST /api/v1/fs/rename?root={root}&src={src}&dst={dst}
+/// Strictly rejects with 403 Forbidden if root=system.
+pub struct FsRename;
+
+impl picoserve::routing::RequestHandlerService<(), ()> for FsRename {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        let method = request.parts.method();
+        if method != "POST" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let root = crate::rest::query_val(query, "root")
+            .unwrap_or_else(|| heapless::String::try_from("user").unwrap());
+
+        if root.as_str() == "system" {
+            return (
+                StatusCode::FORBIDDEN,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"system_fs is read-only\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let raw_src = match crate::rest::query_val(query, "src") {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_src_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let raw_dst = match crate::rest::query_val(query, "dst") {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_dst_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let clean_src = match sanitize_fs_path(raw_src.as_str()) {
+            Some(p) if p.as_str() != "/" => p,
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_src_path\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let clean_dst = match sanitize_fs_path(raw_dst.as_str()) {
+            Some(p) if p.as_str() != "/" => p,
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_dst_path\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let src_pbuf = match PathBuf::try_from(clean_src.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"src_too_long\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let dst_pbuf = match PathBuf::try_from(clean_dst.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"dst_too_long\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let outcome = crate::storage::with_user_fs(|fs| {
+            ensure_parent_dirs_user(fs, clean_dst.as_str());
+            fs.rename(&src_pbuf, &dst_pbuf)
+        });
+
+        let finalizer = request.body_connection.finalize().await?;
+        match outcome {
+            Some(Ok(())) => {
+                let mut resp = heapless::String::<256>::new();
+                let _ = write!(
+                    resp,
+                    r#"{{"status":"renamed","src":"{}","dst":"{}"}}"#,
+                    clean_src.as_str(),
+                    clean_dst.as_str()
+                );
+                (StatusCode::OK, ("Content-Type", "application/json"), resp.as_str())
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            Some(Err(_)) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, ("Content-Type", "application/json"), "{\"error\":\"rename_failed\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            None => {
+                (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_not_mounted\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+        }
+    }
+}

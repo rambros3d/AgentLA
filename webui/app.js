@@ -4081,7 +4081,7 @@ function renderProfileMenu(activeName) {
         const item = document.createElement('div');
         item.className = 'profile-slot-item' + (slot.id === activeProfileSlot ? ' active-slot' : '');
         item.innerHTML = `
-            <span><strong>${slot.id === 0 ? '🔒 ' : ''}${slot.name}</strong></span>
+            <span><strong>${slot.id === 0 ? '[LOCKED] ' : ''}${slot.name}</strong></span>
             <div>
                 ${slot.is_boot ? '<span class="profile-boot-badge">BOOT</span>' : ''}
                 <span style="font-size: 10px; opacity: 0.5; margin-left: 6px;">Slot ${slot.id}</span>
@@ -4835,16 +4835,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const brandLogo = document.getElementById('brand-logo');
     if (brandLogo) {
         brandLogo.addEventListener('click', (e) => {
-            const isDemo = window.location.protocol === 'https:' || 
+            const isDemo = window.location.protocol === 'file:' ||
+                           window.location.protocol === 'https:' || 
                            window.location.hostname.includes('github.io') ||
-                           window.location.search.includes('demo=1') ||
-                           window.location.pathname.endsWith('.html');
+                           window.location.search.includes('demo=1');
             if (isDemo) {
                 e.preventDefault();
                 window.location.href = 'index.html';
             }
         });
     }
+
+    // Render dock pinned apps immediately to prevent FOUC before network calls
+    try { renderDockPinnedApps(); } catch (err) { console.error('[Init] Error in early renderDockPinnedApps:', err); }
 
     // 12. Initialize board manifest, capabilities, and instrumentation modules (with individual error boundaries)
     try { await fetchBoardManifest(); } catch (err) { console.error('[Init] Error in fetchBoardManifest:', err); }
@@ -5015,6 +5018,9 @@ function getPinnedApps() {
 }
 
 function renderDockPinnedApps() {
+    const guard = document.getElementById('dock-pin-guard');
+    if (guard) guard.remove();
+
     const container = document.getElementById('dock-pinned-apps');
     const pinned = getPinnedApps();
 
@@ -5025,10 +5031,10 @@ function renderDockPinnedApps() {
             el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
         }
     });
-    const isDemo = window.location.protocol === 'https:' || 
+    const isDemo = window.location.protocol === 'file:' ||
+                   window.location.protocol === 'https:' || 
                    window.location.hostname.includes('github.io') ||
-                   window.location.search.includes('demo=1') ||
-                   window.location.pathname.endsWith('.html');
+                   window.location.search.includes('demo=1');
 
     let html = '';
     pinned.forEach(appId => {

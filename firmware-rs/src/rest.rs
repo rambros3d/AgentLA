@@ -11,6 +11,7 @@ use picoserve::response::IntoResponse;
 use crate::pin_owner;
 use crate::profile;
 use crate::servo;
+pub use crate::fs_http::{FsEntry, FsList, FsMkdir, FsRead, FsRename, FsStat, FsWrite};
 
 // Minimal JSON/query helpers (no serde in no_std)
 pub fn query_val(q: Option<picoserve::url_encoded::UrlEncodedString>, key: &str) -> Option<heapless::String<64>> {

@@ -260,6 +260,17 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             )
         }))
         .route("/terminal.html", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
+        .route("/files", get_service(crate::fs_http::SystemWebFile::new("files.html", "text/html")))
+        .route("/files/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/files"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/files.html", get_service(crate::fs_http::SystemWebFile::new("files.html", "text/html")))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/lab.html", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
         // Legacy /apps and /lab aliases -> redirect to canonical routes
@@ -577,6 +588,14 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 (("Content-Type", "application/json"), buf)
             }),
         )
+        // --- Filesystem REST API endpoints (system_fs & user_fs) ---
+        .route_service("/api/v1/fs/stat", crate::fs_http::FsStat)
+        .route_service("/api/v1/fs/list", crate::fs_http::FsList)
+        .route_service("/api/v1/fs/read", crate::fs_http::FsRead)
+        .route_service("/api/v1/fs/write", crate::fs_http::FsWrite)
+        .route_service("/api/v1/fs/entry", crate::fs_http::FsEntry)
+        .route_service("/api/v1/fs/mkdir", crate::fs_http::FsMkdir)
+        .route_service("/api/v1/fs/rename", crate::fs_http::FsRename)
 
         .route_service("/mcp", crate::rest::McpRpc)
         .route_service("/mcp/health", crate::rest::McpHealth)
