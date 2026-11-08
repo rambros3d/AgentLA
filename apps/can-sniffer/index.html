@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>CAN Bus Analyzer — AgentLA</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../themes.css">
+  <script src="/agentla-bridge.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-base: var(--bg-canvas, var(--color-base-100, #090d16));
+      --card-bg: var(--bg-surface, var(--color-base-200, #131b2e));
+      --card-border: var(--border-color, var(--color-base-300, #22304e));
+      --accent: var(--color-primary, #38bdf8);
+      --accent-hover: #0284c7;
+      --text-main: var(--color-base-content, #f8fafc);
+      --text-dim: var(--text-secondary, #94a3b8);
+      --term-bg: #050811;
+      --term-fg: #f1f5f9;
+      scrollbar-color: #334155 #0f172a;
+    }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      z-index: 30;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.025em;
+    }
+    .badge-disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-connecting {
+      background: rgba(234, 179, 8, 0.15);
+      color: #facc15;
+      border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+    .badge-connected {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .controls-bar {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.5rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.8125rem;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    select, input[type="text"], input[type="number"] {
+      background: #0b1120;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.3125rem 0.625rem;
+      border-radius: 0.375rem;
+      font-size: 0.8125rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    select:focus, input[type="text"]:focus, input[type="number"]:focus {
+      border-color: var(--accent);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.3125rem 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      border-radius: 0.375rem;
+      border: 1px solid var(--card-border);
+      background: #1e293b;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover {
+      background: #334155;
+    }
+    .btn-primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: #0369a1;
+    }
+    .btn-accent {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+    .btn-accent:hover {
+      background: rgba(56, 189, 248, 0.25);
+    }
+    .btn-active-term {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: rgba(34, 197, 94, 0.6);
+      color: #4ade80;
+    }
+    /* Main Layout */
+    .analyzer-workspace {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .table-container {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--term-bg);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8125rem;
+    }
+    table.can-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    table.can-table th {
+      position: sticky;
+      top: 0;
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      z-index: 10;
+    }
+    table.can-table td {
+      padding: 0.375rem 0.75rem;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+      white-space: nowrap;
+    }
+    table.can-table tr:hover {
+      background: rgba(56, 189, 248, 0.05);
+    }
+    .id-cell {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+    .id-ext {
+      color: #c084fc;
+    }
+    .bytes-cell {
+      color: #f1f5f9;
+      letter-spacing: 0.08em;
+    }
+    .ascii-cell {
+      color: #64748b;
+    }
+    /* TX Injector Panel */
+    .injector-panel {
+      background: var(--card-bg);
+      border-top: 1px solid var(--card-border);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+    }
+    .injector-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .preset-chip {
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      border-radius: 9999px;
+      background: rgba(51, 65, 85, 0.6);
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .preset-chip:hover {
+      color: #f8fafc;
+      border-color: #64748b;
+    }
+    .footer-bar {
+      background: #090d16;
+      border-top: 1px solid var(--card-border);
+      padding: 0.375rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Clean OS Top Bar (Matching Launcher and Terminal) -->
+  <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
+    <div class="bar-left navbar-start" style="display: flex; align-items: center; gap: 8px;">
+      <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+        <span class="start-menu-icon" aria-hidden="true"></span>
+        <span class="brand-title" style="font-weight:700; letter-spacing: -0.02em;">AgentLA</span>
+        <span class="status status-success status-xs" title="Hardware Engine Online"></span>
+      </a>
+      <span style="color: var(--card-border); margin: 0 4px;">/</span>
+      <span style="font-weight: 600; font-size: 0.875rem; color: var(--text-main); display: inline-flex; align-items: center; gap: 6px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 15h2c.6 0 1-.4 1-1v-2c0-.7-.5-1.3-1.2-1.4L15 10l-2-2H8l-1.5 2.2A2 2 0 0 0 6 11v3c0 .6.4 1 1 1h1"/>
+          <circle cx="9" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/>
+        </svg>
+        CAN Bus Analyzer
+      </span>
+    </div>
+
+    <div class="bar-right navbar-end" style="display: flex; align-items: center; gap: 8px;">
+      <span id="ws-badge" class="badge badge-disconnected">
+        <span class="status-dot"></span>
+        <span id="ws-status-text">Disconnected</span>
+      </span>
+
+      <!-- Target Power Rail Toggle Pill -->
+      <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+        <svg class="solar-icon power-bolt-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <span class="power-pill-label" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
+      </button>
+
+      <!-- Emergency Safe State Button -->
+      <button class="preset-pill emergency-safe-btn" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        SAFE STATE
+      </button>
+
+      <!-- Tri-State Theme Toggle -->
+      <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)">
+        <svg class="solar-icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="5"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Filter & Configuration Controls Bar -->
+  <div class="controls-bar">
+    <div style="display: flex; align-items: center; gap: 0.875rem; flex-wrap: wrap;">
+      <div class="control-group">
+        <label for="sel-baud" style="color: var(--text-dim);">Bitrate:</label>
+        <select id="sel-baud">
+          <option value="10000">10 kbps</option>
+          <option value="20000">20 kbps</option>
+          <option value="50000">50 kbps</option>
+          <option value="100000">100 kbps</option>
+          <option value="125000">125 kbps</option>
+          <option value="250000">250 kbps</option>
+          <option value="500000" selected>500 kbps</option>
+          <option value="800000">800 kbps</option>
+          <option value="1000000">1 Mbps</option>
+        </select>
+      </div>
+
+      <!-- 120 Ohm Termination Toggle -->
+      <button id="btn-term-toggle" class="btn" title="Toggle software-controlled 120Ω bus termination on GPIO 22">
+        <span id="term-icon">⚡</span>
+        <span id="term-label">120Ω Term: OFF</span>
+      </button>
+
+      <div class="control-group">
+        <label for="input-filter-id" style="color: var(--text-dim);">ID Filter:</label>
+        <input type="text" id="input-filter-id" placeholder="e.g. 0x7DF or 123" style="width: 130px;">
+      </div>
+
+      <label class="control-group" style="cursor: pointer; user-select: none;">
+        <input type="checkbox" id="chk-autoscroll" checked>
+        <span>Auto-scroll</span>
+      </label>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <button id="btn-connect" class="btn btn-primary">Connect</button>
+      <button id="btn-clear" class="btn" title="Clear packet log">Clear</button>
+      <button id="btn-export-csv" class="btn" title="Export captured frames to CSV">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Main Packet Inspector Workspace -->
+  <div class="analyzer-workspace">
+    <div class="table-container" id="table-container">
+      <table class="can-table" id="can-table">
+        <thead>
+          <tr>
+            <th style="width: 70px;">#</th>
+            <th style="width: 110px;">Time (s)</th>
+            <th style="width: 100px;">ID</th>
+            <th style="width: 70px;">Type</th>
+            <th style="width: 50px;">RTR</th>
+            <th style="width: 50px;">DLC</th>
+            <th>Data (Hex)</th>
+            <th style="width: 120px;">ASCII</th>
+          </tr>
+        </thead>
+        <tbody id="can-tbody">
+          <!-- Rows dynamically appended here -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Packet Injector Panel -->
+    <div class="injector-panel">
+      <div class="injector-row" style="justify-content: space-between;">
+        <span style="font-weight: 600; font-size: 0.8125rem; color: var(--accent); display: flex; align-items: center; gap: 6px;">
+          <span>📤</span> Frame Injector (TX)
+        </span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="color: var(--text-dim); font-size: 0.75rem;">Presets:</span>
+          <span class="preset-chip" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0D 00 00 00 00 00')">OBD-II Speed</span>
+          <span class="preset-chip" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0C 00 00 00 00 00')">OBD-II RPM</span>
+          <span class="preset-chip" onclick="applyPreset('0x100', false, false, 4, 'DE AD BE EF')">Heartbeat</span>
+        </div>
+      </div>
+
+      <div class="injector-row">
+        <div class="control-group">
+          <label for="tx-id" style="color: var(--text-dim);">ID:</label>
+          <input type="text" id="tx-id" value="0x7DF" style="width: 90px;">
+        </div>
+
+        <label class="control-group" style="cursor: pointer;">
+          <input type="checkbox" id="tx-ext">
+          <span>Extended</span>
+        </label>
+
+        <label class="control-group" style="cursor: pointer;">
+          <input type="checkbox" id="tx-rtr">
+          <span>RTR</span>
+        </label>
+
+        <div class="control-group">
+          <label for="tx-dlc" style="color: var(--text-dim);">DLC:</label>
+          <select id="tx-dlc">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8" selected>8</option>
+          </select>
+        </div>
+
+        <div class="control-group" style="flex: 1;">
+          <label for="tx-data" style="color: var(--text-dim);">Data:</label>
+          <input type="text" id="tx-data" value="02 01 0D 00 00 00 00 00" style="flex: 1; font-family: monospace;" placeholder="Hex bytes space or continuous">
+        </div>
+
+        <button id="btn-send-tx" class="btn btn-accent" style="font-weight: 600;">Send Frame</button>
+
+        <div class="control-group">
+          <label class="control-group" style="cursor: pointer;">
+            <input type="checkbox" id="chk-periodic">
+            <span>Every</span>
+          </label>
+          <select id="sel-period">
+            <option value="50">50 ms</option>
+            <option value="100" selected>100 ms</option>
+            <option value="250">250 ms</option>
+            <option value="500">500 ms</option>
+            <option value="1000">1000 ms</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Status Footer -->
+    <div class="footer-bar">
+      <div>
+        <span>RX: <strong id="stat-rx-count">0</strong> frames</span>
+        <span style="margin: 0 8px;">·</span>
+        <span>TX: <strong id="stat-tx-count">0</strong> frames</span>
+      </div>
+      <div>
+        <span>Bus: <span id="stat-bus-state" style="color: #4ade80;">READY</span></span>
+        <span style="margin: 0 8px;">·</span>
+        <span>Termination: <strong id="stat-term-state">OFF</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let frames = [];
+    let frameCount = 0;
+    let rxCount = 0;
+    let txCount = 0;
+    let startTime = null;
+    let terminationActive = false;
+    let periodicInterval = null;
+
+    const wsBadge = document.getElementById('ws-badge');
+    const wsStatusText = document.getElementById('ws-status-text');
+    const btnConnect = document.getElementById('btn-connect');
+    const btnClear = document.getElementById('btn-clear');
+    const btnExportCsv = document.getElementById('btn-export-csv');
+    const canTbody = document.getElementById('can-tbody');
+    const tableContainer = document.getElementById('table-container');
+    const chkAutoScroll = document.getElementById('chk-autoscroll');
+    const inputFilterId = document.getElementById('input-filter-id');
+    const btnTermToggle = document.getElementById('btn-term-toggle');
+    const termLabel = document.getElementById('term-label');
+    const statTermState = document.getElementById('stat-term-state');
+    const statRxCount = document.getElementById('stat-rx-count');
+    const statTxCount = document.getElementById('stat-tx-count');
+
+    const txIdInput = document.getElementById('tx-id');
+    const txExtChk = document.getElementById('tx-ext');
+    const txRtrChk = document.getElementById('tx-rtr');
+    const txDlcSel = document.getElementById('tx-dlc');
+    const txDataInput = document.getElementById('tx-data');
+    const btnSendTx = document.getElementById('btn-send-tx');
+    const chkPeriodic = document.getElementById('chk-periodic');
+    const selPeriod = document.getElementById('sel-period');
+
+    function updateStatus(state) {
+      wsBadge.className = 'badge';
+      if (state === 'connected') {
+        wsBadge.classList.add('badge-connected');
+        wsStatusText.textContent = 'Connected';
+        btnConnect.textContent = 'Disconnect';
+        btnConnect.classList.remove('btn-primary');
+      } else if (state === 'connecting') {
+        wsBadge.classList.add('badge-connecting');
+        wsStatusText.textContent = 'Connecting';
+        btnConnect.textContent = 'Connecting...';
+      } else {
+        wsBadge.classList.add('badge-disconnected');
+        wsStatusText.textContent = 'Disconnected';
+        btnConnect.textContent = 'Connect';
+        btnConnect.classList.add('btn-primary');
+      }
+    }
+
+    function formatHexBytes(str) {
+      if (!str) return '';
+      const cleaned = str.replace(/[^0-9A-Fa-f]/g, '');
+      const pairs = [];
+      for (let i = 0; i < cleaned.length; i += 2) {
+        pairs.push(cleaned.slice(i, i + 2).toUpperCase());
+      }
+      return pairs.join(' ');
+    }
+
+    function hexToAscii(hexStr) {
+      if (!hexStr) return '';
+      const cleaned = hexStr.replace(/[^0-9A-Fa-f]/g, '');
+      let ascii = '';
+      for (let i = 0; i < cleaned.length; i += 2) {
+        const code = parseInt(cleaned.slice(i, i + 2), 16);
+        if (code >= 32 && code <= 126) {
+          ascii += String.fromCharCode(code);
+        } else {
+          ascii += '.';
+        }
+      }
+      return ascii;
+    }
+
+    function appendFrameRow(frame) {
+      if (!startTime) startTime = performance.now();
+      const relTime = ((performance.now() - startTime) / 1000).toFixed(4);
+
+      frameCount++;
+      rxCount++;
+      statRxCount.textContent = rxCount;
+
+      const hexId = '0x' + Number(frame.id).toString(16).toUpperCase();
+      const extStr = frame.ext ? 'EXT' : 'STD';
+      const rtrStr = frame.rtr ? 'RTR' : 'DATA';
+      const rawData = frame.data || '';
+      const formattedBytes = formatHexBytes(rawData);
+      const ascii = hexToAscii(rawData);
+
+      const frameObj = {
+        num: frameCount,
+        time: relTime,
+        id: hexId,
+        ext: extStr,
+        rtr: rtrStr,
+        dlc: frame.dlc || 0,
+        bytes: formattedBytes,
+        ascii: ascii
+      };
+      frames.push(frameObj);
+
+      // Check filter
+      const filter = inputFilterId.value.trim().toUpperCase();
+      const match = !filter || hexId.includes(filter) || String(frame.id).includes(filter);
+
+      const tr = document.createElement('tr');
+      if (!match) tr.style.display = 'none';
+
+      tr.innerHTML = `
+        <td style="color: #64748b;">${frameCount}</td>
+        <td style="color: #94a3b8;">+${relTime}</td>
+        <td class="id-cell ${frame.ext ? 'id-ext' : ''}">${hexId}</td>
+        <td style="color: ${frame.ext ? '#c084fc' : '#38bdf8'};">${extStr}</td>
+        <td style="color: ${frame.rtr ? '#facc15' : '#94a3b8'};">${rtrStr}</td>
+        <td>${frame.dlc || 0}</td>
+        <td class="bytes-cell">${formattedBytes}</td>
+        <td class="ascii-cell">${ascii}</td>
+      `;
+      canTbody.appendChild(tr);
+
+      // Limit in-memory DOM table size to 1000 rows
+      if (canTbody.children.length > 1000) {
+        canTbody.removeChild(canTbody.firstChild);
+      }
+
+      if (chkAutoScroll.checked) {
+        tableContainer.scrollTop = tableContainer.scrollHeight;
+      }
+    }
+
+    function connectWs() {
+      if (ws) {
+        ws.close();
+        ws = null;
+        updateStatus('disconnected');
+        return;
+      }
+
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${proto}//${location.host}/api/v1/can/ws`;
+
+      updateStatus('connecting');
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          updateStatus('connected');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            appendFrameRow(data);
+          } catch (_) {}
+        };
+
+        ws.onerror = () => {
+          updateStatus('disconnected');
+        };
+
+        ws.onclose = () => {
+          updateStatus('disconnected');
+          ws = null;
+        };
+      } catch (_) {
+        updateStatus('disconnected');
+      }
+    }
+
+    async function toggleTermination() {
+      terminationActive = !terminationActive;
+      try {
+        const resp = await fetch('/api/v1/bridge/can/termination', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: terminationActive })
+        });
+        if (resp.ok) {
+          updateTerminationUi(terminationActive);
+        }
+      } catch (_) {
+        updateTerminationUi(terminationActive);
+      }
+    }
+
+    function updateTerminationUi(active) {
+      if (active) {
+        btnTermToggle.classList.add('btn-active-term');
+        termLabel.textContent = '120Ω Term: ON';
+        statTermState.textContent = 'ON';
+        statTermState.style.color = '#4ade80';
+      } else {
+        btnTermToggle.classList.remove('btn-active-term');
+        termLabel.textContent = '120Ω Term: OFF';
+        statTermState.textContent = 'OFF';
+        statTermState.style.color = 'inherit';
+      }
+    }
+
+    function parseNumericId(str) {
+      str = str.trim();
+      if (str.startsWith('0x') || str.startsWith('0X')) {
+        return parseInt(str.slice(2), 16) || 0;
+      }
+      return parseInt(str, 10) || 0;
+    }
+
+    function sendTxFrame() {
+      const idVal = parseNumericId(txIdInput.value);
+      const isExt = txExtChk.checked;
+      const isRtr = txRtrChk.checked;
+      const dlcVal = parseInt(txDlcSel.value, 10) || 0;
+      const hexCleaned = txDataInput.value.replace(/[^0-9A-Fa-f]/g, '');
+
+      const payload = {
+        id: idVal,
+        ext: isExt,
+        rtr: isRtr,
+        dlc: dlcVal,
+        data: hexCleaned
+      };
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+        txCount++;
+        statTxCount.textContent = txCount;
+      }
+    }
+
+    function applyPreset(id, ext, rtr, dlc, data) {
+      txIdInput.value = id;
+      txExtChk.checked = ext;
+      txRtrChk.checked = rtr;
+      txDlcSel.value = dlc;
+      txDataInput.value = data;
+    }
+
+    chkPeriodic.addEventListener('change', () => {
+      if (chkPeriodic.checked) {
+        const ms = parseInt(selPeriod.value, 10) || 100;
+        periodicInterval = setInterval(sendTxFrame, ms);
+      } else {
+        if (periodicInterval) {
+          clearInterval(periodicInterval);
+          periodicInterval = null;
+        }
+      }
+    });
+
+    selPeriod.addEventListener('change', () => {
+      if (chkPeriodic.checked) {
+        clearInterval(periodicInterval);
+        const ms = parseInt(selPeriod.value, 10) || 100;
+        periodicInterval = setInterval(sendTxFrame, ms);
+      }
+    });
+
+    inputFilterId.addEventListener('input', () => {
+      const filter = inputFilterId.value.trim().toUpperCase();
+      const rows = canTbody.getElementsByTagName('tr');
+      for (const row of rows) {
+        const idText = row.children[2]?.textContent || '';
+        row.style.display = (!filter || idText.includes(filter)) ? '' : 'none';
+      }
+    });
+
+    btnSendTx.addEventListener('click', sendTxFrame);
+    btnConnect.addEventListener('click', connectWs);
+    btnTermToggle.addEventListener('click', toggleTermination);
+
+    btnClear.addEventListener('click', () => {
+      canTbody.innerHTML = '';
+      frames = [];
+      frameCount = 0;
+      rxCount = 0;
+      statRxCount.textContent = '0';
+    });
+
+    btnExportCsv.addEventListener('click', () => {
+      if (frames.length === 0) return;
+      let csv = 'Index,TimeOffset_s,ID,Type,RTR,DLC,DataHex,ASCII\n';
+      for (const f of frames) {
+        csv += `${f.num},${f.time},${f.id},${f.ext},${f.rtr},${f.dlc},"${f.bytes}","${f.ascii}"\n`;
+      }
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `agentla-can-traffic-${new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Auto connect on load
+    window.addEventListener('DOMContentLoaded', () => {
+      connectWs();
+    });
+  </script>
+</body>
+</html>

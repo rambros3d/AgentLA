@@ -906,39 +906,8 @@
             defaultHomeRoute: '/lab'
         };
 
-        // Fallback demo apps for GitHub Pages / static previews
-        const demoInstalledApps = [
-            {
-                id: "servo-master",
-                name: "Servo Master",
-                version: "1.0.0",
-                author: "AgentLA Team",
-                description: "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
-                tags: ["Robotics", "PWM", "Actuation"],
-                size: 32600,
-                iconSvg: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3"/><circle cx="12" cy="14" r="3"/><path d="M12 11v-2"/><path d="M12 19v-2"/><path d="M15 14h2"/><path d="M7 14h2"/></svg>'
-            },
-            {
-                id: "terminal",
-                name: "Serial Terminal",
-                version: "1.0.0",
-                author: "AgentLA Team",
-                description: "Full-duplex in-browser Web Serial Terminal with WebSocket streaming, ANSI colors, hybrid UART routing, and 1-click target reset.",
-                tags: ["Communication", "UART", "Serial"],
-                size: 20400,
-                iconSvg: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary, #38bdf8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>'
-            },
-            {
-                id: "can-sniffer",
-                name: "CAN Sniffer",
-                version: "1.2.0",
-                author: "AgentLA Team",
-                description: "Real-time CAN 2.0B / CAN-FD packet inspector, live hardware ID filtering, and DBC decoder.",
-                tags: ["Automotive", "CAN", "Protocols"],
-                size: 68400,
-                iconSvg: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7 9h10M7 15h10M12 9v6"/></svg>'
-            }
-        ];
+        // Fallback demo apps for GitHub Pages / static previews (empty by default; installable via store)
+        const demoInstalledApps = [];
 
         // Default Catalog URL
         let catalogUrl = localStorage.getItem('agentla_catalog_url') || 'https://raw.githubusercontent.com/rambros3d/AgentLA/catalog/apps.json';
@@ -971,10 +940,11 @@
                 name: "CAN Bus Analyzer",
                 version: "1.2.0",
                 author: "AgentLA Team",
-                description: "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, and DBC decoder.",
+                description: "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, frame transmission, and 120Ω termination control.",
                 requires: ["has_hardware_can"],
                 tags: ["Automotive", "CAN"],
-                size_bytes: 68400
+                size_bytes: 68400,
+                icon: "icon.svg"
             }
         ];
 
@@ -1438,6 +1408,8 @@
                     clickAction = 'openTerminalApp()';
                 } else if (appId === 'servo-master') {
                     clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/apps/servo-master/'";
+                } else if (appId === 'can-sniffer') {
+                    clickAction = isDemo ? "window.location.href='apps/can-sniffer/index.html'" : "window.location.href='/apps/can-sniffer/'";
                 } else {
                     const path = installed.path || `/apps/${encodeURIComponent(appId)}/`;
                     clickAction = `window.location.href='${path}'`;
@@ -1626,6 +1598,7 @@
                         if (isDemo) {
                             if (appId === 'terminal') launchAction = `window.location.href='apps/terminal/index.html'`;
                             else if (appId === 'servo-master') launchAction = `window.location.href='apps/servo-master/index.html'`;
+                            else if (appId === 'can-sniffer') launchAction = `window.location.href='apps/can-sniffer/index.html'`;
                         }
 
                         const pinIcon = pinned ? `
@@ -1706,6 +1679,9 @@
                         clickHandler = `onclick="window.location.href='${appPath}'"`;
                     } else if (appId === 'terminal') {
                         appPath = 'apps/terminal/index.html';
+                        clickHandler = `onclick="window.location.href='${appPath}'"`;
+                    } else if (appId === 'can-sniffer') {
+                        appPath = 'apps/can-sniffer/index.html';
                         clickHandler = `onclick="window.location.href='${appPath}'"`;
                     } else {
                         clickHandler = `onclick="openAppDetail('${escapeHtml(appId)}', 'installed')"`;
@@ -1838,6 +1814,7 @@
                 if (isDemo && installed) {
                     if (app.id === 'servo-master') getBtnAction = `window.location.href='apps/servo-master/index.html'`;
                     else if (app.id === 'terminal') getBtnAction = `window.location.href='apps/terminal/index.html'`;
+                    else if (app.id === 'can-sniffer') getBtnAction = `window.location.href='apps/can-sniffer/index.html'`;
                 }
 
                 let iconMarkup = solarFallbackSvg;
@@ -2052,6 +2029,7 @@
                 if (isDemo) {
                     if (activeSheetApp.id === 'servo-master') appPath = 'apps/servo-master/index.html';
                     else if (activeSheetApp.id === 'terminal') appPath = 'apps/terminal/index.html';
+                    else if (activeSheetApp.id === 'can-sniffer') appPath = 'apps/can-sniffer/index.html';
                 }
                 window.location.href = appPath;
                 return;

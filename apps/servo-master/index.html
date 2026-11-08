@@ -1,19 +1,21 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="forest">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Servo Master — AgentLA</title>
   <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../themes.css">
+  <script src="/agentla-bridge.js"></script>
   <style>
     :root {
-      --bg-base: #0f172a;
-      --card-bg: #1e293b;
-      --card-border: #334155;
-      --accent: #38bdf8;
-      --accent-hover: #0284c7;
-      --text-main: #f8fafc;
-      --text-dim: #94a3b8;
+      --bg-base: var(--bg-canvas, var(--color-base-100, #0f172a));
+      --card-bg: var(--bg-surface, var(--color-base-200, #1e293b));
+      --card-border: var(--border-color, var(--color-base-300, #334155));
+      --accent: var(--color-primary, #38bdf8);
+      --accent-hover: var(--color-primary, #0284c7);
+      --text-main: var(--color-base-content, #f8fafc);
+      --text-dim: var(--text-secondary, #94a3b8);
     }
     body {
       background-color: var(--bg-base);
@@ -60,30 +62,80 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-  <!-- Top Navigation Header -->
-  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
-    <div class="flex items-center gap-3">
-      <a href="/apps" class="text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 text-sm">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Apps Launcher
+  <!-- Unified Clean OS Top Bar (Matching Workbench & Launcher) -->
+  <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
+    <div class="bar-left navbar-start">
+      <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Apps)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+        <span class="start-menu-icon" aria-hidden="true"></span>
+        <span class="brand-title">AgentLA</span>
+        <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
       </a>
-      <span class="text-slate-600">/</span>
-      <div class="flex items-center gap-2">
-        <div class="p-2 bg-sky-500/10 text-sky-400 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <rect x="3" y="8" width="18" height="12" rx="2" stroke-width="2"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3M12 11v-2M12 19v-2M15 14h2M7 14h2" />
-          </svg>
-        </div>
-        <div>
-          <h1 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-            Servo Master
-            <span class="text-xs bg-sky-950 text-sky-400 border border-sky-800/60 px-2 py-0.5 rounded-full font-mono">v1.0.0</span>
-          </h1>
+      <span style="color: var(--card-border); margin: 0 4px;">/</span>
+      <span style="font-weight: 600; font-size: 0.875rem; color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px;">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <rect x="3" y="8" width="18" height="12" rx="2" stroke-width="2"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3M12 11v-2M12 19v-2M15 14h2M7 14h2" />
+        </svg>
+        Servo Master
+      </span>
+    </div>
+
+    <div class="bar-right navbar-end">
+      <!-- Target Power Rail Toggle Pill -->
+      <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+        <svg class="solar-icon power-bolt-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <span class="power-pill-label" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
+      </button>
+
+      <!-- Emergency Safe State Button -->
+      <button class="preset-pill emergency-safe-btn" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        SAFE STATE
+      </button>
+
+      <!-- Hardware Profile Selector -->
+      <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+        <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+          <span class="profile-name-text" id="active-profile-name">Safe State</span>
+          <span class="dropdown-arrow">▾</span>
+        </button>
+        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+          <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+          <div class="profile-menu-slots" id="profile-menu-slots"></div>
         </div>
       </div>
+
+      <!-- Tri-State Theme Toggle -->
+      <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)" aria-label="Toggle Theme Mode">
+        <svg class="solar-icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12Z" fill="currentColor"/>
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C12.4142 1.25 12.75 1.58579 12.75 2V3C12.75 3.41421 12.4142 3.75 12 3.75C11.5858 3.75 11.25 3.41421 11.25 3V2C11.25 1.58579 11.5858 1.25 12 1.25ZM1.25 12C1.25 11.5858 1.58579 11.25 2 11.25H3C3.41421 11.25 3.75 11.5858 3.75 12C3.75 12.4142 3.41421 12.75 3 12.75H2C1.58579 12.75 1.25 12.4142 1.25 12ZM20.25 12C20.25 11.5858 20.5858 11.25 21 11.25H22C22.4142 11.25 22.75 11.5858 22.75 12C22.75 12.4142 22.4142 12.75 22 12.75H21C20.5858 12.75 20.25 12.4142 20.25 12ZM12 20.25C12.4142 20.25 12.75 20.5858 12.75 21V22C12.75 22.4142 12.4142 22.75 12 22.75C11.5858 22.75 11.25 22.4142 11.25 22V21C11.25 20.5858 11.5858 20.25 12 20.25Z" fill="currentColor"/>
+        </svg>
+      </button>
+
+      <!-- Settings Trigger -->
+      <button class="action-btn icon-btn header-btn" id="btn-header-settings" title="System Settings">
+        <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M14.2788 2.15224C13.9085 2 13.439 2 12.5 2C11.561 2 11.0915 2 10.7212 2.15224C10.2274 2.35523 9.83509 2.74458 9.63056 3.23463C9.53719 3.45834 9.50065 3.7185 9.48635 4.09799C9.46534 4.65568 9.17716 5.17189 8.69017 5.45093C8.20318 5.72996 7.60864 5.71954 7.11149 5.45876C6.77318 5.2813 6.52789 5.18262 6.28599 5.15102C5.75609 5.08178 5.22018 5.22429 4.79616 5.5472C4.47814 5.78938 4.24339 6.1929 3.7739 6.99993C3.30441 7.80697 3.06967 8.21048 3.01735 8.60491C2.94758 9.1308 3.09118 9.66266 3.41655 10.0835C3.56506 10.2756 3.77377 10.437 4.0977 10.639C4.57391 10.936 4.88032 11.4419 4.88029 12C4.88026 12.5581 4.57386 13.0639 4.0977 13.3608C3.77372 13.5629 3.56497 13.7244 3.41645 13.9165C3.09108 14.3373 2.94749 14.8691 3.01725 15.395C3.06957 15.7894 3.30432 16.193 3.7738 17C4.24329 17.807 4.47804 18.2106 4.79606 18.4527C5.22008 18.7756 5.75599 18.9181 6.28589 18.8489C6.52778 18.8173 6.77305 18.7186 7.11133 18.5412C7.60852 18.2804 8.2031 18.27 8.69012 18.549C9.17714 18.8281 9.46533 19.3443 9.48635 19.9021C9.50065 20.2815 9.53719 20.5417 9.63056 20.7654C9.83509 21.2554 10.2274 21.6448 10.7212 21.8478C11.0915 22 11.561 22 12.5 22C13.439 22 13.9085 22 14.2788 21.8478C14.7726 21.6448 15.1649 21.2554 15.3694 20.7654C15.4628 20.5417 15.4994 20.2815 15.5137 19.902C15.5347 19.3443 15.8228 18.8281 16.3098 18.549C16.7968 18.2699 17.3914 18.2804 17.8886 18.5412C18.2269 18.7186 18.4721 18.8172 18.714 18.8488C19.2439 18.9181 19.7798 18.7756 20.2038 18.4527C20.5219 18.2105 20.7566 17.807 21.2261 16.9999C21.6956 16.1929 21.9303 15.7894 21.9827 15.395C22.0524 14.8691 21.9088 14.3372 21.5835 13.9164C21.4349 13.7243 21.2262 13.5628 20.9022 13.3608C20.4261 13.0639 20.1197 12.558 20.1197 11.9999C20.1197 11.4418 20.4261 10.9361 20.9022 10.6392C21.2263 10.4371 21.435 10.2757 21.5836 10.0835C21.9089 9.66273 22.0525 9.13087 21.9828 8.60497C21.9304 8.21055 21.6957 7.80703 21.2262 7C20.7567 6.19297 20.522 5.78945 20.2039 5.54727C19.7799 5.22436 19.244 5.08185 18.7141 5.15109C18.4722 5.18269 18.2269 5.28136 17.8887 5.4588C17.3915 5.71959 16.7969 5.73002 16.3099 5.45096C15.8229 5.17191 15.5347 4.65566 15.5136 4.09794C15.4993 3.71848 15.4628 3.45833 15.3694 3.23463C15.1649 2.74458 14.7726 2.35523 14.2788 2.15224Z" fill="currentColor"/>
+          <path d="M15.5227 12C15.5227 13.6569 14.1694 15 12.4999 15C10.8304 15 9.47705 13.6569 9.47705 12C9.47705 10.3431 10.8304 9 12.4999 9C14.1694 9 15.5227 10.3431 15.5227 12Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- App Controls Sub-Header -->
+  <div class="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30">
+    <div class="flex items-center gap-2">
+      <h1 class="text-base font-bold text-slate-100 flex items-center gap-2">
+        Multi-Channel Servo Sequencer
+        <span class="text-xs bg-sky-950 text-sky-400 border border-sky-800/60 px-2 py-0.5 rounded-full font-mono">v1.0.0</span>
+      </h1>
     </div>
 
     <!-- Master Controls & Status Badges -->
@@ -105,7 +157,7 @@
         <span>🛡️</span> Detach All
       </button>
     </div>
-  </header>
+  </div>
 
   <!-- Main Content Container -->
   <main class="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col gap-8">

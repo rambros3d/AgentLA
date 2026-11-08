@@ -192,3 +192,89 @@ pub fn adapter_can_standby() {
     gpio_high_z(CAN_RX_PIN);
     gpio_high_z(CAN_TERM_PIN);
 }
+
+#[derive(Clone, Copy, Default)]
+pub struct CanWsFrame {
+    pub id: u32,
+    pub ext: bool,
+    pub rtr: bool,
+    pub dlc: u8,
+    pub data: [u8; 8],
+    pub ts_us: u32,
+}
+
+const CAN_RING_SIZE: usize = 32;
+
+struct CanRing {
+    buf: [CanWsFrame; CAN_RING_SIZE],
+    head: usize,
+    tail: usize,
+    count: usize,
+}
+
+impl CanRing {
+    const fn new() -> Self {
+        Self {
+            buf: [CanWsFrame {
+                id: 0,
+                ext: false,
+                rtr: false,
+                dlc: 0,
+                data: [0; 8],
+                ts_us: 0,
+            }; CAN_RING_SIZE],
+            head: 0,
+            tail: 0,
+            count: 0,
+        }
+    }
+
+    fn push(&mut self, frame: CanWsFrame) {
+        self.buf[self.head] = frame;
+        self.head = (self.head + 1) % CAN_RING_SIZE;
+        if self.count < CAN_RING_SIZE {
+            self.count += 1;
+        } else {
+            self.tail = (self.tail + 1) % CAN_RING_SIZE;
+        }
+    }
+
+    fn pop(&mut self) -> Option<CanWsFrame> {
+        if self.count == 0 {
+            None
+        } else {
+            let frame = self.buf[self.tail];
+            self.tail = (self.tail + 1) % CAN_RING_SIZE;
+            self.count -= 1;
+            Some(frame)
+        }
+    }
+}
+
+static CAN_RING: Mutex<CriticalSectionRawMutex, core::cell::RefCell<CanRing>> =
+    Mutex::new(core::cell::RefCell::new(CanRing::new()));
+static CAN_RX_SIGNAL: embassy_sync::signal::Signal<CriticalSectionRawMutex, ()> =
+    embassy_sync::signal::Signal::new();
+
+pub fn push_can_rx_frame(frame: CanWsFrame) {
+    record_rx_frame();
+    CAN_RING.lock(|r| r.borrow_mut().push(frame));
+    CAN_RX_SIGNAL.signal(());
+}
+
+pub fn pop_can_rx_frame() -> Option<CanWsFrame> {
+    CAN_RING.lock(|r| r.borrow_mut().pop())
+}
+
+pub async fn wait_can_rx() {
+    CAN_RX_SIGNAL.wait().await;
+}
+
+pub fn transmit_can_ws_frame(frame: &CanWsFrame) {
+    if !adapter_can_is_active() {
+        adapter_can_start();
+    }
+    record_tx_frame();
+    // In loopback/monitoring mode, reflect outbound frame back to listeners
+    push_can_rx_frame(*frame);
+}

@@ -203,6 +203,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/telemetry", crate::rest::SystemTelemetry)
         .route_service("/api/v1/system/telemetry/stream", crate::rest::SystemTelemetryStream)
         .route_service("/api/v1/terminal/ws", crate::rest::TerminalWebSocket)
+        .route_service("/api/v1/can/ws", crate::rest::CanWebSocket)
         .route(
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),

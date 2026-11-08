@@ -1046,63 +1046,14 @@ pub async fn update_system_webui<R: picoserve::io::Read>(
 }
 
 // ---------------------------------------------------------------------------
-// Seeding (port of seed_apps.c, minimized per proposal §3.2)
+// App directory initialization (zero ROM bloat, official apps installable via store)
 // ---------------------------------------------------------------------------
 
-const SERVO_MASTER_APP_JSON: &str = r#"{"name":"servo-master","title":"Servo Master","version":"1.0.0","author":"AgentLA Team","description":"Servo control demo app","category":"Robotics","entry":"index.html"}"#;
-
-const SERVO_MASTER_INDEX_HTML: &str = r#"<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Servo Master</title></head>
-<body><h2>Servo Master</h2><p>Seeded demo app from AgentLA firmware.</p>
-<p><a href="/">Back to workbench</a></p></body></html>"#;
-
-const TERMINAL_APP_JSON: &str = r#"{"name":"terminal","title":"Serial Terminal","version":"1.0.0","author":"AgentLA Team","description":"In-browser Web Serial Terminal over WebSocket with hybrid UART routing.","category":"Communication","entry":"index.html"}"#;
-
-const TERMINAL_INDEX_HTML: &str = r#"<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Serial Terminal</title></head>
-<body><h2>Serial Terminal</h2><p>Seeded terminal app from AgentLA firmware. Flash webui.uf2 for full interface.</p>
-<p><a href="/">Back to workbench</a></p></body></html>"#;
-
-/// Ensure `/apps` exists and seed the default apps (`servo-master` and `terminal`) when their
-/// manifests are missing (checked on every boot, so the seed is restored even if a user deletes it).
+/// Ensure `/apps` exists on boot so installed apps can be placed in LittleFS.
+/// Apps are installed by the user on demand via the App Store.
 pub fn seed_default_apps() {
     let _ = with_fs(|fs| -> Result<(), FsError> {
         make_dir(fs, "/apps")?;
-
-        // Seed servo-master
-        let servo_dir = "/apps/servo-master";
-        make_dir(fs, servo_dir)?;
-        if let Ok(manifest) = PathBuf::try_from("/apps/servo-master/app.json") {
-            if !fs.exists(&manifest) {
-                defmt::info!("apps: seeding default app servo-master");
-                if let Err(e) = fs.write(&manifest, SERVO_MASTER_APP_JSON.as_bytes()) {
-                    defmt::warn!("apps: seed servo app.json failed: {}", defmt::Debug2Format(&e));
-                }
-                if let Ok(html) = PathBuf::try_from("/apps/servo-master/index.html") {
-                    if let Err(e) = fs.write(&html, SERVO_MASTER_INDEX_HTML.as_bytes()) {
-                        defmt::warn!("apps: seed servo index.html failed: {}", defmt::Debug2Format(&e));
-                    }
-                }
-            }
-        }
-
-        // Seed terminal
-        let term_dir = "/apps/terminal";
-        make_dir(fs, term_dir)?;
-        if let Ok(manifest) = PathBuf::try_from("/apps/terminal/app.json") {
-            if !fs.exists(&manifest) {
-                defmt::info!("apps: seeding default app terminal");
-                if let Err(e) = fs.write(&manifest, TERMINAL_APP_JSON.as_bytes()) {
-                    defmt::warn!("apps: seed terminal app.json failed: {}", defmt::Debug2Format(&e));
-                }
-                if let Ok(html) = PathBuf::try_from("/apps/terminal/index.html") {
-                    if let Err(e) = fs.write(&html, TERMINAL_INDEX_HTML.as_bytes()) {
-                        defmt::warn!("apps: seed terminal index.html failed: {}", defmt::Debug2Format(&e));
-                    }
-                }
-            }
-        }
-
         Ok(())
     });
 }

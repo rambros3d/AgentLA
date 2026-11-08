@@ -145,19 +145,31 @@ impl PathRouterService<(), (AppParams,)> for AppFiles {
             }
         };
 
-        let is_file = with_fs(|fs| fs.metadata(&path_).map(|m| m.is_file()).unwrap_or(false))
+        let is_user_file = with_fs(|fs| fs.metadata(&path_).map(|m| m.is_file()).unwrap_or(false))
             .unwrap_or(false);
 
-        if !is_file {
-            return not_found(request, response_writer).await;
+        if is_user_file {
+            let mime = mime_for(path_.as_str());
+            let chunks = AppFileChunks { path: path_, mime };
+
+            return ChunkedResponse::new(chunks)
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
         }
 
-        let mime = mime_for(path_.as_str());
-        let chunks = AppFileChunks { path: path_, mime };
+        let is_sys_file = with_system_fs(|fs| fs.metadata(&path_).map(|m| m.is_file()).unwrap_or(false))
+            .unwrap_or(false);
 
-        ChunkedResponse::new(chunks)
-            .write_to(request.body_connection.finalize().await?, response_writer)
-            .await
+        if is_sys_file {
+            let mime = mime_for(path_.as_str());
+            let chunks = SystemFileChunks { path: path_, mime };
+
+            return ChunkedResponse::new(chunks)
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        not_found(request, response_writer).await
     }
 }
 

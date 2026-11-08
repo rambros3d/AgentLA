@@ -1927,6 +1927,139 @@ impl picoserve::routing::MethodHandlerService<()> for TerminalWebSocket {
     }
 }
 
+// ---------------------------------------------------------------------------
+// In-Browser CAN Bus Analyzer WebSocket Handler: /api/v1/can/ws
+// ---------------------------------------------------------------------------
+
+pub struct CanWebSocket;
+
+fn parse_can_json(s: &str) -> Option<crate::bridge::can_gsusb::CanWsFrame> {
+    let id_val = key_u32(None, s, "id")?;
+    let ext_val = s.contains(r#""ext":true"#) || s.contains(r#""ext": true"#);
+    let rtr_val = s.contains(r#""rtr":true"#) || s.contains(r#""rtr": true"#);
+    let dlc_val = key_u32(None, s, "dlc").unwrap_or(8).min(8) as u8;
+
+    let mut data = [0u8; 8];
+    if let Some(data_str) = key_str(None, s, "data") {
+        let bytes_str = data_str.as_str();
+        let mut idx = 0;
+        let mut i = 0;
+        while i + 1 < bytes_str.len() && idx < 8 {
+            if let Ok(byte) = u8::from_str_radix(&bytes_str[i..i + 2], 16) {
+                data[idx] = byte;
+                idx += 1;
+            }
+            i += 2;
+        }
+    }
+    Some(crate::bridge::can_gsusb::CanWsFrame {
+        id: id_val,
+        ext: ext_val,
+        rtr: rtr_val,
+        dlc: dlc_val,
+        data,
+        ts_us: (embassy_time::Instant::now().as_micros() & 0xFFFF_FFFF) as u32,
+    })
+}
+
+struct CanWsCallback;
+
+impl picoserve::response::ws::WebSocketCallback for CanWsCallback {
+    async fn run<R: picoserve::io::Read, W: picoserve::io::Write<Error = R::Error>>(
+        self,
+        mut rx: picoserve::response::ws::SocketRx<R>,
+        mut tx: picoserve::response::ws::SocketTx<W>,
+    ) -> Result<(), W::Error> {
+        let mut msg_buf = [0u8; 256];
+        let mut json_buf = heapless::String::<256>::new();
+
+        loop {
+            match rx.next_message(&mut msg_buf, crate::bridge::can_gsusb::wait_can_rx()).await {
+                Ok(picoserve::futures::Either::First(Ok(picoserve::response::ws::Message::Text(s)))) => {
+                    if let Some(frame) = parse_can_json(s) {
+                        crate::bridge::can_gsusb::transmit_can_ws_frame(&frame);
+                    }
+                }
+                Ok(picoserve::futures::Either::First(Ok(picoserve::response::ws::Message::Binary(b)))) => {
+                    if let Ok(s) = core::str::from_utf8(b) {
+                        if let Some(frame) = parse_can_json(s) {
+                            crate::bridge::can_gsusb::transmit_can_ws_frame(&frame);
+                        }
+                    }
+                }
+                Ok(picoserve::futures::Either::Second(())) => {
+                    while let Some(frame) = crate::bridge::can_gsusb::pop_can_rx_frame() {
+                        json_buf.clear();
+                        let mut hex_data = heapless::String::<17>::new();
+                        let dlc = (frame.dlc as usize).min(8);
+                        for b in &frame.data[..dlc] {
+                            let _ = core::write!(hex_data, "{:02X}", b);
+                        }
+                        let _ = core::write!(
+                            json_buf,
+                            r#"{{"id":{},"ext":{},"rtr":{},"dlc":{},"data":"{}","ts":{}}}"#,
+                            frame.id,
+                            frame.ext,
+                            frame.rtr,
+                            frame.dlc,
+                            hex_data.as_str(),
+                            frame.ts_us
+                        );
+                        let _ = tx.send_text(json_buf.as_str()).await;
+                    }
+                    let _ = tx.flush().await;
+                }
+                _ => break,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl picoserve::routing::MethodHandlerService<()> for CanWebSocket {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::METHOD_NOT_ALLOWED,
+                r#"{"error":"method_not_allowed"}"#,
+            )
+            .await;
+        }
+
+        crate::bridge::can_gsusb::adapter_can_start();
+
+        use picoserve::extract::FromRequest;
+        let upgrade = match picoserve::response::ws::WebSocketUpgrade::from_request(
+            &(),
+            request.parts,
+            request.body_connection.body(),
+        )
+        .await
+        {
+            Ok(u) => u,
+            Err(e) => {
+                return e
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        upgrade
+            .on_upgrade(CanWsCallback)
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
+}
+
 pub struct SystemTelemetry;
 
 impl picoserve::routing::MethodHandlerService<()> for SystemTelemetry {
