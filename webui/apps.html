@@ -37,6 +37,16 @@
         body {
             background-color: var(--bg-canvas, var(--bg-primary));
         }
+
+        /* Ensure smooth vertical scrolling for apps launcher workspace */
+        #main-workspace.launcher-workspace {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 <body>
@@ -357,7 +367,7 @@
     <!-- Floating macOS-Style Glass Dock -->
     <div class="floating-glass-dock" id="floating-glass-dock">
         <!-- Launcher (Active on apps page) -->
-        <a href="apps.html" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
+        <a href="apps.html" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="const ws = document.getElementById('main-workspace'); if(ws) ws.scrollTo({top: 0, behavior: 'smooth'}); else window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
             <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g fill="currentColor" opacity="0.5">
                     <path d="M17.5 13C19.6213 13 20.6818 13.0002 21.3408 13.6592C21.9998 14.3182 22 15.3787 22 17.5C22 19.6213 21.9998 20.6818 21.3408 21.3408C20.6818 21.9998 19.6213 22 17.5 22C15.3787 22 14.3182 21.9998 13.6592 21.3408C13.0002 20.6818 13 19.6213 13 17.5C13 15.3787 13.0002 14.3182 13.6592 13.6592C14.3182 13.0002 15.3787 13 17.5 13Z"/>
@@ -1479,6 +1489,9 @@
             if (viewAppStore) viewAppStore.style.display = (view === 'store') ? 'block' : 'none';
 
             try { history.replaceState(null, '', '#' + view); } catch (_) {}
+
+            const ws = document.getElementById('main-workspace');
+            if (ws) ws.scrollTo({ top: 0, behavior: 'smooth' });
 
             if (view === 'store') {
                 if (catalogApps.length === 0) fetchCatalog();
