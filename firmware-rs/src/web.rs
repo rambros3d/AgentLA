@@ -177,6 +177,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
     picoserve::Router::new()
         .route("/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/lab", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/apps", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
         .route("/apps.html", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
         .route("/app.js", get_service(crate::fs_http::SystemWebFile::new("app.js", "application/javascript")))

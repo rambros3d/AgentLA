@@ -4253,8 +4253,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnPins = document.getElementById('nav-mode-pins');
     const btnConsole = document.getElementById('nav-mode-console');
 
-    // Wire all mode buttons (desktop vertical rail & mobile bottom dock)
-    document.querySelectorAll('.sub-btn[data-mode]').forEach(btn => {
+    // Wire all mode buttons (desktop vertical rail, dock, & sub-btns)
+    document.querySelectorAll('.sub-btn[data-mode], .dock-icon-btn[data-mode]').forEach(btn => {
         btn.addEventListener('click', () => {
             const mode = btn.getAttribute('data-mode');
             if (mode) switchMode(mode);
@@ -4712,20 +4712,248 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { initProfileManager(); } catch (err) { console.error('[Init] Error in initProfileManager:', err); }
     try { initAdaptersMasterDetail(); } catch (err) { console.error('[Init] Error in initAdaptersMasterDetail:', err); }
 
-    // 13. Fade out loading overlay within 500ms
-    const loadingScreen = document.getElementById('loading-screen');
-    if (loadingScreen) {
-        setTimeout(() => {
-            loadingScreen.classList.add('fade-out');
-            setTimeout(() => { loadingScreen.style.display = 'none'; }, 400);
-        }, 150);
-    }
-
-    // 14. Initial Pin and Telemetry Sync
+    // 13. Initial Pin and Telemetry Sync
     try { syncPinRegistry(); } catch (err) { console.error('[Init] Error in syncPinRegistry:', err); }
     setInterval(() => {
         try { syncPinRegistry(); } catch (err) { console.error('[Sync] Error in periodic syncPinRegistry:', err); }
     }, 4000);
 
+    // 15. Hash Deep Linking & Dock Initialization
+    try { applyHashMode(); } catch (err) { console.error('[Init] Error in applyHashMode:', err); }
+    try { initTelemetryHUD(); } catch (err) { console.error('[Init] Error in initTelemetryHUD:', err); }
+    try { fetchStorage(); } catch (err) { console.error('[Init] Error in fetchStorage:', err); }
+
     console.log('AgentLA Unified Scope & Debugger initialized.');
+});
+
+// --------------------------------------------------------------------------
+// URL Hash Deep Linking & Mode Synchronizer
+// --------------------------------------------------------------------------
+function applyHashMode() {
+    const rawHash = (window.location.hash || '').replace(/^#\/?/, '').toLowerCase().trim();
+    if (!rawHash) return;
+    const cleanHash = rawHash.split('?')[0].split('&')[0];
+    if (cleanHash === 'scope' || cleanHash === 'bench') {
+        switchMode('scope');
+    } else if (cleanHash === 'adapters' || cleanHash === 'adapter') {
+        switchMode('adapters');
+    } else if (cleanHash === 'target' || cleanHash === 'debugger' || cleanHash === 'flasher' || cleanHash === 'debug') {
+        switchMode('target');
+    } else if (cleanHash === 'pins' || cleanHash === 'matrix') {
+        switchMode('pins');
+    } else if (cleanHash === 'console' || cleanHash === 'repl' || cleanHash === 'shell' || cleanHash === 'command') {
+        switchMode('console');
+    }
+}
+window.addEventListener('hashchange', applyHashMode);
+
+// --------------------------------------------------------------------------
+// Floating Dock Utilities: Telemetry HUD, Storage Popover & Terminal
+// --------------------------------------------------------------------------
+function toggleTelemetryHUD(e, forceState) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const hud = document.getElementById('telemetry-hud');
+    const btn = document.getElementById('dock-btn-telemetry');
+    if (!hud) return;
+    const isVisible = hud.style.display !== 'none';
+    const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
+    hud.style.display = show ? 'block' : 'none';
+    if (btn) btn.classList.toggle('active', show);
+}
+
+function toggleStoragePopover(e, forceState) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const popover = document.getElementById('storage-glass-popover');
+    const btn = document.getElementById('dock-btn-storage');
+    if (!popover) return;
+    const isVisible = popover.style.display !== 'none';
+    const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
+    popover.style.display = show ? 'block' : 'none';
+    if (btn) btn.classList.toggle('active', show);
+    if (show) {
+        fetchStorage();
+    }
+}
+
+function openTerminalApp() {
+    const isDemo = window.location.protocol === 'https:' || 
+                   window.location.hostname.includes('github.io') ||
+                   window.location.search.includes('demo=1') ||
+                   window.location.pathname.endsWith('.html');
+    if (isDemo) {
+        window.location.href = 'apps/terminal/index.html';
+    } else {
+        window.location.href = '/apps/terminal/';
+    }
+}
+
+let deviceStorageData = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
+let deviceSystemData = { chip: "RP2350B", board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0-Forest" };
+
+async function fetchStorage() {
+    try {
+        const res = await fetch('/api/v1/apps/storage');
+        if (res.ok) {
+            deviceStorageData = await res.json();
+        }
+    } catch (_) {}
+    try {
+        const resSys = await fetch('/api/v1/system');
+        if (resSys.ok) {
+            deviceSystemData = await resSys.json();
+        }
+    } catch (_) {}
+    updateStorageDisplay();
+}
+
+function updateStorageDisplay() {
+    const romBytes = 1638400; // ~1.56 MB System ROM
+    const totalFlash = deviceSystemData.flash_bytes || (8 * 1024 * 1024);
+    const lfsTotal = deviceStorageData.total_bytes || (totalFlash - romBytes);
+    const lfsUsed = deviceStorageData.used_bytes || 1468006;
+    const lfsFree = (lfsTotal > lfsUsed) ? (lfsTotal - lfsUsed) : (deviceStorageData.free_bytes || 6920602);
+
+    const romPct = ((romBytes / totalFlash) * 100).toFixed(1);
+    const appsPct = ((lfsUsed / totalFlash) * 100).toFixed(1);
+    const freePct = Math.max(0, (100 - parseFloat(romPct) - parseFloat(appsPct))).toFixed(1);
+
+    const segRom = document.getElementById('seg-rom');
+    const segApps = document.getElementById('seg-apps');
+    const segFree = document.getElementById('seg-free');
+    if (segRom) segRom.style.width = `${romPct}%`;
+    if (segApps) segApps.style.width = `${appsPct}%`;
+    if (segFree) segFree.style.width = `${freePct}%`;
+
+    const formatBytes = (bytes) => {
+        if (!bytes || bytes <= 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    const lblRom = document.getElementById('label-rom');
+    const lblApps = document.getElementById('label-apps');
+    const lblFree = document.getElementById('label-free');
+    if (lblRom) lblRom.innerText = formatBytes(romBytes);
+    if (lblApps) lblApps.innerText = `${formatBytes(lfsUsed)} (${appsPct}%)`;
+    if (lblFree) lblFree.innerText = `${formatBytes(lfsFree)} (${freePct}%)`;
+
+    // Populate Hardware & Firmware System Specs inside Popover
+    const elChip = document.getElementById('popover-info-chip');
+    const elClock = document.getElementById('popover-info-clock');
+    const elBoard = document.getElementById('popover-info-board');
+    const elFw = document.getElementById('popover-info-fw');
+    if (elChip) elChip.innerText = deviceSystemData.chip ? `${deviceSystemData.chip} Cortex-M33` : "RP2350B Cortex-M33";
+    if (elClock) elClock.innerText = (deviceSystemData.clock_mhz ? `${deviceSystemData.clock_mhz}MHz` : "150MHz") + " · 520KB";
+    if (elBoard) elBoard.innerText = deviceSystemData.board_name || "BakuProbe / Pico 2";
+    if (elFw) elFw.innerText = deviceSystemData.firmware_version || "v2.0-Forest";
+}
+
+function initTelemetryHUD() {
+    const matrix = document.getElementById('hud-pin-matrix');
+    if (matrix) {
+        matrix.innerHTML = '';
+        for (let i = 0; i < 30; i++) {
+            const chip = document.createElement('div');
+            chip.className = 'hud-pin-chip hud-pin-free';
+            chip.id = `hud-pin-${i}`;
+            chip.textContent = `${i}`;
+            chip.title = `GP${i}: free`;
+            matrix.appendChild(chip);
+        }
+    }
+
+    const toggleBtn = document.getElementById('hud-toggle-btn');
+    const hudHeader = document.getElementById('hud-header');
+    const hudBody = document.getElementById('hud-body');
+    const hudChevron = document.getElementById('hud-chevron');
+
+    let collapsed = false;
+    function toggleHud() {
+        collapsed = !collapsed;
+        if (hudBody) hudBody.style.display = collapsed ? 'none' : 'flex';
+        if (hudChevron) hudChevron.style.transform = collapsed ? 'rotate(180deg)' : 'none';
+    }
+    if (toggleBtn) toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleHud(); });
+    if (hudHeader) hudHeader.addEventListener('click', toggleHud);
+
+    function updateTelemetryUI(data) {
+        if (!data) return;
+        const vtarget = document.getElementById('hud-vtarget');
+        if (vtarget && data.v_target_mv !== undefined) vtarget.textContent = (data.v_target_mv / 1000).toFixed(2) + ' V';
+
+        const itarget = document.getElementById('hud-itarget');
+        if (itarget && data.i_target_ma !== undefined) itarget.textContent = data.i_target_ma + ' mA';
+
+        const ptarget = document.getElementById('hud-ptarget');
+        if (ptarget && data.p_target_mw !== undefined) ptarget.textContent = data.p_target_mw + ' mW';
+
+        const temp = document.getElementById('hud-temp');
+        if (temp && data.temp_c !== undefined) temp.textContent = data.temp_c + ' °C';
+
+        const alarmBadge = document.getElementById('hud-alarm-badge');
+        const overcurrentBanner = document.getElementById('hud-overcurrent-banner');
+        if (data.alarm === 'overcurrent_trip') {
+            if (alarmBadge) alarmBadge.style.display = 'inline-block';
+            if (overcurrentBanner) overcurrentBanner.style.display = 'flex';
+        } else {
+            if (alarmBadge) alarmBadge.style.display = 'none';
+            if (overcurrentBanner) overcurrentBanner.style.display = 'none';
+        }
+
+        if (Array.isArray(data.pins)) {
+            data.pins.forEach(p => {
+                const el = document.getElementById(`hud-pin-${p.pin}`);
+                if (el) {
+                    el.className = `hud-pin-chip hud-pin-${p.owner}`;
+                    el.title = `GP${p.pin}: ${p.owner}`;
+                }
+            });
+        }
+    }
+
+    // Connect to 10 Hz SSE telemetry stream
+    try {
+        const sse = new EventSource('/api/v1/system/telemetry/stream');
+        sse.addEventListener('telemetry', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                updateTelemetryUI(data);
+            } catch (_) {}
+        });
+        sse.onerror = () => {
+            // Fallback to REST polling
+            setInterval(async () => {
+                try {
+                    const res = await fetch('/api/v1/system/telemetry');
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateTelemetryUI(data);
+                    }
+                } catch (_) {}
+            }, 1000);
+        };
+    } catch (_) {}
+}
+
+// Click outside handling for storage popover & telemetry HUD
+document.addEventListener('click', (e) => {
+    const popover = document.getElementById('storage-glass-popover');
+    const storageBtn = document.getElementById('dock-btn-storage');
+    if (popover && popover.style.display !== 'none') {
+        if (!storageBtn || (!storageBtn.contains(e.target) && !popover.contains(e.target))) {
+            popover.style.display = 'none';
+            if (storageBtn) storageBtn.classList.remove('active');
+        }
+    }
+
+    const hud = document.getElementById('telemetry-hud');
+    const telemBtn = document.getElementById('dock-btn-telemetry');
+    if (hud && hud.style.display !== 'none') {
+        if (!telemBtn || (!telemBtn.contains(e.target) && !hud.contains(e.target))) {
+            hud.style.display = 'none';
+            if (telemBtn) telemBtn.classList.remove('active');
+        }
+    }
 });

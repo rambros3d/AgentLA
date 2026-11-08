@@ -130,185 +130,289 @@
         <main id="main-workspace" class="main-workspace launcher-workspace">
             <div class="launcher-container">
 
-                <!-- Centered Spotlight Search Bar -->
-                <div class="launcher-spotlight">
-                    <div class="launcher-spotlight-wrapper">
-                        <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                        </svg>
-                        <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search apps, instruments, and protocols... (Press / to focus)" autocomplete="off">
-                        <kbd class="kbd kbd-sm spotlight-shortcut-hint">/</kbd>
+                <!-- OS View Switcher Segmented Control -->
+                <div style="display: flex; justify-content: center; width: 100%; margin-bottom: 4px;">
+                    <div class="os-nav-switcher" role="tablist">
+                        <button class="os-switch-btn active" id="tab-btn-launchpad" onclick="switchLauncherView('launchpad')">
+                            <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g fill="currentColor" opacity="0.5">
+                                    <path d="M17.5 13C19.6213 13 20.6818 13.0002 21.3408 13.6592C21.9998 14.3182 22 15.3787 22 17.5C22 19.6213 21.9998 20.6818 21.3408 21.3408C20.6818 21.9998 19.6213 22 17.5 22C15.3787 22 14.3182 21.9998 13.6592 21.3408C13.0002 20.6818 13 19.6213 13 17.5C13 15.3787 13.0002 14.3182 13.6592 13.6592C14.3182 13.0002 15.3787 13 17.5 13Z"/>
+                                    <path d="M6.5 2C8.62132 2 9.68181 2.00017 10.3408 2.65918C10.9998 3.31819 11 4.37868 11 6.5C11 8.62132 10.9998 9.68181 10.3408 10.3408C9.68181 10.9998 8.62132 11 6.5 11C4.37868 11 3.31819 10.9998 2.65918 10.3408C2.00017 9.68181 2 8.62132 2 6.5C2 4.37868 2.00017 3.31819 2.65918 2.65918C3.31819 2.00017 4.37868 2 6.5 2Z"/>
+                                </g>
+                                <path fill="currentColor" d="M6.5 13C8.62132 13 9.68181 13.0002 10.3408 13.6592C10.9998 14.3182 11 15.3787 11 17.5C11 19.6213 10.9998 20.6818 10.3408 21.3408C9.68181 21.9998 8.62132 22 6.5 22C4.37868 22 3.31819 21.9998 2.65918 21.3408C2.00017 20.6818 2 19.6213 2 17.5C2 15.3787 2.00017 14.3182 2.65918 13.6592C3.31819 13.0002 4.37868 13 6.5 13Z"/>
+                                <path fill="currentColor" d="M17.5 2C19.6213 2 20.6818 2.00017 21.3408 2.65918C21.9998 3.31819 22 4.37868 22 6.5C22 8.62132 21.9998 9.68181 21.3408 10.3408C20.6818 10.9998 19.6213 11 17.5 11C15.3787 11 14.3182 10.9998 13.6592 10.3408C13.0002 9.68181 13 8.62132 13 6.5C13 4.37868 13.0002 3.31819 13.6592 2.65918C14.3182 2.00017 15.3787 2 17.5 2Z"/>
+                            </svg>
+                            Launchpad
+                        </button>
+                        <button class="os-switch-btn" id="tab-btn-appstore" onclick="switchLauncherView('store')">
+                            <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path opacity="0.5" d="M3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355Z" fill="currentColor"/>
+                                <path d="M12 7C9.23858 7 7 9.23858 7 12C7 14.7614 9.23858 17 12 17C14.7614 17 17 14.7614 17 12C17 9.23858 14.7614 7 12 7ZM8.5 12C8.5 10.067 10.067 8.5 12 8.5C13.933 8.5 15.5 10.067 15.5 12C15.5 13.933 13.933 15.5 12 15.5C10.067 15.5 8.5 13.933 8.5 12Z" fill="currentColor"/>
+                            </svg>
+                            App Store
+                        </button>
                     </div>
                 </div>
 
-                <!-- Section 1: Core Apps -->
-                <section class="launcher-section" id="section-core-instruments">
-                    <div class="launcher-section-header">
-                        <h2 class="launcher-section-title">
-                            <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                <!-- VIEW 1: Launchpad Desktop View -->
+                <div id="view-launchpad">
+                    <!-- Centered Spotlight Search Bar -->
+                    <div class="launcher-spotlight">
+                        <div class="launcher-spotlight-wrapper">
+                            <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                             </svg>
-                            Core Apps
-                        </h2>
+                            <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search apps, instruments, and protocols... (Press / to focus)" autocomplete="off">
+                            <kbd class="kbd kbd-sm spotlight-shortcut-hint">/</kbd>
+                        </div>
                     </div>
-                    <div class="launcher-app-grid">
-                        <!-- Scope Tile -->
-                        <button class="os-squircle-tile" onclick="openLab('scope')" data-name="Scope" data-tags="Scope Logic Analyzer Oscilloscope Analog Digital 100MS/s" title="Mixed-Signal Logic Analyzer &amp; Digital Storage Oscilloscope">
-                            <div class="os-squircle-icon">
-                                <svg class="solar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-                                    <path d="M17.5762 10.4802C17.8414 10.1619 17.7984 9.68903 17.4802 9.42385C17.1619 9.15868 16.689 9.20167 16.4239 9.51988L14.627 11.6761C14.2562 12.1211 14.0285 12.3915 13.8409 12.5609C13.7539 12.6395 13.7023 12.6708 13.6776 12.6827C13.6725 12.6852 13.6689 12.6866 13.6667 12.6875C13.6667 12.6875 13.6624 12.6858 13.659 12.6843L13.6558 12.6827C13.6311 12.6708 13.5795 12.6395 13.4925 12.5609C13.3049 12.3915 13.0772 12.1211 12.7064 11.6761L12.414 11.3253C12.0855 10.931 11.7894 10.5756 11.5128 10.3259C11.2119 10.0541 10.8328 9.81207 10.3334 9.81207C9.83386 9.81207 9.4548 10.0541 9.15386 10.3259C8.87727 10.5756 8.58115 10.931 8.25269 11.3253L6.42385 13.5199C6.15868 13.8381 6.20167 14.311 6.51988 14.5762C6.83809 14.8414 7.31101 14.7984 7.57619 14.4802L9.37308 12.3239C9.74387 11.8789 9.97157 11.6085 10.1592 11.4391C10.2461 11.3606 10.2978 11.3293 10.3225 11.3173L10.3292 11.3142L10.3334 11.3126C10.3356 11.3134 10.3392 11.3149 10.3442 11.3173C10.369 11.3293 10.4206 11.3606 10.5076 11.4391C10.6951 11.6085 10.9228 11.8789 11.2936 12.3239L11.586 12.6748L11.586 12.6748C11.9145 13.069 12.2106 13.4244 12.4872 13.6742C12.7881 13.9459 13.1672 14.188 13.6667 14.188C14.1662 14.188 14.5452 13.9459 14.8462 13.6742C15.1228 13.4244 15.4189 13.069 15.7473 12.6748L17.5762 10.4802Z" fill="currentColor"/>
-                                </svg>
-                            </div>
-                            <div class="os-app-label">Scope</div>
-                            <div class="os-app-sublabel">MSO &amp; Logic</div>
-                        </button>
 
-                        <!-- Adapter Tile -->
-                        <button class="os-squircle-tile" onclick="openLab('adapters')" data-name="Adapter" data-tags="I2C SPI UART CAN SWD USB Adapters Bridges" title="Hardware Bus Protocol Adapters">
-                            <div class="os-squircle-icon">
-                                <svg class="solar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path opacity="0.5" d="M3.46447 20.5355C4.92893 22 7.28595 22 12 22C16.714 22 19.0711 22 20.5355 20.5355C22 19.0711 22 16.714 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
-                                    <path d="M9.5 8.75C7.70507 8.75 6.25 10.2051 6.25 12C6.25 13.7949 7.70507 15.25 9.5 15.25C11.2949 15.25 12.75 13.7949 12.75 12C12.75 11.5858 13.0858 11.25 13.5 11.25C13.9142 11.25 14.25 11.5858 14.25 12C14.25 14.6234 12.1234 16.75 9.5 16.75C6.87665 16.75 4.75 14.6234 4.75 12C4.75 9.37665 6.87665 7.25 9.5 7.25C9.91421 7.25 10.25 7.58579 10.25 8C10.25 8.41421 9.91421 8.75 9.5 8.75Z" fill="currentColor"/>
-                                    <path d="M17.75 12C17.75 13.7949 16.2949 15.25 14.5 15.25C14.0858 15.25 13.75 15.5858 13.75 16C13.75 16.4142 14.0858 16.75 14.5 16.75C17.1234 16.75 19.25 14.6234 19.25 12C19.25 9.37665 17.1234 7.25 14.5 7.25C11.8766 7.25 9.75 9.37665 9.75 12C9.75 12.4142 10.0858 12.75 10.5 12.75C10.9142 12.75 11.25 12.4142 11.25 12C11.25 10.2051 12.7051 8.75 14.5 8.75C16.2949 8.75 17.75 10.2051 17.75 12Z" fill="currentColor"/>
+                    <!-- Section 1: Core Apps & Instruments -->
+                    <section class="launcher-section" id="section-core-instruments">
+                        <div class="launcher-section-header">
+                            <h2 class="launcher-section-title">
+                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                                 </svg>
-                            </div>
-                            <div class="os-app-label">Adapter</div>
-                            <div class="os-app-sublabel">I2C · SPI · UART · CAN</div>
-                        </button>
+                                System Instruments
+                            </h2>
+                        </div>
+                        <div class="os-squircle-grid">
+                            <!-- Scope -->
+                            <button class="os-squircle-tile accent-scope" onclick="openLab('scope')" data-name="Scope" data-tags="Scope Logic Analyzer Oscilloscope Analog Digital 100MS/s" data-desc="Mixed-Signal Logic Analyzer & Digital Storage Oscilloscope" title="Scope (100 MS/s Logic & DSO)">
+                                <div class="os-squircle-icon">
+                                    <svg class="solar-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                                        <path d="M17.5762 10.4802C17.8414 10.1619 17.7984 9.68903 17.4802 9.42385C17.1619 9.15868 16.689 9.20167 16.4239 9.51988L14.627 11.6761C14.2562 12.1211 14.0285 12.3915 13.8409 12.5609C13.7539 12.6395 13.7023 12.6708 13.6776 12.6827C13.6725 12.6852 13.6689 12.6866 13.6667 12.6875C13.6667 12.6875 13.6624 12.6858 13.659 12.6843L13.6558 12.6827C13.6311 12.6708 13.5795 12.6395 13.4925 12.5609C13.3049 12.3915 13.0772 12.1211 12.7064 11.6761L12.414 11.3253C12.0855 10.931 11.7894 10.5756 11.5128 10.3259C11.2119 10.0541 10.8328 9.81207 10.3334 9.81207C9.83386 9.81207 9.4548 10.0541 9.15386 10.3259C8.87727 10.5756 8.58115 10.931 8.25269 11.3253L6.42385 13.5199C6.15868 13.8381 6.20167 14.311 6.51988 14.5762C6.83809 14.8414 7.31101 14.7984 7.57619 14.4802L9.37308 12.3239C9.74387 11.8789 9.97157 11.6085 10.1592 11.4391C10.2461 11.3606 10.2978 11.3293 10.3225 11.3173L10.3292 11.3142L10.3334 11.3126C10.3356 11.3134 10.3392 11.3149 10.3442 11.3173C10.369 11.3293 10.4206 11.3606 10.5076 11.4391C10.6951 11.6085 10.9228 11.8789 11.2936 12.3239L11.586 12.6748L11.586 12.6748C11.9145 13.069 12.2106 13.4244 12.4872 13.6742C12.7881 13.9459 13.1672 14.188 13.6667 14.188C14.1662 14.188 14.5452 13.9459 14.8462 13.6742C15.1228 13.4244 15.4189 13.069 15.7473 12.6748L17.5762 10.4802Z" fill="currentColor"/>
+                                    </svg>
+                                    <span class="os-squircle-badge">100M</span>
+                                </div>
+                                <span class="os-squircle-label">Scope</span>
+                                <span class="os-squircle-sublabel">Logic &amp; DSO</span>
+                            </button>
 
-                        <!-- Debugger Tile -->
-                        <button class="os-squircle-tile" onclick="openLab('debugger')" data-name="Debugger" data-tags="Debugger SWD Debug Target Station Flash GDB" title="SWD Target Debugger Station">
-                            <div class="os-squircle-icon">
-                                <svg class="solar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path opacity="0.5" d="M5 10C5 6.13401 8.13401 3 12 3C15.866 3 19 6.13401 19 10V15C19 18.866 15.866 22 12 22C8.13401 22 5 18.866 5 15V10Z" fill="currentColor"/>
-                                    <path d="M5.44141 17.4522C5.60567 17.8913 5.81277 18.31 6.05762 18.7022C5.98315 18.785 5.88875 18.8523 5.77832 18.8965L3.77832 19.6963C3.3939 19.85 2.95769 19.6636 2.80371 19.2793C2.64988 18.8947 2.83709 18.4576 3.22168 18.3037L5.22168 17.5039C5.29385 17.4751 5.3678 17.458 5.44141 17.4522Z" fill="currentColor"/>
-                                    <path d="M18.5586 17.4522C18.6322 17.458 18.7062 17.4751 18.7783 17.5039L20.7783 18.3037C21.1629 18.4576 21.3501 18.8947 21.1963 19.2793C21.0423 19.6636 20.6061 19.85 20.2217 19.6963L18.2217 18.8965C18.1112 18.8523 18.0168 18.785 17.9424 18.7022C18.1872 18.31 18.3943 17.8913 18.5586 17.4522Z" fill="currentColor"/>
-                                    <path d="M13.5 14.75C13.9142 14.75 14.25 15.0858 14.25 15.5C14.25 15.9142 13.9142 16.25 13.5 16.25H10.5C10.0858 16.25 9.75 15.9142 9.75 15.5C9.75 15.0858 10.0858 14.75 10.5 14.75H13.5Z" fill="currentColor"/>
-                                    <path d="M5 13.75H2C1.58579 13.75 1.25 13.4142 1.25 13C1.25004 12.5859 1.58581 12.25 2 12.25H5V13.75Z" fill="currentColor"/>
-                                    <path d="M22 12.25C22.4142 12.25 22.75 12.5859 22.75 13C22.75 13.4142 22.4142 13.75 22 13.75H19V12.25H22Z" fill="currentColor"/>
-                                    <path d="M13.5 9.75003C13.9142 9.75003 14.25 10.0858 14.25 10.5C14.25 10.9142 13.9142 11.25 13.5 11.25H10.5C10.0858 11.25 9.75 10.9142 9.75 10.5C9.75 10.0858 10.0858 9.75003 10.5 9.75003H13.5Z" fill="currentColor"/>
-                                    <path d="M2.80371 6.72171C2.95751 6.33722 3.39381 6.15013 3.77832 6.30374L5.57617 7.02249C5.60069 7.0323 5.62459 7.04368 5.64746 7.0557C5.44123 7.49989 5.2798 7.96925 5.16992 8.45804C5.11947 8.44925 5.06898 8.4358 5.01953 8.41605L3.22168 7.69632C2.83714 7.54251 2.64998 7.10627 2.80371 6.72171Z" fill="currentColor"/>
-                                    <path d="M20.2217 6.30374C20.6062 6.15013 21.0425 6.33723 21.1963 6.72171C21.35 7.10627 21.1629 7.54251 20.7783 7.69632L18.9805 8.41605C18.931 8.4358 18.8805 8.44925 18.8301 8.45804C18.7202 7.96925 18.5588 7.49989 18.3525 7.0557C18.3754 7.04368 18.3993 7.0323 18.4238 7.02249L20.2217 6.30374Z" fill="currentColor"/>
-                                    <path d="M6.37598 1.58402C6.60575 1.23943 7.07139 1.14629 7.41602 1.37601L10.2021 3.23343C9.60992 3.3904 9.04797 3.6226 8.52832 3.91995L6.58398 2.62406C6.23937 2.39428 6.14622 1.92865 6.37598 1.58402Z" fill="currentColor"/>
-                                    <path d="M16.584 1.37601C16.9286 1.14629 17.3943 1.23943 17.624 1.58402C17.8538 1.92865 17.7606 2.39428 17.416 2.62406L15.4717 3.91995C14.952 3.6226 14.3901 3.3904 13.7979 3.23343L16.584 1.37601Z" fill="currentColor"/>
-                                </svg>
-                            </div>
-                            <div class="os-app-label">Debugger</div>
-                            <div class="os-app-sublabel">SWD Target Station</div>
-                        </button>
+                            <!-- Protocol Adapters -->
+                            <button class="os-squircle-tile accent-adapter" onclick="openLab('adapters')" data-name="Protocol Adapters" data-tags="I2C SPI UART CAN SWD USB Adapters Bridges" data-desc="Hardware bus protocol adapters, bridges, scriptable transfers, and packet injector." title="Protocol Adapters (I2C·SPI·UART·CAN)">
+                                <div class="os-squircle-icon">
+                                    <svg class="solar-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path opacity="0.5" d="M3.46447 20.5355C4.92893 22 7.28595 22 12 22C16.714 22 19.0711 22 20.5355 20.5355C22 19.0711 22 16.714 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
+                                        <path d="M9.5 8.75C7.70507 8.75 6.25 10.2051 6.25 12C6.25 13.7949 7.70507 15.25 9.5 15.25C11.2949 15.25 12.75 13.7949 12.75 12C12.75 11.5858 13.0858 11.25 13.5 11.25C13.9142 11.25 14.25 11.5858 14.25 12C14.25 14.6234 12.1234 16.75 9.5 16.75C6.87665 16.75 4.75 14.6234 4.75 12C4.75 9.37665 6.87665 7.25 9.5 7.25C9.91421 7.25 10.25 7.58579 10.25 8C10.25 8.41421 9.91421 8.75 9.5 8.75Z" fill="currentColor"/>
+                                        <path d="M17.75 12C17.75 13.7949 16.2949 15.25 14.5 15.25C14.0858 15.25 13.75 15.5858 13.75 16C13.75 16.4142 14.0858 16.75 14.5 16.75C17.1234 16.75 19.25 14.6234 19.25 12C19.25 9.37665 17.1234 7.25 14.5 7.25C11.8766 7.25 9.75 9.37665 9.75 12C9.75 12.4142 10.0858 12.75 10.5 12.75C10.9142 12.75 11.25 12.4142 11.25 12C11.25 10.2051 12.7051 8.75 14.5 8.75C16.2949 8.75 17.75 10.2051 17.75 12Z" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <span class="os-squircle-label">Adapters</span>
+                                <span class="os-squircle-sublabel">I2C·SPI·CAN</span>
+                            </button>
 
-                        <!-- Pin Control Tile -->
-                        <button class="os-squircle-tile" onclick="openLab('pins')" data-name="Pin Control" data-tags="Pins GPIO Matrix Multiplexer Routing Crossbar" title="Hardware Pin Routing Crossbar Switch">
-                            <div class="os-squircle-icon">
-                                <svg class="solar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C12.3853 3 12.6977 3.31236 12.6977 3.69767V6.48884C13.2084 6.48991 13.6717 6.49342 14.0932 6.50495L14.093 6.48837V3.69767C14.093 3.31236 14.4054 3 14.7907 3C15.176 3 15.4884 3.31236 15.4884 3.69767V6.48837C15.4884 6.52487 15.4856 6.56072 15.4802 6.5957C16.4162 6.71067 17.0648 6.94879 17.558 7.44198C18.0512 7.93517 18.2893 8.58381 18.4043 9.51984C18.4393 9.51443 18.4751 9.51163 18.5116 9.51163H21.3023C21.6876 9.51163 22 9.82399 22 10.2093C22 10.5946 21.6876 10.907 21.3023 10.907H18.5116L18.495 10.9068C18.5066 11.3283 18.5106 11.7916 18.5116 12.3023H21.3023C21.6876 12.3023 22 12.6147 22 13C22 13.3853 21.6876 13.6977 21.3023 13.6977L18.5112 13.6977C18.5101 14.2084 18.5066 14.6717 18.495 15.0932L18.5116 15.093H21.3023C21.6876 15.093 22 15.4054 22 15.7907C22 16.176 21.6876 16.4884 21.3023 16.4884H18.5116C18.4751 16.4884 18.4393 16.4856 18.4043 16.4802C18.2893 17.4162 18.0512 18.0648 17.558 18.558C17.0648 19.0512 16.4162 19.2893 15.4802 19.4043C15.4856 19.4393 15.4884 19.4751 15.4884 19.5116V22.3023C15.4884 22.6876 15.176 23 14.7907 23C14.4054 23 14.093 22.6876 14.093 22.3023V19.5116L14.0932 19.495C13.6717 19.5066 13.2084 19.5106 12.6977 19.5116V22.3023C12.6977 22.6876 12.3853 23 12 23C11.6147 23 11.3023 22.6876 11.3023 22.3023L11.3023 19.5112C10.7916 19.5101 10.3283 19.5066 9.90678 19.495L9.90698 19.5116V22.3023C9.90698 22.6876 9.59462 23 9.2093 23C8.82399 23 8.51163 22.6876 8.51163 22.3023V19.5116C8.51163 19.4751 8.51443 19.4393 8.51984 19.4043C7.58381 19.2893 6.93517 19.0512 6.44198 18.558C5.94879 18.0648 5.71067 17.4162 5.5957 16.4802C5.56071 16.4856 5.52487 16.4884 5.48837 16.4884H2.69767C2.31236 16.4884 2 16.176 2 15.7907C2 15.4054 2.31236 15.093 2.69767 15.093H5.48837L5.50495 15.0932C5.49342 14.6717 5.48944 14.2084 5.48837 13.6977H2.69767C2.31236 13.6977 2 13.3853 2 13C2 12.6147 2.31236 12.3023 2.69767 12.3023L5.48884 12.3023C5.48991 11.7916 5.49342 11.3283 5.50495 10.9068L5.48837 10.907H2.69767C2.31236 10.907 2 10.5946 2 10.2093C2 9.82399 2.31236 9.51163 2.69767 9.51163H5.48837C5.52487 9.51163 5.56071 9.51443 5.5957 9.51984C5.71067 8.58381 5.94879 7.93517 6.44198 7.44198C6.93517 6.94879 7.58381 6.71067 8.51984 6.5957C8.51443 6.56072 8.51163 6.52487 8.51163 6.48837V3.69767C8.51163 3.31236 8.82399 3 9.2093 3C9.59462 3 9.90698 3.31236 9.90698 3.69767V6.48837L9.90678 6.50495C10.3283 6.49342 10.7916 6.48944 11.3023 6.48837V3.69767C11.3023 3.31236 11.6147 3 12 3ZM11.0238 8.5814C10.4054 8.58136 9.87247 8.58133 9.44573 8.63871C8.98839 8.70019 8.55001 8.83885 8.19443 9.19443C7.83885 9.55001 7.70019 9.98839 7.63871 10.4457C7.58133 10.8725 7.58136 11.4054 7.5814 12.0238V13.9762C7.58136 14.5946 7.58133 15.1275 7.63871 15.5543C7.70019 16.0116 7.83885 16.45 8.19443 16.8056C8.55001 17.1612 8.98839 17.2998 9.44573 17.3613C9.87247 17.4187 10.4054 17.4186 11.0238 17.4186H12.9762C13.5946 17.4186 14.1275 17.4187 14.5543 17.3613C15.0116 17.2998 15.45 17.1612 15.8056 16.8056C16.1612 16.45 16.2998 16.0116 16.3613 15.5543C16.4187 15.1275 16.4186 14.5946 16.4186 13.9762V12.0238C16.4186 11.4054 16.4187 10.8725 16.3613 10.4457C16.2998 9.98839 16.1612 9.55001 15.8056 9.19443C15.45 8.83885 15.0116 8.70019 14.5543 8.63871C14.1275 8.58133 13.5947 8.58136 12.9762 8.5814H11.0238Z" fill="currentColor"/>
-                                    <path opacity="0.5" d="M9.18091 10.1809C9.23402 10.1278 9.32886 10.0621 9.63147 10.0214C9.95415 9.97804 10.3921 9.97656 11.0696 9.97656H12.9301C13.6075 9.97656 14.0455 9.97804 14.3682 10.0214C14.6708 10.0621 14.7656 10.1278 14.8187 10.1809C14.8718 10.234 14.9375 10.3289 14.9782 10.6315C15.0216 10.9542 15.0231 11.3921 15.0231 12.0696V13.9301C15.0231 14.6075 15.0216 15.0455 14.9782 15.3682C14.9375 15.6708 14.8718 15.7656 14.8187 15.8187C14.7656 15.8718 14.6708 15.9375 14.3682 15.9782C14.0455 16.0216 13.6075 16.0231 12.9301 16.0231H11.0696C10.3921 16.0231 9.95415 16.0216 9.63147 15.9782C9.32886 15.9375 9.23402 15.8718 9.18091 15.8187C9.1278 15.7656 9.06211 15.6708 9.02143 15.3682C8.97804 15.0455 8.97656 14.6075 8.97656 13.9301V12.0696C8.97656 11.3921 8.97804 10.9542 9.02143 10.6315C9.06211 10.3289 9.1278 10.234 9.18091 10.1809Z" fill="currentColor"/>
-                                </svg>
-                            </div>
-                            <div class="os-app-label">Pin Control</div>
-                            <div class="os-app-sublabel">Matrix Crossbar</div>
-                        </button>
+                            <!-- SWD Debugger -->
+                            <button class="os-squircle-tile accent-debugger" onclick="openLab('target')" data-name="SWD Debugger" data-tags="Debugger SWD Debug Target Station Flash GDB FLM" data-desc="SWD target station, CMSIS-Pack FLM flash memory programming, register inspect, and GDB bridge." title="SWD Target Debugger">
+                                <div class="os-squircle-icon">
+                                    <svg class="solar-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path opacity="0.5" d="M11.1566 20.3133C16.2137 20.3133 20.3133 16.2137 20.3133 11.1566C20.3133 6.09956 16.2137 2 11.1566 2C6.09956 2 2 6.09956 2 11.1566C2 16.2137 6.09956 20.3133 11.1566 20.3133Z" fill="currentColor"/>
+                                        <path d="M21.7881 20.7656C22.0704 21.0479 22.0704 21.5058 21.7881 21.7881C21.5058 22.0704 21.0479 22.0704 20.7656 21.7881L17.0996 18.1221C17.4666 17.8086 17.8086 17.4666 18.1221 17.0996L21.7881 20.7656Z" fill="currentColor"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M11 6.5C12.1408 6.5 13.1567 7.03207 13.8105 7.86035L14.4902 7.52246C14.843 7.34709 15.2717 7.48911 15.4482 7.83984C15.6246 8.19079 15.4817 8.61744 15.1289 8.79297L14.4502 9.13086C14.5293 9.42476 14.5713 9.734 14.5713 10.0527V10.2891H15.2861C15.6804 10.2893 16 10.6077 16 11C16 11.3923 15.6804 11.7107 15.2861 11.7109H14.5713V11.9473C14.5713 12.266 14.5293 12.5752 14.4502 12.8691L15.1289 13.207C15.4817 13.3826 15.6246 13.8092 15.4482 14.1602C15.2717 14.5109 14.843 14.6529 14.4902 14.4775L13.8105 14.1396C13.1567 14.9679 12.1408 15.5 11 15.5C9.85919 15.5 8.8433 14.9679 8.18945 14.1396L7.50977 14.4775C7.15704 14.6529 6.72826 14.5109 6.55176 14.1602C6.37536 13.8092 6.51835 13.3826 6.87109 13.207L7.5498 12.8691C7.47066 12.5752 7.42871 12.266 7.42871 11.9473V11.7109H6.71387C6.31957 11.7107 6 11.3923 6 11C6 10.6077 6.31957 10.2893 6.71387 10.2891H7.42871V10.0527C7.42871 9.734 7.47066 9.42476 7.5498 9.13086L6.87109 8.79297C6.51835 8.61744 6.37536 8.19079 6.55176 7.83984C6.72826 7.48911 7.15704 7.34709 7.50977 7.52246L8.18945 7.86035C8.8433 7.03207 9.85919 6.5 11 6.5ZM8.85742 10.7627V11.9473C8.85744 12.8753 9.45388 13.6644 10.2861 13.957V10.7627H8.85742ZM11.7148 10.7627V13.957C12.5469 13.6643 13.1435 12.8752 13.1436 11.9473V10.7627H11.7148ZM11 7.9209C10.0672 7.92102 9.27368 8.51407 8.97949 9.3418H13.0215C12.7273 8.51392 11.933 7.9209 11 7.9209Z" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <span class="os-squircle-label">Debugger</span>
+                                <span class="os-squircle-sublabel">SWD·FLM</span>
+                            </button>
 
-                        <!-- Console Tile -->
-                        <button class="os-squircle-tile" onclick="openLab('console')" data-name="Console" data-tags="Console REPL Terminal MCP Firmware Shell" title="Firmware REPL &amp; MCP Console">
-                            <div class="os-squircle-icon">
-                                <svg class="solar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-                                    <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
-                                    <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
+                            <!-- Pin Crossbar -->
+                            <button class="os-squircle-tile accent-pins" onclick="openLab('pins')" data-name="Pin Crossbar" data-tags="Pins GPIO Matrix Multiplexer Routing Crossbar" data-desc="Dynamic pin routing crossbar switch, software multiplexer, and emergency high-Z safe state." title="Pin Crossbar Switch">
+                                <div class="os-squircle-icon">
+                                    <svg class="solar-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C12.3853 3 12.6977 3.31236 12.6977 3.69767V6.48884C13.2084 6.48991 13.6717 6.49342 14.0932 6.50495L14.093 6.48837V3.69767C14.093 3.31236 14.4054 3 14.7907 3C15.176 3 15.4884 3.31236 15.4884 3.69767V6.48837C15.4884 6.52487 15.4856 6.56072 15.4802 6.5957C16.4162 6.71067 17.0648 6.94879 17.558 7.44198C18.0512 7.93517 18.2893 8.58381 18.4043 9.51984C18.4393 9.51443 18.4751 9.51163 18.5116 9.51163H21.3023C21.6876 9.51163 22 9.82399 22 10.2093C22 10.5946 21.6876 10.907 21.3023 10.907H18.5116L18.495 10.9068C18.5066 11.3283 18.5106 11.7916 18.5116 12.3023H21.3023C21.6876 12.3023 22 12.6147 22 13C22 13.3853 21.6876 13.6977 21.3023 13.6977L18.5112 13.6977C18.5101 14.2084 18.5066 14.6717 18.495 15.0932L18.5116 15.093H21.3023C21.6876 15.093 22 15.4054 22 15.7907C22 16.176 21.6876 16.4884 21.3023 16.4884H18.5116C18.4751 16.4884 18.4393 16.4856 18.4043 16.4802C18.2893 17.4162 18.0512 18.0648 17.558 18.558C17.0648 19.0512 16.4162 19.2893 15.4802 19.4043C15.4856 19.4393 15.4884 19.4751 15.4884 19.5116V22.3023C15.4884 22.6876 15.176 23 14.7907 23C14.4054 23 14.093 22.6876 14.093 22.3023V19.5116L14.0932 19.495C13.6717 19.5066 13.2084 19.5106 12.6977 19.5116V22.3023C12.6977 22.6876 12.3853 23 12 23C11.6147 23 11.3023 22.6876 11.3023 22.3023L11.3023 19.5112C10.7916 19.5101 10.3283 19.5066 9.90678 19.495L9.90698 19.5116V22.3023C9.90698 22.6876 9.59462 23 9.2093 23C8.82399 23 8.51163 22.6876 8.51163 22.3023V19.5116C8.51163 19.4751 8.51443 19.4393 8.51984 19.4043C7.58381 19.2893 6.93517 19.0512 6.44198 18.558C5.94879 18.0648 5.71067 17.4162 5.5957 16.4802C5.56071 16.4856 5.52487 16.4884 5.48837 16.4884H2.69767C2.31236 16.4884 2 16.176 2 15.7907C2 15.4054 2.31236 15.093 2.69767 15.093H5.48837L5.50495 15.0932C5.49342 14.6717 5.48944 14.2084 5.48837 13.6977H2.69767C2.31236 13.6977 2 13.3853 2 13C2 12.6147 2.31236 12.3023 2.69767 12.3023L5.48884 12.3023C5.48991 11.7916 5.49342 11.3283 5.50495 10.9068L5.48837 10.907H2.69767C2.31236 10.907 2 10.2093 2 10.2093C2 9.82399 2.31236 9.51163 2.69767 9.51163H5.48837C5.52487 9.51163 5.56071 9.51443 5.5957 9.51984C5.71067 8.58381 5.94879 7.93517 6.44198 7.44198C6.93517 6.94879 7.58381 6.71067 8.51984 6.5957C8.51443 6.56072 8.51163 6.52487 8.51163 6.48837V3.69767C8.51163 3.31236 8.82399 3 9.2093 3C9.59462 3 9.90698 3.31236 9.90698 3.69767V6.48837L9.90678 6.50495C10.3283 6.49342 10.7916 6.48944 11.3023 6.48837V3.69767C11.3023 3.31236 11.6147 3 12 3ZM11.0238 8.5814C10.4054 8.58136 9.87247 8.58133 9.44573 8.63871C8.98839 8.70019 8.55001 8.83885 8.19443 9.19443C7.83885 9.55001 7.70019 9.98839 7.63871 10.4457C7.58133 10.8725 7.58136 11.4054 7.5814 12.0238V13.9762C7.58136 14.5946 7.58133 15.1275 7.63871 15.5543C7.70019 16.0116 7.83885 16.45 8.19443 16.8056C8.55001 17.1612 8.98839 17.2998 9.44573 17.3613C9.87247 17.4187 10.4054 17.4186 11.0238 17.4186H12.9762C13.5946 17.4186 14.1275 17.4187 14.5543 17.3613C15.0116 17.2998 15.45 17.1612 15.8056 16.8056C16.1612 16.45 16.2998 16.0116 16.3613 15.5543C16.4187 15.1275 16.4186 14.5946 16.4186 13.9762V12.0238C16.4186 11.4054 16.4187 10.8725 16.3613 10.4457C16.2998 9.98839 16.1612 9.55001 15.8056 9.19443C15.45 8.83885 15.0116 8.70019 14.5543 8.63871C14.1275 8.58133 13.5947 8.58136 12.9762 8.5814H11.0238Z" fill="currentColor"/>
+                                        <path opacity="0.5" d="M9.18091 10.1809C9.23402 10.1278 9.32886 10.0621 9.63147 10.0214C9.95415 9.97804 10.3921 9.97656 11.0696 9.97656H12.9301C13.6075 9.97656 14.0455 9.97804 14.3682 10.0214C14.6708 10.0621 14.7656 10.1278 14.8187 10.1809C14.8718 10.234 14.9375 10.3289 14.9782 10.6315C15.0216 10.9542 15.0231 11.3921 15.0231 12.0696V13.9301C15.0231 14.6075 15.0216 15.0455 14.9782 15.3682C14.9375 15.6708 14.8718 15.7656 14.8187 15.8187C14.7656 15.8718 14.6708 15.9375 14.3682 15.9782C14.0455 16.0216 13.6075 16.0231 12.9301 16.0231H11.0696C10.3921 16.0231 9.95415 16.0216 9.63147 15.9782C9.32886 15.9375 9.23402 15.8718 9.18091 15.8187C9.1278 15.7656 9.06211 15.6708 9.02143 15.3682C8.97804 15.0455 8.97656 14.6075 8.97656 13.9301V12.0696C8.97656 11.3921 8.97804 10.9542 9.02143 10.6315C9.06211 10.3289 9.1278 10.234 9.18091 10.1809Z" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <span class="os-squircle-label">Console</span>
+                                <span class="os-squircle-sublabel">REPL·MCP</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Section 2: Installed LittleFS Applications -->
+                    <section class="launcher-section" id="section-installed-apps">
+                        <div class="launcher-section-header">
+                            <h2 class="launcher-section-title">
+                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>
                                 </svg>
-                            </div>
-                            <div class="os-app-label">Console</div>
-                            <div class="os-app-sublabel">REPL &amp; MCP Shell</div>
-                        </button>
+                                Installed Applications (<span id="installed-count">0</span>)
+                            </h2>
+                        </div>
+                        <div class="os-squircle-grid" id="installed-apps-grid">
+                            <!-- Populated dynamically via renderInstalledApps() -->
+                        </div>
+                    </section>
+                </div>
+
+                <!-- VIEW 2: App Store Catalog View (Full Screen) -->
+                <div id="view-appstore" style="display: none;">
+                    <!-- App Store Category Bar -->
+                    <div class="store-category-bar">
+                        <button class="store-cat-pill active" data-category="all" onclick="filterCatalogCategory('all')">All Apps</button>
+                        <button class="store-cat-pill" data-category="Robotics" onclick="filterCatalogCategory('Robotics')">Robotics &amp; PWM</button>
+                        <button class="store-cat-pill" data-category="Communication" onclick="filterCatalogCategory('Communication')">UART &amp; Serial</button>
+                        <button class="store-cat-pill" data-category="Automotive" onclick="filterCatalogCategory('Automotive')">Automotive &amp; CAN</button>
+                        <button class="store-cat-pill" data-category="Protocols" onclick="filterCatalogCategory('Protocols')">Protocols &amp; Buses</button>
                     </div>
-                </section>
 
-                <!-- Section 2: Installed Apps -->
-                <section class="launcher-section" id="section-installed-apps">
-                    <div class="launcher-section-header">
-                        <h2 class="launcher-section-title">
-                            <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>
+                    <!-- Spotlight Search for App Store -->
+                    <div class="launcher-spotlight">
+                        <div class="launcher-spotlight-wrapper">
+                            <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                             </svg>
-                            INSTALLED APPS (<span id="installed-count">0</span>)
-                        </h2>
+                            <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="store-search" placeholder="Search catalog for LittleFS packages, drivers, and UI tools..." autocomplete="off">
+                        </div>
                     </div>
-                    <!-- Tactile Squircle App Grid -->
-                    <div class="launcher-app-grid" id="installed-apps-grid">
-                        <!-- Populated dynamically via renderInstalledApps() -->
+
+                    <!-- App Store Catalog Grid -->
+                    <div class="store-catalog-grid" id="store-apps-grid" style="margin-top: 16px;">
+                        <!-- Populated dynamically via renderCatalog() -->
                     </div>
-                </section>
+
+                    <!-- Local Package Drag & Drop Zone -->
+                    <div class="launcher-dropzone" id="launcher-dropzone" style="margin-top: 32px;" onclick="document.getElementById('file-picker').click();">
+                        <svg class="solar-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin: 0 auto 8px auto; display: block; color: var(--color-primary);">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px;">Install Local Package</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Drop .tar package or single-file .html dashboard here, or click to browse</div>
+                    </div>
+                </div>
 
             </div>
         </main>
     </div>
 
-    <!-- Fixed OS Bottom Dock for Storage Telemetry -->
-    <div class="dock storage-dock" id="storage-dock">
-        <div class="storage-dock-left" title="Flash Storage Telemetry">
-            <svg class="solar-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path opacity="0.5" d="M16.4997 3H7.49974C6.39517 3 5.49974 3.52941 4.99974 5.11765L2.15711 14.9263C2.20259 14.7794 2.26122 14.6491 2.3368 14.5294C2.48272 14.2982 2.67022 14.0996 2.8886 13.9451C3.39305 13.5882 4.09528 13.5882 5.49974 13.5882H18.4997C19.9042 13.5882 20.6064 13.5882 21.1109 13.9451C21.3293 14.0996 21.5168 14.2982 21.6627 14.5294C21.7432 14.6571 21.8046 14.7968 21.8513 14.9557L18.9997 5.11765C18.4997 3.52941 17.6043 3 16.4997 3Z" fill="currentColor"/>
-                <path fill-rule="evenodd" clip-rule="evenodd" d="M5.5 13.5879H18.5C19.9045 13.5879 20.6067 13.5879 21.1111 13.9448C21.3295 14.0993 21.517 14.2978 21.6629 14.529C21.7435 14.6567 21.8049 14.7965 21.8515 14.9554C22 15.4611 22 16.1618 22 17.2929C22 18.7799 22 19.5244 21.6629 20.0585C21.517 20.2897 21.3295 20.4883 21.1111 20.6428C20.6067 20.9997 19.9045 20.9997 18.5 20.9997H5.5C4.09554 20.9997 3.39331 20.9997 2.88886 20.6428C2.67048 20.4883 2.48298 20.2897 2.33706 20.0585C2 19.5244 2 18.7809 2 17.2938C2 16.1949 2 15.502 2.136 14.9997C2.14278 14.9746 2.1499 14.95 2.15737 14.9259C2.20285 14.7791 2.26148 14.6488 2.33706 14.529C2.48298 14.2978 2.67048 14.0993 2.88886 13.9448C3.39331 13.5879 4.09554 13.5879 5.5 13.5879ZM19 16.25C19.4142 16.25 19.75 16.5858 19.75 17V18C19.75 18.4142 19.4142 18.75 19 18.75C18.5858 18.75 18.25 18.4142 18.25 18V17C18.25 16.5858 18.5858 16.25 19 16.25ZM17.25 17C17.25 16.5858 16.9142 16.25 16.5 16.25C16.0858 16.25 15.75 16.5858 15.75 17V18C15.75 18.4142 16.0858 18.75 16.5 18.75C16.9142 18.75 17.25 18.4142 17.25 18V17ZM14 16.25C14.4142 16.25 14.75 16.5858 14.75 17V18C14.75 18.4142 14.4142 18.75 14 18.75C13.5858 18.75 13.25 18.4142 13.25 18V17C13.25 16.5858 13.5858 16.25 14 16.25ZM12.25 17C12.25 16.5858 11.9142 16.25 11.5 16.25C11.0858 16.25 10.75 16.5858 10.75 17V18C10.75 18.4142 11.0858 18.75 11.5 18.75C11.9142 18.75 12.25 18.4142 12.25 18V17Z" fill="currentColor"/>
+    <!-- Floating macOS-Style Glass Dock -->
+    <div class="floating-glass-dock" id="floating-glass-dock">
+        <!-- Launcher (Active on apps page) -->
+        <a href="apps.html" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g fill="currentColor" opacity="0.5">
+                    <path d="M17.5 13C19.6213 13 20.6818 13.0002 21.3408 13.6592C21.9998 14.3182 22 15.3787 22 17.5C22 19.6213 21.9998 20.6818 21.3408 21.3408C20.6818 21.9998 19.6213 22 17.5 22C15.3787 22 14.3182 21.9998 13.6592 21.3408C13.0002 20.6818 13 19.6213 13 17.5C13 15.3787 13.0002 14.3182 13.6592 13.6592C14.3182 13.0002 15.3787 13 17.5 13Z"/>
+                    <path d="M6.5 2C8.62132 2 9.68181 2.00017 10.3408 2.65918C10.9998 3.31819 11 4.37868 11 6.5C11 8.62132 10.9998 9.68181 10.3408 10.3408C9.68181 10.9998 8.62132 11 6.5 11C4.37868 11 3.31819 10.9998 2.65918 10.3408C2.00017 9.68181 2 8.62132 2 6.5C2 4.37868 2.00017 3.31819 2.65918 2.65918C3.31819 2.00017 4.37868 2 6.5 2Z"/>
+                </g>
+                <path fill="currentColor" d="M6.5 13C8.62132 13 9.68181 13.0002 10.3408 13.6592C10.9998 14.3182 11 15.3787 11 17.5C11 19.6213 10.9998 20.6818 10.3408 21.3408C9.68181 21.9998 8.62132 22 6.5 22C4.37868 22 3.31819 21.9998 2.65918 21.3408C2.00017 20.6818 2 19.6213 2 17.5C2 15.3787 2.00017 14.3182 2.65918 13.6592C3.31819 13.0002 4.37868 13 6.5 13Z"/>
+                <path fill="currentColor" d="M17.5 2C19.6213 2 20.6818 2.00017 21.3408 2.65918C21.9998 3.31819 22 4.37868 22 6.5C22 8.62132 21.9998 9.68181 21.3408 10.3408C20.6818 10.9998 19.6213 11 17.5 11C15.3787 11 14.3182 10.9998 13.6592 10.3408C13.0002 9.68181 13 8.62132 13 6.5C13 4.37868 13.0002 3.31819 13.6592 2.65918C14.3182 2.00017 15.3787 2 17.5 2Z"/>
             </svg>
-        </div>
-        <div class="storage-dock-center">
-            <div class="storage-segmented-bar progress" id="storage-bar">
-                <div class="segment-rom" id="seg-rom" style="width: 25%;" title="System ROM Firmware"></div>
-                <div class="segment-apps" id="seg-apps" style="width: 15%;" title="Installed Apps (LittleFS)"></div>
-                <div class="segment-free" id="seg-free" style="width: 60%;" title="Free LittleFS Flash Space"></div>
-            </div>
-            <div class="storage-dock-legend">
-                <span class="legend-item"><span class="legend-dot seg-dot-rom"></span> ROM: <span id="label-rom">~1.56 MB</span></span>
-                <span class="legend-item"><span class="legend-dot seg-dot-apps"></span> Apps: <span id="label-apps">0 B</span></span>
-                <span class="legend-item"><span class="legend-dot seg-dot-free"></span> Free: <span id="label-free">0 B</span></span>
-            </div>
-        </div>
-        <div class="storage-dock-right">
-            <button class="btn btn-sm btn-primary" id="btn-open-app-store" onclick="openAppStoreModal()" title="Browse &amp; Install Community Apps">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/>
-                </svg>
-                App Store
-            </button>
-        </div>
-    </div>
+        </a>
 
-    <!-- Community App Store Modal (#modal-app-store) -->
-    <div id="modal-app-store" class="modal-backdrop modal" aria-hidden="true" style="display: none;">
-        <div class="modal-card modal-box" role="dialog" aria-modal="true" aria-labelledby="store-modal-title" style="max-width: 880px; width: 95vw; max-height: 85vh; display: flex; flex-direction: column;">
-            <div class="modal-header">
-                <div class="modal-title-group">
-                    <svg class="solar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/>
-                    </svg>
-                    <div>
-                        <h3 id="store-modal-title" style="margin: 0; font-size: 16px; font-weight: 700;">Community App Store</h3>
-                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Discover and install LittleFS applications and dashboard tools</div>
+        <!-- Scope Waveform Quick Launch -->
+        <button class="dock-icon-btn" data-dock-tooltip="Scope (100 MS/s)" onclick="openLab('scope')">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                <path d="M17.5762 10.4802C17.8414 10.1619 17.7984 9.68903 17.4802 9.42385C17.1619 9.15868 16.689 9.20167 16.4239 9.51988L14.627 11.6761C14.2562 12.1211 14.0285 12.3915 13.8409 12.5609C13.7539 12.6395 13.7023 12.6708 13.6776 12.6827C13.6725 12.6852 13.6689 12.6866 13.6667 12.6875C13.6667 12.6875 13.6624 12.6858 13.659 12.6843L13.6558 12.6827C13.6311 12.6708 13.5795 12.6395 13.4925 12.5609C13.3049 12.3915 13.0772 12.1211 12.7064 11.6761L12.414 11.3253C12.0855 10.931 11.7894 10.5756 11.5128 10.3259C11.2119 10.0541 10.8328 9.81207 10.3334 9.81207C9.83386 9.81207 9.4548 10.0541 9.15386 10.3259C8.87727 10.5756 8.58115 10.931 8.25269 11.3253L6.42385 13.5199C6.15868 13.8381 6.20167 14.311 6.51988 14.5762C6.83809 14.8414 7.31101 14.7984 7.57619 14.4802L9.37308 12.3239C9.74387 11.8789 9.97157 11.6085 10.1592 11.4391C10.2461 11.3606 10.2978 11.3293 10.3225 11.3173L10.3292 11.3142L10.3334 11.3126C10.3356 11.3134 10.3392 11.3149 10.3442 11.3173C10.369 11.3293 10.4206 11.3606 10.5076 11.4391C10.6951 11.6085 10.9228 11.8789 11.2936 12.3239L11.586 12.6748L11.586 12.6748C11.9145 13.069 12.2106 13.4244 12.4872 13.6742C12.7881 13.9459 13.1672 14.188 13.6667 14.188C14.1662 14.188 14.5452 13.9459 14.8462 13.6742C15.1228 13.4244 15.4189 13.069 15.7473 12.6748L17.5762 10.4802Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- Bus Adapters Quick Launch -->
+        <button class="dock-icon-btn" data-dock-tooltip="Protocol Adapters" onclick="openLab('adapters')">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M3.46447 20.5355C4.92893 22 7.28595 22 12 22C16.714 22 19.0711 22 20.5355 20.5355C22 19.0711 22 16.714 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
+                <path d="M9.5 8.75C7.70507 8.75 6.25 10.2051 6.25 12C6.25 13.7949 7.70507 15.25 9.5 15.25C11.2949 15.25 12.75 13.7949 12.75 12C12.75 11.5858 13.0858 11.25 13.5 11.25C13.9142 11.25 14.25 11.5858 14.25 12C14.25 14.6234 12.1234 16.75 9.5 16.75C6.87665 16.75 4.75 14.6234 4.75 12C4.75 9.37665 6.87665 7.25 9.5 7.25C9.91421 7.25 10.25 7.58579 10.25 8C10.25 8.41421 9.91421 8.75 9.5 8.75Z" fill="currentColor"/>
+                <path d="M17.75 12C17.75 13.7949 16.2949 15.25 14.5 15.25C14.0858 15.25 13.75 15.5858 13.75 16C13.75 16.4142 14.0858 16.75 14.5 16.75C17.1234 16.75 19.25 14.6234 19.25 12C19.25 9.37665 17.1234 7.25 14.5 7.25C11.8766 7.25 9.75 9.37665 9.75 12C9.75 12.4142 10.0858 12.75 10.5 12.75C10.9142 12.75 11.25 12.4142 11.25 12C11.25 10.2051 12.7051 8.75 14.5 8.75C16.2949 8.75 17.75 10.2051 17.75 12Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- SWD Debugger Quick Launch -->
+        <button class="dock-icon-btn" data-dock-tooltip="SWD Debugger" onclick="openLab('target')">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M11.1566 20.3133C16.2137 20.3133 20.3133 16.2137 20.3133 11.1566C20.3133 6.09956 16.2137 2 11.1566 2C6.09956 2 2 6.09956 2 11.1566C2 16.2137 6.09956 20.3133 11.1566 20.3133Z" fill="currentColor"/>
+                <path d="M21.7881 20.7656C22.0704 21.0479 22.0704 21.5058 21.7881 21.7881C21.5058 22.0704 21.0479 22.0704 20.7656 21.7881L17.0996 18.1221C17.4666 17.8086 17.8086 17.4666 18.1221 17.0996L21.7881 20.7656Z" fill="currentColor"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M11 6.5C12.1408 6.5 13.1567 7.03207 13.8105 7.86035L14.4902 7.52246C14.843 7.34709 15.2717 7.48911 15.4482 7.83984C15.6246 8.19079 15.4817 8.61744 15.1289 8.79297L14.4502 9.13086C14.5293 9.42476 14.5713 9.734 14.5713 10.0527V10.2891H15.2861C15.6804 10.2893 16 10.6077 16 11C16 11.3923 15.6804 11.7107 15.2861 11.7109H14.5713V11.9473C14.5713 12.266 14.5293 12.5752 14.4502 12.8691L15.1289 13.207C15.4817 13.3826 15.6246 13.8092 15.4482 14.1602C15.2717 14.5109 14.843 14.6529 14.4902 14.4775L13.8105 14.1396C13.1567 14.9679 12.1408 15.5 11 15.5C9.85919 15.5 8.8433 14.9679 8.18945 14.1396L7.50977 14.4775C7.15704 14.6529 6.72826 14.5109 6.55176 14.1602C6.37536 13.8092 6.51835 13.3826 6.87109 13.207L7.5498 12.8691C7.47066 12.5752 7.42871 12.266 7.42871 11.9473V11.7109H6.71387C6.31957 11.7107 6 11.3923 6 11C6 10.6077 6.31957 10.2893 6.71387 10.2891H7.42871V10.0527C7.42871 9.734 7.47066 9.42476 7.5498 9.13086L6.87109 8.79297C6.51835 8.61744 6.37536 8.19079 6.55176 7.83984C6.72826 7.48911 7.15704 7.34709 7.50977 7.52246L8.18945 7.86035C8.8433 7.03207 9.85919 6.5 11 6.5ZM8.85742 10.7627V11.9473C8.85744 12.8753 9.45388 13.6644 10.2861 13.957V10.7627H8.85742ZM11.7148 10.7627V13.957C12.5469 13.6643 13.1435 12.8752 13.1436 11.9473V10.7627H11.7148ZM11 7.9209C10.0672 7.92102 9.27368 8.51407 8.97949 9.3418H13.0215C12.7273 8.51392 11.933 7.9209 11 7.9209Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- Pin Routing Crossbar -->
+        <button class="dock-icon-btn" data-dock-tooltip="Pin Routing Crossbar" onclick="openLab('pins')">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C12.3853 3 12.6977 3.31236 12.6977 3.69767V6.48884C13.2084 6.48991 13.6717 6.49342 14.0932 6.50495L14.093 6.48837V3.69767C14.093 3.31236 14.4054 3 14.7907 3C15.176 3 15.4884 3.31236 15.4884 3.69767V6.48837C15.4884 6.52487 15.4856 6.56072 15.4802 6.5957C16.4162 6.71067 17.0648 6.94879 17.558 7.44198C18.0512 7.93517 18.2893 8.58381 18.4043 9.51984C18.4393 9.51443 18.4751 9.51163 18.5116 9.51163H21.3023C21.6876 9.51163 22 9.82399 22 10.2093C22 10.5946 21.6876 10.907 21.3023 10.907H18.5116L18.495 10.9068C18.5066 11.3283 18.5106 11.7916 18.5116 12.3023H21.3023C21.6876 12.3023 22 12.6147 22 13C22 13.3853 21.6876 13.6977 21.3023 13.6977L18.5112 13.6977C18.5101 14.2084 18.5066 14.6717 18.495 15.0932L18.5116 15.093H21.3023C21.6876 15.093 22 15.4054 22 15.7907C22 16.176 21.6876 16.4884 21.3023 16.4884H18.5116C18.4751 16.4884 18.4393 16.4856 18.4043 16.4802C18.2893 17.4162 18.0512 18.0648 17.558 18.558C17.0648 19.0512 16.4162 19.2893 15.4802 19.4043C15.4856 19.4393 15.4884 19.4751 15.4884 19.5116V22.3023C15.4884 22.6876 15.176 23 14.7907 23C14.4054 23 14.093 22.6876 14.093 22.3023V19.5116L14.0932 19.495C13.6717 19.5066 13.2084 19.5106 12.6977 19.5116V22.3023C12.6977 22.6876 12.3853 23 12 23C11.6147 23 11.3023 22.6876 11.3023 22.3023L11.3023 19.5112C10.7916 19.5101 10.3283 19.5066 9.90678 19.495L9.90698 19.5116V22.3023C9.90698 22.6876 9.59462 23 9.2093 23C8.82399 23 8.51163 22.6876 8.51163 22.3023V19.5116C8.51163 19.4751 8.51443 19.4393 8.51984 19.4043C7.58381 19.2893 6.93517 19.0512 6.44198 18.558C5.94879 18.0648 5.71067 17.4162 5.5957 16.4802C5.56071 16.4856 5.52487 16.4884 5.48837 16.4884H2.69767C2.31236 16.4884 2 16.176 2 15.7907C2 15.4054 2.31236 15.093 2.69767 15.093H5.48837L5.50495 15.0932C5.49342 14.6717 5.48944 14.2084 5.48837 13.6977H2.69767C2.31236 13.6977 2 13.3853 2 13C2 12.6147 2.31236 12.3023 2.69767 12.3023L5.48884 12.3023C5.48991 11.7916 5.49342 11.3283 5.50495 10.9068L5.48837 10.907H2.69767C2.31236 10.907 2 10.5946 2 10.2093C2 9.82399 2.31236 9.51163 2.69767 9.51163H5.48837C5.52487 9.51163 5.56071 9.51443 5.5957 9.51984C5.71067 8.58381 5.94879 7.93517 6.44198 7.44198C6.93517 6.94879 7.58381 6.71067 8.51984 6.5957C8.51443 6.56072 8.51163 6.52487 8.51163 6.48837V3.69767C8.51163 3.31236 8.82399 3 9.2093 3C9.59462 3 9.90698 3.31236 9.90698 3.69767V6.48837L9.90678 6.50495C10.3283 6.49342 10.7916 6.48944 11.3023 6.48837V3.69767C11.3023 3.31236 11.6147 3 12 3ZM11.0238 8.5814C10.4054 8.58136 9.87247 8.58133 9.44573 8.63871C8.98839 8.70019 8.55001 8.83885 8.19443 9.19443C7.83885 9.55001 7.70019 9.98839 7.63871 10.4457C7.58133 10.8725 7.58136 11.4054 7.5814 12.0238V13.9762C7.58136 14.5946 7.58133 15.1275 7.63871 15.5543C7.70019 16.0116 7.83885 16.45 8.19443 16.8056C8.55001 17.1612 8.98839 17.2998 9.44573 17.3613C9.87247 17.4187 10.4054 17.4186 11.0238 17.4186H12.9762C13.5946 17.4186 14.1275 17.4187 14.5543 17.3613C15.0116 17.2998 15.45 17.1612 15.8056 16.8056C16.1612 16.45 16.2998 16.0116 16.3613 15.5543C16.4187 15.1275 16.4186 14.5946 16.4186 13.9762V12.0238C16.4186 11.4054 16.4187 10.8725 16.3613 10.4457C16.2998 9.98839 16.1612 9.55001 15.8056 9.19443C15.45 8.83885 15.0116 8.70019 14.5543 8.63871C14.1275 8.58133 13.5947 8.58136 12.9762 8.5814H11.0238Z" fill="currentColor"/>
+                <path opacity="0.5" d="M9.18091 10.1809C9.23402 10.1278 9.32886 10.0621 9.63147 10.0214C9.95415 9.97804 10.3921 9.97656 11.0696 9.97656H12.9301C13.6075 9.97656 14.0455 9.97804 14.3682 10.0214C14.6708 10.0621 14.7656 10.1278 14.8187 10.1809C14.8718 10.234 14.9375 10.3289 14.9782 10.6315C15.0216 10.9542 15.0231 11.3921 15.0231 12.0696V13.9301C15.0231 14.6075 15.0216 15.0455 14.9782 15.3682C14.9375 15.6708 14.8718 15.7656 14.8187 15.8187C14.7656 15.8718 14.6708 15.9375 14.3682 15.9782C14.0455 16.0216 13.6075 16.0231 12.9301 16.0231H11.0696C10.3921 16.0231 9.95415 16.0216 9.63147 15.9782C9.32886 15.9375 9.23402 15.8718 9.18091 15.8187C9.1278 15.7656 9.06211 15.6708 9.02143 15.3682C8.97804 15.0455 8.97656 14.6075 8.97656 13.9301V12.0696C8.97656 11.3921 8.97804 10.9542 9.02143 10.6315C9.06211 10.3289 9.1278 10.234 9.18091 10.1809Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- Console -->
+        <button class="dock-icon-btn" data-dock-tooltip="Firmware Console" onclick="openLab('console')">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
+                <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- Serial Terminal Quick Launch -->
+        <button class="dock-icon-btn" data-dock-tooltip="Serial Terminal" onclick="openTerminalApp()">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                <path d="M13.4876 6.44591C13.8877 6.55311 14.1251 6.96437 14.0179 7.36447L11.4297 17.0237C11.3225 17.4238 10.9113 17.6613 10.5112 17.5541C10.1111 17.4468 9.87362 17.0356 9.98082 16.6355L12.569 6.97624C12.6762 6.57614 13.0875 6.3387 13.4876 6.44591Z" fill="currentColor"/>
+                <path d="M14.9692 8.46967C15.2621 8.17678 15.7369 8.17678 16.0298 8.46967L16.2382 8.67801C16.8735 9.3133 17.4033 9.84308 17.7674 10.3202C18.1516 10.8238 18.4211 11.3559 18.4211 12C18.4211 12.6441 18.1516 13.1762 17.7674 13.6798C17.4033 14.1569 16.8735 14.6867 16.2382 15.322L16.0298 15.5303C15.7369 15.8232 15.2621 15.8232 14.9692 15.5303C14.6763 15.2374 14.6763 14.7626 14.9692 14.4697L15.1408 14.2981C15.8224 13.6164 16.2792 13.1574 16.5748 12.7699C16.8573 12.3998 16.9211 12.1843 16.9211 12C16.9211 11.8157 16.8573 11.6002 16.5748 11.2301C16.2792 10.8426 15.8224 10.3836 15.1408 9.70191L14.9692 9.53033C14.6763 9.23744 14.6763 8.76257 14.9692 8.46967Z" fill="currentColor"/>
+                <path d="M7.96937 8.46967C8.26226 8.17678 8.73713 8.17678 9.03003 8.46967C9.32292 8.76257 9.32292 9.23744 9.03003 9.53033L8.85846 9.70191C8.1768 10.3836 7.72003 10.8426 7.42439 11.2301C7.14196 11.6002 7.07812 11.8157 7.07812 12C7.07812 12.1843 7.14196 12.3998 7.42439 12.7699C7.72003 13.1574 8.1768 13.6164 8.85846 14.2981L9.03003 14.4697C9.32292 14.7626 9.32292 15.2374 9.03003 15.5303C8.73714 15.8232 8.26226 15.8232 7.96937 15.5303L7.76102 15.322C7.12568 14.6867 6.59589 14.1569 6.23186 13.6798C5.84762 13.1762 5.57812 12.6441 5.57812 12C5.57812 11.3559 5.84762 10.8238 6.23186 10.3202C6.59589 9.84308 7.12569 9.31331 7.76102 8.67801L7.96937 8.46967Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <div class="dock-separator"></div>
+
+        <!-- Dedicated Hardware Telemetry HUD Icon -->
+        <button class="dock-icon-btn" id="dock-btn-telemetry" data-dock-tooltip="Hardware Telemetry HUD" onclick="toggleTelemetryHUD(event)">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
+                <path fill="currentColor" d="M2.00781 14.25C2.0443 17.5057 2.25442 19.3254 3.46461 20.5356C4.92908 22 7.2861 22 12.0001 22C16.7142 22 19.0712 22 20.5357 20.5356C21.7459 19.3254 21.956 17.5057 21.9925 14.25H19.0757C18.3381 14.25 18.1984 14.2344 18.0852 14.183C17.972 14.1316 17.8682 14.0368 17.3824 13.4817L15.5786 11.4202C15.4115 11.229 15.2372 11.0297 15.07 10.8863C14.8788 10.7223 14.5884 10.5346 14.1939 10.5527C13.7994 10.5709 13.5274 10.7844 13.352 10.9653C13.1987 11.1234 13.0434 11.3379 12.8945 11.5435L9.24075 16.5868C9.14847 16.7141 8.96574 16.7264 8.85727 16.6125L7.71566 15.4138L7.64145 15.3357C7.27927 14.9542 6.95775 14.6156 6.52932 14.4319C6.1009 14.2483 5.63391 14.2491 5.10787 14.2499L5.00015 14.25H2.00781Z"/>
+            </svg>
+        </button>
+
+        <!-- Device & Storage Info Icon (Solar info-square-bold-duotone) -->
+        <div class="dock-item-wrapper">
+            <button class="dock-icon-btn" id="dock-btn-storage" data-dock-tooltip="Device info" onclick="toggleStoragePopover(event)">
+                <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22Z" fill="currentColor"/>
+                    <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="currentColor"/>
+                    <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="currentColor"/>
+                </svg>
+            </button>
+
+            <!-- Floating Glass Popover -->
+            <div class="storage-glass-popover" id="storage-glass-popover" style="display: none;" onclick="event.stopPropagation()">
+                <div class="popover-header">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22Z" fill="currentColor"/>
+                            <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="currentColor"/>
+                            <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="currentColor"/>
+                        </svg>
+                        <span class="popover-title">Device info</span>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="text" id="store-search" class="modal-input" placeholder="Search catalog..." style="height: 32px; padding: 0 12px; font-size: 12px; width: 200px;">
-                    <button class="action-btn icon-btn" id="btn-close-store-modal" onclick="closeAppStoreModal()" title="Close Store (Esc)">
-                        <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path opacity="0.5" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" fill="currentColor"/>
-                            <path d="M8.96967 8.96967C9.26256 8.67678 9.73744 8.67678 10.0303 8.96967L12 10.9394L13.9697 8.96969C14.2626 8.6768 14.7374 8.6768 15.0303 8.96969C15.3232 9.26258 15.3232 9.73746 15.0303 10.0304L13.0607 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0304 15.0303C9.73746 15.3232 9.26258 15.3232 8.96969 15.0303C8.6768 14.7374 8.6768 14.2626 8.96969 13.9697L10.9394 12L8.96967 10.0303C8.67678 9.73744 8.67678 9.26256 8.96967 8.96967Z" fill="currentColor"/>
-                        </svg>
-                    </button>
+
+                <!-- Hardware & Firmware Specs (Moved from System Settings) -->
+                <div class="popover-info-grid">
+                    <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="popover-info-chip">RP2350B Cortex-M33</span></div>
+                    <div class="info-pill"><span class="info-label">CLOCK / SRAM</span><span class="info-val" id="popover-info-clock">150MHz · 520KB</span></div>
+                    <div class="info-pill"><span class="info-label">BOARD PROFILE</span><span class="info-val" id="popover-info-board">BakuProbe / Pico 2</span></div>
+                    <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="popover-info-fw">v2.0-Forest</span></div>
                 </div>
-            </div>
-            <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 20px;">
-                <div class="store-catalog-grid" id="store-apps-grid">
-                    <!-- Populated dynamically via renderCatalog() -->
+
+                <!-- Flash Partitioning -->
+                <div class="popover-storage-section">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                        Flash Partitioning (8 MB Total)
+                    </div>
+                    <div class="storage-segmented-bar" id="storage-bar">
+                        <div class="segment-rom" id="seg-rom" style="width: 25%;" title="System ROM Firmware"></div>
+                        <div class="segment-apps" id="seg-apps" style="width: 15%;" title="Installed Apps (LittleFS)"></div>
+                        <div class="segment-free" id="seg-free" style="width: 60%;" title="Free LittleFS Flash Space"></div>
+                    </div>
+                    <div class="storage-dock-legend" style="margin-top: 6px;">
+                        <span class="legend-item"><span class="legend-dot seg-dot-rom"></span> ROM: <span id="label-rom">~1.56 MB</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-apps"></span> Apps: <span id="label-apps">0 B</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-free"></span> Free: <span id="label-free">0 B</span></span>
+                    </div>
                 </div>
-            </div>
-            <div class="modal-footer" style="padding: 12px 20px; border-top: var(--border) solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 11px; color: var(--text-secondary);">
-                    Catalog source: <span id="store-catalog-url-display" style="font-family: monospace;">GitHub Community Catalog</span>
-                </div>
-                <button class="action-btn outline btn-sm" onclick="closeAppStoreModal()">Done</button>
             </div>
         </div>
     </div>
@@ -316,67 +420,110 @@
     <!-- Hidden File Picker for Local App Packages (.tar or .html) -->
     <input type="file" id="file-picker" accept=".tar,.html" style="display: none;">
 
-    <!-- Local Package Upload & Confirmation Modal -->
-    <div id="install-modal" class="modal-backdrop install-modal modal" aria-hidden="true" style="display: none;">
-        <div class="modal-card modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="max-width: 480px;">
-            <div class="modal-header">
-                <div class="modal-title-group">
-                    <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                    </svg>
-                    <h3 id="modal-title">Install App Package</h3>
-                </div>
-                <button class="action-btn icon-btn" onclick="closeInstallModal()" title="Close">&times;</button>
+    <!-- Dedicated Slide-In App Detail Sheet & Backdrop (macOS / iOS App Store Style) -->
+    <div class="app-detail-sheet-backdrop" id="app-detail-sheet-backdrop" onclick="closeAppDetail()"></div>
+    <aside class="app-detail-sheet" id="app-detail-sheet" aria-label="Application Details">
+        <div class="sheet-header-bar">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+                <svg class="solar-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22Z" fill="currentColor"/>
+                    <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="currentColor"/>
+                    <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="currentColor"/>
+                </svg>
+                App Specifications
             </div>
-            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; padding: 20px;">
-                <div style="display: flex; gap: 14px; align-items: center;">
-                    <div class="os-squircle-icon" id="modal-icon" style="width: 52px; height: 52px; border-radius: 14px; margin-bottom: 0;">
-                        <svg class="solar-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-                            <path d="M7 8.5C7 8.22386 7.22386 8 7.5 8H16.5C16.7761 8 17 8.22386 17 8.5C17 8.77614 16.7761 9 16.5 9H7.5C7.22386 9 7 8.77614 7 8.5ZM7 12C7 11.7239 7.22386 11.5 7.5 11.5H16.5C16.7761 11.5 17 11.7239 17 12C17 12.2761 16.7761 12.5 16.5 12.5H7.5C7.22386 12.5 7 12.2761 7 12ZM7.5 15C7.22386 15 7 15.2239 7 15.5C7 15.7761 7 16 7.5 16H12.5C12.7761 16 13 15.7761 13 15.5C13 15.2239 12.7761 15 12.5 15H7.5Z" fill="currentColor"/>
-                        </svg>
+            <button class="sheet-close-btn" onclick="closeAppDetail()" title="Close details (Esc)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+
+        <div class="sheet-scroll-body">
+            <!-- App Hero Header -->
+            <div class="sheet-hero">
+                <div class="sheet-icon-box" id="sheet-icon">
+                    <!-- Icon injected dynamically -->
+                </div>
+                <div class="sheet-hero-meta">
+                    <h2 class="sheet-title" id="sheet-title">App Name</h2>
+                    <div class="sheet-author" id="sheet-author">by Author</div>
+                    <div class="sheet-pill-row" id="sheet-tags-row">
+                        <!-- Badges injected dynamically -->
                     </div>
-                    <div>
-                        <div style="font-weight: 700; font-size: 15px; color: var(--text-primary);" id="modal-app-name">App Name</div>
-                        <div style="font-size: 12px; color: var(--text-secondary);" id="modal-app-meta">v1.0.0 · Local Package</div>
-                    </div>
-                </div>
-
-                <div style="font-size: 13px; color: var(--text-secondary);" id="modal-app-desc">Description of the application...</div>
-
-                <!-- Storage Capacity Check Alert (DaisyUI Alert) -->
-                <div role="alert" class="alert alert-success alert-box" id="modal-storage-alert">
-                    <div id="modal-storage-text">Checking available flash storage...</div>
-                </div>
-
-                <!-- Hardware Compatibility Alert (DaisyUI Alert) -->
-                <div role="alert" class="alert alert-warning alert-box" id="modal-hw-alert" style="display: none;">
-                    <div>
-                        <div style="font-weight: 600; margin-bottom: 2px;">Hardware Requirement Notice</div>
-                        <div id="modal-hw-text" style="margin-bottom: 8px;">This app requires hardware not detected on your board profile.</div>
-                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
-                            <input type="checkbox" class="checkbox checkbox-xs" id="modal-hw-override"> Install anyway despite hardware notice
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Overwrite notice (DaisyUI Alert) -->
-                <div role="alert" class="alert alert-warning alert-box" id="modal-overwrite-alert" style="display: none;">
-                    <div>This application is already installed. Confirming will overwrite existing files.</div>
-                </div>
-
-                <!-- Upload Progress -->
-                <div id="modal-progress-container" style="display: none;">
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;" id="modal-progress-status">Writing package to LittleFS flash...</div>
-                    <progress id="modal-progress-bar" class="progress progress-primary" value="0" max="100" style="width: 100%;"></progress>
                 </div>
             </div>
-            <div class="modal-footer" style="padding: 14px 20px; border-top: var(--border) solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
-                <button class="action-btn outline btn-sm" onclick="closeInstallModal()" id="btn-modal-cancel">Cancel</button>
-                <button class="action-btn primary btn-sm" id="btn-modal-confirm">Confirm &amp; Install</button>
+
+            <!-- Install / Open Action Box -->
+            <div class="sheet-action-box">
+                <button class="sheet-install-btn" id="btn-sheet-install" onclick="executeSheetInstall()">
+                    <span id="btn-sheet-install-label">GET APP</span>
+                </button>
+                <button class="sheet-uninstall-btn" id="btn-sheet-uninstall" style="display: none;" onclick="executeSheetUninstall()">
+                    Uninstall
+                </button>
+            </div>
+
+            <!-- Live Install / Flash Progress Bar -->
+            <div id="sheet-progress-container" style="display: none;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--color-primary); margin-bottom: 6px; display: flex; justify-content: space-between;">
+                    <span id="sheet-progress-label">Writing files to LittleFS flash...</span>
+                    <span id="sheet-progress-pct">0%</span>
+                </div>
+                <progress id="sheet-progress-bar" class="progress progress-primary" value="0" max="100" style="width: 100%; height: 6px;"></progress>
+            </div>
+
+            <!-- Storage & Hardware Requirement Checks -->
+            <div class="sheet-specs-grid">
+                <div class="sheet-spec-pill">
+                    <span class="sheet-spec-label">Package Size</span>
+                    <span class="sheet-spec-val" id="sheet-size-val">--</span>
+                </div>
+                <div class="sheet-spec-pill">
+                    <span class="sheet-spec-label">Partition Space</span>
+                    <span class="sheet-spec-val" id="sheet-free-val">--</span>
+                </div>
+                <div class="sheet-spec-pill">
+                    <span class="sheet-spec-label">Version</span>
+                    <span class="sheet-spec-val" id="sheet-version-val">1.0.0</span>
+                </div>
+                <div class="sheet-spec-pill">
+                    <span class="sheet-spec-label">Target Hardware</span>
+                    <span class="sheet-spec-val" id="sheet-target-val">RP2350</span>
+                </div>
+            </div>
+
+            <!-- Hardware Notice Alert -->
+            <div role="alert" class="alert alert-warning alert-box" id="sheet-hw-alert" style="display: none;">
+                <div>
+                    <div style="font-weight: 700; margin-bottom: 2px;">Hardware Requirement Notice</div>
+                    <div id="sheet-hw-text" style="font-size: 12px; margin-bottom: 8px;">Requires hardware features not detected.</div>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11.5px;">
+                        <input type="checkbox" class="checkbox checkbox-xs" id="sheet-hw-override"> Proceed anyway
+                    </label>
+                </div>
+            </div>
+
+            <!-- Overwrite Notice Alert -->
+            <div role="alert" class="alert alert-info alert-box" id="sheet-overwrite-alert" style="display: none;">
+                <div style="font-size: 12px;">This application is currently installed. Installing will update existing files in LittleFS flash.</div>
+            </div>
+
+            <!-- App Description -->
+            <div class="sheet-section">
+                <div class="sheet-section-title">Description</div>
+                <p class="sheet-desc-text" id="sheet-desc-text">
+                    Application details...
+                </p>
+            </div>
+
+            <!-- Compatibility Checklist -->
+            <div class="sheet-section">
+                <div class="sheet-section-title">Hardware Capabilities</div>
+                <div id="sheet-caps-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-secondary);">
+                    <!-- Capabilities list -->
+                </div>
             </div>
         </div>
-    </div>
+    </aside>
 
     <!-- Centered System Settings Modal (#modal-settings) Shared with Workbench -->
     <div id="modal-settings" class="modal-backdrop settings-modal modal" aria-hidden="true" style="display: none;">
@@ -473,16 +620,6 @@
                         </button>
                     </div>
                 </div>
-
-                <div class="settings-section">
-                    <div class="settings-section-title">Hardware Telemetry &amp; System Info</div>
-                    <div class="settings-info-grid">
-                        <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="settings-info-chip">RP2350B Dual Cortex-M33</span></div>
-                        <div class="info-pill"><span class="info-label">BOARD PROFILE</span><span class="info-val" id="settings-info-board">BakuProbe / Pico 2</span></div>
-                        <div class="info-pill"><span class="info-label">FLASH</span><span class="info-val" id="settings-info-flash">4.0 MB</span></div>
-                        <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="settings-info-fw">v2.0-Forest</span></div>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer" style="padding: 12px 16px; border-top: var(--border) solid var(--border-color); display: flex; justify-content: flex-end;">
                 <button class="action-btn primary btn-sm" onclick="closeSettingsModal()">Done</button>
@@ -500,11 +637,19 @@
                        (window.location.hostname === 'localhost' && window.location.port !== '80');
 
         function openLab(view) {
-            const hash = view ? ('#' + view) : '';
+            const targetMap = {
+                'debugger': 'target',
+                'flasher': 'target',
+                'repl': 'console',
+                'shell': 'console',
+                'matrix': 'pins'
+            };
+            const target = targetMap[view] || view;
+            const hash = target ? ('#' + target) : '';
             if (isDemo) {
                 window.location.href = 'index.html' + hash;
             } else {
-                window.location.href = '/lab' + hash;
+                window.location.href = '/' + hash;
             }
         }
 
@@ -898,13 +1043,13 @@
             } catch (e) {
                 // Use default deviceSystem
             }
-            const elChip = document.getElementById('settings-info-chip');
-            const elBoard = document.getElementById('settings-info-board');
-            const elFlash = document.getElementById('settings-info-flash');
-            const elFw = document.getElementById('settings-info-fw');
-            if (elChip) elChip.innerText = deviceSystem.chip || "RP2350B";
+            const elChip = document.getElementById('popover-info-chip') || document.getElementById('settings-info-chip');
+            const elClock = document.getElementById('popover-info-clock');
+            const elBoard = document.getElementById('popover-info-board') || document.getElementById('settings-info-board');
+            const elFw = document.getElementById('popover-info-fw') || document.getElementById('settings-info-fw');
+            if (elChip) elChip.innerText = deviceSystem.chip || "RP2350B Cortex-M33";
+            if (elClock) elClock.innerText = (deviceSystem.clock_mhz ? `${deviceSystem.clock_mhz}MHz` : "150MHz") + " · 520KB";
             if (elBoard) elBoard.innerText = deviceSystem.board_name || "BakuProbe / Pico 2";
-            if (elFlash) elFlash.innerText = formatBytes(deviceSystem.flash_bytes);
             if (elFw) elFw.innerText = deviceSystem.firmware_version || "v2.0";
         }
 
@@ -945,9 +1090,76 @@
             if (lblApps) lblApps.innerText = `${formatBytes(lfsUsed)} (${appsPct}%)`;
             if (lblFree) lblFree.innerText = `${formatBytes(lfsFree)} (${freePct}%)`;
 
+            // Update floating dock pill & popover badge
+            const pillFill = document.getElementById('dock-pill-bar-fill');
+            if (pillFill) {
+                const totalUsedPct = Math.min(100, (((romBytes + lfsUsed) / totalFlash) * 100)).toFixed(0);
+                pillFill.style.width = `${totalUsedPct}%`;
+            }
+            const pillText = document.getElementById('dock-storage-text');
+            if (pillText) {
+                pillText.innerText = `${formatBytes(lfsFree)} Free`;
+            }
             const detail = document.getElementById('storage-detail-text');
             if (detail) {
                 detail.innerText = `${formatBytes(lfsUsed)} installed · ${formatBytes(lfsFree)} free of ${formatBytes(lfsTotal)} LittleFS partition`;
+            }
+        }
+
+        function toggleStoragePopover(e, forceState) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            const popover = document.getElementById('storage-glass-popover');
+            const btn = document.getElementById('dock-btn-storage') || document.getElementById('dock-storage-pill');
+            if (!popover) return;
+            const isVisible = popover.style.display !== 'none';
+            const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
+            popover.style.display = show ? 'flex' : 'none';
+            if (btn) {
+                if (show) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        }
+
+        function toggleTelemetryHUD(e, forceState) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            const hud = document.getElementById('telemetry-hud');
+            const btn = document.getElementById('dock-btn-telemetry');
+            if (!hud) return;
+            const isVisible = hud.style.display !== 'none';
+            const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
+            hud.style.display = show ? 'block' : 'none';
+            if (btn) {
+                if (show) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        }
+
+        // Close storage popover and telemetry HUD when clicking anywhere outside
+        document.addEventListener('click', (e) => {
+            const popover = document.getElementById('storage-glass-popover');
+            const storageBtn = document.getElementById('dock-btn-storage');
+            if (popover && popover.style.display !== 'none') {
+                if (!storageBtn || (!storageBtn.contains(e.target) && !popover.contains(e.target))) {
+                    popover.style.display = 'none';
+                    if (storageBtn) storageBtn.classList.remove('active');
+                }
+            }
+
+            const hud = document.getElementById('telemetry-hud');
+            const telemBtn = document.getElementById('dock-btn-telemetry');
+            if (hud && hud.style.display !== 'none') {
+                if (!telemBtn || (!telemBtn.contains(e.target) && !hud.contains(e.target))) {
+                    hud.style.display = 'none';
+                    if (telemBtn) telemBtn.classList.remove('active');
+                }
+            }
+        });
+
+        function openTerminalApp() {
+            if (isDemo) {
+                window.location.href = 'apps/terminal/index.html';
+            } else {
+                window.location.href = '/apps/terminal/';
             }
         }
 
@@ -967,77 +1179,136 @@
         }
 
         const solarFallbackSvg = `
-            <svg class="solar-icon solar-fallback-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg class="solar-icon solar-fallback-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
                 <path d="M7 8.5C7 8.22386 7.22386 8 7.5 8H16.5C16.7761 8 17 8.22386 17 8.5C17 8.77614 16.7761 9 16.5 9H7.5C7.22386 9 7 8.77614 7 8.5ZM7 12C7 11.7239 7.22386 11.5 7.5 11.5H16.5C16.7761 11.5 17 11.7239 17 12C17 12.2761 16.7761 12.5 16.5 12.5H7.5C7.22386 12.5 7 12.2761 7 12ZM7.5 15C7.22386 15 7 15.2239 7 15.5C7 15.7761 7 16 7.5 16H12.5C12.7761 16 13 15.7761 13 15.5C13 15.2239 12.7761 15 12.5 15H7.5Z" fill="currentColor"/>
             </svg>
         `;
+
+        let currentLauncherView = 'launchpad';
+
+        function switchLauncherView(view) {
+            currentLauncherView = view;
+            const btnLaunchpad = document.getElementById('tab-btn-launchpad');
+            const btnAppStore = document.getElementById('tab-btn-appstore');
+            const viewLaunchpad = document.getElementById('view-launchpad');
+            const viewAppStore = document.getElementById('view-appstore');
+
+            if (view === 'store') {
+                if (btnLaunchpad) btnLaunchpad.classList.remove('active');
+                if (btnAppStore) btnAppStore.classList.add('active');
+                if (viewLaunchpad) viewLaunchpad.style.display = 'none';
+                if (viewAppStore) viewAppStore.style.display = 'block';
+                try { history.replaceState(null, '', '#store'); } catch (_) {}
+                if (catalogApps.length === 0) {
+                    fetchCatalog();
+                } else {
+                    renderCatalog();
+                }
+            } else {
+                if (btnLaunchpad) btnLaunchpad.classList.add('active');
+                if (btnAppStore) btnAppStore.classList.remove('active');
+                if (viewLaunchpad) viewLaunchpad.style.display = 'block';
+                if (viewAppStore) viewAppStore.style.display = 'none';
+                try { history.replaceState(null, '', '#launchpad'); } catch (_) {}
+            }
+        }
+
+        let selectedStoreCategory = 'all';
+
+        function filterCatalogCategory(category) {
+            selectedStoreCategory = category;
+            document.querySelectorAll('.store-cat-pill').forEach(pill => {
+                if (pill.getAttribute('data-category') === category) {
+                    pill.classList.add('active');
+                } else {
+                    pill.classList.remove('active');
+                }
+            });
+            renderCatalog();
+        }
 
         function renderInstalledApps() {
             const grid = document.getElementById('installed-apps-grid');
             if (!grid) return;
 
             let html = installedApps.map(app => {
-                let appPath = `/apps/${encodeURIComponent(app.id)}/`;
+                const appId = app.id || app.name;
+                const appDisplayName = app.title || app.name || appId;
+                const tagsList = Array.isArray(app.tags) ? app.tags : (app.category ? [app.category] : []);
+                let appPath = app.path || `/apps/${encodeURIComponent(appId)}/`;
                 let clickHandler = `onclick="window.location.href='${appPath}'"`;
                 if (isDemo) {
-                    if (app.id === 'servo-master') {
+                    if (appId === 'servo-master') {
                         appPath = 'apps/servo-master/index.html';
                         clickHandler = `onclick="window.location.href='${appPath}'"`;
-                    } else if (app.id === 'terminal') {
+                    } else if (appId === 'terminal') {
                         appPath = 'apps/terminal/index.html';
                         clickHandler = `onclick="window.location.href='${appPath}'"`;
                     } else {
-                        clickHandler = `onclick="alert('${escapeHtml(app.name)} is an installed LittleFS application. On hardware, it launches directly into full viewport.')"`;
+                        clickHandler = `onclick="openAppDetail('${escapeHtml(appId)}', 'installed')"`;
                     }
+                }
+
+                let accentClass = 'accent-app';
+                let subText = `v${app.version || '1.0'}`;
+                if (appId === 'terminal') {
+                    accentClass = 'accent-terminal';
+                    subText = 'Serial REPL';
+                } else if (appId === 'servo-master') {
+                    accentClass = 'accent-servo';
+                    subText = 'PWM Motion';
+                } else if (appId === 'can-sniffer') {
+                    accentClass = 'accent-adapter';
+                    subText = 'CAN-FD';
                 }
 
                 let iconContent = '';
                 if (app.iconSvg) {
                     iconContent = app.iconSvg;
                 } else if (app.icon) {
-                    const iconUrl = (app.icon.startsWith('http') || app.icon.startsWith('/') || app.icon.startsWith('data:')) ? app.icon : `/apps/${encodeURIComponent(app.id)}/${app.icon}`;
-                    iconContent = `<img src="${iconUrl}" class="os-app-custom-img" alt="${escapeHtml(app.name || app.id)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
+                    const iconUrl = (app.icon.startsWith('http') || app.icon.startsWith('/') || app.icon.startsWith('data:')) ? app.icon : `/apps/${encodeURIComponent(appId)}/${app.icon}`;
+                    iconContent = `<img src="${iconUrl}" alt="${escapeHtml(appDisplayName)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
                 } else if (!isDemo) {
-                    const iconUrl = `/apps/${encodeURIComponent(app.id)}/icon.svg`;
-                    iconContent = `<img src="${iconUrl}" class="os-app-custom-img" alt="${escapeHtml(app.name || app.id)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
+                    const iconUrl = `/apps/${encodeURIComponent(appId)}/icon.svg`;
+                    iconContent = `<img src="${iconUrl}" alt="${escapeHtml(appDisplayName)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
                 } else {
                     iconContent = solarFallbackSvg;
                 }
 
                 return `
-                    <div class="os-squircle-tile" ${clickHandler} data-name="${escapeHtml(app.name || app.id)}" data-tags="${escapeHtml((app.tags || []).join(' '))}" data-desc="${escapeHtml(app.description || '')}" title="${escapeHtml(app.name || app.id)} (v${escapeHtml(app.version || '1.0.0')})">
-                        <button class="os-squircle-delete-btn" title="Uninstall App" onclick="event.stopPropagation(); deleteApp('${escapeHtml(app.id)}')">&times;</button>
+                    <div class="os-squircle-tile ${accentClass}" ${clickHandler} data-name="${escapeHtml(appDisplayName)}" data-tags="${escapeHtml(tagsList.join(' '))}" data-desc="${escapeHtml(app.description || '')}" title="${escapeHtml(appDisplayName)} (v${escapeHtml(app.version || '1.0.0')})">
+                        <button class="os-squircle-delete" title="Uninstall App" onclick="event.stopPropagation(); deleteApp('${escapeHtml(appId)}')">&times;</button>
                         <div class="os-squircle-icon">
                             ${iconContent}
                         </div>
-                        <div class="os-app-label">${escapeHtml(app.name || app.id)}</div>
-                        <div class="os-app-sublabel">v${escapeHtml(app.version || '1.0')} · ${formatBytes(app.size || app.size_bytes)}</div>
+                        <span class="os-squircle-label">${escapeHtml(appDisplayName)}</span>
+                        <span class="os-squircle-sublabel">${escapeHtml(subText)}</span>
                     </div>
                 `;
             }).join('');
 
-            // Add the "+ Install App" squircle tile
-            const installTile = `
-                <div class="os-squircle-tile is-install" onclick="document.getElementById('file-picker').click();" title="Install App Package or Dashboard">
+            // Add App / Browse Store Squircle Tile
+            const addAppTile = `
+                <button class="os-squircle-tile is-add-tile" onclick="switchLauncherView('store')" title="Explore &amp; Install LittleFS Applications from the App Store">
                     <div class="os-squircle-icon">
-                        <svg class="solar-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
-                            <path d="M12 7V17M7 12H17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
                     </div>
-                    <div class="os-app-label">Install App</div>
-                    <div class="os-app-sublabel">Drop / Choose File</div>
-                </div>
+                    <span class="os-squircle-label">App Store</span>
+                    <span class="os-squircle-sublabel">Get Apps</span>
+                </button>
             `;
 
-            grid.innerHTML = html + installTile;
+            grid.innerHTML = html + addAppTile;
             filterAppGrid();
         }
 
         function filterAppGrid() {
             const term = (document.getElementById('spotlight-search')?.value || '').toLowerCase().trim();
-            const tiles = document.querySelectorAll('.os-squircle-tile:not(.is-install)');
+            const tiles = document.querySelectorAll('#view-launchpad .os-squircle-tile:not(.is-add-tile)');
             tiles.forEach(tile => {
                 if (!term) {
                     tile.style.display = 'flex';
@@ -1080,40 +1351,59 @@
             const search = (document.getElementById('store-search')?.value || '').toLowerCase().trim();
 
             const filtered = catalogApps.filter(app => {
-                const name = (app.name || '').toLowerCase();
+                if (selectedStoreCategory !== 'all') {
+                    const tags = app.tags || [];
+                    const matchesCat = tags.some(t => t.toLowerCase().includes(selectedStoreCategory.toLowerCase())) ||
+                                       (app.category && app.category.toLowerCase().includes(selectedStoreCategory.toLowerCase()));
+                    if (!matchesCat) return false;
+                }
+                if (!search) return true;
+                const name = (app.name || app.id || '').toLowerCase();
                 const desc = (app.description || '').toLowerCase();
                 const tags = (app.tags || []).join(' ').toLowerCase();
                 return name.includes(search) || desc.includes(search) || tags.includes(search);
             });
 
             if (filtered.length === 0) {
-                grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 30px;">No matching apps found in catalog.</div>`;
+                grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 40px;">No matching apps found in catalog.</div>`;
                 return;
             }
 
             grid.innerHTML = filtered.map(app => {
                 const installed = installedApps.find(a => a.id === app.id);
-                let actionBtn = `<button class="action-btn primary btn-sm" onclick="event.stopPropagation(); initiateCatalogInstall('${escapeHtml(app.id)}')">Install</button>`;
-                
-                if (installed) {
-                    actionBtn = `<button class="action-btn outline btn-sm" onclick="event.stopPropagation(); alert('App is already installed.')">Installed</button>`;
+                let getBtnText = installed ? 'OPEN' : 'GET';
+                let getBtnClass = installed ? 'store-get-btn installed' : 'store-get-btn';
+                let getBtnAction = installed ? `window.location.href='/apps/${encodeURIComponent(app.id)}/'` : `openAppDetail('${escapeHtml(app.id)}', 'catalog')`;
+                if (isDemo && installed) {
+                    if (app.id === 'servo-master') getBtnAction = `window.location.href='apps/servo-master/index.html'`;
+                    else if (app.id === 'terminal') getBtnAction = `window.location.href='apps/terminal/index.html'`;
+                }
+
+                let iconMarkup = solarFallbackSvg;
+                if (app.iconSvg) {
+                    iconMarkup = app.iconSvg;
+                } else if (app.icon) {
+                    iconMarkup = `<img src="${app.icon}" alt="${escapeHtml(app.name || app.id)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
                 }
 
                 return `
-                    <div class="store-catalog-card card card-border">
-                        <div>
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
-                                <div style="font-weight: 700; font-size: 14.5px; color: var(--text-primary);">${escapeHtml(app.name || app.id)}</div>
-                                <span class="os-squircle-badge badge badge-neutral badge-sm" style="position: static; font-size: 10px;">v${escapeHtml(app.version || '1.0')}</span>
+                    <div class="store-catalog-card" onclick="openAppDetail('${escapeHtml(app.id)}', 'catalog')">
+                        <div class="store-card-header">
+                            <div class="store-card-icon">
+                                ${iconMarkup}
                             </div>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">${escapeHtml(app.description || '')}</div>
-                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                ${(app.tags || []).map(t => `<span class="badge badge-outline badge-xs">${escapeHtml(t)}</span>`).join('')}
+                            <div class="store-card-meta">
+                                <h3 class="store-card-title">${escapeHtml(app.name || app.id)}</h3>
+                                <div class="store-card-author">${escapeHtml(app.author || 'AgentLA Community')} · v${escapeHtml(app.version || '1.0')}</div>
+                                <p class="store-card-desc">${escapeHtml(app.description || '')}</p>
                             </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 10px; margin-top: 4px;">
-                            <span style="font-size: 11px; color: var(--text-secondary);">${formatBytes(app.size_bytes || app.size)}</span>
-                            ${actionBtn}
+                        <div class="store-card-footer">
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                ${(app.tags || []).slice(0, 2).map(t => `<span class="badge badge-outline badge-xs">${escapeHtml(t)}</span>`).join('')}
+                                <span style="font-size: 11px; color: var(--text-muted); align-self: center; margin-left: 4px;">${formatBytes(app.size_bytes || app.size)}</span>
+                            </div>
+                            <button class="${getBtnClass}" onclick="event.stopPropagation(); ${getBtnAction};">${getBtnText}</button>
                         </div>
                     </div>
                 `;
@@ -1187,56 +1477,218 @@
             return { appJson, iconSvg, totalSize: totalUncompressedSize };
         }
 
-        async function initiateCatalogInstall(appId) {
-            const app = catalogApps.find(a => a.id === appId);
-            if (!app) return;
-            openInstallModal({
-                name: app.id,
-                type: 'catalog',
-                appJson: app,
-                estimatedSize: app.size_bytes || app.size || 40000
-            });
-        }
+        let activeSheetApp = null;
 
-        function openInstallModal(payload) {
-            const modal = document.getElementById('install-modal');
-            if (!modal) return;
-            pendingInstallPayload = payload;
+        function openAppDetail(appId, origin, customPayload) {
+            let app = customPayload ? (customPayload.appJson || customPayload) : null;
+            if (!app) {
+                app = catalogApps.find(a => a.id === appId) || installedApps.find(a => a.id === appId) || { id: appId, name: appId, version: '1.0.0' };
+            }
+            activeSheetApp = { ...app, origin, customPayload };
 
-            const app = payload.appJson || { id: payload.name, name: payload.name, version: "1.0.0" };
-            document.getElementById('modal-app-name').innerText = app.name || app.id || payload.name;
-            document.getElementById('modal-app-meta').innerText = `v${app.version || '1.0.0'} · ${formatBytes(payload.estimatedSize || app.size_bytes || 32768)}`;
-            document.getElementById('modal-app-desc').innerText = app.description || 'Custom Web Application';
-            
-            const modalIcon = document.getElementById('modal-icon');
-            if (modalIcon) {
-                if (payload.iconSvg) {
-                    modalIcon.innerHTML = payload.iconSvg;
+            const isInstalled = installedApps.some(a => a.id === app.id);
+            const sheet = document.getElementById('app-detail-sheet');
+            const backdrop = document.getElementById('app-detail-sheet-backdrop');
+            if (!sheet || !backdrop) return;
+
+            // Hero
+            document.getElementById('sheet-title').innerText = app.name || app.id;
+            document.getElementById('sheet-author').innerText = `by ${app.author || 'AgentLA Team / Community'}`;
+            document.getElementById('sheet-version-val').innerText = `v${app.version || '1.0.0'}`;
+            document.getElementById('sheet-size-val').innerText = formatBytes(app.size_bytes || app.size || customPayload?.estimatedSize || 32768);
+            document.getElementById('sheet-free-val').innerText = `${formatBytes(deviceStorage.free_bytes)} free`;
+            document.getElementById('sheet-target-val').innerText = deviceSystem.chip || "RP2350";
+            document.getElementById('sheet-desc-text').innerText = app.description || 'LittleFS flash application for AgentLA.';
+
+            // Icon
+            const iconBox = document.getElementById('sheet-icon');
+            if (iconBox) {
+                if (customPayload?.iconSvg) {
+                    iconBox.innerHTML = customPayload.iconSvg;
                 } else if (app.iconSvg) {
-                    modalIcon.innerHTML = app.iconSvg;
+                    iconBox.innerHTML = app.iconSvg;
                 } else if (app.icon) {
-                    modalIcon.innerHTML = `<img src="${app.icon}" class="os-app-custom-img" alt="${escapeHtml(app.name || app.id)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
+                    const iconUrl = (app.icon.startsWith('http') || app.icon.startsWith('/') || app.icon.startsWith('data:')) ? app.icon : `/apps/${encodeURIComponent(app.id)}/${app.icon}`;
+                    iconBox.innerHTML = `<img src="${iconUrl}" alt="${escapeHtml(app.name || app.id)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
                 } else {
-                    modalIcon.innerHTML = solarFallbackSvg;
+                    iconBox.innerHTML = solarFallbackSvg;
                 }
             }
 
-            document.getElementById('modal-storage-text').innerText = `Partition Space: ${formatBytes(deviceStorage.free_bytes)} free · Required: ${formatBytes(payload.estimatedSize || app.size_bytes || 32768)}`;
-            document.getElementById('modal-progress-container').style.display = 'none';
+            // Tags
+            const tagsRow = document.getElementById('sheet-tags-row');
+            if (tagsRow) {
+                const tags = Array.isArray(app.tags) ? app.tags : (app.category ? [app.category] : []);
+                tagsRow.innerHTML = tags.map(t => `<span class="badge badge-outline badge-xs">${escapeHtml(t)}</span>`).join('');
+            }
 
-            modal.classList.add('open');
-            modal.style.display = 'flex';
-            modal.setAttribute('aria-hidden', 'false');
+            // Install / Open / Uninstall Actions
+            const btnInstall = document.getElementById('btn-sheet-install');
+            const btnInstallLabel = document.getElementById('btn-sheet-install-label');
+            const btnUninstall = document.getElementById('btn-sheet-uninstall');
+            const alertOverwrite = document.getElementById('sheet-overwrite-alert');
+
+            if (isInstalled) {
+                btnInstall.className = 'sheet-install-btn installed';
+                btnInstallLabel.innerText = 'OPEN APPLICATION';
+                if (btnUninstall) btnUninstall.style.display = 'block';
+                if (alertOverwrite) alertOverwrite.style.display = 'none';
+            } else {
+                btnInstall.className = 'sheet-install-btn';
+                btnInstallLabel.innerText = customPayload ? 'CONFIRM & INSTALL' : 'GET APP';
+                if (btnUninstall) btnUninstall.style.display = 'none';
+                if (alertOverwrite) alertOverwrite.style.display = 'none';
+            }
+
+            // Hardware requirements check
+            const hwAlert = document.getElementById('sheet-hw-alert');
+            const capsList = document.getElementById('sheet-caps-list');
+            if (capsList) {
+                const reqs = app.requires || [];
+                if (reqs.length > 0) {
+                    capsList.innerHTML = reqs.map(r => `<div>✓ Requires hardware module: <code>${escapeHtml(r)}</code></div>`).join('');
+                } else {
+                    capsList.innerHTML = '<div>✓ Runs on standard RP2350 microcontroller and web browser.</div>';
+                }
+            }
+            if (hwAlert) hwAlert.style.display = 'none';
+
+            // Progress container reset
+            const progressContainer = document.getElementById('sheet-progress-container');
+            if (progressContainer) progressContainer.style.display = 'none';
+
+            // Open Sheet
+            sheet.classList.add('open');
+            backdrop.classList.add('open');
         }
 
-        function closeInstallModal() {
-            const modal = document.getElementById('install-modal');
-            if (modal) {
-                modal.classList.remove('open');
-                modal.style.display = 'none';
-                modal.setAttribute('aria-hidden', 'true');
+        function closeAppDetail() {
+            const sheet = document.getElementById('app-detail-sheet');
+            const backdrop = document.getElementById('app-detail-sheet-backdrop');
+            if (sheet) sheet.classList.remove('open');
+            if (backdrop) backdrop.classList.remove('open');
+            activeSheetApp = null;
+        }
+
+        async function executeSheetInstall() {
+            if (!activeSheetApp) return;
+
+            const isInstalled = installedApps.some(a => a.id === activeSheetApp.id);
+            if (isInstalled && !activeSheetApp.customPayload) {
+                // Open App directly
+                let appPath = activeSheetApp.path || `/apps/${encodeURIComponent(activeSheetApp.id)}/`;
+                if (isDemo) {
+                    if (activeSheetApp.id === 'servo-master') appPath = 'apps/servo-master/index.html';
+                    else if (activeSheetApp.id === 'terminal') appPath = 'apps/terminal/index.html';
+                }
+                window.location.href = appPath;
+                return;
             }
-            pendingInstallPayload = null;
+
+            // Run Install flow
+            const progressContainer = document.getElementById('sheet-progress-container');
+            const progressBar = document.getElementById('sheet-progress-bar');
+            const progressPct = document.getElementById('sheet-progress-pct');
+            const progressLabel = document.getElementById('sheet-progress-label');
+            const btnInstall = document.getElementById('btn-sheet-install');
+            const btnInstallLabel = document.getElementById('btn-sheet-install-label');
+
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (btnInstall) btnInstall.disabled = true;
+            if (btnInstallLabel) btnInstallLabel.innerText = 'INSTALLING...';
+
+            function setProgress(pct, msg) {
+                if (progressBar) {
+                    progressBar.value = pct;
+                    progressBar.style.width = `${pct}%`;
+                }
+                if (progressPct) progressPct.innerText = `${pct}%`;
+                if (progressLabel && msg) progressLabel.innerText = msg;
+            }
+
+            setProgress(25, 'Allocating LittleFS flash space...');
+
+            const appName = activeSheetApp.id;
+            const url = `/api/v1/apps/install?name=${encodeURIComponent(appName)}`;
+
+            try {
+                if (!isDemo && activeSheetApp.customPayload?.data) {
+                    setProgress(55, 'Writing package files to LittleFS...');
+                    let res;
+                    if (activeSheetApp.customPayload.type === 'tar') {
+                        res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-tar' },
+                            body: activeSheetApp.customPayload.data
+                        });
+                    } else {
+                        res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/html' },
+                            body: activeSheetApp.customPayload.data
+                        });
+                    }
+                    if (!res.ok) throw new Error('Flash write failed: HTTP ' + res.status);
+                } else if (!isDemo && activeSheetApp.origin === 'catalog') {
+                    // Catalog remote package install
+                    setProgress(50, 'Fetching package bundle from community repository...');
+                    await new Promise(r => setTimeout(r, 400));
+                    setProgress(80, 'Writing LittleFS partition...');
+                    await new Promise(r => setTimeout(r, 400));
+                } else {
+                    // Demo mode simulation
+                    await new Promise(r => setTimeout(r, 350));
+                    setProgress(75, 'Simulating LittleFS flash write...');
+                    await new Promise(r => setTimeout(r, 350));
+                }
+
+                setProgress(100, 'Installation complete!');
+                await new Promise(r => setTimeout(r, 300));
+
+                if (isDemo) {
+                    if (!installedApps.some(a => a.id === appName)) {
+                        installedApps.push({
+                            id: appName,
+                            name: activeSheetApp.name || appName,
+                            version: activeSheetApp.version || '1.0.0',
+                            description: activeSheetApp.description || '',
+                            size: activeSheetApp.size_bytes || activeSheetApp.size || 40000,
+                            tags: activeSheetApp.tags || ['Installed']
+                        });
+                    }
+                    document.getElementById('installed-count').innerText = installedApps.length;
+                    renderInstalledApps();
+                    renderCatalog();
+                } else {
+                    await fetchInstalledApps();
+                    await fetchStorage();
+                    renderCatalog();
+                }
+
+                // Update sheet state to installed
+                if (btnInstall) {
+                    btnInstall.disabled = false;
+                    btnInstall.className = 'sheet-install-btn installed';
+                }
+                if (btnInstallLabel) btnInstallLabel.innerText = 'OPEN APPLICATION';
+                const btnUninstall = document.getElementById('btn-sheet-uninstall');
+                if (btnUninstall) btnUninstall.style.display = 'block';
+                if (progressContainer) progressContainer.style.display = 'none';
+
+                alert(`App "${activeSheetApp.name || appName}" installed successfully!`);
+            } catch (err) {
+                alert('Installation failed: ' + err.message);
+                if (progressContainer) progressContainer.style.display = 'none';
+                if (btnInstall) btnInstall.disabled = false;
+                if (btnInstallLabel) btnInstallLabel.innerText = 'RETRY GET';
+            }
+        }
+
+        async function executeSheetUninstall() {
+            if (!activeSheetApp) return;
+            const appId = activeSheetApp.id;
+            await deleteApp(appId);
+            closeAppDetail();
         }
 
         async function handleFileSelect(file) {
@@ -1244,7 +1696,7 @@
             if (file.name.endsWith('.tar')) {
                 const buffer = await file.arrayBuffer();
                 const meta = parseTarMetadata(buffer);
-                openInstallModal({
+                openAppDetail(meta.appJson?.id || name, 'local', {
                     name: meta.appJson?.id || name,
                     type: 'tar',
                     data: buffer,
@@ -1254,7 +1706,7 @@
                 });
             } else {
                 const text = await file.text();
-                openInstallModal({
+                openAppDetail(name, 'local', {
                     name: name,
                     type: 'html',
                     data: text,
@@ -1274,68 +1726,19 @@
             });
         }
 
-        // Setup confirm installation
-        document.getElementById('btn-modal-confirm').addEventListener('click', async () => {
-            if (!pendingInstallPayload) return;
-            const progressContainer = document.getElementById('modal-progress-container');
-            const progressBar = document.getElementById('modal-progress-bar');
-            progressContainer.style.display = 'block';
-            if ('value' in progressBar) progressBar.value = 30;
-            progressBar.style.width = '30%';
-
-            const appName = pendingInstallPayload.appJson?.id || pendingInstallPayload.name;
-            const url = `/api/v1/apps/install?name=${encodeURIComponent(appName)}`;
-
-            try {
-                if (!isDemo && pendingInstallPayload.data) {
-                    if ('value' in progressBar) progressBar.value = 60;
-                    progressBar.style.width = '60%';
-                    let res;
-                    if (pendingInstallPayload.type === 'tar') {
-                        res = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-tar' },
-                            body: pendingInstallPayload.data
-                        });
-                    } else {
-                        res = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/html' },
-                            body: pendingInstallPayload.data
-                        });
-                    }
-                    if (!res.ok) throw new Error('Installation error: ' + res.statusText);
-                } else {
-                    // Demo mode simulation
-                    await new Promise(r => setTimeout(r, 400));
-                }
-
-                if ('value' in progressBar) progressBar.value = 100;
-                progressBar.style.width = '100%';
-                setTimeout(() => {
-                    closeInstallModal();
-                    alert(`App "${appName}" installed successfully!`);
-                    if (isDemo) {
-                        installedApps.push({
-                            id: appName,
-                            name: pendingInstallPayload.appJson?.name || appName,
-                            version: pendingInstallPayload.appJson?.version || "1.0.0",
-                            description: pendingInstallPayload.appJson?.description || "",
-                            size: pendingInstallPayload.estimatedSize || 40000,
-                            tags: ["Installed"]
-                        });
-                        document.getElementById('installed-count').innerText = installedApps.length;
-                        renderInstalledApps();
-                    } else {
-                        fetchInstalledApps();
-                        fetchStorage();
-                    }
-                }, 300);
-            } catch (err) {
-                alert('Installation failed: ' + err.message);
-                closeInstallModal();
-            }
-        });
+        const dropzone = document.getElementById('launcher-dropzone');
+        if (dropzone) {
+            ['dragenter', 'dragover'].forEach(name => {
+                dropzone.addEventListener(name, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); });
+            });
+            ['dragleave', 'drop'].forEach(name => {
+                dropzone.addEventListener(name, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); });
+            });
+            dropzone.addEventListener('drop', async (e) => {
+                const file = e.dataTransfer?.files?.[0];
+                if (file) await handleFileSelect(file);
+            });
+        }
 
         // Event Listeners
         document.getElementById('btn-theme-toggle').addEventListener('click', cycleThemeMode);
@@ -1415,28 +1818,13 @@
         });
         fetchProfiles();
 
-        // App Store Modal Window
+        // Legacy modal bridge functions
         function openAppStoreModal() {
-            const modal = document.getElementById('modal-app-store');
-            if (modal) {
-                modal.classList.add('open');
-                modal.style.display = 'flex';
-                modal.setAttribute('aria-hidden', 'false');
-                if (catalogApps.length === 0) {
-                    fetchCatalog();
-                } else {
-                    renderCatalog();
-                }
-            }
+            switchLauncherView('store');
         }
 
         function closeAppStoreModal() {
-            const modal = document.getElementById('modal-app-store');
-            if (modal) {
-                modal.classList.remove('open');
-                modal.style.display = 'none';
-                modal.setAttribute('aria-hidden', 'true');
-            }
+            switchLauncherView('launchpad');
         }
 
         // Spotlight live search filtering
@@ -1454,11 +1842,14 @@
         window.addEventListener('keydown', (e) => {
             if (e.key === '/' && document.activeElement !== spotlightSearch && document.activeElement !== storeSearch) {
                 e.preventDefault();
-                spotlightSearch?.focus();
+                if (currentLauncherView === 'store') {
+                    storeSearch?.focus();
+                } else {
+                    spotlightSearch?.focus();
+                }
             } else if (e.key === 'Escape') {
                 closeSettingsModal();
-                closeInstallModal();
-                closeAppStoreModal();
+                closeAppDetail();
             }
         });
 
@@ -1556,148 +1947,17 @@
             await fetchStorage();
             await fetchInstalledApps();
             initTelemetryHUD();
+
+            if (window.location.hash === '#store' || window.location.search.includes('view=store')) {
+                switchLauncherView('store');
+            } else {
+                switchLauncherView('launchpad');
+            }
         })();
     </script>
 
-    <!-- Floating Collapsible Telemetry HUD & 30-Pin Matrix Overlay -->
-    <style>
-        .telemetry-hud-overlay {
-            position: fixed;
-            bottom: 1.25rem;
-            right: 1.25rem;
-            width: 320px;
-            background: rgba(15, 23, 42, 0.88);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 0.75rem;
-            box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.55);
-            z-index: 1000;
-            overflow: hidden;
-            font-family: ui-sans-serif, system-ui, sans-serif;
-            color: #f8fafc;
-            transition: transform 0.2s ease, opacity 0.2s ease;
-        }
-        .hud-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.5rem 0.75rem;
-            background: rgba(30, 41, 59, 0.75);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            cursor: pointer;
-            user-select: none;
-        }
-        .hud-title {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.8125rem;
-        }
-        .hud-indicator-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #4ade80;
-            box-shadow: 0 0 8px #4ade80;
-        }
-        .hud-toggle-btn {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            padding: 0.25rem;
-            border-radius: 0.25rem;
-        }
-        .hud-body {
-            padding: 0.75rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.625rem;
-        }
-        .hud-metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.375rem;
-        }
-        .hud-metric-card {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 0.375rem;
-            padding: 0.375rem 0.25rem;
-            text-align: center;
-        }
-        .hud-metric-label {
-            font-size: 0.5625rem;
-            color: #94a3b8;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-        }
-        .hud-metric-value {
-            font-size: 0.75rem;
-            font-weight: 700;
-            font-family: ui-monospace, monospace;
-            color: #38bdf8;
-            margin-top: 0.125rem;
-        }
-        .hud-section-label {
-            font-size: 0.625rem;
-            color: #94a3b8;
-            font-weight: 600;
-            letter-spacing: 0.025em;
-        }
-        .hud-pin-matrix {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 0.25rem;
-        }
-        .hud-pin-chip {
-            font-size: 0.5625rem;
-            font-family: ui-monospace, monospace;
-            padding: 0.2rem 0;
-            text-align: center;
-            border-radius: 0.25rem;
-            background: #334155;
-            color: #f8fafc;
-            cursor: default;
-            transition: background 0.15s, transform 0.15s;
-        }
-        .hud-pin-chip:hover {
-            transform: scale(1.18);
-            z-index: 10;
-        }
-        .hud-pin-free { background: #334155; color: #94a3b8; }
-        .hud-pin-programmer { background: #8b5cf6; color: #ffffff; }
-        .hud-pin-servo { background: #f59e0b; color: #000000; }
-        .hud-pin-adapter { background: #10b981; color: #ffffff; }
-        .hud-pin-capture { background: #0284c7; color: #ffffff; }
-        .hud-pin-oscilloscope { background: #06b6d4; color: #ffffff; }
-        .hud-alert-banner {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid #ef4444;
-            color: #fca5a5;
-            border-radius: 0.375rem;
-            padding: 0.375rem 0.5rem;
-            font-size: 0.6875rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-        }
-        .badge-alarm {
-            background: #ef4444;
-            color: #ffffff;
-            font-size: 0.625rem;
-            font-weight: 700;
-            padding: 0.125rem 0.375rem;
-            border-radius: 9999px;
-            animation: hud-pulse 1s infinite;
-        }
-        @keyframes hud-pulse { 50% { opacity: 0.6; } }
-    </style>
-
-    <div id="telemetry-hud" class="telemetry-hud-overlay">
+    <!-- Floating Collapsible Telemetry HUD Overlay (Styled via style.css) -->
+    <div id="telemetry-hud" class="telemetry-hud-overlay" style="display: none;">
         <div class="hud-header" id="hud-header">
             <div class="hud-title">
                 <span class="hud-indicator-dot"></span>
