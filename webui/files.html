@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="nothing" data-style="industrial">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Files // Storage Console -- AgentLA</title>
+  <script>
+    // Synchronous FOUC guard: restore system style & theme immediately before render
+    (function() {
+      try {
+        document.documentElement.setAttribute('data-style', 'industrial');
+        var savedMode = localStorage.getItem('agentla-theme-mode');
+        var saved = localStorage.getItem('agentla-theme');
+        var defaultDark = 'nothing';
+        var defaultLight = 'industrial-light';
+        if (saved) {
+          document.documentElement.setAttribute('data-theme', saved);
+          var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+          document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+        } else if (savedMode === 'light') {
+          document.documentElement.setAttribute('data-theme', defaultLight);
+          document.documentElement.setAttribute('data-theme-scheme', 'light');
+        } else if (savedMode === 'dark') {
+          document.documentElement.setAttribute('data-theme', defaultDark);
+          document.documentElement.setAttribute('data-theme-scheme', 'dark');
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          document.documentElement.setAttribute('data-theme', defaultLight);
+          document.documentElement.setAttribute('data-theme-scheme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', defaultDark);
+          document.documentElement.setAttribute('data-theme-scheme', 'dark');
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/daisyui.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/themes.css">
+  <script src="/agentla-bridge.js"></script>
+  <style>
+    /* Technical / Industrial Layout Enhancements */
+    .file-dropzone-active {
+      border: 2px dashed var(--color-primary, #D71921) !important;
+      background: color-mix(in srgb, var(--color-primary, #D71921) 8%, transparent) !important;
+    }
+    .file-card {
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 0.5rem;
+      border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
+    }
+    .file-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      border-color: var(--color-primary, #D71921);
+    }
+    .font-dot {
+      font-family: var(--font-display, 'NDot57', ui-monospace, monospace);
+    }
+    .font-tech {
+      font-family: var(--font-mono-tech, ui-monospace, monospace);
+    }
+    /* Chrome suppression when embedded in App-Shell */
+    html.is-embedded #top-bar,
+    html.is-embedded .floating-glass-dock,
+    html.is-embedded #floating-glass-dock {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
+
+  <!-- Top Navigation Header -->
+  <header class="navbar bg-base-200 border-b border-base-300 px-4 py-2 min-h-0 flex justify-between items-center z-30 sticky top-0">
+    <div class="navbar-start flex items-center gap-2">
+      <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="Return to Launcher (Home)">
+        <span class="start-menu-icon" aria-hidden="true"></span>
+        <span class="font-bold tracking-tight text-sm font-dot">[00] AgentLA</span>
+        <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
+      </a>
+      <span class="text-base-content/30 mx-1">/</span>
+      <span class="font-semibold text-xs flex items-center gap-1.5 text-base-content font-dot">
+        <svg class="solar-icon text-primary" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+          <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
+        </svg>
+        [01] STORAGE.CONSOLE
+      </span>
+    </div>
+
+    <div class="navbar-center hidden md:flex items-center gap-2">
+      <!-- Partition Selector Segmented Switch -->
+      <div class="join border border-base-300 rounded-lg p-0.5 bg-base-300/40">
+        <button id="btn-part-user" class="join-item btn btn-xs btn-primary font-dot" onclick="switchPartition('user')">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-success mr-1"></span>
+          user:/ [RW]
+        </button>
+        <button id="btn-part-system" class="join-item btn btn-xs btn-ghost font-dot" onclick="switchPartition('system')">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1"></span>
+          sys:/ [RO]
+        </button>
+      </div>
+    </div>
+
+    <div class="navbar-end flex items-center gap-2">
+      <!-- Theme Mode Toggle -->
+      <button class="btn btn-ghost btn-xs font-tech border border-base-300" id="btn-theme-toggle" onclick="toggleFilesTheme()" title="Toggle Light / Dark Mode">
+        <span id="theme-btn-label">THEME</span>
+      </button>
+
+      <a href="/home" class="btn btn-ghost btn-xs btn-square border border-base-300" title="Home">
+        <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1V9.5z"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Body Grid: Sidebar & Content -->
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+    
+    <!-- Left Navigation & Bento Partition Storage Card -->
+    <aside class="w-full md:w-64 bg-base-200/50 border-r border-base-300 p-3 flex flex-col gap-3 shrink-0 overflow-y-auto">
+      
+      <!-- Mobile Partition Selector -->
+      <div class="join md:hidden w-full border border-base-300 rounded-lg p-0.5 bg-base-300/40">
+        <button id="btn-part-user-m" class="join-item btn btn-xs flex-1 btn-primary font-dot" onclick="switchPartition('user')">
+          user:/ [RW]
+        </button>
+        <button id="btn-part-system-m" class="join-item btn btn-xs flex-1 btn-ghost font-dot" onclick="switchPartition('system')">
+          sys:/ [RO]
+        </button>
+      </div>
+
+      <!-- Bento Storage Stats Card -->
+      <div class="card bg-base-200 border border-base-300 shadow-sm p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold tracking-wider uppercase opacity-70 font-dot">Flash Partitions</span>
+          <button class="btn btn-ghost btn-xs btn-square" onclick="refreshStorageStats()" title="Refresh Partition Metrics">
+            <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- USER_FS Metric -->
+        <div class="mb-3 p-2 rounded bg-base-300/30 border border-base-300/50 cursor-pointer" onclick="switchPartition('user')" title="Browse USER_FS">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-bold flex items-center gap-1 font-tech">
+              <span class="w-2 h-2 rounded-full bg-success"></span>
+              USER_FS
+            </span>
+            <span class="badge badge-xs badge-success text-[10px] font-tech">[RW]</span>
+          </div>
+          <progress id="prog-user-fs" class="progress progress-success w-full h-1.5" value="0" max="100"></progress>
+          <div class="flex justify-between items-center text-[10px] text-base-content/70 mt-1 font-tech">
+            <span id="stat-user-used">-- KB</span>
+            <span id="stat-user-total">-- MB</span>
+          </div>
+        </div>
+
+        <!-- SYSTEM_FS Metric -->
+        <div class="p-2 rounded bg-base-300/30 border border-base-300/50 cursor-pointer" onclick="switchPartition('system')" title="Browse SYSTEM_FS">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-bold flex items-center gap-1 font-tech">
+              <span class="w-2 h-2 rounded-full bg-warning"></span>
+              SYSTEM_FS
+            </span>
+            <span class="badge badge-xs badge-neutral text-[10px] font-tech">[RO]</span>
+          </div>
+          <progress id="prog-system-fs" class="progress progress-primary w-full h-1.5" value="0" max="100"></progress>
+          <div class="flex justify-between items-center text-[10px] text-base-content/70 mt-1 font-tech">
+            <span id="stat-system-used">-- KB</span>
+            <span id="stat-system-total">512 KB</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pinned Directories (Shortcuts) -->
+      <div class="card bg-base-200 border border-base-300 shadow-sm p-3 flex-1">
+        <span class="text-[11px] font-bold tracking-wider uppercase opacity-70 mb-2 font-dot">Pinned Folders</span>
+        
+        <ul class="menu menu-xs p-0 gap-1 font-tech">
+          <li class="menu-title text-[9px] uppercase tracking-wider text-base-content/40 font-dot">User Partition</li>
+          <li>
+            <a onclick="navigateTo('user', '/apps')" class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span class="badge badge-xs font-tech">[DIR]</span> /apps</span>
+              <span class="badge badge-ghost badge-xs text-[9px]">Apps</span>
+            </a>
+          </li>
+          <li>
+            <a onclick="navigateTo('user', '/profiles')" class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span class="badge badge-xs font-tech">[DIR]</span> /profiles</span>
+              <span class="badge badge-ghost badge-xs text-[9px]">Configs</span>
+            </a>
+          </li>
+          <li>
+            <a onclick="navigateTo('user', '/captures')" class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span class="badge badge-xs font-tech">[DIR]</span> /captures</span>
+              <span class="badge badge-ghost badge-xs text-[9px]">VCD</span>
+            </a>
+          </li>
+
+          <li class="menu-title text-[9px] uppercase tracking-wider text-base-content/40 mt-2 font-dot">System ROM</li>
+          <li>
+            <a onclick="navigateTo('system', '/')" class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span class="badge badge-neutral badge-xs font-tech">[RO]</span> sys:/</span>
+              <span class="badge badge-neutral badge-xs text-[9px]">Assets</span>
+            </a>
+          </li>
+          <li>
+            <a onclick="navigateTo('system', '/fonts')" class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span class="badge badge-neutral badge-xs font-tech">[RO]</span> sys:/fonts</span>
+              <span class="badge badge-neutral badge-xs text-[9px]">Fonts</span>
+            </a>
+          </li>
+          <li>
+            <a onclick="navigateTo('system', '/algo')" class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span class="badge badge-neutral badge-xs font-tech">[RO]</span> sys:/algo</span>
+              <span class="badge badge-neutral badge-xs text-[9px]">FLM</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Quick Tips Card -->
+      <div class="p-2.5 rounded bg-base-300/20 border border-base-300 text-[10px] text-base-content/60 font-tech">
+        <span class="font-bold text-primary">[TIP]:</span> Drag and drop files directly into the explorer canvas to upload straight to LittleFS.
+      </div>
+
+    </aside>
+
+    <!-- Right Workspace: Explorer Toolbar, Breadcrumbs & File Grid -->
+    <main class="flex-1 flex flex-col bg-base-100 overflow-hidden">
+      
+      <!-- Toolbar & Action Strip -->
+      <div class="bg-base-200/30 border-b border-base-300 p-2.5 flex flex-wrap items-center justify-between gap-2">
+        
+        <!-- Breadcrumbs Navigation -->
+        <div class="breadcrumbs text-xs font-tech py-0 overflow-x-auto max-w-full">
+          <ul id="breadcrumb-list">
+            <!-- Dynamically populated -->
+          </ul>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2">
+          <!-- Search filter input -->
+          <div class="relative">
+            <input type="text" id="filter-input" placeholder="Filter..." class="input input-xs input-bordered w-24 sm:w-36 font-tech pl-6" oninput="filterEntries(this.value)">
+            <svg class="solar-icon absolute left-1.5 top-1.5 text-base-content/40" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+
+          <!-- View Mode Toggle: Grid vs List -->
+          <div class="join border border-base-300 rounded">
+            <button id="btn-view-grid" class="join-item btn btn-xs btn-active" onclick="setViewMode('grid')" title="Grid View">
+              <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>
+              </svg>
+            </button>
+            <button id="btn-view-list" class="join-item btn btn-xs" onclick="setViewMode('list')" title="List / Table View">
+              <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="4" y1="18" x2="20" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Mutating Actions (Hidden or Disabled if root == 'system') -->
+          <button id="btn-new-folder" class="btn btn-xs btn-outline gap-1 font-dot" onclick="openNewFolderModal()">
+            <span>+</span> Folder
+          </button>
+
+          <button id="btn-upload" class="btn btn-xs btn-primary gap-1 font-dot" onclick="document.getElementById('file-upload-input').click()">
+            <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+            Upload
+          </button>
+          <input type="file" id="file-upload-input" class="hidden" multiple onchange="handleFileSelect(event)">
+
+          <button class="btn btn-xs btn-ghost btn-square" onclick="refreshDirectory()" title="Refresh Directory">
+            <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+            </svg>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Read-Only Notice Banner (Shown dynamically when in system_fs) -->
+      <div id="banner-readonly" class="bg-warning/10 border-b border-warning/20 px-4 py-1.5 flex items-center justify-between text-xs text-warning font-tech hidden">
+        <span class="flex items-center gap-1.5">
+          <span class="badge badge-xs badge-warning uppercase font-dot">[RO]</span>
+          <span>SYSTEM_FS ROM -- Immutable partition. Uploading, modifying, renaming, and deleting are strictly prohibited.</span>
+        </span>
+        <span class="badge badge-xs badge-warning uppercase font-dot">READ-ONLY</span>
+      </div>
+
+      <!-- File Canvas (Grid & Table Views) -->
+      <div id="file-canvas" class="flex-1 p-4 overflow-y-auto relative" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+        
+        <!-- Loading Spinner -->
+        <div id="canvas-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-base-100/70 z-10 hidden">
+          <span class="loading loading-spinner loading-md text-primary"></span>
+          <span class="text-xs text-base-content/60 mt-2 font-tech">Loading entries...</span>
+        </div>
+
+        <!-- Empty State Container -->
+        <div id="empty-state" class="flex flex-col items-center justify-center h-64 text-center hidden">
+          <div class="text-2xl font-dot opacity-40 mb-2">[EMPTY]</div>
+          <span class="font-bold text-sm font-dot">Directory is empty</span>
+          <span class="text-xs text-base-content/50 mt-1 font-tech">Drop files here to upload to this directory</span>
+        </div>
+
+        <!-- Grid Container -->
+        <div id="view-grid-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Table Container -->
+        <div id="view-list-container" class="overflow-x-auto hidden">
+          <table class="table table-sm table-zebra w-full font-tech">
+            <thead>
+              <tr class="text-xs text-base-content/50 border-b border-base-300">
+                <th class="w-8"></th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="file-table-body">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Bottom Status Bar -->
+      <footer class="bg-base-200 border-t border-base-300 px-4 py-1 flex items-center justify-between text-[11px] text-base-content/60 font-tech">
+        <div class="flex items-center gap-3">
+          <span id="status-item-count">0 items</span>
+          <span>/</span>
+          <span id="status-folder-path">user:/</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="status-readonly-indicator" class="badge badge-xs badge-success">[RW Mode]</span>
+        </div>
+      </footer>
+
+    </main>
+
+  </div>
+
+  <!-- Modal: In-Place Text & Code Editor -->
+  <dialog id="modal-file-editor" class="modal">
+    <div class="modal-box w-11/12 max-w-4xl bg-base-200 border border-base-300 p-4">
+      <div class="flex items-center justify-between border-b border-base-300 pb-2 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-sm font-dot flex items-center gap-1.5" id="editor-title">
+            <span class="badge badge-xs badge-primary font-tech">[EDIT]</span>
+            <span id="editor-filename">filename.txt</span>
+          </span>
+          <span id="editor-badge" class="badge badge-xs badge-primary font-tech">[RW]</span>
+        </div>
+        <button class="btn btn-ghost btn-xs btn-square font-tech" onclick="closeEditorModal()">[X]</button>
+      </div>
+
+      <!-- Editor Read-Only Warning Banner -->
+      <div id="editor-readonly-notice" class="alert alert-warning text-xs py-1.5 mb-2 hidden">
+        <span>[RO] System ROM Asset -- Read Only. Modifications cannot be saved to firmware flash.</span>
+      </div>
+
+      <!-- Monospace Code Editor Area -->
+      <div class="relative">
+        <textarea id="editor-content" class="textarea textarea-bordered w-full h-96 font-mono text-xs p-3 leading-relaxed bg-base-300/40 focus:outline-none" spellcheck="false"></textarea>
+      </div>
+
+      <div class="modal-action flex justify-between items-center mt-3 pt-2 border-t border-base-300">
+        <div class="text-[11px] text-base-content/60 font-tech">
+          <span id="editor-stats">-- bytes / -- lines</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="editor-btn-download" class="btn btn-xs btn-outline font-tech flex items-center gap-1" onclick="downloadOpenEditorFile()">
+            <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12l7 7 7-7"/>
+            </svg>
+            Download
+          </button>
+          <button class="btn btn-xs btn-ghost font-tech" onclick="closeEditorModal()">Close</button>
+          <button id="editor-btn-save" class="btn btn-xs btn-primary font-dot" onclick="saveEditorContent()">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <!-- Modal: Create New Folder -->
+  <dialog id="modal-new-folder" class="modal">
+    <div class="modal-box max-w-sm bg-base-200 border border-base-300 p-4">
+      <h3 class="font-bold text-sm mb-3 font-dot flex items-center gap-1.5">
+        <span class="badge badge-xs font-tech">[DIR]</span> New Folder
+      </h3>
+      <label class="form-control w-full">
+        <div class="label py-1">
+          <span class="label-text text-xs font-tech">Folder Name:</span>
+        </div>
+        <input type="text" id="input-new-folder-name" placeholder="e.g. captures_spi" class="input input-sm input-bordered w-full font-tech">
+      </label>
+      <div class="modal-action mt-4">
+        <button class="btn btn-xs btn-ghost font-tech" onclick="document.getElementById('modal-new-folder').close()">Cancel</button>
+        <button class="btn btn-xs btn-primary font-dot" onclick="confirmCreateFolder()">Create</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal: Rename Item -->
+  <dialog id="modal-rename" class="modal">
+    <div class="modal-box max-w-sm bg-base-200 border border-base-300 p-4">
+      <h3 class="font-bold text-sm mb-3 font-dot flex items-center gap-1.5">
+        <span class="badge badge-xs font-tech">[REN]</span> Rename Entry
+      </h3>
+      <input type="hidden" id="rename-src-path">
+      <label class="form-control w-full">
+        <div class="label py-1">
+          <span class="label-text text-xs font-tech">New Name:</span>
+        </div>
+        <input type="text" id="input-rename-name" class="input input-sm input-bordered w-full font-tech">
+      </label>
+      <div class="modal-action mt-4">
+        <button class="btn btn-xs btn-ghost font-tech" onclick="document.getElementById('modal-rename').close()">Cancel</button>
+        <button class="btn btn-xs btn-primary font-dot" onclick="confirmRename()">Rename</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal: Delete Confirmation -->
+  <dialog id="modal-delete" class="modal">
+    <div class="modal-box max-w-sm bg-base-200 border border-base-300 p-4">
+      <h3 class="font-bold text-sm text-error mb-2 font-dot flex items-center gap-1.5">
+        <span class="badge badge-xs badge-error font-tech">[DEL]</span> Confirm Deletion
+      </h3>
+      <p class="text-xs text-base-content/80 font-tech mb-2">
+        Are you sure you want to delete <span id="delete-target-name" class="font-bold text-base-content"></span>?
+      </p>
+      <p class="text-[11px] text-error/80 font-tech">
+        [WARN] This action immediately frees the LittleFS flash sectors and cannot be undone.
+      </p>
+      <input type="hidden" id="delete-target-path">
+      <div class="modal-action mt-4">
+        <button class="btn btn-xs btn-ghost font-tech" onclick="document.getElementById('modal-delete').close()">Cancel</button>
+        <button class="btn btn-xs btn-error font-dot" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Toast Notification Center -->
+  <div id="toast-container" class="toast toast-end toast-bottom z-50 pointer-events-none"></div>
+
+  <!-- Client-Side Storage Explorer Application Logic -->
+  <script>
+    // State
+    let activeRoot = 'user'; // 'user' or 'system'
+    let currentPath = '/';
+    let entries = [];
+    let viewMode = localStorage.getItem('agentla-fs-view') || 'grid';
+    let isDemo = window.location.protocol === 'file:' || window.location.hostname === 'localhost' && window.location.port !== '80';
+    let currentlyEditingPath = '';
+    let storageMetrics = {
+      system: { total_bytes: 524288, used_bytes: 155599, read_only: true },
+      user: { total_bytes: 2015232, used_bytes: 16384, read_only: false }
+    };
+
+    // Mock Filesystem for Static / Demo Fallback
+    const mockFilesystem = {
+      system: {
+        '/': [
+          { name: 'index.html.gz', is_dir: false, size: 48920 },
+          { name: 'lab.html.gz', is_dir: false, size: 76210 },
+          { name: 'terminal.html.gz', is_dir: false, size: 14350 },
+          { name: 'files.html.gz', is_dir: false, size: 16200 },
+          { name: 'daisyui.css.gz', is_dir: false, size: 38400 },
+          { name: 'style.css.gz', is_dir: false, size: 22100 },
+          { name: 'themes.css.gz', is_dir: false, size: 18450 },
+          { name: 'themes.json', is_dir: false, size: 12500 },
+          { name: 'fonts', is_dir: true, size: 0 },
+          { name: 'algo', is_dir: true, size: 0 },
+          { name: 'icons', is_dir: true, size: 0 }
+        ],
+        '/fonts': [
+          { name: 'ndot57.woff2', is_dir: false, size: 1304 }
+        ],
+        '/algo': [
+          { name: 'RP2350_RISCV.flm', is_dir: false, size: 16384 },
+          { name: 'RP2350_ARM.flm', is_dir: false, size: 16384 }
+        ],
+        '/icons': [
+          { name: 'favicon.ico', is_dir: false, size: 4286 },
+          { name: 'logo.svg', is_dir: false, size: 2150 }
+        ]
+      },
+      user: {
+        '/': [
+          { name: 'apps', is_dir: true, size: 0 },
+          { name: 'profiles', is_dir: true, size: 0 },
+          { name: 'captures', is_dir: true, size: 0 },
+          { name: 'system', is_dir: true, size: 0 },
+          { name: 'readme.txt', is_dir: false, size: 342 }
+        ],
+        '/apps': [
+          { name: 'servo-master', is_dir: true, size: 0 },
+          { name: 'can-sniffer', is_dir: true, size: 0 }
+        ],
+        '/apps/servo-master': [
+          { name: 'index.html', is_dir: false, size: 8420 },
+          { name: 'app.json', is_dir: false, size: 240 }
+        ],
+        '/apps/can-sniffer': [
+          { name: 'index.html', is_dir: false, size: 11250 },
+          { name: 'app.json', is_dir: false, size: 310 }
+        ],
+        '/profiles': [
+          { name: 'safe_state.json', is_dir: false, size: 512 },
+          { name: 'logic_analyzer.json', is_dir: false, size: 680 },
+          { name: 'can_sniffer.json', is_dir: false, size: 620 }
+        ],
+        '/captures': [
+          { name: 'spi_flash_read.vcd', is_dir: false, size: 24890 },
+          { name: 'i2c_sensor_burst.vcd', is_dir: false, size: 12450 }
+        ],
+        '/system': [
+          { name: 'settings.json', is_dir: false, size: 195 }
+        ]
+      }
+    };
+
+    // Helper: Format bytes
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Helper: File Icon based on extension
+    function getFileIcon(entry) {
+      if (entry.is_dir) {
+        return `<svg class="solar-icon text-warning" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M4 4h6l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+        </svg>`;
+      }
+      const ext = entry.name.split('.').pop().toLowerCase();
+      if (['json', 'toml', 'yaml', 'yml'].includes(ext)) {
+        return `<svg class="solar-icon text-info" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>`;
+      }
+      if (['html', 'htm', 'js', 'css'].includes(ext)) {
+        return `<svg class="solar-icon text-primary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>`;
+      }
+      if (['vcd', 'csv'].includes(ext)) {
+        return `<svg class="solar-icon text-success" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"/>
+          <path d="M18 9l-5 5-4-4-3 3"/>
+        </svg>`;
+      }
+      if (['gz', 'tar', 'zip'].includes(ext)) {
+        return `<svg class="solar-icon text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>`;
+      }
+      return `<svg class="solar-icon opacity-60" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>`;
+    }
+
+    // Toast Alert
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';
+      toast.className = `alert ${alertClass} shadow-lg text-xs py-2 px-3 font-tech pointer-events-auto`;
+      toast.innerHTML = `<span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Refresh Partition Storage Metrics
+    async function refreshStorageStats() {
+      try {
+        const res = await fetch('/api/v1/fs/stat');
+        if (res.ok) {
+          storageMetrics = await res.json();
+        }
+      } catch (_) {
+        // Fall back to defaults
+      }
+
+      const sysUsed = storageMetrics.system.used_bytes || 0;
+      const sysTotal = storageMetrics.system.total_bytes || 524288;
+      const usrUsed = storageMetrics.user.used_bytes || 0;
+      const usrTotal = storageMetrics.user.total_bytes || 2015232;
+
+      document.getElementById('stat-system-used').textContent = formatBytes(sysUsed);
+      document.getElementById('stat-system-total').textContent = formatBytes(sysTotal);
+      document.getElementById('prog-system-fs').value = ((sysUsed / sysTotal) * 100).toFixed(1);
+
+      document.getElementById('stat-user-used').textContent = formatBytes(usrUsed);
+      document.getElementById('stat-user-total').textContent = formatBytes(usrTotal);
+      document.getElementById('prog-user-fs').value = ((usrUsed / usrTotal) * 100).toFixed(1);
+    }
+
+    // Switch Partition Root
+    function switchPartition(newRoot) {
+      activeRoot = newRoot;
+      currentPath = '/';
+
+      // Update segment switches
+      const isUser = activeRoot === 'user';
+      const btnUser = document.getElementById('btn-part-user');
+      const btnSys = document.getElementById('btn-part-system');
+      const btnUserM = document.getElementById('btn-part-user-m');
+      const btnSysM = document.getElementById('btn-part-system-m');
+
+      if (btnUser && btnSys) {
+        btnUser.className = `join-item btn btn-xs font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
+        btnSys.className = `join-item btn btn-xs font-dot ${!isUser ? 'btn-primary' : 'btn-ghost'}`;
+      }
+      if (btnUserM && btnSysM) {
+        btnUserM.className = `join-item btn btn-xs flex-1 font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
+        btnSysM.className = `join-item btn btn-xs flex-1 font-dot ${!isUser ? 'btn-primary' : 'btn-ghost'}`;
+      }
+
+      // Permissions guards for System partition
+      const bannerRo = document.getElementById('banner-readonly');
+      const btnNewFolder = document.getElementById('btn-new-folder');
+      const btnUpload = document.getElementById('btn-upload');
+      const statusRo = document.getElementById('status-readonly-indicator');
+
+      if (isUser) {
+        bannerRo.classList.add('hidden');
+        btnNewFolder.classList.remove('hidden');
+        btnUpload.classList.remove('hidden');
+        statusRo.textContent = '[RW Mode]';
+        statusRo.className = 'badge badge-xs badge-success';
+      } else {
+        bannerRo.classList.remove('hidden');
+        btnNewFolder.classList.add('hidden');
+        btnUpload.classList.add('hidden');
+        statusRo.textContent = '[RO Mode]';
+        statusRo.className = 'badge badge-xs badge-warning';
+      }
+
+      fetchDirectory(currentPath);
+    }
+
+    // Direct Navigate
+    function navigateTo(root, path) {
+      if (activeRoot !== root) {
+        activeRoot = root;
+        switchPartition(root);
+      }
+      currentPath = path;
+      fetchDirectory(currentPath);
+    }
+
+    // Fetch Directory Entries from REST API
+    async function fetchDirectory(path) {
+      currentPath = path;
+      document.getElementById('canvas-loader').classList.remove('hidden');
+      renderBreadcrumbs();
+
+      try {
+        const res = await fetch(`/api/v1/fs/list?root=${activeRoot}&path=${encodeURIComponent(path)}`);
+        if (res.ok) {
+          entries = await res.json();
+        } else {
+          throw new Error('API unavailable');
+        }
+      } catch (_) {
+        // Fallback to mock filesystem for demo mode
+        const rootFs = mockFilesystem[activeRoot] || {};
+        entries = rootFs[path] || [];
+      }
+
+      document.getElementById('canvas-loader').classList.add('hidden');
+      renderEntries(entries);
+    }
+
+    // Render Breadcrumbs
+    function renderBreadcrumbs() {
+      const list = document.getElementById('breadcrumb-list');
+      list.innerHTML = '';
+
+      // Root segment
+      const rootLi = document.createElement('li');
+      rootLi.innerHTML = `<a onclick="fetchDirectory('/')" class="font-bold text-primary font-dot">${activeRoot}:/</a>`;
+      list.appendChild(rootLi);
+
+      const parts = currentPath.split('/').filter(Boolean);
+      let builtPath = '';
+      parts.forEach((p, index) => {
+        builtPath += '/' + p;
+        const targetPath = builtPath;
+        const isLast = index === parts.length - 1;
+        const li = document.createElement('li');
+        if (isLast) {
+          li.innerHTML = `<span class="opacity-80">${p}</span>`;
+        } else {
+          li.innerHTML = `<a onclick="fetchDirectory('${targetPath}')">${p}</a>`;
+        }
+        list.appendChild(li);
+      });
+
+      document.getElementById('status-folder-path').textContent = `${activeRoot}:${currentPath}`;
+    }
+
+    // Filter Entries
+    function filterEntries(query) {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        renderEntries(entries);
+        return;
+      }
+      const filtered = entries.filter(e => e.name.toLowerCase().includes(q));
+      renderEntries(filtered);
+    }
+
+    // Render Directory Entries
+    function renderEntries(items) {
+      const gridContainer = document.getElementById('view-grid-container');
+      const tableBody = document.getElementById('file-table-body');
+      const emptyState = document.getElementById('empty-state');
+      document.getElementById('status-item-count').textContent = `${items.length} items`;
+
+      gridContainer.innerHTML = '';
+      tableBody.innerHTML = '';
+
+      if (items.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      // Sort: Directories first, then alphabetical
+      const sorted = [...items].sort((a, b) => {
+        if (a.is_dir === b.is_dir) return a.name.localeCompare(b.name);
+        return a.is_dir ? -1 : 1;
+      });
+
+      sorted.forEach(entry => {
+        const fullItemPath = (currentPath === '/' ? '' : currentPath) + '/' + entry.name;
+
+        // 1. Grid Card
+        const card = document.createElement('div');
+        card.className = 'file-card card bg-base-200 border border-base-300 p-3 flex flex-col justify-between cursor-pointer group';
+        card.onclick = () => onEntryClick(entry, fullItemPath);
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            ${getFileIcon(entry)}
+            ${entry.is_dir ? '<span class="badge badge-xs badge-ghost font-tech">DIR</span>' : `<span class="text-[10px] opacity-50 font-tech">${formatBytes(entry.size)}</span>`}
+          </div>
+          <div class="mt-3">
+            <div class="font-semibold text-xs truncate font-tech" title="${entry.name}">${entry.name}</div>
+            <div class="text-[10px] opacity-40 font-tech mt-0.5">${entry.is_dir ? 'Folder' : entry.name.split('.').pop().toUpperCase() + ' File'}</div>
+          </div>
+          <div class="mt-2 pt-2 border-t border-base-300/40 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="btn btn-ghost btn-xs btn-square" title="Download" onclick="event.stopPropagation(); downloadFile('${fullItemPath}')">
+              <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12l7 7 7-7"/>
+              </svg>
+            </button>
+            ${activeRoot === 'user' ? `
+              <div class="flex items-center gap-1">
+                <button class="btn btn-ghost btn-xs btn-square" title="Rename" onclick="event.stopPropagation(); openRenameModal('${fullItemPath}', '${entry.name}')">
+                  <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <button class="btn btn-ghost btn-xs btn-square text-error" title="Delete" onclick="event.stopPropagation(); openDeleteModal('${fullItemPath}', '${entry.name}')">
+                  <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                </button>
+              </div>
+            ` : '<span class="text-[9px] opacity-30 font-tech">ROM</span>'}
+          </div>
+        `;
+        gridContainer.appendChild(card);
+
+        // 2. Table Row
+        const tr = document.createElement('tr');
+        tr.className = 'hover cursor-pointer';
+        tr.onclick = () => onEntryClick(entry, fullItemPath);
+
+        tr.innerHTML = `
+          <td>${getFileIcon(entry)}</td>
+          <td class="font-semibold">${entry.name}</td>
+          <td class="text-xs opacity-60">${entry.is_dir ? 'Directory' : entry.name.split('.').pop().toUpperCase()}</td>
+          <td class="text-xs opacity-60">${entry.is_dir ? '--' : formatBytes(entry.size)}</td>
+          <td class="text-right" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-end gap-1">
+              <button class="btn btn-ghost btn-xs" onclick="downloadFile('${fullItemPath}')">Download</button>
+              ${activeRoot === 'user' ? `
+                <button class="btn btn-ghost btn-xs" onclick="openRenameModal('${fullItemPath}', '${entry.name}')">Rename</button>
+                <button class="btn btn-ghost btn-xs text-error" onclick="openDeleteModal('${fullItemPath}', '${entry.name}')">Delete</button>
+              ` : ''}
+            </div>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    }
+
+    // Entry Click Handler
+    function onEntryClick(entry, path) {
+      if (entry.is_dir) {
+        fetchDirectory(path);
+      } else {
+        openFileInEditor(path, entry);
+      }
+    }
+
+    // Toggle View Mode (Grid vs List)
+    function setViewMode(mode) {
+      viewMode = mode;
+      localStorage.setItem('agentla-fs-view', mode);
+      const isGrid = mode === 'grid';
+      document.getElementById('view-grid-container').classList.toggle('hidden', !isGrid);
+      document.getElementById('view-list-container').classList.toggle('hidden', isGrid);
+      document.getElementById('btn-view-grid').classList.toggle('btn-active', isGrid);
+      document.getElementById('btn-view-list').classList.toggle('btn-active', !isGrid);
+    }
+
+    // In-Place File Viewer & Editor Modal
+    async function openFileInEditor(path, entry) {
+      currentlyEditingPath = path;
+      const isRom = activeRoot === 'system';
+      const modal = document.getElementById('modal-file-editor');
+      document.getElementById('editor-filename').textContent = `${activeRoot}:${path}`;
+      document.getElementById('editor-badge').textContent = isRom ? '[RO]' : '[RW]';
+      document.getElementById('editor-badge').className = `badge badge-xs ${isRom ? 'badge-warning' : 'badge-primary'}`;
+      document.getElementById('editor-readonly-notice').classList.toggle('hidden', !isRom);
+      document.getElementById('editor-btn-save').disabled = isRom;
+
+      const textarea = document.getElementById('editor-content');
+      textarea.value = 'Loading file contents...';
+      modal.showModal();
+
+      try {
+        const res = await fetch(`/api/v1/fs/read?root=${activeRoot}&path=${encodeURIComponent(path)}`);
+        if (res.ok) {
+          const text = await res.text();
+          textarea.value = text;
+          updateEditorStats(text);
+        } else {
+          throw new Error('Read failed');
+        }
+      } catch (_) {
+        // Fallback for demo
+        textarea.value = `// Simulated file: ${activeRoot}:${path}\n// Size: ${formatBytes(entry.size)}\n{\n  "status": "healthy",\n  "simulated": true\n}`;
+        updateEditorStats(textarea.value);
+      }
+    }
+
+    function updateEditorStats(text) {
+      const lines = text.split('\n').length;
+      const bytes = new Blob([text]).size;
+      document.getElementById('editor-stats').textContent = `${formatBytes(bytes)} / ${lines} lines`;
+    }
+
+    document.getElementById('editor-content').addEventListener('input', function() {
+      updateEditorStats(this.value);
+    });
+
+    async function saveEditorContent() {
+      if (activeRoot === 'system') {
+        showToast('system_fs is permanent read-only ROM', 'error');
+        return;
+      }
+      const text = document.getElementById('editor-content').value;
+      const saveBtn = document.getElementById('editor-btn-save');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const res = await fetch(`/api/v1/fs/write?root=user&path=${encodeURIComponent(currentlyEditingPath)}`, {
+          method: 'POST',
+          body: text
+        });
+        if (res.ok) {
+          showToast(`Saved ${currentlyEditingPath} successfully`, 'success');
+          refreshStorageStats();
+          refreshDirectory();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(`Save failed: ${err.error || 'Server error'}`, 'error');
+        }
+      } catch (e) {
+        showToast(`Saved locally (Demo mode fallback)`, 'info');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
+      }
+    }
+
+    function downloadOpenEditorFile() {
+      const text = document.getElementById('editor-content').value;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const filename = currentlyEditingPath.split('/').pop() || 'download.txt';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function closeEditorModal() {
+      document.getElementById('modal-file-editor').close();
+    }
+
+    // Direct Download Action
+    function downloadFile(path) {
+      const url = `/api/v1/fs/read?root=${activeRoot}&path=${encodeURIComponent(path)}`;
+      const filename = path.split('/').pop() || 'download';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    }
+
+    // Modal: New Folder
+    function openNewFolderModal() {
+      if (activeRoot === 'system') {
+        showToast('Cannot create folder in read-only system partition', 'error');
+        return;
+      }
+      document.getElementById('input-new-folder-name').value = '';
+      document.getElementById('modal-new-folder').showModal();
+      setTimeout(() => document.getElementById('input-new-folder-name').focus(), 100);
+    }
+
+    async function confirmCreateFolder() {
+      const name = document.getElementById('input-new-folder-name').value.trim();
+      if (!name) return;
+      const targetPath = (currentPath === '/' ? '' : currentPath) + '/' + name;
+      document.getElementById('modal-new-folder').close();
+
+      try {
+        const res = await fetch(`/api/v1/fs/mkdir?root=user&path=${encodeURIComponent(targetPath)}`, { method: 'POST' });
+        if (res.ok) {
+          showToast(`Folder "${name}" created`, 'success');
+          refreshDirectory();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(`Failed to create folder: ${err.error || 'Error'}`, 'error');
+        }
+      } catch (_) {
+        showToast(`Folder "${name}" created in demo mode`, 'info');
+        refreshDirectory();
+      }
+    }
+
+    // Modal: Rename
+    function openRenameModal(path, currentName) {
+      document.getElementById('rename-src-path').value = path;
+      document.getElementById('input-rename-name').value = currentName;
+      document.getElementById('modal-rename').showModal();
+      setTimeout(() => document.getElementById('input-rename-name').focus(), 100);
+    }
+
+    async function confirmRename() {
+      const src = document.getElementById('rename-src-path').value;
+      const newName = document.getElementById('input-rename-name').value.trim();
+      if (!newName) return;
+      const parentDir = src.substring(0, src.lastIndexOf('/')) || '/';
+      const dst = (parentDir === '/' ? '' : parentDir) + '/' + newName;
+      document.getElementById('modal-rename').close();
+
+      try {
+        const res = await fetch(`/api/v1/fs/rename?root=user&src=${encodeURIComponent(src)}&dst=${encodeURIComponent(dst)}`, { method: 'POST' });
+        if (res.ok) {
+          showToast(`Renamed to "${newName}"`, 'success');
+          refreshDirectory();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(`Rename failed: ${err.error || 'Error'}`, 'error');
+        }
+      } catch (_) {
+        showToast(`Renamed in demo mode`, 'info');
+        refreshDirectory();
+      }
+    }
+
+    // Modal: Delete
+    function openDeleteModal(path, name) {
+      document.getElementById('delete-target-path').value = path;
+      document.getElementById('delete-target-name').textContent = name;
+      document.getElementById('modal-delete').showModal();
+    }
+
+    async function confirmDelete() {
+      const path = document.getElementById('delete-target-path').value;
+      document.getElementById('modal-delete').close();
+
+      try {
+        const res = await fetch(`/api/v1/fs/entry?root=user&path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast(`Deleted ${path}`, 'success');
+          refreshStorageStats();
+          refreshDirectory();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(`Delete failed: ${err.error || 'Error'}`, 'error');
+        }
+      } catch (_) {
+        showToast(`Deleted in demo mode`, 'info');
+        refreshDirectory();
+      }
+    }
+
+    // Drag and Drop Uploader
+    function handleDragOver(e) {
+      e.preventDefault();
+      if (activeRoot === 'user') {
+        document.getElementById('file-canvas').classList.add('file-dropzone-active');
+      }
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      document.getElementById('file-canvas').classList.remove('file-dropzone-active');
+    }
+
+    async function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById('file-canvas').classList.remove('file-dropzone-active');
+      if (activeRoot === 'system') {
+        showToast('system_fs is read-only ROM. Drop ignored.', 'error');
+        return;
+      }
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        uploadFiles(files);
+      }
+    }
+
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        uploadFiles(files);
+      }
+    }
+
+    async function uploadFiles(files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const targetPath = (currentPath === '/' ? '' : currentPath) + '/' + file.name;
+        showToast(`Uploading ${file.name}...`, 'info');
+
+        try {
+          const res = await fetch(`/api/v1/fs/write?root=user&path=${encodeURIComponent(targetPath)}`, {
+            method: 'POST',
+            body: file
+          });
+          if (res.ok) {
+            showToast(`Uploaded ${file.name} successfully`, 'success');
+          } else {
+            showToast(`Upload of ${file.name} failed`, 'error');
+          }
+        } catch (_) {
+          showToast(`Uploaded ${file.name} (Demo mode)`, 'success');
+        }
+      }
+      refreshStorageStats();
+      refreshDirectory();
+    }
+
+    function refreshDirectory() {
+      fetchDirectory(currentPath);
+    }
+
+    // Industrial Theme Management
+    function applyFilesTheme(theme, mode) {
+      const activeTheme = theme || 'nothing';
+      document.documentElement.setAttribute('data-theme', activeTheme);
+      const isLight = (activeTheme === 'industrial-light' || activeTheme === 'emerald' || activeTheme === 'caramellatte' || activeTheme === 'light' || mode === 'light');
+      document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+      const label = document.getElementById('theme-btn-label');
+      if (label) {
+        label.textContent = isLight ? 'LIGHT' : 'DARK';
+      }
+    }
+
+    function toggleFilesTheme() {
+      const curTheme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('agentla-theme') || 'nothing';
+      const isCurrentlyLight = (curTheme === 'industrial-light' || curTheme === 'emerald' || curTheme === 'caramellatte' || curTheme === 'light');
+      const nextTheme = isCurrentlyLight ? 'nothing' : 'industrial-light';
+      const nextMode = isCurrentlyLight ? 'dark' : 'light';
+      try {
+        localStorage.setItem('agentla-theme', nextTheme);
+        localStorage.setItem('agentla-theme-mode', nextMode);
+      } catch (_) {}
+      applyFilesTheme(nextTheme, nextMode);
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('agentla-theme-channel');
+          bc.postMessage({ type: 'THEME_CHANGE', theme: nextTheme, mode: nextMode, scheme: nextMode });
+          bc.close();
+        }
+      } catch (_) {}
+      showToast(`Switched to ${nextMode.toUpperCase()} mode`);
+    }
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const syncChannel = new BroadcastChannel('agentla-theme-channel');
+        syncChannel.onmessage = (event) => {
+          if (event.data && event.data.type === 'THEME_CHANGE') {
+            applyFilesTheme(event.data.theme, event.data.mode);
+          }
+        };
+      } catch (_) {}
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'agentla-theme' || e.key === 'agentla-theme-mode') {
+        applyFilesTheme(localStorage.getItem('agentla-theme') || 'nothing', localStorage.getItem('agentla-theme-mode') || 'dark');
+      }
+    });
+
+    // Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedTheme = localStorage.getItem('agentla-theme') || 'nothing';
+      const savedMode = localStorage.getItem('agentla-theme-mode') || 'dark';
+      applyFilesTheme(savedTheme, savedMode);
+      setViewMode(viewMode);
+      refreshStorageStats();
+      fetchDirectory(currentPath);
+    });
+  </script>
+
+</body>
+</html>

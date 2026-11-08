@@ -1281,12 +1281,24 @@
     function initBridge() {
         try {
             var params = new URLSearchParams(window.location.search);
-            if (params.get('no_launcher') === '1' || window.AgentLANoLauncher === true) {
+            var isEmbedded = (window.self !== window.top) || 
+                             params.get('embed') === '1' || 
+                             params.get('no_launcher') === '1' || 
+                             window.AgentLANoLauncher === true;
+            if (isEmbedded) {
+                document.documentElement.classList.add('is-embedded');
+                var existingTopBar = document.getElementById('top-bar');
+                if (existingTopBar) existingTopBar.style.display = 'none';
+                var existingDock = document.getElementById('floating-glass-dock');
+                if (existingDock) existingDock.style.display = 'none';
                 return;
             }
         } catch (_) {}
         initTopBar();
         mountDock();
+        if (document.body) {
+            document.body.style.paddingBottom = '84px';
+        }
     }
 
     if (document.readyState === 'loading') {

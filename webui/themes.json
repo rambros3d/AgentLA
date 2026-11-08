@@ -10,8 +10,8 @@
   },
   {
     "name": "emerald",
-    "default": true,
-    "isDefault": true,
+    "default": false,
+    "isDefault": false,
     "prefersdark": false,
     "prefersDark": false,
     "color-scheme": "light",
@@ -25,6 +25,15 @@
     "prefersDark": true,
     "color-scheme": "dark",
     "colorScheme": "dark"
+  },
+  {
+    "name": "industrial-light",
+    "default": true,
+    "isDefault": true,
+    "prefersdark": false,
+    "prefersDark": false,
+    "color-scheme": "light",
+    "colorScheme": "light"
   },
   {
     "name": "nothing",

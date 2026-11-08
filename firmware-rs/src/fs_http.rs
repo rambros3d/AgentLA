@@ -166,9 +166,17 @@ impl PathRouterService<(), (AppParams,)> for AppFiles {
 
         if is_user_file {
             let mime = mime_for(path_.as_str());
+            let is_html = path_.as_str().ends_with(".html") || mime.contains("html");
+            let cache_ctrl = if is_html {
+                "no-cache, must-revalidate"
+            } else {
+                "public, max-age=604800, immutable"
+            };
             let chunks = AppFileChunks { path: path_, mime };
 
             return ChunkedResponse::new(chunks)
+                .into_response()
+                .with_header("Cache-Control", cache_ctrl)
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
         }
@@ -178,9 +186,17 @@ impl PathRouterService<(), (AppParams,)> for AppFiles {
 
         if is_sys_file {
             let mime = mime_for(path_.as_str());
+            let is_html = path_.as_str().ends_with(".html") || mime.contains("html");
+            let cache_ctrl = if is_html {
+                "no-cache, must-revalidate"
+            } else {
+                "public, max-age=604800, immutable"
+            };
             let chunks = SystemFileChunks { path: path_, mime };
 
             return ChunkedResponse::new(chunks)
+                .into_response()
+                .with_header("Cache-Control", cache_ctrl)
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
         }
@@ -279,7 +295,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
         let cache_ctrl = if is_html {
             "no-cache, must-revalidate"
         } else {
-            "public, max-age=604800, stale-while-revalidate=86400"
+            "public, max-age=604800, immutable"
         };
 
         if client_accepts_gzip {

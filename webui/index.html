@@ -16,23 +16,23 @@
             if (!isDemo) {
                 document.write('<base href="/">');
             }
-            var savedStyle = localStorage.getItem('agentla-ui-style') || 'industrial';
-            document.documentElement.setAttribute('data-style', savedStyle);
+            document.documentElement.setAttribute('data-style', 'industrial');
             var savedMode = localStorage.getItem('agentla-theme-mode');
             var saved = localStorage.getItem('agentla-theme');
-            var defaultDark = (savedStyle === 'bento') ? 'forest' : 'nothing';
+            var defaultDark = 'nothing';
+            var defaultLight = 'industrial-light';
             if (saved) {
                 document.documentElement.setAttribute('data-theme', saved);
-                var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+                var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
                 document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
             } else if (savedMode === 'light') {
-                document.documentElement.setAttribute('data-theme', 'emerald');
+                document.documentElement.setAttribute('data-theme', defaultLight);
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
             } else if (savedMode === 'dark') {
                 document.documentElement.setAttribute('data-theme', defaultDark);
                 document.documentElement.setAttribute('data-theme-scheme', 'dark');
             } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-                document.documentElement.setAttribute('data-theme', 'emerald');
+                document.documentElement.setAttribute('data-theme', defaultLight);
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
             } else {
                 document.documentElement.setAttribute('data-theme', defaultDark);
@@ -83,18 +83,47 @@
             -webkit-overflow-scrolling: touch;
             scroll-behavior: smooth;
         }
+
+        /* Persistent App-Shell Viewport Container & Geometry */
+        .app-viewport-container {
+            position: fixed;
+            top: 48px;
+            bottom: 84px;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: calc(100vh - 132px);
+            z-index: 10;
+            background: var(--color-base-100);
+            overflow: hidden;
+        }
+
+        .app-viewport-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: transparent;
+        }
     </style>
 </head>
 <body>
 
     <!-- Unified Clean OS Top Bar (Matching Workbench) -->
     <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
-        <div class="bar-left navbar-start">
-            <a href="/home" class="brand-item" id="brand-logo" title="AgentLA Launcher (Home)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+        <div class="bar-left navbar-start" style="display: flex; align-items: center;">
+            <a href="#/" class="brand-item" id="brand-logo" title="AgentLA Launcher (Home)" onclick="navigateToRoute('#/'); return false;" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
                 <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
             </a>
+            <div id="top-bar-active-app" style="display: none; align-items: center; gap: 6px; margin-left: 8px;">
+                <span class="text-base-content/30" style="font-size: 13px;">/</span>
+                <span class="badge badge-sm badge-neutral gap-1.5 font-semibold text-xs py-1" id="top-bar-active-app-badge" style="display: inline-flex; align-items: center;">
+                    <span id="top-bar-active-app-name">App</span>
+                    <button type="button" class="btn btn-ghost btn-xs p-0 w-3.5 h-3.5 min-h-0 text-base-content/60 hover:text-base-content" onclick="closeActiveApp(event)" title="Close Application and return to Launcher" style="font-size: 14px; line-height: 1; margin-left: 2px;">×</button>
+                </span>
+            </div>
         </div>
 
         <div class="bar-right navbar-end">
@@ -215,8 +244,10 @@
                         </a>
                     </div>
 
-                    <!-- Spotlight Search for Launchpad -->
-                    <div class="launcher-spotlight" style="margin-bottom: 12px;">
+                    <!-- Pinned Workspace Canvas Widgets (Telemetry HUD & Flash Storage) -->
+                    <div id="pinned-widgets-area" style="display: none; margin-bottom: 24px;"></div>
+
+                    <div class="launcher-spotlight">
                         <div class="launcher-spotlight-wrapper">
                             <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="8"/>
@@ -225,7 +256,6 @@
                             <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search instruments &amp; apps (Press '/' to focus)..." autocomplete="off">
                         </div>
                     </div>
-
 
                     <!-- Section 1: Core Apps & Instruments -->
                     <section class="launcher-section" id="section-core-instruments">
@@ -442,12 +472,17 @@
 
             </div>
         </main>
+
+        <!-- Persistent App-Shell Viewport Container for Instruments & LittleFS Apps -->
+        <div id="view-app-viewport" class="app-viewport-container" style="display: none;">
+            <iframe id="app-viewport-frame" class="app-viewport-frame" src="about:blank" allow="fullscreen; serial; usb; clipboard-read; clipboard-write;"></iframe>
+        </div>
     </div>
 
     <!-- Floating macOS-Style Glass Dock -->
     <div class="floating-glass-dock" id="floating-glass-dock">
         <!-- Launcher (Active on apps page) -->
-        <a href="/home" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="const ws = document.getElementById('main-workspace'); if(ws) ws.scrollTo({top: 0, behavior: 'smooth'}); else window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
+        <a href="#/" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="navigateToRoute('#/'); return false;">
             <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g fill="currentColor" opacity="0.5">
                     <path d="M17.5 13C19.6213 13 20.6818 13.0002 21.3408 13.6592C21.9998 14.3182 22 15.3787 22 17.5C22 19.6213 21.9998 20.6818 21.3408 21.3408C20.6818 21.9998 19.6213 22 17.5 22C15.3787 22 14.3182 21.9998 13.6592 21.3408C13.0002 20.6818 13 19.6213 13 17.5C13 15.3787 13.0002 14.3182 13.6592 13.6592C14.3182 13.0002 15.3787 13 17.5 13Z"/>
@@ -535,7 +570,7 @@
 
             <!-- Floating Glass Popover (Matching Device Info style) -->
             <div class="storage-glass-popover telemetry-glass-popover" id="telemetry-hud" style="display: none;" onclick="event.stopPropagation()">
-                <div class="popover-header">
+                <div class="popover-header" style="display: flex; align-items: center; justify-content: space-between;">
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
@@ -543,7 +578,12 @@
                         </svg>
                         <span class="popover-title">Hardware Telemetry</span>
                     </div>
-                    <span id="hud-alarm-badge" class="badge-alarm" style="display: none;">OVERCURRENT</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span id="hud-alarm-badge" class="badge-alarm" style="display: none;">OVERCURRENT</span>
+                        <button class="btn btn-ghost btn-xs font-mono-tech" id="btn-pin-telemetry" onclick="togglePinWidget('telemetry')" title="Pin to Workspace" style="padding: 2px 6px; font-size: 10px; border-radius: 4px; border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);">
+                            [^] PIN
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Live Metrics Grid -->
@@ -581,7 +621,7 @@
 
             <!-- Floating Glass Popover -->
             <div class="storage-glass-popover" id="storage-glass-popover" style="display: none;" onclick="event.stopPropagation()">
-                <div class="popover-header">
+                <div class="popover-header" style="display: flex; align-items: center; justify-content: space-between;">
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path opacity="0.5" d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22Z" fill="currentColor"/>
@@ -590,6 +630,9 @@
                         </svg>
                         <span class="popover-title">Device info</span>
                     </div>
+                    <button class="btn btn-ghost btn-xs font-mono-tech" id="btn-pin-storage" onclick="togglePinWidget('storage')" title="Pin to Workspace" style="padding: 2px 6px; font-size: 10px; border-radius: 4px; border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);">
+                        [^] PIN
+                    </button>
                 </div>
 
                 <!-- Hardware & Firmware Specs (No hardcoded values) -->
@@ -749,18 +792,6 @@
             <div class="modal-body">
                 <div class="settings-section">
                     <div class="settings-section-title">Theme &amp; Appearance</div>
-                    <div class="settings-row">
-                        <div>
-                            <div class="settings-label">Interface Persona</div>
-                            <div class="settings-subtext">Choose between Nothing OS Minimalist Industrial and Consumer Bento</div>
-                        </div>
-                        <div class="settings-control-group">
-                            <select class="compact-select" id="settings-ui-style-select">
-                                <option value="industrial">Industrial (Nothing OS Default)</option>
-                                <option value="bento">Bento (Consumer Squircle)</option>
-                            </select>
-                        </div>
-                    </div>
                     <div class="settings-row">
                         <div>
                             <div class="settings-label">Theme Mode</div>
@@ -943,30 +974,132 @@
                        window.location.search.includes('demo=1') ||
                        (window.location.hostname === 'localhost' && window.location.port !== '80');
 
-        function openLab(view) {
-            const targetMap = {
-                'scope': 'scope',
-                'adapter': 'adapter',
-                'adapters': 'adapter',
-                'protocols': 'adapter',
-                'debugger': 'debug',
-                'debug': 'debug',
-                'flasher': 'debug',
-                'target': 'debug',
-                'matrix': 'pin',
-                'pin': 'pin',
-                'pins': 'pin',
-                'repl': 'agent',
-                'shell': 'agent',
-                'console': 'agent',
-                'agent': 'agent'
-            };
-            const app = targetMap[view] || view;
-            if (isDemo) {
-                window.location.href = 'lab.html#' + app;
-            } else {
-                window.location.href = '/' + app;
+        // ---------------------------------------------------------------------
+        // Universal App-Shell Client-Side Hash Routing & Viewport Management
+        // ---------------------------------------------------------------------
+        let currentRoute = '#/';
+        let activeAppInfo = null;
+
+        function navigateToRoute(route, pushState = true) {
+            if (pushState && window.location.hash !== route) {
+                window.location.hash = route;
+                return;
             }
+            handleHashRoute(route);
+        }
+
+        function handleHashRoute(hash) {
+            hash = hash || window.location.hash || '#/';
+            if (!hash.startsWith('#')) hash = '#' + hash;
+            currentRoute = hash;
+
+            const mainWorkspace = document.getElementById('main-workspace');
+            const viewportContainer = document.getElementById('view-app-viewport');
+            const viewportFrame = document.getElementById('app-viewport-frame');
+            const topBarActiveApp = document.getElementById('top-bar-active-app');
+            const topBarActiveAppName = document.getElementById('top-bar-active-app-name');
+            const launcherDockBtn = document.querySelector('#floating-glass-dock .dock-icon-btn[data-dock-tooltip="Apps Launcher"]');
+
+            // Reset active states on dock buttons
+            document.querySelectorAll('#floating-glass-dock .dock-icon-btn').forEach(btn => btn.classList.remove('active'));
+
+            if (hash === '#/' || hash === '#/launcher' || hash === '#/home' || hash === '') {
+                // Show Launchpad Workspace
+                if (mainWorkspace) mainWorkspace.style.display = 'block';
+                if (viewportContainer) viewportContainer.style.display = 'none';
+                if (topBarActiveApp) topBarActiveApp.style.display = 'none';
+                if (launcherDockBtn) launcherDockBtn.classList.add('active');
+                activeAppInfo = null;
+                return;
+            }
+
+            // Hide Launchpad Workspace, Show App Viewport
+            if (mainWorkspace) mainWorkspace.style.display = 'none';
+            if (viewportContainer) viewportContainer.style.display = 'block';
+
+            let targetUrl = '';
+            let appTitle = '';
+            let dockId = '';
+
+            const labTargets = {
+                '#/scope': { path: 'scope', title: 'Scope (MSO & DSO)', dockId: 'dock-app-scope' },
+                '#/adapter': { path: 'adapter', title: 'Protocol Adapters', dockId: 'dock-app-adapters' },
+                '#/adapters': { path: 'adapter', title: 'Protocol Adapters', dockId: 'dock-app-adapters' },
+                '#/protocols': { path: 'adapter', title: 'Protocol Adapters', dockId: 'dock-app-adapters' },
+                '#/debugger': { path: 'debug', title: 'SWD Debugger', dockId: 'dock-app-target' },
+                '#/debug': { path: 'debug', title: 'SWD Debugger', dockId: 'dock-app-target' },
+                '#/target': { path: 'debug', title: 'SWD Debugger', dockId: 'dock-app-target' },
+                '#/matrix': { path: 'pins', title: 'Pin Control', dockId: 'dock-app-pins' },
+                '#/pin': { path: 'pins', title: 'Pin Control', dockId: 'dock-app-pins' },
+                '#/pins': { path: 'pins', title: 'Pin Control', dockId: 'dock-app-pins' },
+                '#/repl': { path: 'agent', title: 'MCP Console', dockId: 'dock-app-console' },
+                '#/shell': { path: 'agent', title: 'MCP Console', dockId: 'dock-app-console' },
+                '#/console': { path: 'agent', title: 'MCP Console', dockId: 'dock-app-console' },
+                '#/agent': { path: 'agent', title: 'MCP Console', dockId: 'dock-app-console' },
+            };
+
+            if (labTargets[hash]) {
+                const target = labTargets[hash];
+                targetUrl = isDemo ? `lab.html#${target.path}` : `/${target.path}`;
+                appTitle = target.title;
+                dockId = target.dockId;
+            } else if (hash === '#/terminal') {
+                targetUrl = isDemo ? 'terminal.html' : '/terminal/';
+                appTitle = 'Serial Terminal';
+                dockId = 'dock-app-terminal';
+            } else if (hash === '#/files') {
+                targetUrl = isDemo ? 'files.html' : '/files';
+                appTitle = 'Storage Files';
+                dockId = 'dock-app-files';
+            } else if (hash.startsWith('#/app/')) {
+                const appId = decodeURIComponent(hash.substring(6));
+                const installed = installedApps.find(a => (a.id || a.name) === appId);
+                appTitle = installed ? (installed.title || installed.name || appId) : appId;
+                if (isDemo) {
+                    if (appId === 'servo-master') targetUrl = 'apps/servo-master/index.html';
+                    else if (appId === 'can-sniffer') targetUrl = 'apps/can-sniffer/index.html';
+                    else if (appId === 'neopixel-control') targetUrl = 'apps/neopixel-control/index.html';
+                    else targetUrl = `apps/${encodeURIComponent(appId)}/index.html`;
+                } else {
+                    targetUrl = `/app/${encodeURIComponent(appId)}/`;
+                }
+                dockId = `dock-app-${appId}`;
+            }
+
+            if (topBarActiveApp) {
+                topBarActiveApp.style.display = 'inline-flex';
+                if (topBarActiveAppName) topBarActiveAppName.textContent = appTitle;
+            }
+
+            if (dockId) {
+                const dockBtn = document.getElementById(dockId);
+                if (dockBtn) dockBtn.classList.add('active');
+            }
+
+            if (viewportFrame && targetUrl) {
+                let fullUrl = targetUrl;
+                if (!fullUrl.includes('embed=1')) {
+                    if (fullUrl.includes('#')) {
+                        const parts = fullUrl.split('#');
+                        fullUrl = `${parts[0]}${parts[0].includes('?') ? '&' : '?'}embed=1#${parts[1]}`;
+                    } else {
+                        fullUrl = `${fullUrl}${fullUrl.includes('?') ? '&' : '?'}embed=1`;
+                    }
+                }
+                if (viewportFrame.getAttribute('data-loaded-src') !== fullUrl) {
+                    viewportFrame.src = fullUrl;
+                    viewportFrame.setAttribute('data-loaded-src', fullUrl);
+                }
+            }
+        }
+
+        function closeActiveApp(e) {
+            if (e) e.stopPropagation();
+            navigateToRoute('#/');
+        }
+
+        function openLab(view) {
+            navigateToRoute('#/' + view);
         }
 
         // State
@@ -1152,7 +1285,7 @@
         // Theme State
         const themeState = {
             mode: 'system',
-            defaultLightTheme: 'emerald',
+            defaultLightTheme: 'industrial-light',
             defaultDarkTheme: 'nothing',
             defaultHomeRoute: '/home'
         };
@@ -1491,10 +1624,22 @@
             const elClock = document.getElementById('popover-info-clock');
             const elBoard = document.getElementById('popover-info-board') || document.getElementById('settings-info-board');
             const elFw = document.getElementById('popover-info-fw') || document.getElementById('settings-info-fw');
-            if (elChip) elChip.innerText = deviceSystem.chip || "RP2350B Cortex-M33";
-            if (elClock) elClock.innerText = (deviceSystem.clock_mhz ? `${deviceSystem.clock_mhz}MHz` : "150MHz") + " · 520KB";
-            if (elBoard) elBoard.innerText = deviceSystem.board_name || "BakuProbe / Pico 2";
-            if (elFw) elFw.innerText = deviceSystem.firmware_version || "v2.0";
+            const pChip = document.getElementById('pinned-info-chip');
+            const pClock = document.getElementById('pinned-info-clock');
+            const pBoard = document.getElementById('pinned-info-board');
+            const pFw = document.getElementById('pinned-info-fw');
+            const chipTxt = deviceSystem.chip || "RP2350B Cortex-M33";
+            const clockTxt = (deviceSystem.clock_mhz ? `${deviceSystem.clock_mhz}MHz` : "150MHz") + " · 520KB";
+            const boardTxt = deviceSystem.board_name || "BakuProbe / Pico 2";
+            const fwTxt = deviceSystem.firmware_version || "v2.0";
+            if (elChip) elChip.innerText = chipTxt;
+            if (elClock) elClock.innerText = clockTxt;
+            if (elBoard) elBoard.innerText = boardTxt;
+            if (elFw) elFw.innerText = fwTxt;
+            if (pChip) pChip.innerText = chipTxt;
+            if (pClock) pClock.innerText = clockTxt;
+            if (pBoard) pBoard.innerText = boardTxt;
+            if (pFw) pFw.innerText = fwTxt;
         }
 
         async function fetchStorage() {
@@ -1523,16 +1668,31 @@
             const segRom = document.getElementById('seg-rom');
             const segApps = document.getElementById('seg-apps');
             const segFree = document.getElementById('seg-free');
+            const pSegRom = document.getElementById('pinned-seg-rom');
+            const pSegApps = document.getElementById('pinned-seg-apps');
+            const pSegFree = document.getElementById('pinned-seg-free');
             if (segRom) segRom.style.width = `${romPct}%`;
             if (segApps) segApps.style.width = `${appsPct}%`;
             if (segFree) segFree.style.width = `${freePct}%`;
+            if (pSegRom) pSegRom.style.width = `${romPct}%`;
+            if (pSegApps) pSegApps.style.width = `${appsPct}%`;
+            if (pSegFree) pSegFree.style.width = `${freePct}%`;
 
             const lblRom = document.getElementById('label-rom');
             const lblApps = document.getElementById('label-apps');
             const lblFree = document.getElementById('label-free');
-            if (lblRom) lblRom.innerText = formatBytes(romBytes);
-            if (lblApps) lblApps.innerText = `${formatBytes(lfsUsed)} (${appsPct}%)`;
-            if (lblFree) lblFree.innerText = `${formatBytes(lfsFree)} (${freePct}%)`;
+            const pLblRom = document.getElementById('pinned-label-rom');
+            const pLblApps = document.getElementById('pinned-label-apps');
+            const pLblFree = document.getElementById('pinned-label-free');
+            const txtRom = formatBytes(romBytes);
+            const txtApps = `${formatBytes(lfsUsed)} (${appsPct}%)`;
+            const txtFree = `${formatBytes(lfsFree)} (${freePct}%)`;
+            if (lblRom) lblRom.innerText = txtRom;
+            if (lblApps) lblApps.innerText = txtApps;
+            if (lblFree) lblFree.innerText = txtFree;
+            if (pLblRom) pLblRom.innerText = txtRom;
+            if (pLblApps) pLblApps.innerText = txtApps;
+            if (pLblFree) pLblFree.innerText = txtFree;
 
             // Update floating dock pill & popover badge
             const pillFill = document.getElementById('dock-pill-bar-fill');
@@ -1612,19 +1772,11 @@
         });
 
         function openTerminalApp() {
-            if (isDemo) {
-                window.location.href = 'terminal.html';
-            } else {
-                window.location.href = '/terminal/';
-            }
+            navigateToRoute('#/terminal');
         }
 
         function openFilesApp() {
-            if (isDemo) {
-                window.location.href = 'files.html';
-            } else {
-                window.location.href = '/files';
-            }
+            navigateToRoute('#/files');
         }
 
         async function fetchInstalledApps() {
@@ -1720,17 +1872,7 @@
                 if (!installed) return;
                 const appName = installed.title || installed.name || appId;
                 
-                let clickAction = '';
-                if (appId === 'servo-master') {
-                    clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/app/servo-master/'";
-                } else if (appId === 'can-sniffer') {
-                    clickAction = isDemo ? "window.location.href='apps/can-sniffer/index.html'" : "window.location.href='/app/can-sniffer/'";
-                } else if (appId === 'neopixel-control') {
-                    clickAction = isDemo ? "window.location.href='apps/neopixel-control/index.html'" : "window.location.href='/app/neopixel-control/'";
-                } else {
-                    const path = installed.path || `/app/${encodeURIComponent(appId)}/`;
-                    clickAction = `window.location.href='${path}'`;
-                }
+                let clickAction = `navigateToRoute('#/app/${encodeURIComponent(appId)}')`;
 
                 let iconSvg = '';
                 if (appId === 'servo-master') {
@@ -1745,7 +1887,7 @@
                     iconSvg = solarFallbackSvg;
                 }
 
-                html += `<button class="dock-icon-btn" data-dock-tooltip="${escapeHtml(appName)}" onclick="${clickAction}">${iconSvg}</button>`;
+                html += `<button class="dock-icon-btn" id="dock-app-${escapeHtml(appId)}" data-dock-tooltip="${escapeHtml(appName)}" onclick="${clickAction}">${iconSvg}</button>`;
             });
 
             container.innerHTML = html;
@@ -1904,12 +2046,7 @@
                             iconMarkup = `<img src="${iconUrl}" alt="${escapeHtml(appName)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
                         }
 
-                        let launchAction = `window.location.href='/app/${encodeURIComponent(appId)}/'`;
-                        if (isDemo) {
-                            if (appId === 'servo-master') launchAction = `window.location.href='apps/servo-master/index.html'`;
-                            else if (appId === 'can-sniffer') launchAction = `window.location.href='apps/can-sniffer/index.html'`;
-                            else if (appId === 'neopixel-control') launchAction = `window.location.href='apps/neopixel-control/index.html'`;
-                        }
+                        let launchAction = `navigateToRoute('#/app/${encodeURIComponent(appId)}')`;
 
                         const pinIcon = pinned ? `
                             <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -1967,22 +2104,7 @@
                 const appId = app.id || app.name;
                 const appDisplayName = app.title || app.name || appId;
                 const tagsList = Array.isArray(app.tags) ? app.tags : (app.category ? [app.category] : []);
-                let appPath = app.path || `/app/${encodeURIComponent(appId)}/`;
-                let clickHandler = `onclick="window.location.href='${appPath}'"`;
-                if (isDemo) {
-                    if (appId === 'servo-master') {
-                        appPath = 'apps/servo-master/index.html';
-                        clickHandler = `onclick="window.location.href='${appPath}'"`;
-                    } else if (appId === 'can-sniffer') {
-                        appPath = 'apps/can-sniffer/index.html';
-                        clickHandler = `onclick="window.location.href='${appPath}'"`;
-                    } else if (appId === 'neopixel-control') {
-                        appPath = 'apps/neopixel-control/index.html';
-                        clickHandler = `onclick="window.location.href='${appPath}'"`;
-                    } else {
-                        clickHandler = `onclick="openAppDetail('${escapeHtml(appId)}', 'installed')"`;
-                    }
-                }
+                let clickHandler = `onclick="navigateToRoute('#/app/${encodeURIComponent(appId)}')"`;
 
                 let accentClass = 'accent-app';
                 let subText = `v${app.version || '1.0'}`;
@@ -2512,9 +2634,9 @@
             if (capsList) {
                 const reqs = app.requires || [];
                 if (reqs.length > 0) {
-                    capsList.innerHTML = reqs.map(r => `<div>✓ Requires hardware module: <code>${escapeHtml(r)}</code></div>`).join('');
+                    capsList.innerHTML = reqs.map(r => `<div>[OK] Requires hardware module: <code>${escapeHtml(r)}</code></div>`).join('');
                 } else {
-                    capsList.innerHTML = '<div>✓ Runs on standard RP2350 microcontroller and web browser.</div>';
+                    capsList.innerHTML = '<div>[OK] Runs on standard RP2350 microcontroller and web browser.</div>';
                 }
             }
             if (hwAlert) hwAlert.style.display = 'none';
@@ -2915,24 +3037,6 @@
             });
         }
 
-        const selUiStyle = document.getElementById('settings-ui-style-select');
-        if (selUiStyle) {
-            selUiStyle.addEventListener('change', (e) => {
-                const val = e.target.value;
-                document.documentElement.setAttribute('data-style', val);
-                try {
-                    localStorage.setItem('agentla-ui-style', val);
-                } catch (_) {}
-                if (val === 'industrial' && themeState.defaultDarkTheme === 'forest') {
-                    themeState.defaultDarkTheme = 'nothing';
-                    applyTheme();
-                } else if (val === 'bento' && themeState.defaultDarkTheme === 'nothing') {
-                    themeState.defaultDarkTheme = 'forest';
-                    applyTheme();
-                }
-            });
-        }
-
         document.getElementById('settings-theme-mode-select').addEventListener('change', (e) => {
             themeState.mode = e.target.value;
             applyTheme();
@@ -3079,38 +3183,64 @@
 
             function updateTelemetryUI(data) {
                 if (!data) return;
+                window._lastTelemetryData = data;
                 const vtarget = document.getElementById('hud-vtarget');
-                if (vtarget) vtarget.textContent = (data.v_target_mv / 1000).toFixed(2) + ' V';
+                const pVtarget = document.getElementById('pinned-hud-vtarget');
+                const vVal = (data.v_target_mv / 1000).toFixed(2) + ' V';
+                if (vtarget) vtarget.textContent = vVal;
+                if (pVtarget) pVtarget.textContent = vVal;
 
                 const itarget = document.getElementById('hud-itarget');
-                if (itarget) itarget.textContent = data.i_target_ma + ' mA';
+                const pItarget = document.getElementById('pinned-hud-itarget');
+                const iVal = data.i_target_ma + ' mA';
+                if (itarget) itarget.textContent = iVal;
+                if (pItarget) pItarget.textContent = iVal;
 
                 const ptarget = document.getElementById('hud-ptarget');
-                if (ptarget) ptarget.textContent = data.p_target_mw + ' mW';
+                const pPtarget = document.getElementById('pinned-hud-ptarget');
+                const pVal = data.p_target_mw + ' mW';
+                if (ptarget) ptarget.textContent = pVal;
+                if (pPtarget) pPtarget.textContent = pVal;
 
                 const temp = document.getElementById('hud-temp');
-                if (temp) temp.textContent = data.temp_c + ' °C';
+                const pTemp = document.getElementById('pinned-hud-temp');
+                const tVal = data.temp_c + ' °C';
+                if (temp) temp.textContent = tVal;
+                if (pTemp) pTemp.textContent = tVal;
 
                 const alarmBadge = document.getElementById('hud-alarm-badge');
+                const pAlarmBadge = document.getElementById('pinned-hud-alarm-badge');
                 const overcurrentBanner = document.getElementById('hud-overcurrent-banner');
                 if (data.alarm === 'overcurrent_trip') {
                     if (alarmBadge) alarmBadge.style.display = 'inline-block';
+                    if (pAlarmBadge) pAlarmBadge.style.display = 'inline-block';
                     if (overcurrentBanner) overcurrentBanner.style.display = 'flex';
                 } else {
                     if (alarmBadge) alarmBadge.style.display = 'none';
+                    if (pAlarmBadge) pAlarmBadge.style.display = 'none';
                     if (overcurrentBanner) overcurrentBanner.style.display = 'none';
                 }
 
                 if (Array.isArray(data.pins)) {
                     data.pins.forEach(p => {
                         const el = document.getElementById(`hud-pin-${p.pin}`);
+                        const pEl = document.getElementById(`pinned-hud-pin-${p.pin}`);
+                        const cls = `hud-pin-chip hud-pin-${p.owner}`;
+                        const ttip = `GP${p.pin}: ${p.owner}`;
                         if (el) {
-                            el.className = `hud-pin-chip hud-pin-${p.owner}`;
-                            el.title = `GP${p.pin}: ${p.owner}`;
+                            el.className = cls;
+                            el.title = ttip;
+                        }
+                        if (pEl) {
+                            pEl.className = cls;
+                            pEl.title = ttip;
                         }
                     });
                 }
             }
+
+            // Expose globally
+            window.updateTelemetryUI = updateTelemetryUI;
 
             // Connect to 10 Hz SSE telemetry stream
             try {
@@ -3136,12 +3266,135 @@
             } catch (_) {}
         }
 
+        // Pinned Workspace Canvas Widgets
+        function getPinnedWidgets() {
+            try {
+                var stored = localStorage.getItem('agentla_pinned_widgets');
+                return stored ? JSON.parse(stored) : [];
+            } catch (_) { return []; }
+        }
+
+        function togglePinWidget(id) {
+            var pinned = getPinnedWidgets();
+            var idx = pinned.indexOf(id);
+            if (idx === -1) {
+                pinned.push(id);
+            } else {
+                pinned.splice(idx, 1);
+            }
+            try {
+                localStorage.setItem('agentla_pinned_widgets', JSON.stringify(pinned));
+            } catch (_) {}
+            renderPinnedWidgets();
+            updatePinButtons();
+        }
+
+        function updatePinButtons() {
+            var pinned = getPinnedWidgets();
+            var btnTelem = document.getElementById('btn-pin-telemetry');
+            if (btnTelem) btnTelem.textContent = pinned.indexOf('telemetry') !== -1 ? '[v] UNPIN' : '[^] PIN';
+            var btnStorage = document.getElementById('btn-pin-storage');
+            if (btnStorage) btnStorage.textContent = pinned.indexOf('storage') !== -1 ? '[v] UNPIN' : '[^] PIN';
+        }
+
+        function renderPinnedWidgets() {
+            var area = document.getElementById('pinned-widgets-area');
+            if (!area) return;
+            var pinned = getPinnedWidgets();
+            if (pinned.length === 0) {
+                area.style.display = 'none';
+                area.innerHTML = '';
+                return;
+            }
+
+            area.style.display = 'grid';
+            area.style.gridTemplateColumns = pinned.length > 1 ? 'repeat(auto-fit, minmax(340px, 1fr))' : '1fr';
+            area.style.gap = '16px';
+
+            var html = '';
+            if (pinned.indexOf('telemetry') !== -1) {
+                html += `
+                <div class="card card-industrial" style="background: var(--color-base-200, #0a0a0a); border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent); border-radius: 8px; padding: 14px 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="signal-dot-red"></span>
+                            <span class="font-display" style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Live Telemetry HUD</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span id="pinned-hud-alarm-badge" class="badge-alarm" style="display: none;">OVERCURRENT</span>
+                            <button class="btn btn-ghost btn-xs font-mono-tech" onclick="togglePinWidget('telemetry')" title="Unpin from workspace" style="padding: 2px 6px; font-size: 10px; border-radius: 4px; border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);">[v] UNPIN</button>
+                        </div>
+                    </div>
+                    <div class="popover-info-grid" style="margin-bottom: 10px;">
+                        <div class="info-pill"><span class="info-label">V_TARGET</span><span class="info-val font-mono-tech" id="pinned-hud-vtarget">-- V</span></div>
+                        <div class="info-pill"><span class="info-label">I_TARGET</span><span class="info-val font-mono-tech" id="pinned-hud-itarget">-- mA</span></div>
+                        <div class="info-pill"><span class="info-label">POWER</span><span class="info-val font-mono-tech" id="pinned-hud-ptarget">-- mW</span></div>
+                        <div class="info-pill"><span class="info-label">CORE TEMP</span><span class="info-val font-mono-tech" id="pinned-hud-temp">-- °C</span></div>
+                    </div>
+                    <div style="font-size: 9px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">
+                        GPIO Pin Claims (GP0-GP29)
+                    </div>
+                    <div class="hud-pin-matrix" id="pinned-hud-pin-matrix"></div>
+                </div>`;
+            }
+
+            if (pinned.indexOf('storage') !== -1) {
+                html += `
+                <div class="card card-industrial" style="background: var(--color-base-200, #0a0a0a); border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent); border-radius: 8px; padding: 14px 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="signal-dot-red"></span>
+                            <span class="font-display" style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Flash Partitioning</span>
+                        </div>
+                        <button class="btn btn-ghost btn-xs font-mono-tech" onclick="togglePinWidget('storage')" title="Unpin from workspace" style="padding: 2px 6px; font-size: 10px; border-radius: 4px; border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);">[v] UNPIN</button>
+                    </div>
+                    <div class="popover-info-grid" style="margin-bottom: 12px;">
+                        <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val font-mono-tech" id="pinned-info-chip">--</span></div>
+                        <div class="info-pill"><span class="info-label">CORES / CLOCK</span><span class="info-val font-mono-tech" id="pinned-info-clock">--</span></div>
+                        <div class="info-pill"><span class="info-label">SRAM MEMORY</span><span class="info-val font-mono-tech" id="pinned-info-board">--</span></div>
+                        <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val font-mono-tech" id="pinned-info-fw">--</span></div>
+                    </div>
+                    <div class="storage-segmented-bar" id="pinned-storage-bar" style="margin-bottom: 8px;">
+                        <div class="segment-rom" id="pinned-seg-rom" style="width: 0%;" title="System ROM"></div>
+                        <div class="segment-apps" id="pinned-seg-apps" style="width: 0%;" title="User Apps"></div>
+                        <div class="segment-free" id="pinned-seg-free" style="width: 0%;" title="Free Space"></div>
+                    </div>
+                    <div class="storage-dock-legend">
+                        <span class="legend-item"><span class="legend-dot seg-dot-rom"></span> ROM: <span id="pinned-label-rom">--</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-apps"></span> Apps: <span id="pinned-label-apps">--</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-free"></span> Free: <span id="pinned-label-free">--</span></span>
+                    </div>
+                </div>`;
+            }
+
+            area.innerHTML = html;
+
+            var pinContainer = document.getElementById('pinned-hud-pin-matrix');
+            if (pinContainer) {
+                pinContainer.innerHTML = '';
+                for (var i = 0; i < 30; i++) {
+                    var chip = document.createElement('div');
+                    chip.className = 'hud-pin-chip hud-pin-free';
+                    chip.id = 'pinned-hud-pin-' + i;
+                    chip.textContent = i;
+                    chip.title = 'GP' + i + ': free';
+                    pinContainer.appendChild(chip);
+                }
+            }
+
+            if (window._lastTelemetryData) updateTelemetryUI(window._lastTelemetryData);
+            fetchSystemInfo();
+            updateStorageDisplay();
+        }
+
         // Render dock pinned apps immediately from localStorage cache
         renderDockPinnedApps();
 
         // Initialize on DOM load
         (async function init() {
             renderDockPinnedApps();
+            renderPinnedWidgets();
+            updatePinButtons();
             await initSettings();
             await fetchSystemInfo();
             await fetchStorage();
@@ -3156,18 +3409,27 @@
             }
 
             window.addEventListener('hashchange', () => {
-                if (window.location.hash.toLowerCase() === '#settings') {
+                const h = window.location.hash.toLowerCase();
+                if (h === '#settings') {
                     openSettingsModal();
+                } else if (h === '#store') {
+                    switchLauncherView('store');
+                } else if (h === '#manage') {
+                    switchLauncherView('manage');
+                } else {
+                    handleHashRoute(window.location.hash);
                 }
             });
 
-            const initialHash = window.location.hash.toLowerCase();
-            if (initialHash === '#settings') {
+            const initialHash = window.location.hash;
+            if (initialHash.toLowerCase() === '#settings') {
                 openSettingsModal();
-            } else if (initialHash === '#store' || window.location.search.includes('view=store')) {
+            } else if (initialHash.toLowerCase() === '#store' || window.location.search.includes('view=store')) {
                 switchLauncherView('store');
-            } else if (initialHash === '#manage' || window.location.search.includes('view=manage')) {
+            } else if (initialHash.toLowerCase() === '#manage' || window.location.search.includes('view=manage')) {
                 switchLauncherView('manage');
+            } else if (initialHash && initialHash !== '#/' && initialHash !== '#' && initialHash !== '#/launcher' && initialHash !== '#/home') {
+                handleHashRoute(initialHash);
             } else {
                 switchLauncherView('launchpad');
             }

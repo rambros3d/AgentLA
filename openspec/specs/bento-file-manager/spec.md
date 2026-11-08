@@ -6,11 +6,11 @@ Provides a dedicated standalone Bento Storage Explorer WebUI (`files.html`) styl
 ## Requirements
 
 ### Requirement: Standalone Bento File Manager Page
-The system SHALL provide a dedicated standalone WebUI page at `files.html` (accessible via `/files` and `/files.html`) styled using DaisyUI 5 and Tailwind CSS that renders a Bento Storage Explorer for both `system_fs` and `user_fs`.
+The system SHALL provide a dedicated standalone WebUI page at `files.html` (accessible via `/files` and `/files.html`) styled using the unified Industrial design language that renders an Industrial Storage Console for both `system_fs` and `user_fs`.
 
 #### Scenario: Navigating to files.html
 - **WHEN** a user navigates to `/files` or `/files.html`
-- **THEN** the browser loads `files.html` displaying the Bento Storage Explorer with top navigation bar, partition metrics, and directory canvas.
+- **THEN** the browser loads `files.html` displaying the Industrial Storage Console with dot-matrix section headers, technical monospace breadcrumbs, partition metrics, and directory canvas.
 
 #### Scenario: Theme synchronization
 - **WHEN** `files.html` loads
@@ -39,7 +39,7 @@ When browsing `system_fs`, the File Manager SHALL strictly prohibit mutating act
 
 #### Scenario: Viewing system_fs
 - **WHEN** the active partition is `system_fs`
-- **THEN** the UI displays a ` Read-Only` status badge, disables file upload dropzones, hides the "New Folder" button, and omits destructive options from item context menus.
+- **THEN** the UI displays a `[RO] Read-Only` status badge, disables file upload dropzones, hides the "New Folder" button, and omits destructive options from item context menus.
 
 ### Requirement: Full Read-Write UI for User Partition
 When browsing `user_fs`, the File Manager SHALL provide controls to upload files, create new folders, rename items, delete files or directories, and download files.

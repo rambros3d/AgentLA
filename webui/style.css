@@ -20,10 +20,6 @@
     --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-[data-style="bento"] {
-    --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
 /* --------------------------------------------------------------------------
    1. Theme Variables & Color Tokens (DaisyUI v5 "black" & "emerald" Palettes)
    -------------------------------------------------------------------------- */
@@ -207,84 +203,92 @@
 }
 
 /* --------------------------------------------------------------------------
-   1.1 Industrial (Nothing OS) Persona & Typography Rules
+   1.1 Industrial Design Language & Typography Rules
    -------------------------------------------------------------------------- */
-:root, [data-style="industrial"], [data-theme="nothing"] {
+:root, [data-style="industrial"], [data-theme="nothing"], [data-theme="industrial-light"] {
+    --signal-red: #D71921;
     --nothing-red: #D71921;
 }
 
-/* Default / Industrial Background Canvas: 16px Technical Dot-Grid */
-body, [data-style="industrial"] body {
+/* Default Background Canvas: Adaptive 16px Technical Dot-Grid */
+body {
     background-color: var(--color-base-100, #000000);
-    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+    background-image: radial-gradient(color-mix(in oklch, var(--color-base-content) 12%, transparent) 1px, transparent 1px);
     background-size: 16px 16px;
     background-attachment: fixed;
 }
 
-[data-style="bento"] body {
-    background-image: none !important;
-}
-
 /* Display Titles & Hero Headings in Circular Dot-Matrix */
-[data-style="industrial"] .launcher-section-title,
-[data-style="industrial"] .os-squircle-label,
-[data-style="industrial"] .stat-title,
-[data-style="industrial"] .brand-title,
-[data-style="industrial"] .font-display {
+.launcher-section-title,
+.os-squircle-label,
+.stat-title,
+.brand-title,
+.font-display,
+.popover-title,
+h1, h2, h3 {
     font-family: var(--font-display) !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
 }
 
-/* Technical Monospace Hierarchy for Metadata */
+/* Technical Monospace Hierarchy for Metadata & Controls */
 .font-mono-tech,
-[data-style="industrial"] .os-squircle-sublabel,
-[data-style="industrial"] .stat-desc,
-[data-style="industrial"] .decoder-bar-label,
-[data-style="industrial"] .scope-pin-badge,
-[data-style="industrial"] .hud-row {
-    font-family: var(--font-mono-tech) !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
+.os-squircle-sublabel,
+.stat-desc,
+.stat-value,
+.decoder-bar-label,
+.scope-pin-badge,
+.hud-row,
+.info-label,
+.info-val,
+.legend-item,
+.badge,
+.btn,
+.tab,
+.table th,
+.table td,
+.breadcrumbs {
+    font-family: var(--font-mono-tech);
+    letter-spacing: 0.06em;
 }
 
 /* Industrial Card & Tile Geometry: Crisp 1px Outline, 0.5rem Radius, Zero Blur */
-[data-style="industrial"] .card,
-[data-style="industrial"] .stat,
-[data-style="industrial"] .modal-box {
+.card,
+.stat,
+.modal-box,
+.storage-glass-popover {
     border-radius: 0.5rem !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent) !important;
     box-shadow: none !important;
 }
 
-[data-style="industrial"] .os-squircle-icon {
+.os-squircle-icon {
     border-radius: 0.5rem !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 18%, transparent) !important;
     box-shadow: none !important;
 }
 
-[data-style="industrial"] .os-squircle-tile:hover .os-squircle-icon {
+.os-squircle-tile:hover .os-squircle-icon {
     box-shadow: 0 0 0 1px #D71921, 0 8px 24px -4px rgba(215, 25, 33, 0.35) !important;
     border-color: #D71921 !important;
 }
 
 /* Discrete / Blocky Progress Indicators */
-[data-style="industrial"] progress.progress {
+progress.progress {
     border-radius: 2px !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    background-color: #141414 !important;
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 20%, transparent) !important;
+    background-color: var(--color-base-200, #0a0a0a) !important;
 }
 
-[data-style="industrial"] progress.progress::-webkit-progress-value {
+progress.progress::-webkit-progress-value {
     background-color: var(--color-primary, #D71921) !important;
 }
 
-[data-style="industrial"] progress.progress::-moz-progress-bar {
+progress.progress::-moz-progress-bar {
     background-color: var(--color-primary, #D71921) !important;
 }
 
 /* Badges in Industrial Mode */
-[data-style="industrial"] .badge {
+.badge {
     border-radius: 0.25rem !important;
     font-family: var(--font-mono-tech) !important;
     font-size: 0.65rem !important;
@@ -293,13 +297,14 @@ body, [data-style="industrial"] body {
     border-width: 1px !important;
 }
 
-[data-style="industrial"] .badge-primary {
+.badge-primary {
     background-color: #D71921 !important;
     color: #ffffff !important;
     border-color: #D71921 !important;
 }
 
 /* Red Indicator Dots */
+.signal-dot-red,
 .nothing-dot-red {
     display: inline-block;
     width: 6px;
@@ -307,6 +312,8 @@ body, [data-style="industrial"] body {
     border-radius: 50%;
     background-color: #D71921;
     margin-right: 6px;
+    box-shadow: 0 0 8px rgba(215, 25, 33, 0.8);
+}
     box-shadow: 0 0 8px rgba(215, 25, 33, 0.8);
 }
 
@@ -3529,10 +3536,10 @@ body.no-transparency {
     }
 }
 
-.bento-card {
+.bento-card, .card-industrial {
     background: var(--bg-card);
-    border: var(--border) solid var(--border-color);
-    border-radius: var(--radius-box);
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
+    border-radius: 0.5rem;
     padding: 16px;
     box-shadow: none;
 }
@@ -4851,335 +4858,34 @@ body.no-transparency {
 }
 
 /* ==========================================================================
-   Modern Bento Card App Launcher (Raycast / Linear Style)
-   ========================================================================== */
-
-.launcher-bento-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-    gap: 16px;
-    width: 100%;
-}
-
-.bento-app-card {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    text-align: left;
-    text-decoration: none;
-    color: inherit;
-    cursor: pointer;
-    overflow: hidden;
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.22s ease,
-                box-shadow 0.22s ease,
-                background-color 0.22s ease;
-    user-select: none;
-    outline: none;
-    box-sizing: border-box;
-    width: 100%;
-}
-
-.bento-app-card:hover {
-    transform: translateY(-3px);
-    border-color: var(--bento-accent-border, var(--color-primary));
-    background: var(--bg-card-hover);
-    box-shadow: 0 12px 28px -6px var(--bento-accent-glow, rgba(0, 0, 0, 0.35));
-}
-
-.bento-app-card:active {
-    transform: translateY(-1px) scale(0.99);
-}
-
-.bento-app-card:focus-visible {
-    box-shadow: 0 0 0 2px var(--color-primary);
-}
-
-/* Card Icon Box with Role Accent Glow */
-.bento-icon-box {
-    width: 50px;
-    height: 50px;
-    border-radius: 14px;
-    background: var(--bento-icon-bg, color-mix(in oklch, var(--color-base-content) 6%, transparent));
-    border: 1px solid var(--bento-icon-border, var(--border-subtle));
-    color: var(--bento-icon-color, var(--color-primary));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease;
-}
-
-.bento-app-card:hover .bento-icon-box {
-    transform: scale(1.08);
-    box-shadow: 0 6px 18px var(--bento-accent-glow, rgba(0, 0, 0, 0.25));
-}
-
-.bento-icon-box svg {
-    width: 26px;
-    height: 26px;
-    display: block;
-}
-
-.bento-app-custom-img {
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-    border-radius: 8px;
-}
-
-/* Bento Card Text Content */
-.bento-body {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.bento-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: space-between;
-}
-
-.bento-title {
-    font-size: 14.5px;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.25;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.bento-tag {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 2px 7px;
-    border-radius: 6px;
-    background: var(--bento-tag-bg, color-mix(in oklch, var(--color-base-content) 8%, transparent));
-    color: var(--bento-tag-color, var(--text-secondary));
-    border: 1px solid var(--bento-tag-border, var(--border-subtle));
-    text-transform: uppercase;
-    flex-shrink: 0;
-    line-height: 1.3;
-}
-
-.bento-desc {
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--text-secondary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    margin: 0;
-}
-
-/* Bento Arrow Indicator */
-.bento-arrow {
-    color: var(--text-muted);
-    opacity: 0.45;
-    flex-shrink: 0;
-    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, color 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.bento-app-card:hover .bento-arrow {
-    transform: translateX(3px);
-    opacity: 1;
-    color: var(--bento-icon-color, var(--color-primary));
-}
-
-/* Bento Delete Button for Installed LittleFS Apps */
-.bento-delete-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--color-error);
-    color: #fff;
-    border: none;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 12px;
-    line-height: 1;
-    z-index: 5;
-    transition: transform 0.15s ease;
-}
-
-.bento-app-card:hover .bento-delete-btn {
-    display: flex;
-}
-
-.bento-delete-btn:hover {
-    transform: scale(1.18);
-}
-
-/* Install New App Bento Card */
-.bento-app-card.is-install {
-    border-style: dashed;
-    border-color: var(--border-color);
-    background: transparent;
-}
-
-.bento-app-card.is-install:hover {
-    border-color: var(--color-primary);
-    background: var(--bg-card);
-}
-
-.bento-app-card.is-install .bento-icon-box {
-    border-style: dashed;
-    background: transparent;
-    color: var(--text-secondary);
-}
-
-.bento-app-card.is-install:hover .bento-icon-box {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    background: var(--bg-card-hover);
-}
-
-/* Role Accent Colors */
-/* Scope: Cyan / Sky */
-.accent-scope {
-    --bento-icon-bg: rgba(14, 165, 233, 0.12);
-    --bento-icon-border: rgba(14, 165, 233, 0.35);
-    --bento-icon-color: #38bdf8;
-    --bento-accent-border: #0ea5e9;
-    --bento-accent-glow: rgba(14, 165, 233, 0.3);
-    --bento-tag-bg: rgba(14, 165, 233, 0.15);
-    --bento-tag-color: #38bdf8;
-    --bento-tag-border: rgba(14, 165, 233, 0.3);
-}
-
-/* Adapter: Amber / Gold */
-.accent-adapter {
-    --bento-icon-bg: rgba(245, 158, 11, 0.12);
-    --bento-icon-border: rgba(245, 158, 11, 0.35);
-    --bento-icon-color: #fbbf24;
-    --bento-accent-border: #f59e0b;
-    --bento-accent-glow: rgba(245, 158, 11, 0.3);
-    --bento-tag-bg: rgba(245, 158, 11, 0.15);
-    --bento-tag-color: #fbbf24;
-    --bento-tag-border: rgba(245, 158, 11, 0.3);
-}
-
-/* Debugger: Purple / Violet */
-.accent-debugger {
-    --bento-icon-bg: rgba(168, 85, 247, 0.12);
-    --bento-icon-border: rgba(168, 85, 247, 0.35);
-    --bento-icon-color: #c084fc;
-    --bento-accent-border: #a855f7;
-    --bento-accent-glow: rgba(168, 85, 247, 0.3);
-    --bento-tag-bg: rgba(168, 85, 247, 0.15);
-    --bento-tag-color: #c084fc;
-    --bento-tag-border: rgba(168, 85, 247, 0.3);
-}
-
-/* Pin Control: Rose / Coral */
-.accent-pins {
-    --bento-icon-bg: rgba(244, 63, 94, 0.12);
-    --bento-icon-border: rgba(244, 63, 94, 0.35);
-    --bento-icon-color: #fb7185;
-    --bento-accent-border: #f43f5e;
-    --bento-accent-glow: rgba(244, 63, 94, 0.3);
-    --bento-tag-bg: rgba(244, 63, 94, 0.15);
-    --bento-tag-color: #fb7185;
-    --bento-tag-border: rgba(244, 63, 94, 0.3);
-}
-
-/* Console: Mint / Emerald */
-.accent-console {
-    --bento-icon-bg: rgba(16, 185, 129, 0.12);
-    --bento-icon-border: rgba(16, 185, 129, 0.35);
-    --bento-icon-color: #34d399;
-    --bento-accent-border: #10b981;
-    --bento-accent-glow: rgba(16, 185, 129, 0.3);
-    --bento-tag-bg: rgba(16, 185, 129, 0.15);
-    --bento-tag-color: #34d399;
-    --bento-tag-border: rgba(16, 185, 129, 0.3);
-}
-
-/* Terminal: Neon Green */
-.accent-terminal {
-    --bento-icon-bg: rgba(34, 197, 94, 0.12);
-    --bento-icon-border: rgba(34, 197, 94, 0.35);
-    --bento-icon-color: #4ade80;
-    --bento-accent-border: #22c55e;
-    --bento-accent-glow: rgba(34, 197, 94, 0.3);
-    --bento-tag-bg: rgba(34, 197, 94, 0.15);
-    --bento-tag-color: #4ade80;
-    --bento-tag-border: rgba(34, 197, 94, 0.3);
-}
-
-/* Servo Master: Indigo / Electric Violet */
-.accent-servo {
-    --bento-icon-bg: rgba(99, 102, 241, 0.12);
-    --bento-icon-border: rgba(99, 102, 241, 0.35);
-    --bento-icon-color: #818cf8;
-    --bento-accent-border: #6366f1;
-    --bento-accent-glow: rgba(99, 102, 241, 0.3);
-    --bento-tag-bg: rgba(99, 102, 241, 0.15);
-    --bento-tag-color: #818cf8;
-    --bento-tag-border: rgba(99, 102, 241, 0.3);
-}
-
-/* Generic Community App */
-.accent-app {
-    --bento-icon-bg: color-mix(in oklch, var(--color-base-content) 6%, transparent);
-    --bento-icon-border: var(--border-subtle);
-    --bento-icon-color: var(--color-primary);
-    --bento-accent-border: var(--color-primary);
-    --bento-accent-glow: rgba(0, 0, 0, 0.25);
-    --bento-tag-bg: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-    --bento-tag-color: var(--text-secondary);
-    --bento-tag-border: var(--border-subtle);
-}
-
-/* ==========================================================================
-   Floating macOS-Style Glass Dock & Telemetry Popover
+   Industrial Chamfered Rail Dock & Telemetry Popovers
    ========================================================================== */
 
 .floating-glass-dock {
     position: fixed;
-    bottom: 24px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    background: color-mix(in oklch, var(--color-base-100) 80%, transparent);
+    gap: 6px;
+    padding: 6px 10px;
+    background: color-mix(in oklch, var(--color-base-100) 88%, transparent);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
-    border-radius: 24px;
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
+    border-radius: 8px;
+    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.45);
     box-sizing: border-box;
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
 }
 
 .dock-icon-btn {
     position: relative;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
     background: transparent;
     border: none;
     color: var(--text-primary);
@@ -5194,13 +4900,13 @@ body.no-transparency {
 }
 
 .dock-icon-btn:hover {
-    transform: scale(1.18) translateY(-4px);
+    transform: scale(1.15) translateY(-3px);
     background: color-mix(in oklch, var(--color-base-content) 10%, transparent);
     color: var(--color-primary);
 }
 
 .dock-icon-btn:active {
-    transform: scale(1.05) translateY(-1px);
+    transform: scale(1.02) translateY(-1px);
 }
 
 .dock-icon-btn.active {
@@ -5217,8 +4923,8 @@ body.no-transparency {
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: var(--color-primary);
-    box-shadow: 0 0 6px var(--color-primary);
+    background: #D71921;
+    box-shadow: 0 0 6px #D71921;
 }
 
 .dock-icon-btn[data-dock-tooltip]::before {
@@ -5227,13 +4933,15 @@ body.no-transparency {
     bottom: calc(100% + 10px);
     left: 50%;
     transform: translateX(-50%) translateY(4px);
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: rgba(15, 23, 42, 0.92);
-    backdrop-filter: blur(8px);
-    color: #f8fafc;
-    font-size: 11px;
-    font-weight: 500;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: var(--color-base-200, #0a0a0a);
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
+    color: var(--color-base-content, #f4f4f4);
+    font-family: var(--font-mono-tech);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
@@ -5263,50 +4971,10 @@ body.no-transparency {
 /* Dock separator */
 .dock-separator {
     width: 1px;
-    height: 26px;
-    background: color-mix(in oklch, var(--color-base-content) 15%, transparent);
+    height: 24px;
+    background: color-mix(in oklch, var(--color-base-content) 14%, transparent);
     margin: 0 4px;
     flex-shrink: 0;
-}
-
-/* Dock storage pill */
-.dock-storage-pill {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border-radius: 16px;
-    background: color-mix(in oklch, var(--color-base-200) 85%, transparent);
-    border: 1px solid color-mix(in oklch, var(--color-base-content) 12%, transparent);
-    color: var(--text-primary);
-    cursor: pointer;
-    font-size: 11.5px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    user-select: none;
-    flex-shrink: 0;
-}
-
-.dock-storage-pill:hover,
-.dock-storage-pill.active {
-    background: color-mix(in oklch, var(--color-base-300) 90%, transparent);
-    border-color: var(--color-primary);
-}
-
-.dock-storage-pill .pill-bar {
-    width: 44px;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--color-base-300);
-    overflow: hidden;
-    display: flex;
-}
-
-.dock-storage-pill .pill-bar-fill {
-    height: 100%;
-    background: var(--color-primary);
-    transition: width 0.3s ease;
 }
 
 /* Glass Storage & System Info Popover */
@@ -5316,13 +4984,20 @@ body.no-transparency {
     right: 0;
     width: 350px;
     max-width: calc(100vw - 32px);
-    padding: 16px 18px;
-    background: color-mix(in oklch, var(--color-base-100) 90%, transparent);
+    padding: 14px 16px;
+    background: color-mix(in oklch, var(--color-base-100) 92%, transparent);
     backdrop-filter: blur(24px) saturate(190%);
     -webkit-backdrop-filter: blur(24px) saturate(190%);
-    border: 1px solid color-mix(in oklch, var(--color-base-content) 16%, transparent);
-    border-radius: 18px;
-    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
+    border-radius: 8px;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 101;
+    animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+}
     display: flex;
     flex-direction: column;
     gap: 12px;

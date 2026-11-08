@@ -2,19 +2,17 @@
 
 ## Purpose
 Provides an OS-style squircle application launcher grid, spotlight search, fixed bottom dock storage monitor, and unified navigation bar.
-
 ## Requirements
-
 ### Requirement: OS-Style Squircle App Grid
-The App Launcher (`/apps`) SHALL render core instruments and installed applications as a responsive grid of tactile squircle tiles using flat DaisyUI `.card` surfaces with 1px borders (`border-base-300`), featuring authentic 2-tone Solar Icons for core apps, support for custom user-app icons, and spring hover animations without neumorphic drop shadows or white rim bevels. The core section SHALL be titled "Core Apps".
+The App Launcher (`/apps` or `index.html`) SHALL render core instruments and installed applications as a responsive grid of tactile squircle tiles using flat DaisyUI `.card` surfaces with 1px borders (`border-base-300`), featuring authentic 2-tone Solar Icons for core apps, support for custom user-app icons, and spring hover animations without neumorphic drop shadows or white rim bevels. The core section SHALL be titled "Core Apps". Clicking any core instrument or installed app tile SHALL launch the target application within the persistent App-Shell viewport (`#view-app-viewport`) via client-side hash navigation rather than performing a full-page browser reload.
 
 #### Scenario: App tile rendering
 - **WHEN** the user views the installed apps section on `/apps`
-- **THEN** each app appears as a squircle tile with a 56×56px icon styled with flat `base-200` background and 1px `base-300` border, and clicking/tapping anywhere on the tile launches the app directly.
+- **THEN** each app appears as a squircle tile with a 56×56px icon styled with flat `base-200` background and 1px `base-300` border, and clicking/tapping anywhere on the tile launches the app inside the App-Shell viewport via URL hash navigation.
 
 #### Scenario: Flagship AgentLA Lab tile
 - **WHEN** the launcher loads
-- **THEN** "AgentLA Lab" is displayed as the primary first tile in the grid with a `FLAGSHIP` badge and clicking it navigates to `/lab`.
+- **THEN** "AgentLA Lab" is displayed as the primary first tile in the grid with a `FLAGSHIP` badge and clicking it navigates to the Lab view inside the App-Shell.
 
 #### Scenario: Core apps rendering with Solar icons
 - **WHEN** the user loads `/apps`
@@ -86,3 +84,4 @@ The App Launcher (`/` or `/apps`) SHALL render a core instrument squircle tile f
 #### Scenario: Pinning Files to dock
 - **WHEN** user pins the Files application to the OS bottom dock
 - **THEN** a quick-launch squircle icon appears in the bottom dock and persists across browser sessions.
+
