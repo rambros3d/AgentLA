@@ -4944,7 +4944,7 @@ function toggleTelemetryHUD(e, forceState) {
     }
     const isVisible = hud.style.display !== 'none';
     const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
-    hud.style.display = show ? 'block' : 'none';
+    hud.style.display = show ? 'flex' : 'none';
     if (btn) btn.classList.toggle('active', show);
 }
 
@@ -4961,7 +4961,7 @@ function toggleStoragePopover(e, forceState) {
     }
     const isVisible = popover.style.display !== 'none';
     const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
-    popover.style.display = show ? 'block' : 'none';
+    popover.style.display = show ? 'flex' : 'none';
     if (btn) btn.classList.toggle('active', show);
     if (show) {
         fetchStorage();
@@ -4972,7 +4972,7 @@ function toggleStoragePopover(e, forceState) {
 document.addEventListener('click', (e) => {
     const storagePopover = document.getElementById('storage-glass-popover');
     const storageBtn = document.getElementById('dock-btn-storage');
-    if (storagePopover && storagePopover.style.display === 'block') {
+    if (storagePopover && storagePopover.style.display !== 'none') {
         if (!storagePopover.contains(e.target) && (!storageBtn || !storageBtn.contains(e.target))) {
             storagePopover.style.display = 'none';
             if (storageBtn) storageBtn.classList.remove('active');
@@ -4980,7 +4980,7 @@ document.addEventListener('click', (e) => {
     }
     const hud = document.getElementById('telemetry-hud');
     const telemBtn = document.getElementById('dock-btn-telemetry');
-    if (hud && hud.style.display === 'block') {
+    if (hud && hud.style.display !== 'none') {
         if (!hud.contains(e.target) && (!telemBtn || !telemBtn.contains(e.target))) {
             hud.style.display = 'none';
             if (telemBtn) telemBtn.classList.remove('active');
@@ -5248,23 +5248,4 @@ function initTelemetryHUD() {
     } catch (_) {}
 }
 
-// Click outside handling for storage popover & telemetry HUD
-document.addEventListener('click', (e) => {
-    const popover = document.getElementById('storage-glass-popover');
-    const storageBtn = document.getElementById('dock-btn-storage');
-    if (popover && popover.style.display !== 'none') {
-        if (!storageBtn || (!storageBtn.contains(e.target) && !popover.contains(e.target))) {
-            popover.style.display = 'none';
-            if (storageBtn) storageBtn.classList.remove('active');
-        }
-    }
 
-    const hud = document.getElementById('telemetry-hud');
-    const telemBtn = document.getElementById('dock-btn-telemetry');
-    if (hud && hud.style.display !== 'none') {
-        if (!telemBtn || (!telemBtn.contains(e.target) && !hud.contains(e.target))) {
-            hud.style.display = 'none';
-            if (telemBtn) telemBtn.classList.remove('active');
-        }
-    }
-});

@@ -44,9 +44,9 @@
                 var stored = localStorage.getItem('agentla_pinned_dock_apps');
                 var pinned = stored ? JSON.parse(stored) : null;
                 if (!Array.isArray(pinned)) {
-                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'];
                 }
-                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'];
                 var css = '';
                 for (var i = 0; i < allSys.length; i++) {
                     if (pinned.indexOf(allSys[i]) === -1) {
@@ -362,7 +362,7 @@
                             <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                             </svg>
-                            System Instruments (<span id="manage-system-apps-count">6</span>)
+                            System Instruments (<span id="manage-system-apps-count">7</span>)
                         </h2>
                         <span class="manage-section-badge">Firmware ROM · Non-removable</span>
                     </div>
@@ -499,6 +499,23 @@
                 <path d="M9 12C9.42949 12 9.68372 12.3352 9.80078 12.5693C9.93278 12.8334 10 13.1631 10 13.5C10 13.8369 9.93278 14.1666 9.80078 14.4307C9.68372 14.6648 9.42949 15 9 15C8.57051 15 8.31628 14.6648 8.19922 14.4307C8.06722 14.1666 8 13.8369 8 13.5C8 13.1631 8.06722 12.8334 8.19922 12.5693C8.31628 12.3352 8.57051 12 9 12Z" fill="currentColor"/>
                 <path d="M15 12C15.4295 12 15.6837 12.3352 15.8008 12.5693C15.9328 12.8334 16 13.1631 16 13.5C16 13.8369 15.9328 14.1666 15.8008 14.4307C15.6837 14.6648 15.4295 15 15 15C14.5705 15 14.3163 14.6648 14.1992 14.4307C14.0672 14.1666 14 13.8369 14 13.5C14 13.1631 14.0672 12.8334 14.1992 12.5693C14.3163 12.3352 14.5705 12 15 12Z" fill="currentColor"/>
                 <path d="M12 2C12.8284 2 13.5 2.67157 13.5 3.5C13.5 4.05495 13.198 4.5384 12.75 4.79785V9H11.25V4.79785C10.802 4.5384 10.5 4.05495 10.5 3.5C10.5 2.67157 11.1716 2 12 2Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- Serial Terminal -->
+        <button class="dock-icon-btn" id="dock-app-terminal" data-dock-tooltip="Serial Terminal" onclick="openTerminalApp()">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
+                <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
+            </svg>
+        </button>
+
+        <!-- Files (Storage Explorer) -->
+        <button class="dock-icon-btn" id="dock-app-files" data-dock-tooltip="Files" onclick="openFilesApp()">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
             </svg>
         </button>
 
@@ -1046,6 +1063,20 @@
                     <path d="M15 12C15.4295 12 15.6837 12.3352 15.8008 12.5693C15.9328 12.8334 16 13.1631 16 13.5C16 13.8369 15.9328 14.1666 15.8008 14.4307C15.6837 14.6648 15.4295 15 15 15C14.5705 15 14.3163 14.6648 14.1992 14.4307C14.0672 14.1666 14 13.8369 14 13.5C14 13.1631 14.0672 12.8334 14.1992 12.5693C14.3163 12.3352 14.5705 12 15 12Z" fill="currentColor"/>
                     <path d="M12 2C12.8284 2 13.5 2.67157 13.5 3.5C13.5 4.05495 13.198 4.5384 12.75 4.79785V9H11.25V4.79785C10.802 4.5384 10.5 4.05495 10.5 3.5C10.5 2.67157 11.1716 2 12 2Z" fill="currentColor"/>
                 </svg>`
+            },
+            {
+                id: 'files',
+                name: 'Files',
+                category: 'Storage Explorer',
+                version: '1.0.0 (ROM)',
+                description: 'Bento Storage Explorer for LittleFS system and user partitions. In-place code editor, file uploader, and telemetry stats.',
+                tags: ['System ROM', 'Filesystem', 'LittleFS', 'Storage', 'Editor'],
+                accent: 'accent-files',
+                action: "openFilesApp()",
+                iconSvg: `<svg class="solar-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                    <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
+                </svg>`
             }
         ];
 
@@ -1399,6 +1430,7 @@
                 <option value="/pins">Pin Crossbar Matrix (/pins)</option>
                 <option value="/agent">MCP Agent Console (/agent)</option>
                 <option value="/terminal">Serial Terminal (/terminal)</option>
+                <option value="/files">Storage Explorer (/files)</option>
                 <option value="/device">Device Diagnostics (/device)</option>
             `;
 
@@ -1521,8 +1553,14 @@
         function toggleStoragePopover(e, forceState) {
             if (e && e.stopPropagation) e.stopPropagation();
             const popover = document.getElementById('storage-glass-popover');
+            const hud = document.getElementById('telemetry-hud');
             const btn = document.getElementById('dock-btn-storage') || document.getElementById('dock-storage-pill');
+            const telemBtn = document.getElementById('dock-btn-telemetry');
             if (!popover) return;
+            if (hud) {
+                hud.style.display = 'none';
+                if (telemBtn) telemBtn.classList.remove('active');
+            }
             const isVisible = popover.style.display !== 'none';
             const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
             popover.style.display = show ? 'flex' : 'none';
@@ -1535,11 +1573,17 @@
         function toggleTelemetryHUD(e, forceState) {
             if (e && e.stopPropagation) e.stopPropagation();
             const hud = document.getElementById('telemetry-hud');
+            const popover = document.getElementById('storage-glass-popover');
             const btn = document.getElementById('dock-btn-telemetry');
+            const storageBtn = document.getElementById('dock-btn-storage') || document.getElementById('dock-storage-pill');
             if (!hud) return;
+            if (popover) {
+                popover.style.display = 'none';
+                if (storageBtn) storageBtn.classList.remove('active');
+            }
             const isVisible = hud.style.display !== 'none';
             const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
-            hud.style.display = show ? 'block' : 'none';
+            hud.style.display = show ? 'flex' : 'none';
             if (btn) {
                 if (show) btn.classList.add('active');
                 else btn.classList.remove('active');
@@ -1572,6 +1616,14 @@
                 window.location.href = 'terminal.html';
             } else {
                 window.location.href = '/terminal/';
+            }
+        }
+
+        function openFilesApp() {
+            if (isDemo) {
+                window.location.href = 'files.html';
+            } else {
+                window.location.href = '/files';
             }
         }
 
@@ -1612,7 +1664,7 @@
                     }
                 }
             } catch (_) {}
-            return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+            return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'];
         }
 
         function setPinnedApps(list) {
@@ -1651,7 +1703,7 @@
             const pinned = getPinnedApps();
 
             // Toggle visibility of system instruments in dock
-            ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].forEach(sysId => {
+            ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'].forEach(sysId => {
                 const el = document.getElementById(`dock-app-${sysId}`);
                 if (el) {
                     el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -1662,7 +1714,7 @@
 
             let html = '';
             pinned.forEach(appId => {
-                if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].includes(appId)) return;
+                if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'].includes(appId)) return;
 
                 const installed = installedApps.find(a => (a.id || a.name) === appId);
                 if (!installed) return;
@@ -2992,6 +3044,8 @@
                 closeAppDetail();
                 closeUrlInstallModal();
                 closeRepoConfigModal();
+                toggleStoragePopover(null, false);
+                toggleTelemetryHUD(null, false);
             }
         });
 

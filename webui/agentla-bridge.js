@@ -461,8 +461,14 @@
     function toggleStoragePopover(e, forceState) {
         if (e && e.stopPropagation) e.stopPropagation();
         var popover = document.getElementById('storage-glass-popover');
+        var hud = document.getElementById('telemetry-hud');
         var btn = document.getElementById('dock-btn-storage');
+        var telemBtn = document.getElementById('dock-btn-telemetry');
         if (!popover) return;
+        if (hud) {
+            hud.style.display = 'none';
+            if (telemBtn) telemBtn.classList.remove('active');
+        }
         var isVisible = popover.style.display !== 'none';
         var show = (typeof forceState === 'boolean') ? forceState : !isVisible;
         popover.style.display = show ? 'flex' : 'none';
@@ -479,11 +485,17 @@
     function toggleTelemetryHUD(e, forceState) {
         if (e && e.stopPropagation) e.stopPropagation();
         var hud = document.getElementById('telemetry-hud');
+        var popover = document.getElementById('storage-glass-popover');
         var btn = document.getElementById('dock-btn-telemetry');
+        var storageBtn = document.getElementById('dock-btn-storage');
         if (!hud) return;
+        if (popover) {
+            popover.style.display = 'none';
+            if (storageBtn) storageBtn.classList.remove('active');
+        }
         var isVisible = hud.style.display !== 'none';
         var show = (typeof forceState === 'boolean') ? forceState : !isVisible;
-        hud.style.display = show ? 'block' : 'none';
+        hud.style.display = show ? 'flex' : 'none';
         if (btn) {
             if (show) btn.classList.add('active');
             else btn.classList.remove('active');

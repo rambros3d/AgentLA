@@ -4,6 +4,7 @@
 - **Always use the `ask_question` tool** whenever asking the user for input, decisions, clarifications, or open questions. Do not ask multiple-choice or decision questions in plain unstructured text.
 
 ## Architecture & Code Standards
+- **Zero Emojis**: Emojis shall not be used anywhere in this project under any circumstance. All UI text, logs, console output, code, comments, documentation, and tests must remain strictly emoji-free; use standard technical text labels instead.
 - **Strict `#![no_std]`**: All firmware and protocol crates must remain `#![no_std]` and zero-heap unless explicitly scoped otherwise.
 - **Embassy Async Runtime**: Network, USB, timers, and background tasks run under the Embassy executor with cooperative async I/O.
 - **Pin Arbiter Contract**: Never drive or reconfigure pins directly without acquiring ownership from `pin_owner` / `agentla-pin-arbiter`.
