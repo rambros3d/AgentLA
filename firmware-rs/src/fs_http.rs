@@ -225,11 +225,9 @@ impl Chunks for SystemFileChunks {
     }
 }
 
-pub const RECOVERY_HTML: &str = include_str!("../assets/recovery.html");
-
 /// Request handler for dynamically serving System WebUI files out of Partition 1 (`SYSTEM_FS`).
 /// Supports transparent pre-compressed gzip streaming with `Content-Encoding: gzip`
-/// and falls back to uncompressed or emergency recovery page if partition is uninitialized.
+/// and redirects to /device if partition is unpopulated or corrupt.
 pub struct SystemWebFile {
     file_name: &'static str,
     mime: &'static str,
@@ -340,12 +338,14 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
             }
         }
 
-        // 4. Fallback recovery for HTML pages if partition is unpopulated
+        // 4. Fallback recovery for HTML pages if partition is unpopulated or corrupt -> redirect to /device
         if self.file_name == "index.html" || self.file_name == "lab.html" || self.file_name == "terminal.html" {
             return (
-                StatusCode::OK,
-                ("Content-Type", "text/html; charset=utf-8"),
-                RECOVERY_HTML,
+                StatusCode::FOUND,
+                ("Location", "/device"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting to /device...",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;

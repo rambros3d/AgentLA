@@ -20,24 +20,24 @@ button:active{background:#ccc}
 button:disabled{opacity:0.3;cursor:not-allowed}
 button.danger{border-color:var(--danger);color:var(--danger);background:var(--danger-bg)}
 button.danger:hover{background:var(--danger);color:#fff}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
-.card{background:var(--panel);border:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;overflow-wrap:break-word}
 .card.full{grid-column:1/-1}
-.card-hdr{font-size:11px;font-weight:700;color:var(--fg-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:1px}
+.card-hdr{font-size:11px;font-weight:700;color:var(--fg-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:1px;flex-wrap:wrap;gap:6px}
 .card-hdr span.title{color:var(--fg)}
-.d-list{display:flex;flex-direction:column;gap:4px}
-.row{display:flex;justify-content:space-between;align-items:baseline}
-.row .lbl{color:var(--fg-dim)}
-.row .dots{flex:1;border-bottom:1px dotted var(--border-bright);margin:0 8px;min-width:16px}
-.row .val{font-weight:600;color:var(--fg);white-space:nowrap}
+.d-list{display:flex;flex-direction:column;gap:5px;min-width:0}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;min-width:0}
+.row .lbl{color:var(--fg-dim);white-space:nowrap;flex-shrink:0}
+.row .dots{flex:1;border-bottom:1px dotted var(--border-bright);margin:9px 4px 0 4px;min-width:8px;height:0}
+.row .val{font-weight:600;color:var(--fg);text-align:right;word-break:break-word;overflow-wrap:anywhere;min-width:0}
 .part-bar{display:flex;width:100%;border:1px solid var(--border-bright);background:#080808;margin:6px 0;overflow:hidden}
 .part-seg{border-right:1px solid var(--border-bright);padding:6px 2px;text-align:center;font-size:10px;font-weight:700;color:var(--fg-dim);background:#0d0d10}
 .part-seg:last-child{border-right:none}
 .part-seg.active{background:var(--fg);color:#000}
 .part-seg.active .seg-sub{color:#000}
 .seg-sub{font-size:9px;font-weight:400;color:var(--fg-muted);display:block;margin-top:2px}
-.part-table{display:flex;flex-direction:column;gap:2px;font-size:11px;margin-top:4px}
-.pt-row{display:grid;grid-template-columns:120px 100px 100px 80px 100px 1fr;gap:8px;padding:3px 6px;border-bottom:1px solid var(--border)}
+.part-table{display:flex;flex-direction:column;gap:2px;font-size:11px;margin-top:4px;overflow-x:auto}
+.pt-row{display:grid;grid-template-columns:120px 100px 100px 80px 100px 1fr;gap:8px;padding:3px 6px;border-bottom:1px solid var(--border);min-width:540px}
 .pt-row.header{font-weight:700;color:var(--fg-dim);border-bottom:1px solid var(--border-bright)}
 .pt-row:not(.header):hover{background:#18181c}
 .pin-matrix{display:flex;flex-direction:column;gap:10px;margin-top:6px}
@@ -61,7 +61,6 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 .modal-hdr .title{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--fg)}
 .modal-body{font-size:12px;color:var(--fg-dim);line-height:1.5;min-height:36px}
 .tag-warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
-.recovery-banner{border-color:var(--warn)!important;background:#141008;padding:12px;display:none;flex-direction:column;gap:10px}
 .rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:4px}
 .rec-box{border:1px solid var(--border-bright);background:#0d0d10;padding:12px;display:flex;flex-direction:column;gap:8px}
 .rec-box .rec-title{font-size:11px;font-weight:700;color:var(--warn);letter-spacing:1px}
@@ -69,25 +68,25 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 .drop-zone:hover,.drop-zone.dragover{border-color:var(--fg);background:#111115}
 .drop-zone strong{font-size:11px;color:var(--fg);display:block}
 .drop-zone span{font-size:10px;color:var(--fg-dim);display:block;margin-top:4px}
-.tab-bar{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--border-bright);padding-bottom:8px}
+.tab-bar{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--border-bright);padding-bottom:8px;flex-wrap:wrap}
 .tab-btn{background:#111114;border:1px solid var(--border-bright);color:var(--fg-dim);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer}
 .tab-btn:hover{background:#1c1c22;color:var(--fg);border-color:var(--fg)}
 .tab-btn.active{background:var(--fg);color:#000;border-color:var(--fg)}
 .view-panel{display:none;width:100%}
 .view-panel.active{display:block}
-.api-table{display:flex;flex-direction:column;gap:4px;margin-top:8px}
-.api-row{display:grid;grid-template-columns:60px 220px 1fr 140px;gap:8px;padding:8px 10px;background:#0d0d10;border:1px solid var(--border);align-items:center;font-size:11px}
+.api-table{display:flex;flex-direction:column;gap:4px;margin-top:8px;overflow-x:auto}
+.api-row{display:grid;grid-template-columns:60px 220px 1fr 140px;gap:8px;padding:8px 10px;background:#0d0d10;border:1px solid var(--border);align-items:center;font-size:11px;min-width:540px}
 .api-row:hover{border-color:var(--border-bright);background:#131317}
 .badge-get{color:#22d3ee;font-weight:700}
 .badge-post{color:#fbbf24;font-weight:700}
 .badge-del{color:#ef4444;font-weight:700}
 .badge-ws{color:#c084fc;font-weight:700}
 .code-box{background:#08080a;border:1px solid var(--border-bright);padding:10px;font-family:var(--font);font-size:11px;color:var(--fg);position:relative;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
-.tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:8px}
-.tool-card{border:1px solid var(--border);background:#0d0d10;padding:12px;display:flex;flex-direction:column;gap:6px}
-.tool-name{font-weight:700;color:#22d3ee;font-size:12px;letter-spacing:0.5px}
-.tool-desc{color:var(--fg-dim);font-size:11px;line-height:1.4}
-.tool-args{font-size:10px;color:#a1a1aa;background:#18181c;padding:3px 6px;border-left:2px solid #22d3ee;margin-top:4px}
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:10px;margin-top:8px}
+.tool-card{border:1px solid var(--border);background:#0d0d10;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0;overflow-wrap:break-word}
+.tool-name{font-weight:700;color:#22d3ee;font-size:12px;letter-spacing:0.5px;word-break:break-word}
+.tool-desc{color:var(--fg-dim);font-size:11px;line-height:1.4;word-break:break-word}
+.tool-args{font-size:10px;color:#a1a1aa;background:#18181c;padding:3px 6px;border-left:2px solid #22d3ee;margin-top:4px;word-break:break-all}
 .copy-pill{font-size:10px;padding:3px 8px;border:1px solid var(--border-bright);background:#18181b;color:var(--fg);cursor:pointer;font-weight:600}
 .copy-pill:hover{background:var(--fg);color:#000}
 @media (max-width:720px){
@@ -107,46 +106,61 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
   </div>
   <div class="btn-group">
     <button onclick="nav('/')">WebUI</button>
-    <button id="btnToggleRec" onclick="toggleRecoveryBanner()">Recovery</button>
     <button onclick="triggerReboot()">Reboot</button>
   </div>
 </header>
 
 <div class="tab-bar">
   <button class="tab-btn active" id="tabHardware" onclick="switchView('hardware')">HARDWARE</button>
+  <button class="tab-btn" id="tabStorage" onclick="switchView('storage')">STORAGE</button>
   <button class="tab-btn" id="tabPins" onclick="switchView('pins')">PIN DIAGNOSTICS</button>
   <button class="tab-btn" id="tabApi" onclick="switchView('api')">REST API</button>
   <button class="tab-btn" id="tabMcp" onclick="switchView('mcp')">MCP AGENT</button>
 </div>
 
 <div class="view-panel active" id="viewHardware">
-<div class="grid">
-  <!-- Dynamic Recovery Banner (Expands automatically if SYSTEM_FS is unpopulated/corrupted or ?recovery=1) -->
-  <div class="card full recovery-banner" id="recoveryBanner">
-    <div class="card-hdr" style="border-bottom-color:var(--warn)">
-      <span class="title" style="color:var(--warn)">⚠️ SYSTEM_FS RECOVERY MODE // PARTITION UNPOPULATED OR CORRUPTED</span>
-      <span class="tag tag-warn">RECOVERY ACTIVE</span>
+  <!-- Hero Card: Unified System Update & Release Manager -->
+  <div class="card full" id="cardSystemUpdate" style="margin-bottom:12px">
+    <div class="card-hdr">
+      <span class="title">⚡ System Update // Release Manager</span>
+      <span class="tag" id="releaseTag">Checking...</span>
     </div>
-    <p style="color:var(--fg-dim);font-size:11px">
-      Partition 1 (<code>SYSTEM_FS</code> @ 0x00204000) is unpopulated or missing required web assets. Select a restore method below to flash the WebUI distribution:
-    </p>
     <div class="rec-grid">
       <div class="rec-box">
-        <span class="rec-title">RESTORE METHOD A // CLOUD AUTO UPDATE</span>
-        <p style="color:var(--fg-dim);font-size:11px">Pull verified <code>webui.tar</code> release asset from GitHub via client browser and stream directly to flash.</p>
-        <button id="btnRecAuto" class="primary" onclick="onlineUpdate('web')" style="margin-top:auto" disabled>Auto Update from GitHub</button>
+        <span class="lbl" style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">FIRMWARE (DUAL A/B OTA)</span>
+        <div class="d-list" style="margin:4px 0">
+          <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVerInstalled">AgentLA v1.0.0</span></div>
+          <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwVerRemote">Checking...</span></div>
+        </div>
       </div>
       <div class="rec-box">
-        <span class="rec-title">RESTORE METHOD B // LOCAL ARCHIVE DROPZONE</span>
-        <div class="drop-zone" id="recDropZone" onclick="$('fileWeb').click()">
-          <strong>CLICK TO SELECT WEBUI.TAR</strong>
-          <span>or drag and drop archive file here</span>
+        <span class="lbl" style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">WEBUI &amp; SYSTEM ASSETS (SYSTEM_FS)</span>
+        <div class="d-list" style="margin:4px 0">
+          <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="webVerInstalled">v1.0.0</span></div>
+          <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webVerRemote">Checking...</span></div>
         </div>
       </div>
     </div>
-    <div class="progress" id="recProgress"><div class="progress-bar" id="recBar"></div></div>
-    <div class="status-msg" id="recStatus" style="color:var(--warn)">Awaiting user recovery action...</div>
+    <div class="btn-group" style="margin-top:6px">
+      <button class="primary" id="btnUpdateAll" onclick="runFullSystemUpdate()" disabled>⚡ Auto Update All (WebUI + Firmware)</button>
+      <button id="btnWebOnline" onclick="onlineUpdate('web')" disabled>Update WebUI Only</button>
+      <button id="btnFwOnline" onclick="onlineUpdate('fw')" disabled>Update Firmware Only</button>
+      <button onclick="$('fileFw').click()">Flash .bin</button>
+      <button onclick="$('fileWeb').click()">Flash .tar</button>
+      <button onclick="rollbackFw()">Rollback Slot</button>
+      <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
+      <input type="file" id="fileWeb" accept=".tar" onchange="uploadLocal('/api/v1/system/webui/update', this.files[0], false)">
+    </div>
+    <div class="drop-zone" id="updateDropZone" style="margin-top:4px" onclick="$('fileSmart').click()">
+      <strong>DRAG &amp; DROP .TAR (WEBUI) OR .BIN (FIRMWARE) HERE</strong>
+      <span>or click to browse local archive</span>
+      <input type="file" id="fileSmart" accept=".tar,.bin" onchange="handleSmartUpload(this.files[0])">
+    </div>
+    <div class="progress" id="updateProgress"><div class="progress-bar" id="updateBar"></div></div>
+    <div class="status-msg" id="updateStatus">Ready.</div>
   </div>
+
+<div class="grid">
   <!-- Card 1: MCU & Silicon -->
   <div class="card">
     <div class="card-hdr"><span class="title">MCU &amp; Silicon</span><span class="tag" id="boardId">pico2</span></div>
@@ -156,6 +170,20 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
       <div class="row"><span class="lbl">CORE_CLOCK</span><span class="dots"></span><span class="val" id="mcuClock">150 MHz</span></div>
       <div class="row"><span class="lbl">SRAM_MEM</span><span class="dots"></span><span class="val" id="sramUsage">-- / 520 KB</span></div>
       <div class="row"><span class="lbl">FLASH_ROM</span><span class="dots"></span><span class="val" id="flashSize">4096 KB</span></div>
+    </div>
+    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">CLOCK PROFILE // OVERCLOCK</span>
+        <span class="tag" id="clkCurTag" style="font-size:9px">150 MHz [ACTIVE]</span>
+      </div>
+      <div class="btn-group" style="margin-bottom:8px">
+        <button id="btnClk150" class="tab-btn active" style="flex:1;font-size:10px;padding:4px" onclick="selectClockProfile(150)">150M NORMAL<br><span style="font-size:9px;color:var(--fg-dim)">1.10V · Stock</span></button>
+        <button id="btnClk300" class="tab-btn" style="flex:1;font-size:10px;padding:4px" onclick="selectClockProfile(300)">300M FAST<br><span style="font-size:9px;color:var(--fg-dim)">1.25V · 2.0x</span></button>
+        <button id="btnClk500" class="tab-btn" style="flex:1;font-size:10px;padding:4px" onclick="selectClockProfile(500)">500M EXTREME<br><span style="font-size:9px;color:var(--fg-dim)">1.60V · 3.33x</span></button>
+      </div>
+      <div class="btn-group">
+        <button id="btnApplyClock" class="primary" style="flex:1;font-size:10px" onclick="applyClockProfile()">Apply &amp; Reboot</button>
+      </div>
     </div>
   </div>
 
@@ -179,38 +207,34 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
       <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVersion">AgentLA v1.0.0</span></div>
       <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwUpdate">Checking...</span></div>
     </div>
-    <div class="progress" id="fwProgress"><div class="progress-bar" id="fwBar"></div></div>
     <div class="status-msg" id="fwStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
-      <button id="btnFwOnline" onclick="onlineUpdate('fw')" disabled>Auto Update</button>
-      <button onclick="$('fileFw').click()">Flash .bin</button>
-      <button onclick="rollbackFw()">Rollback</button>
+      <button onclick="rollbackFw()">Rollback Slot</button>
       <button class="danger" onclick="triggerBootsel()">Force BOOTSEL</button>
-      <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
     </div>
   </div>
+</div>
+</div>
 
-  <!-- Card 4: WebUI & Storage (SYSTEM_FS) -->
+<!-- VIEW PANEL: STORAGE -->
+<div class="view-panel" id="viewStorage">
+<div class="grid">
+  <!-- Card 1: WebUI Storage (SYSTEM_FS) -->
   <div class="card">
-    <div class="card-hdr"><span class="title">WebUI &amp; Storage (SYSTEM_FS)</span><span class="tag" id="fsTag">512 KB</span></div>
+    <div class="card-hdr"><span class="title">WebUI Storage (SYSTEM_FS)</span><span class="tag" id="fsTag">512 KB</span></div>
     <div class="d-list">
       <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="fsSize">-- / 512 KB</span></div>
-      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00270000</span></div>
+      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00204000</span></div>
       <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
       <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="webVersion">v1.0.0</span></div>
-      <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webUpdate">Checking...</span></div>
     </div>
-    <div class="progress" id="webProgress"><div class="progress-bar" id="webBar"></div></div>
     <div class="status-msg" id="webStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
-      <button id="btnWebOnline" onclick="onlineUpdate('web')" disabled>Auto Update</button>
-      <button onclick="$('fileWeb').click()">Flash .tar</button>
       <button class="danger" onclick="formatFs('system')">Format SYSTEM_FS</button>
-      <input type="file" id="fileWeb" accept=".tar" onchange="uploadLocal('/api/v1/system/webui/update', this.files[0], false)">
     </div>
   </div>
 
-  <!-- Card 5: User Storage (USER_FS) -->
+  <!-- Card 2: User Storage (USER_FS) -->
   <div class="card">
     <div class="card-hdr"><span class="title">User Storage (USER_FS)</span><span class="tag" id="userFsTag">1504 KB</span></div>
     <div class="d-list">
@@ -224,7 +248,7 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
   </div>
 
-  <!-- Card 6: Flash Partitions -->
+  <!-- Card 3: Flash Partitions -->
   <div class="card full">
     <div class="card-hdr">
       <span class="title">Flash Partitions</span>
@@ -358,7 +382,7 @@ let installedWebVer = 'v1.0.0';
 function nav(p){ window.location.href = p; }
 
 function switchView(view){
-  const views = ['hardware', 'pins', 'api', 'mcp'];
+  const views = ['hardware', 'storage', 'pins', 'api', 'mcp'];
   views.forEach(v => {
     const btn = $('tab' + v.charAt(0).toUpperCase() + v.slice(1));
     const panel = $('view' + v.charAt(0).toUpperCase() + v.slice(1));
@@ -373,7 +397,9 @@ function switchView(view){
 function initView(){
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase().replace('#', '');
-  if(path.includes('/device/pins') || hash === 'pins'){
+  if(path.includes('/device/storage') || hash === 'storage'){
+    switchView('storage');
+  } else if(path.includes('/device/pins') || hash === 'pins'){
     switchView('pins');
   } else if(path.includes('/device/api') || hash === 'api'){
     switchView('api');
@@ -587,6 +613,11 @@ async function fetchJSON(u, o={}){
 
 async function loadTelemetry(){
   const t = await fetchJSON('/api/v1/system/telemetry');
+  const lfsEmpty = !t || !t.lfs_used_bytes || t.lfs_used_bytes === 0;
+  if(lfsEmpty){
+    if($('webVerInstalled')) $('webVerInstalled').textContent = 'Not Installed (0 KB)';
+    if($('webVersion')) $('webVersion').textContent = 'Not Installed';
+  }
   if(!t) return;
   if(t.v_sys_mv) $('vSys').textContent = (t.v_sys_mv/1000).toFixed(2) + ' V';
   if(t.v_target_mv) $('vTarget').textContent = (t.v_target_mv/1000).toFixed(2) + ' V';
@@ -619,30 +650,34 @@ async function loadTelemetry(){
     ts.textContent = 'Normal';
     ts.className = 'tag';
   }
-  const params = new URLSearchParams(window.location.search);
-  const forceRec = params.get('recovery') === '1' || params.get('mode') === 'recovery';
-  const lfsEmpty = !t.lfs_used_bytes || t.lfs_used_bytes === 0;
-  if($('recoveryBanner') && (forceRec || lfsEmpty)){
-    $('recoveryBanner').style.display = 'flex';
-  }
   renderPins(t.pins || []);
 }
 
 async function loadManifest(){
   const m = await fetchJSON('/api/board/manifest');
+  const sys = await fetchJSON('/api/v1/system');
+  if(sys && sys.clock_mhz){
+    currentClockMhz = sys.clock_mhz;
+    if($('mcuClock')) $('mcuClock').textContent = sys.clock_mhz + ' MHz';
+    if($('clkCurTag')) $('clkCurTag').textContent = sys.clock_mhz + ' MHz [ACTIVE]';
+    selectClockProfile(sys.clock_mhz);
+  }
   if(!m) return;
   if(m.name) $('boardChip').textContent = m.name;
   if(m.board_id) $('boardId').textContent = m.board_id;
   if(m.version){
     installedWebVer = m.version.startsWith('v') ? m.version : ('v' + m.version);
     if($('webVersion')) $('webVersion').textContent = installedWebVer;
+    if($('webVerInstalled')) $('webVerInstalled').textContent = installedWebVer;
   }
   if(m.mcu){
     const chip = m.mcu.chip || 'RP2350B';
     const cores = m.mcu.cores || 'Dual ARM Cortex-M33 / Hazard3 RISC-V';
     if($('coreChip')) $('coreChip').textContent = chip;
     if($('coreType')) $('coreType').textContent = cores;
-    if(m.mcu.clock_max_mhz) $('mcuClock').textContent = m.mcu.clock_max_mhz + ' MHz';
+    if(!sys || !sys.clock_mhz){
+      if(m.mcu.clock_max_mhz) $('mcuClock').textContent = m.mcu.clock_max_mhz + ' MHz';
+    }
     if(m.mcu.flash_bytes){
       const flashKb = Math.round(m.mcu.flash_bytes/1024);
       if($('flashSize')) $('flashSize').textContent = flashKb + ' KB';
@@ -662,6 +697,7 @@ async function loadFirmwareStatus(){
   const mFw = rawFw.match(/v\d+(\.\d+)*/i);
   installedFwVer = mFw ? mFw[0] : 'v1.0.0';
   $('fwVersion').textContent = installedFwVer;
+  if($('fwVerInstalled')) $('fwVerInstalled').textContent = installedFwVer;
   $('fwCandidate').textContent = fw.candidate_slot ? fw.candidate_slot : 'None';
 
   // Update Visual Flash Partition Map segment states
@@ -745,90 +781,143 @@ function compareUpdate(installed, remote){
   return isNewer ? remote : 'UP TO DATE';
 }
 
-function toggleRecoveryBanner(){
-  const b = $('recoveryBanner');
-  if(!b) return;
-  b.style.display = (b.style.display === 'none' || !b.style.display) ? 'flex' : 'none';
-}
-
 async function checkGitHub(){
   try{
-    const r = await fetch('https://api.github.com/repos/sun/AgentLA/releases/latest');
+    const r = await fetch('https://api.github.com/repos/rambros3d/AgentLA/releases/latest');
     if(!r.ok) throw new Error();
     latestRel = await r.json();
     const tag = latestRel.tag_name || 'v1.0.0';
     const fwUp = compareUpdate(installedFwVer, tag);
     const webUp = compareUpdate(installedWebVer, tag);
+    if($('releaseTag')) $('releaseTag').textContent = tag;
+    if($('fwVerRemote')) $('fwVerRemote').textContent = fwUp;
+    if($('webVerRemote')) $('webVerRemote').textContent = webUp;
     if($('fwUpdate')) $('fwUpdate').textContent = fwUp;
     if($('webUpdate')) $('webUpdate').textContent = webUp;
-    $('btnFwOnline').disabled = false;
-    $('btnWebOnline').disabled = false;
-    if($('btnRecAuto')) $('btnRecAuto').disabled = false;
+    if($('btnUpdateAll')) $('btnUpdateAll').disabled = false;
+    if($('btnFwOnline')) $('btnFwOnline').disabled = false;
+    if($('btnWebOnline')) $('btnWebOnline').disabled = false;
   } catch(e){
+    if($('releaseTag')) $('releaseTag').textContent = 'OFFLINE';
+    if($('fwVerRemote')) $('fwVerRemote').textContent = 'OFFLINE (USE LOCAL)';
+    if($('webVerRemote')) $('webVerRemote').textContent = 'OFFLINE (USE LOCAL)';
     if($('fwUpdate')) $('fwUpdate').textContent = 'OFFLINE (USE LOCAL)';
     if($('webUpdate')) $('webUpdate').textContent = 'OFFLINE (USE LOCAL)';
   }
 }
 
-async function uploadFile(url, data, isFw){
-  const p = isFw ? $('fwProgress') : $('webProgress');
-  const b = isFw ? $('fwBar') : $('webBar');
-  const s = isFw ? $('fwStatus') : $('webStatus');
-  p.style.display = 'block'; b.style.width = '30%';
-  s.textContent = 'TRANSMITTING PAYLOAD...';
-  if(!isFw && $('recProgress')){
-    $('recProgress').style.display = 'block';
-    $('recBar').style.width = '30%';
-    $('recStatus').textContent = 'TRANSMITTING WEBUI PAYLOAD...';
-  }
+async function uploadFile(url, data, isFw, noReload = false){
+  const p = $('updateProgress');
+  const b = $('updateBar');
+  const s = $('updateStatus');
+  if(p) p.style.display = 'block';
+  if(b) b.style.width = '30%';
+  if(s) s.textContent = isFw ? 'TRANSMITTING FIRMWARE PAYLOAD...' : 'TRANSMITTING WEBUI PAYLOAD...';
   try{
     const res = await fetch(url, { method: 'POST', body: data });
-    b.style.width = '100%';
-    if(!isFw && $('recBar')) $('recBar').style.width = '100%';
+    if(b) b.style.width = '100%';
     if(res.ok){
-      s.textContent = 'PAYLOAD STAGED SUCCESSFULLY.';
-      if(!isFw && $('recStatus')) $('recStatus').textContent = 'WEBUI RESTORED SUCCESSFULLY! Reloading...';
+      if(s) s.textContent = isFw ? 'FIRMWARE STAGED SUCCESSFULLY.' : 'WEBUI RESTORED SUCCESSFULLY.';
       setTimeout(() => {
-        p.style.display = 'none'; b.style.width = '0%';
-        if(!isFw && $('recProgress')){ $('recProgress').style.display = 'none'; $('recBar').style.width = '0%'; }
+        if(p) p.style.display = 'none';
+        if(b) b.style.width = '0%';
       }, 2000);
-      if(isFw && await showConfirm('FIRMWARE STAGED', 'Firmware written to candidate slot. Reboot now to activate?', false)){
-        triggerReboot();
-      } else if(!isFw){
-        setTimeout(() => location.reload(), 1500);
+      if(!noReload){
+        if(isFw && await showConfirm('FIRMWARE STAGED', 'Firmware written to candidate slot. Reboot now to activate?', false)){
+          triggerReboot();
+        } else if(!isFw){
+          setTimeout(() => location.reload(), 1500);
+        }
       }
       return true;
     } else {
-      s.textContent = 'TRANSMISSION ERROR: HTTP ' + res.status;
-      if(!isFw && $('recStatus')) $('recStatus').textContent = 'RESTORE ERROR: HTTP ' + res.status;
+      if(s) s.textContent = 'TRANSMISSION ERROR: HTTP ' + res.status;
       return false;
     }
   }catch(e){
-    s.textContent = 'IO ERROR: ' + e.message;
-    if(!isFw && $('recStatus')) $('recStatus').textContent = 'IO ERROR: ' + e.message;
+    if(s) s.textContent = 'IO ERROR: ' + e.message;
     return false;
+  }
+}
+
+function handleSmartUpload(file){
+  if(!file) return;
+  const name = file.name.toLowerCase();
+  if(name.endsWith('.bin')){
+    uploadLocal('/api/v1/system/firmware/ota', file, true);
+  } else if(name.endsWith('.tar')){
+    uploadLocal('/api/v1/system/webui/update', file, false);
+  } else {
+    alert('Please select a .tar (WebUI) or .bin (Firmware) package file.');
+  }
+}
+
+async function runFullSystemUpdate(){
+  if(!latestRel || !latestRel.assets) return;
+  const btn = $('btnUpdateAll');
+  if(btn) btn.disabled = true;
+  const p = $('updateProgress'), b = $('updateBar'), s = $('updateStatus');
+  if(p) p.style.display = 'block';
+  if(b) b.style.width = '10%';
+  if(s) s.textContent = '[1/3] Locating release packages on GitHub...';
+
+  const webAsset = latestRel.assets.find(a => a.name.endsWith('.tar'));
+  const fwAsset = latestRel.assets.find(a => a.name.includes('ota') || a.name.endsWith('.bin'));
+  if(!webAsset || !fwAsset){
+    if(s) s.textContent = 'ERROR: Required release assets not found in ' + (latestRel.tag_name || 'latest');
+    if(btn) btn.disabled = false;
+    return;
+  }
+
+  try{
+    if(s) s.textContent = '[1/2] Downloading ' + webAsset.name + '...';
+    if(b) b.style.width = '25%';
+    const webResp = await fetch(webAsset.browser_download_url);
+    if(!webResp.ok) throw new Error('WebUI download HTTP ' + webResp.status);
+    const webBlob = await webResp.blob();
+    if(s) s.textContent = '[1/2] Streaming ' + webAsset.name + ' into LittleFS...';
+    if(b) b.style.width = '45%';
+    const webOk = await uploadFile('/api/v1/system/webui/update', webBlob, false, true);
+    if(!webOk) throw new Error('Failed to stage WebUI tarball');
+
+    if(s) s.textContent = '[2/2] Downloading ' + fwAsset.name + '...';
+    if(b) b.style.width = '65%';
+    const fwResp = await fetch(fwAsset.browser_download_url);
+    if(!fwResp.ok) throw new Error('Firmware download HTTP ' + fwResp.status);
+    const fwBlob = await fwResp.blob();
+    if(s) s.textContent = '[2/2] Streaming ' + fwAsset.name + ' into candidate slot...';
+    if(b) b.style.width = '90%';
+    const fwOk = await uploadFile('/api/v1/system/firmware/ota', fwBlob, true, true);
+    if(!fwOk) throw new Error('Failed to stage firmware OTA');
+
+    if(b) b.style.width = '100%';
+    if(s) s.textContent = 'ALL PACKAGES STAGED! Rebooting system...';
+    setTimeout(() => triggerReboot(), 1500);
+  }catch(e){
+    if(s) s.textContent = 'UPDATE FAILED: ' + e.message;
+    if(btn) btn.disabled = false;
   }
 }
 
 async function onlineUpdate(type){
   if(!latestRel || !latestRel.assets) return;
   const isFw = type === 'fw';
-  const match = isFw ? a => a.name.endsWith('.bin') || a.name.includes('firmware') : a => a.name.endsWith('.tar');
+  const match = isFw ? a => a.name.includes('ota') || a.name.endsWith('.bin') : a => a.name.endsWith('.tar');
   const asset = latestRel.assets.find(match);
   if(!asset){
-    const s = isFw ? $('fwStatus') : $('webStatus');
-    s.textContent = 'NO MATCHING ASSET IN RELEASE';
+    const s = $('updateStatus');
+    if(s) s.textContent = 'NO MATCHING ASSET IN RELEASE';
     return;
   }
-  const s = isFw ? $('fwStatus') : $('webStatus');
-  s.textContent = 'PULLING ' + asset.name + '...';
+  const s = $('updateStatus');
+  if(s) s.textContent = 'PULLING ' + asset.name + '...';
   try{
     const r = await fetch(asset.browser_download_url);
     const blob = await r.blob();
     const ep = isFw ? '/api/v1/system/firmware/ota' : '/api/v1/system/webui/update';
     await uploadFile(ep, blob, isFw);
   }catch(e){
-    s.textContent = 'PULL FAILED: ' + e.message;
+    if(s) s.textContent = 'PULL FAILED: ' + e.message;
   }
 }
 
@@ -867,6 +956,71 @@ async function togglePin(state){
   else { st.textContent = `GP${pin} ERROR`; }
 }
 
+let selectedClockMhz = 150;
+let currentClockMhz = 150;
+
+function selectClockProfile(mhz){
+  selectedClockMhz = mhz;
+  ['150', '300', '500'].forEach(c => {
+    const btn = $('btnClk' + c);
+    if(btn){
+      if(parseInt(c) === mhz){
+        btn.classList.add('active');
+        btn.style.borderColor = 'var(--accent)';
+      } else {
+        btn.classList.remove('active');
+        btn.style.borderColor = 'var(--border)';
+      }
+    }
+  });
+  if($('btnApplyClock')){
+    const isCurrent = (selectedClockMhz === currentClockMhz);
+    $('btnApplyClock').disabled = isCurrent;
+    $('btnApplyClock').textContent = isCurrent ? 'CURRENT SPEED' : `APPLY ${selectedClockMhz} MHz & REBOOT`;
+  }
+}
+
+async function applyClockProfile(){
+  const isExtreme = selectedClockMhz === 500;
+  const msg = isExtreme
+    ? `Switch RP2350 sys_clk to 500 MHz (Extreme Boost @ 1.60V)? System will commit setting to flash BootTable and warm reboot immediately.`
+    : `Switch RP2350 sys_clk to ${selectedClockMhz} MHz? System will save setting and warm reboot.`;
+  if(!await showConfirm('APPLY OVERCLOCK & REBOOT', msg, isExtreme)) return;
+  const btn = $('btnApplyClock');
+  if(btn) btn.disabled = true;
+  if($('clkCurTag')) $('clkCurTag').textContent = 'REBOOTING...';
+  try {
+    const res = await fetch('/api/v1/system/clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mhz: selectedClockMhz })
+    });
+    if(res.ok){
+      setTimeout(() => {
+        let attempts = 0;
+        const check = setInterval(async () => {
+          attempts++;
+          try {
+            const s = await fetch('/api/v1/system', { signal: AbortSignal.timeout(1000) });
+            if(s.ok){
+              clearInterval(check);
+              location.reload();
+            }
+          } catch(e){
+            if(attempts > 15){
+              clearInterval(check);
+              location.reload();
+            }
+          }
+        }, 1000);
+      }, 1000);
+    }
+  } catch(e) {
+    if($('clkCurTag')) $('clkCurTag').textContent = 'RESETTING...';
+    setTimeout(() => location.reload(), 3000);
+  }
+}
+
 async function triggerReboot(){
   if(!await showConfirm('SYSTEM RESET', 'Trigger immediate hardware reset of AgentLA?', false)) return;
   await fetch('/api/v1/system/reboot', { method: 'POST' });
@@ -892,14 +1046,14 @@ async function formatFs(part){
 }
 
 async function init(){
-  const recDz = $('recDropZone');
-  if(recDz){
-    recDz.addEventListener('dragover', e => { e.preventDefault(); recDz.classList.add('dragover'); });
-    recDz.addEventListener('dragleave', () => recDz.classList.remove('dragover'));
-    recDz.addEventListener('drop', e => {
+  const updateDz = $('updateDropZone');
+  if(updateDz){
+    updateDz.addEventListener('dragover', e => { e.preventDefault(); updateDz.classList.add('dragover'); });
+    updateDz.addEventListener('dragleave', () => updateDz.classList.remove('dragover'));
+    updateDz.addEventListener('drop', e => {
       e.preventDefault();
-      recDz.classList.remove('dragover');
-      if(e.dataTransfer.files.length) uploadLocal('/api/v1/system/webui/update', e.dataTransfer.files[0], false);
+      updateDz.classList.remove('dragover');
+      if(e.dataTransfer.files.length) handleSmartUpload(e.dataTransfer.files[0]);
     });
   }
   const origin = window.location.origin || (window.location.protocol + '//' + (window.location.host || '192.168.7.1'));

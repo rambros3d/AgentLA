@@ -2501,9 +2501,81 @@ impl picoserve::routing::MethodHandlerService<()> for SystemTelemetry {
 
 pub struct SystemTelemetryStream;
 
-pub struct SystemClockBenchmark;
+pub struct SystemClockHandler;
 
-impl picoserve::routing::MethodHandlerService<()> for SystemClockBenchmark {
+impl picoserve::routing::MethodHandlerService<()> for SystemClockHandler {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method == "GET" {
+            let cur_mhz = crate::benchmark::get_sys_clk_hz() / 1_000_000;
+            let mut buf = heapless::String::<128>::new();
+            let _ = core::fmt::Write::write_fmt(
+                &mut buf,
+                format_args!(r#"{{"current_mhz":{},"available_mhz":[150,300,500]}}"#, cur_mhz),
+            );
+            return send_json(request, response_writer, StatusCode::OK, buf.as_str()).await;
+        }
+
+        if method == "POST" {
+            let body = read_body_str(&mut request).await;
+            let mhz = key_u32(request.parts.query(), body.as_str(), "mhz").unwrap_or(0);
+            if mhz != 150 && mhz != 300 && mhz != 500 {
+                return send_json(
+                    request,
+                    response_writer,
+                    StatusCode::BAD_REQUEST,
+                    r#"{"error":"invalid_mhz","available_mhz":[150,300,500]}"#,
+                ).await;
+            }
+
+            let mut resp = heapless::String::<128>::new();
+            let _ = core::fmt::Write::write_fmt(
+                &mut resp,
+                format_args!(r#"{{"status":"rebooting","mhz":{}}}"#, mhz),
+            );
+            let finalizer = request.body_connection.finalize().await?;
+            let _sent = (
+                StatusCode::OK,
+                [("Content-Type", "application/json"), ("Connection", "close")],
+                resp.as_str(),
+            )
+                .write_to(finalizer, response_writer)
+                .await;
+
+            // Allow the CDC-NCM network stack to transmit response and close TCP connection
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(150)).await;
+
+            // 1. Arm WATCHDOG.scratch4 for immediate warm reset recognition
+            rp_pac::WATCHDOG.scratch4().write_value(0xC10C_0000 | (mhz & 0xFFFF));
+
+            // 2. Temporarily downclock in RAM to safe 150 MHz so RP2350 Bootrom flash erase/write is 100% stable
+            let _ = crate::benchmark::apply_system_clock_in_ram(crate::benchmark::PROFILE_150);
+
+            // 3. Commit to BootTable in flash so it persists across hard power cycles
+            let (mut table, _) = crate::boot::get_boot_state();
+            table.set_boot_clock_mhz(mhz);
+            let _ = crate::boot::commit_boot_table(&mut table);
+
+            defmt::info!("Clock change committed: {} MHz. Resetting chip...", mhz);
+
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+            cortex_m::peripheral::SCB::sys_reset();
+            return _sent;
+        }
+
+        send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await
+    }
+}
+
+pub struct SystemInfoHandler;
+
+impl picoserve::routing::MethodHandlerService<()> for SystemInfoHandler {
     async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
@@ -2512,32 +2584,15 @@ impl picoserve::routing::MethodHandlerService<()> for SystemClockBenchmark {
         request: Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        let max_mhz = key_u32(request.parts.query(), "", "max").unwrap_or(700);
-        let single_mhz = key_u32(request.parts.query(), "", "mhz");
-
-        let mut buf = heapless::String::<2048>::new();
-        if let Some(target) = single_mhz {
-            if let Some(step) = crate::benchmark::STEPS.iter().find(|s| s.mhz == target) {
-                let pre_temp = crate::benchmark::read_temperature_c();
-                let stable = crate::benchmark::execute_step_in_ram(*step);
-                let post_temp = crate::benchmark::read_temperature_c();
-                let v_mv = crate::benchmark::vsel_to_mv(step.vsel);
-                let _ = core::fmt::Write::write_fmt(
-                    &mut buf,
-                    format_args!(
-                        r#"{{"mhz":{},"v_mv":{},"temp_before_c":{},"temp_after_c":{},"stable":{}}}"#,
-                        step.mhz, v_mv, pre_temp, post_temp, stable
-                    ),
-                );
-            } else {
-                let _ = core::fmt::Write::write_fmt(
-                    &mut buf,
-                    format_args!(r#"{{"error":"unsupported_frequency","supported":[150,200,250,300,350,400,450,500,540,600,650,700]}}"#),
-                );
-            }
-        } else {
-            crate::benchmark::run_overclock_sweep_async(&mut buf, max_mhz).await;
-        }
+        let cur_mhz = crate::benchmark::get_sys_clk_hz() / 1_000_000;
+        let mut buf = heapless::String::<256>::new();
+        let _ = core::fmt::Write::write_fmt(
+            &mut buf,
+            format_args!(
+                r#"{{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":{},"cores":2,"flash_bytes":4194304,"sram_bytes":532480,"littlefs_offset":"0x00270000","firmware":"AgentLA v1.0.0-rust","status":"healthy"}}"#,
+                cur_mhz
+            ),
+        );
         send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
     }
 }

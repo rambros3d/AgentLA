@@ -391,9 +391,10 @@ pub async fn capture_task(
             let mut cfg = Config::default();
             cfg.use_program(&common.load_program(&prg.program), &[]);
 
-            let freq = unsafe { FREQ }.max(10_000).min(150_000_000);
-            let div_int = (150_000_000 / freq).max(1).min(65535) as u16;
-            let div_frac = (((150_000_000 % freq) * 256) / freq).min(255) as u8;
+            let sys_clk = crate::benchmark::get_sys_clk_hz();
+            let freq = unsafe { FREQ }.max(10_000).min(sys_clk);
+            let div_int = (sys_clk / freq).max(1).min(65535) as u16;
+            let div_frac = (((sys_clk % freq) * 256) / freq).min(255) as u8;
 
             cfg.clock_divider = 1u8.into();
             cfg.shift_in = ShiftConfig {

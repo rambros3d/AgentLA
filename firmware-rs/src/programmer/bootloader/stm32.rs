@@ -75,7 +75,7 @@ impl Stm32Bootloader {
     }
 
     pub fn write_byte_8e1(&self, byte: u8) {
-        let bit_cycles = 150_000_000 / self.baud.clamp(1200, 921_600);
+        let bit_cycles = crate::benchmark::get_sys_clk_hz() / self.baud.clamp(1200, 921_600);
         let parity = (byte.count_ones() % 2) != 0;
 
         // Start bit (low)
@@ -106,7 +106,7 @@ impl Stm32Bootloader {
     }
 
     pub fn poll_rx_8e1(&self) -> Option<u8> {
-        let bit_cycles = 150_000_000 / self.baud.clamp(1200, 921_600);
+        let bit_cycles = crate::benchmark::get_sys_clk_hz() / self.baud.clamp(1200, 921_600);
         if (pac::SIO.gpio_in(0).read() & (1 << self.rx_pin)) != 0 {
             return None;
         }

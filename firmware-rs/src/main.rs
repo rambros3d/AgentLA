@@ -159,6 +159,35 @@ async fn main(spawner: embassy_executor::Spawner) {
     config.clocks.rosc = None;
     let p = embassy_rp::init(config);
 
+    // Read configured boot clock (check scratch4 first for warm reset, else BootTable in flash)
+    let scratch4 = rp_pac::WATCHDOG.scratch4().read();
+    let boot_mhz = if (scratch4 & 0xFFFF_0000) == 0xC10C_0000 {
+        rp_pac::WATCHDOG.scratch4().write_value(0);
+        scratch4 & 0xFFFF
+    } else {
+        let (table, _) = crate::boot::get_boot_state();
+        table.get_boot_clock_mhz()
+    };
+
+    let target_mhz = match boot_mhz {
+        300 => 300,
+        500 => 500,
+        _ => 150,
+    };
+
+    if target_mhz != 150 {
+        if let Some(step) = crate::benchmark::step_for_mhz(target_mhz) {
+            defmt::info!("Configuring RP2350 sys_clk: {} MHz", target_mhz);
+            let ok = crate::benchmark::apply_system_clock_in_ram(step);
+            if ok {
+                defmt::info!("RP2350 sys_clk successfully locked at {} MHz", target_mhz);
+            } else {
+                defmt::error!("Failed to lock PLL at {} MHz", target_mhz);
+                crate::benchmark::set_sys_clk_hz(150_000_000);
+            }
+        }
+    }
+
     // Spawn Core 1 dedicated hard-real-time capture & DSP loop
     embassy_rp::multicore::spawn_core1(
         p.CORE1,

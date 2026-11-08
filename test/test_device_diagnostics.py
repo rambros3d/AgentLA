@@ -49,9 +49,15 @@ def test_device_html_contains_required_sections_and_hooks():
     assert "coreType" in content
     assert "Power &amp; Thermal" in content
     assert "Firmware (Dual A/B OTA)" in content
-    assert "WebUI &amp; Storage (SYSTEM_FS)" in content
+    assert "WebUI Storage (SYSTEM_FS)" in content
+    assert "User Storage (USER_FS)" in content
     assert "Pin Diagnostics" in content
     assert "Flash Partitions" in content
+
+    # Responsive wrapping assertions (no overflow out of cards)
+    assert ".row .val{font-weight:600;color:var(--fg);white-space:nowrap}" not in content
+    assert "word-break:break-word" in content
+    assert "overflow-wrap:anywhere" in content
 
     # Removed pin controls, top bootsel button, and obsolete reboot/repo_latest hooks
     assert "PROBE_PIN:" not in content
@@ -93,25 +99,39 @@ def test_device_html_contains_required_sections_and_hooks():
     assert "/api/v1/system/pins/release_all" in content
     assert "/api/v1/system/pins/toggle" in content
     assert "/api/v1/system/fs/format" in content
+    assert "/api/v1/system/clock" in content
+
+    # Overclocking controls in MCU & Silicon card
+    assert "btnClk150" in content
+    assert "btnClk300" in content
+    assert "btnClk500" in content
+    assert "btnApplyClock" in content
+    assert "clkCurTag" in content
 
     # Browser-mediated GitHub checker
-    assert "api.github.com/repos" in content
-    assert "Auto Update" in content
+    assert "rambros3d/AgentLA" in content
+    assert "UPDATE ALL" in content or "UPDATE" in content
 
-    # Dynamic Recovery Banner components
-    assert "recoveryBanner" in content
-    assert "SYSTEM_FS RECOVERY MODE" in content
-    assert "recDropZone" in content
-    assert "btnRecAuto" in content
-    assert "Auto Update from GitHub" in content
-    assert "toggleRecoveryBanner" in content
+    # Unified System Update Hero Card on [ HARDWARE ]
+    assert "cardSystemUpdate" in content
+    assert "btnUpdateAll" in content
+    assert "updateDropZone" in content
+    assert "runFullSystemUpdate" in content
+    assert "handleSmartUpload" in content
 
-    # Multi-view Tab Switcher & Panels
+    # Redundant recovery banner eliminated
+    assert "recoveryBanner" not in content
+    assert "recDropZone" not in content
+    assert "SYSTEM_FS RECOVERY // WEBUI RESTORE REQUIRED" not in content
+
+    # Multi-view Tab Switcher & Panels (5 tabs)
     assert "tabHardware" in content
+    assert "tabStorage" in content
     assert "tabPins" in content
     assert "tabApi" in content
     assert "tabMcp" in content
     assert "viewHardware" in content
+    assert "viewStorage" in content
     assert "viewPins" in content
     assert "viewApi" in content
     assert "viewMcp" in content
@@ -142,6 +162,8 @@ def test_firmware_routing_for_device_and_developer_endpoints():
     assert '.route("/device",' in web_rs
     assert '.route("/device.html",' in web_rs
     assert '.route("/device/",' in web_rs
+    assert '.route("/device/storage",' in web_rs
+    assert '.route("/device/storage/",' in web_rs
     assert '.route("/device/pins",' in web_rs
     assert '.route("/device/pins/",' in web_rs
     assert '.route("/device/api",' in web_rs
@@ -164,47 +186,15 @@ def test_firmware_routing_for_device_and_developer_endpoints():
     assert "pub struct SystemFsFormat;" in rest_rs
 
 
-def test_recovery_html_exists_and_is_self_contained():
-    assert os.path.exists(RECOVERY_HTML_PATH), f"Missing {RECOVERY_HTML_PATH}"
-    content = open(RECOVERY_HTML_PATH, "r", encoding="utf-8").read()
-
-    # Must be valid HTML5
-    assert "<!DOCTYPE html>" in content
-    assert "<html lang=\"en\">" in content
-    assert "<title>AgentLA - WebUI Partition Recovery</title>" in content
-
-    # Zero external CDN or stylesheet dependencies
-    assert "<link rel=\"stylesheet\"" not in content, "recovery.html must use inline styles only"
-    assert "https://cdn." not in content, "recovery.html must not depend on external CDNs"
-    assert "http://" not in content, "recovery.html must not make insecure HTTP calls"
-
-    # Must have inline styling
-    assert "<style>" in content
-    assert "--bg:#09090b" in content or "background:" in content
-
-
-def test_recovery_html_contains_required_recovery_actions_and_links():
-    content = open(RECOVERY_HTML_PATH, "r", encoding="utf-8").read()
+def test_system_fs_corruption_fallback_redirects_to_device():
     fs_http_rs = open(FS_HTTP_RS_PATH, "r", encoding="utf-8").read()
 
-    # Recovery UI components
-    assert "AGENTLA // SYSTEM_FS RECOVERY" in content
-    assert "dropZone" in content
-    assert "tarInput" in content
-    assert "btnUpload" in content
-    assert "Flash SYSTEM_FS" in content
+    # Obsolete recovery.html is eliminated in favor of unified /device
+    assert not os.path.exists(RECOVERY_HTML_PATH), "recovery.html has been removed; functions are unified into /device"
+    assert 'include_str!("../assets/recovery.html")' not in fs_http_rs
+    assert "RECOVERY_HTML" not in fs_http_rs
 
-    # Endpoints called
-    assert "/api/v1/system/webui/update" in content
-
-    # GitHub release puller
-    assert "api.github.com/repos" in content
-    assert "Download now (RECOMMENDED)" in content or "pullFromGitHub()" in content
-
-    # High-contrast navigation to Developer Diagnostics Console
-    assert "/device" in content
-    assert "Open Diagnostics Console (/device)" in content or "location.href='/device'" in content
-
-    # Firmware integration in fs_http.rs
-    assert 'include_str!("../assets/recovery.html")' in fs_http_rs
-    assert "RECOVERY_HTML" in fs_http_rs
+    # HTML fallback routes redirect directly to /device
+    assert '("Location", "/device")' in fs_http_rs
+    assert '("Location", "/device?recovery=1")' not in fs_http_rs
+    assert "StatusCode::FOUND" in fs_http_rs

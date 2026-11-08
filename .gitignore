@@ -38,4 +38,6 @@ references/
 
 # Agents
 .*/
+!.github/
+!.github/**
 skills-lock.json

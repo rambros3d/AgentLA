@@ -1,0 +1,103 @@
+name: Release AgentLA Firmware & WebUI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release (e.g. v0.1.1)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ARM Embedded Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install littlefs-python
+
+      - name: Create build output directory
+        run: mkdir -p build
+
+      - name: Pack WebUI Assets (LittleFS image, Tarball, Standalone UF2)
+        run: |
+          python3 tools/pack_webui.py
+
+      - name: Build Bootloader (RP2350 A/B Invariant)
+        run: |
+          cargo build --release --bin agentla-bootloader
+
+      - name: Build Application Firmware (Embassy Async + Diagnostics)
+        run: |
+          cargo build --release --bin firmware-rs
+
+      - name: Extract Release Version
+        id: get_version
+        run: |
+          if [ -n "${{ inputs.tag_name }}" ]; then
+            TAG="${{ inputs.tag_name }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          # Strip leading 'v' if present
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Package Firmware OTA Binary
+        run: |
+          python3 tools/package_ota.py \
+            target/thumbv8m.main-none-eabihf/release/firmware-rs \
+            -o build/agentla-pico2-ota.bin \
+            --board PICO2 \
+            --version "${{ steps.get_version.outputs.version }}"
+
+      - name: Package Multi-Segment All-in-One UF2
+        run: |
+          python3 tools/package_uf2.py \
+            --bootloader target/thumbv8m.main-none-eabihf/release/agentla-bootloader \
+            --firmware target/thumbv8m.main-none-eabihf/release/firmware-rs \
+            --webui build/webui.img \
+            -o build/agentla-pico2.uf2
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: "AgentLA ${{ steps.get_version.outputs.tag }}"
+          files: |
+            build/agentla-pico2.uf2
+            build/agentla-pico2-ota.bin
+            build/webui.tar
+            build/webui.uf2
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -189,6 +189,24 @@ impl BootTable {
         self.update_crc();
     }
 
+    pub fn get_boot_clock_mhz(&self) -> u32 {
+        match self.reserved[0] {
+            300 => 300,
+            500 => 500,
+            _ => 150,
+        }
+    }
+
+    pub fn set_boot_clock_mhz(&mut self, mhz: u32) {
+        self.sequence = self.sequence.wrapping_add(1);
+        self.reserved[0] = match mhz {
+            300 => 300,
+            500 => 500,
+            _ => 150,
+        };
+        self.update_crc();
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         unsafe {
             core::slice::from_raw_parts(
@@ -344,6 +362,18 @@ mod tests {
         bt.mark_rollback();
         assert!(bt.is_valid());
         assert_eq!(bt.get_state(), BootState::RolledBack);
+
+        // Clock configuration
+        assert_eq!(bt.get_boot_clock_mhz(), 150);
+        bt.set_boot_clock_mhz(300);
+        assert!(bt.is_valid());
+        assert_eq!(bt.get_boot_clock_mhz(), 300);
+        bt.set_boot_clock_mhz(500);
+        assert!(bt.is_valid());
+        assert_eq!(bt.get_boot_clock_mhz(), 500);
+        bt.set_boot_clock_mhz(150);
+        assert!(bt.is_valid());
+        assert_eq!(bt.get_boot_clock_mhz(), 150);
     }
 
     #[test]

@@ -274,6 +274,16 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 "Redirecting...",
             )
         }))
+        .route("/device/storage", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/device/storage/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/device/storage"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/device/pins", get_service(File::html(crate::device_html::DEVICE_HTML)))
         .route("/device/pins/", get(|| async move {
             (
@@ -349,16 +359,13 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/pins/release_all", crate::rest::SystemPinsReleaseAll)
         .route_service("/api/v1/system/pins/toggle", crate::rest::SystemPinsToggle)
         .route_service("/api/v1/system/fs/format", crate::rest::SystemFsFormat)
-        .route(
-            "/api/v1/system",
-            get(|| async move { (("Content-Type", "application/json"), SYSTEM_JSON) }),
-        )
+        .route_service("/api/v1/system", crate::rest::SystemInfoHandler)
+        .route_service("/api/v1/system/clock", crate::rest::SystemClockHandler)
         .route_service("/api/v1/system/firmware/status", crate::rest::FirmwareStatus)
         .route_service("/api/v1/system/firmware/rollback", crate::rest::FirmwareRollback)
         .route_service("/api/v1/system/firmware/ota", crate::rest::FirmwareOtaStream)
         .route_service("/api/v1/system/telemetry", crate::rest::SystemTelemetry)
         .route_service("/api/v1/system/telemetry/stream", crate::rest::SystemTelemetryStream)
-        .route_service("/api/v1/system/clock/benchmark", crate::rest::SystemClockBenchmark)
         .route_service("/api/v1/terminal/ws", crate::rest::TerminalWebSocket)
         .route_service("/api/v1/can/ws", crate::rest::CanWebSocket)
         .route_service("/api/v1/led/ws", crate::rest::LedWebSocket)

@@ -145,7 +145,7 @@ pub fn hw_spi_transfer(
     // RP2350 CPU runs at 150 MHz. Calculate half-period delay in cycles.
     // e.g. 1 MHz => 75 cycles per half clock.
     let speed = speed_hz.clamp(1_000, 10_000_000);
-    let half_period_cycles = (150_000_000 / (speed * 2)).max(2);
+    let half_period_cycles = (crate::benchmark::get_sys_clk_hz() / (speed * 2)).max(2);
 
     let len = tx_data.len().max(rx_data.len());
     if len == 0 {

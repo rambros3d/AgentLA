@@ -190,7 +190,7 @@ pub fn rx_available() -> usize {
 
 /// Transmit a single UART frame (8N1) out of `tx_pin` at `baud`
 pub fn uart_write_byte(tx_pin: u32, baud: u32, byte: u8) {
-    let bit_cycles = 150_000_000 / baud.clamp(1200, 921_600);
+    let bit_cycles = crate::benchmark::get_sys_clk_hz() / baud.clamp(1200, 921_600);
 
     unsafe {
         // Start bit (low)
@@ -223,7 +223,7 @@ pub fn uart_write_bytes(tx_pin: u32, baud: u32, data: &[u8]) -> usize {
 
 /// Non-blocking sample check for incoming start bit on `rx_pin`
 pub fn uart_poll_rx(rx_pin: u32, baud: u32) -> Option<u8> {
-    let bit_cycles = 150_000_000 / baud.clamp(1200, 921_600);
+    let bit_cycles = crate::benchmark::get_sys_clk_hz() / baud.clamp(1200, 921_600);
     unsafe {
         // Check if line is low (start bit)
         if (pac::SIO.gpio_in(0).read() & (1 << rx_pin)) != 0 {
