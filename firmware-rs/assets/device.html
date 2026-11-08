@@ -119,28 +119,29 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
   <div class="card full" id="cardSystemUpdate" style="margin-bottom:12px">
     <div class="card-hdr">
       <span class="title">System Update // Release Manager</span>
-      <span class="tag" id="releaseTag">Checking...</span>
+      <span class="tag" id="releaseTag">CHECK</span>
     </div>
     <div class="rec-grid">
       <div class="rec-box">
         <span class="lbl" style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">FIRMWARE (DUAL A/B OTA)</span>
         <div class="d-list" style="margin:4px 0">
-          <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVerInstalled">AgentLA v1.0.0</span></div>
-          <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwVerRemote">Checking...</span></div>
+          <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVerInstalled">v1.0.0</span></div>
+          <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwVerRemote">CHECK or NETWORK ERROR</span></div>
         </div>
       </div>
       <div class="rec-box">
         <span class="lbl" style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">WEBUI &amp; SYSTEM ASSETS (SYSTEM_FS)</span>
         <div class="d-list" style="margin:4px 0">
           <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="webVerInstalled">v1.0.0</span></div>
-          <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webVerRemote">Checking...</span></div>
+          <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webVerRemote">CHECK or NETWORK ERROR</span></div>
         </div>
       </div>
     </div>
-    <div class="btn-group" style="margin-top:6px">
-      <button class="primary" id="btnUpdateAll" onclick="runFullSystemUpdate()" disabled>Auto Update All (WebUI + Firmware)</button>
-      <button id="btnWebOnline" onclick="onlineUpdate('web')" disabled>Update WebUI Only</button>
-      <button id="btnFwOnline" onclick="onlineUpdate('fw')" disabled>Update Firmware Only</button>
+    <div class="btn-group" id="updateBtnGroup" style="margin-top:6px">
+      <button class="primary" id="btnUpdateAll" onclick="runFullSystemUpdate()" style="display:none">Auto Update All (WebUI + Firmware)</button>
+      <button id="btnWebOnline" onclick="onlineUpdate('web')" style="display:none">Update WebUI Only</button>
+      <button id="btnFwOnline" onclick="onlineUpdate('fw')" style="display:none">Update Firmware Only</button>
+      <button id="btnCheckUpdate" onclick="checkGitHub(true)">Check for Updates</button>
     </div>
     <div class="progress" id="updateProgress"><div class="progress-bar" id="updateBar"></div></div>
     <div class="status-msg" id="updateStatus">Ready.</div>
@@ -190,8 +191,8 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     <div class="d-list">
       <div class="row"><span class="lbl">ACTIVE_SLOT</span><span class="dots"></span><span class="val" id="fwSlots">SlotA / SlotA</span></div>
       <div class="row"><span class="lbl">CANDIDATE</span><span class="dots"></span><span class="val" id="fwCandidate">None</span></div>
-      <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVersion">AgentLA v1.0.0</span></div>
-      <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwUpdate">Checking...</span></div>
+      <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVersion">v1.0.0</span></div>
+      <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwUpdate">CHECK or NETWORK ERROR</span></div>
     </div>
     <div class="status-msg" id="fwStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
@@ -215,6 +216,7 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
       <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00204000</span></div>
       <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
       <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="webVersion">v1.0.0</span></div>
+      <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webUpdate">CHECK or NETWORK ERROR</span></div>
     </div>
     <div class="status-msg" id="webStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
@@ -652,11 +654,16 @@ async function loadManifest(){
     if($('clkCurTag')) $('clkCurTag').textContent = sys.clock_mhz + ' MHz [ACTIVE]';
     selectClockProfile(sys.clock_mhz);
   }
-  if(!m) return;
+  if(!m){
+    installedWebVer = 'NOT INSTALLED';
+    if($('webVersion')) $('webVersion').textContent = 'NOT INSTALLED';
+    if($('webVerInstalled')) $('webVerInstalled').textContent = 'NOT INSTALLED';
+    return;
+  }
   if(m.name) $('boardChip').textContent = m.name;
   if(m.board_id) $('boardId').textContent = m.board_id;
   if(m.version){
-    installedWebVer = m.version.startsWith('v') ? m.version : ('v' + m.version);
+    installedWebVer = extractVersion(m.version);
     if($('webVersion')) $('webVersion').textContent = installedWebVer;
     if($('webVerInstalled')) $('webVerInstalled').textContent = installedWebVer;
   }
@@ -684,8 +691,7 @@ async function loadFirmwareStatus(){
   $('fwSlots').textContent = (fw.active_slot || 'SlotA') + ' / ' + curSlot;
   $('fwSlotTag').textContent = curSlot.toUpperCase();
   const rawFw = fw.firmware || 'AgentLA v1.0.0-rust';
-  const mFw = rawFw.match(/v\d+(\.\d+)*/i);
-  installedFwVer = mFw ? mFw[0] : 'v1.0.0';
+  installedFwVer = extractVersion(rawFw);
   $('fwVersion').textContent = installedFwVer;
   if($('fwVerInstalled')) $('fwVerInstalled').textContent = installedFwVer;
   $('fwCandidate').textContent = fw.candidate_slot ? fw.candidate_slot : 'None';
@@ -757,42 +763,108 @@ function renderPins(pins){
   }
 }
 
+function extractVersion(str){
+  if(!str) return 'v1.0.0';
+  const m = str.match(/v?\d+(\.\d+)*/i);
+  if(!m) return str;
+  return (m[0].startsWith('v') || m[0].startsWith('V')) ? m[0].toLowerCase() : ('v' + m[0]);
+}
+
 function compareUpdate(installed, remote){
-  if(!remote) return 'OFFLINE (USE LOCAL)';
+  if(!remote) return { text: 'CHECK or NETWORK ERROR', isNewer: false };
+  if(!installed || installed.toLowerCase().includes('not installed')){
+    const cleanRem = extractVersion(remote);
+    return { text: `(AVAILABLE) ${cleanRem}`, isNewer: true };
+  }
+  const cleanInst = extractVersion(installed);
+  const cleanRem = extractVersion(remote);
   const norm = v => (v || '').toLowerCase().replace(/^v/, '').trim();
-  const iParts = norm(installed).split('.').map(x => parseInt(x, 10) || 0);
-  const rParts = norm(remote).split('.').map(x => parseInt(x, 10) || 0);
+  const iParts = norm(cleanInst).split('.').map(x => parseInt(x, 10) || 0);
+  const rParts = norm(cleanRem).split('.').map(x => parseInt(x, 10) || 0);
   let isNewer = false;
   for(let i=0; i<Math.max(iParts.length, rParts.length); i++){
     const iv = iParts[i] || 0, rv = rParts[i] || 0;
     if(rv > iv){ isNewer = true; break; }
     if(rv < iv){ isNewer = false; break; }
   }
-  return isNewer ? remote : 'UP TO DATE';
+  if(isNewer){
+    return { text: `(AVAILABLE) ${cleanRem}`, isNewer: true };
+  } else {
+    return { text: `(UP TO DATE) ${cleanInst}`, isNewer: false };
+  }
 }
 
-async function checkGitHub(){
+async function checkGitHub(manual = false){
+  const btnCheck = $('btnCheckUpdate');
+  const btnAll = $('btnUpdateAll');
+  const btnWeb = $('btnWebOnline');
+  const btnFw = $('btnFwOnline');
+  const tagEl = $('releaseTag');
+  const statusEl = $('updateStatus');
+
+  if(manual && btnCheck){
+    btnCheck.disabled = true;
+    btnCheck.textContent = 'Checking...';
+  }
+  if(tagEl && manual) tagEl.textContent = 'CHECKING...';
+  if(statusEl && manual) statusEl.textContent = 'Checking GitHub releases (rambros3d/AgentLA)...';
+
   try{
     const r = await fetch('https://api.github.com/repos/rambros3d/AgentLA/releases/latest');
-    if(!r.ok) throw new Error();
+    if(!r.ok) throw new Error('HTTP ' + r.status);
     latestRel = await r.json();
     const tag = latestRel.tag_name || 'v1.0.0';
-    const fwUp = compareUpdate(installedFwVer, tag);
-    const webUp = compareUpdate(installedWebVer, tag);
-    if($('releaseTag')) $('releaseTag').textContent = tag;
-    if($('fwVerRemote')) $('fwVerRemote').textContent = fwUp;
-    if($('webVerRemote')) $('webVerRemote').textContent = webUp;
-    if($('fwUpdate')) $('fwUpdate').textContent = fwUp;
-    if($('webUpdate')) $('webUpdate').textContent = webUp;
-    if($('btnUpdateAll')) $('btnUpdateAll').disabled = false;
-    if($('btnFwOnline')) $('btnFwOnline').disabled = false;
-    if($('btnWebOnline')) $('btnWebOnline').disabled = false;
-  } catch(e){
-    if($('releaseTag')) $('releaseTag').textContent = 'OFFLINE';
-    if($('fwVerRemote')) $('fwVerRemote').textContent = 'OFFLINE (USE LOCAL)';
-    if($('webVerRemote')) $('webVerRemote').textContent = 'OFFLINE (USE LOCAL)';
-    if($('fwUpdate')) $('fwUpdate').textContent = 'OFFLINE (USE LOCAL)';
-    if($('webUpdate')) $('webUpdate').textContent = 'OFFLINE (USE LOCAL)';
+    const fwRes = compareUpdate(installedFwVer, tag);
+    const webRes = compareUpdate(installedWebVer, tag);
+    const isAvail = fwRes.isNewer || webRes.isNewer;
+
+    if($('fwVerRemote')) $('fwVerRemote').textContent = fwRes.text;
+    if($('webVerRemote')) $('webVerRemote').textContent = webRes.text;
+    if($('fwUpdate')) $('fwUpdate').textContent = fwRes.text;
+    if($('webUpdate')) $('webUpdate').textContent = webRes.text;
+
+    if(tagEl){
+      tagEl.textContent = isAvail ? `(AVAILABLE) ${tag}` : `(UP TO DATE) ${extractVersion(installedFwVer)}`;
+      tagEl.classList.remove('warn');
+    }
+
+    if(isAvail){
+      if(btnAll) btnAll.style.display = 'inline-flex';
+      if(btnWeb) btnWeb.style.display = 'inline-flex';
+      if(btnFw) btnFw.style.display = 'inline-flex';
+      if(btnCheck) btnCheck.style.display = 'none';
+      if(statusEl) statusEl.textContent = `Update available: ${tag}. Select update method above.`;
+    } else {
+      if(btnAll) btnAll.style.display = 'none';
+      if(btnWeb) btnWeb.style.display = 'none';
+      if(btnFw) btnFw.style.display = 'none';
+      if(btnCheck){
+        btnCheck.style.display = 'inline-flex';
+        btnCheck.disabled = false;
+        btnCheck.textContent = 'Check for Updates';
+      }
+      if(statusEl) statusEl.textContent = `All systems up to date (${tag}).`;
+    }
+  }catch(e){
+    if($('fwVerRemote')) $('fwVerRemote').textContent = 'CHECK or NETWORK ERROR';
+    if($('webVerRemote')) $('webVerRemote').textContent = 'CHECK or NETWORK ERROR';
+    if($('fwUpdate')) $('fwUpdate').textContent = 'CHECK or NETWORK ERROR';
+    if($('webUpdate')) $('webUpdate').textContent = 'CHECK or NETWORK ERROR';
+    if(tagEl){
+      tagEl.textContent = 'NETWORK ERROR';
+      tagEl.classList.add('warn');
+    }
+    if(btnAll) btnAll.style.display = 'none';
+    if(btnWeb) btnWeb.style.display = 'none';
+    if(btnFw) btnFw.style.display = 'none';
+    if(btnCheck){
+      btnCheck.style.display = 'inline-flex';
+      btnCheck.disabled = false;
+      btnCheck.textContent = 'Check for Updates';
+    }
+    if(statusEl && manual){
+      statusEl.textContent = 'Network error contacting GitHub. Offline local updates available.';
+    }
   }
 }
 

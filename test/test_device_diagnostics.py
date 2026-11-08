@@ -115,7 +115,11 @@ def test_device_html_contains_required_sections_and_hooks():
     # Unified System Update Hero Card on [ HARDWARE ]
     assert "cardSystemUpdate" in content
     assert "btnUpdateAll" in content
+    assert "btnCheckUpdate" in content
     assert "runFullSystemUpdate" in content
+    assert "(UP TO DATE)" in content
+    assert "(AVAILABLE)" in content
+    assert "CHECK or NETWORK ERROR" in content
     assert "updateDropZone" not in content
 
     # Local Flash & Slot controls placed in relevant cards
