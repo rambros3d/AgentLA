@@ -4830,19 +4830,15 @@ function getPinnedApps() {
         if (stored) {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed)) {
-                const hasSystem = parsed.some(id => ['scope', 'adapters', 'target', 'pins', 'console'].includes(id));
-                const migrated = localStorage.getItem('agentla_dock_migrated_v2');
-                if (!hasSystem && !migrated) {
-                    const combined = ['scope', 'adapters', 'target', 'pins', 'console', ...parsed];
-                    localStorage.setItem(PINNED_DOCK_STORAGE_KEY, JSON.stringify(combined));
-                    localStorage.setItem('agentla_dock_migrated_v2', '1');
-                    return combined;
+                const filtered = parsed.filter(id => id !== 'terminal');
+                if (filtered.length !== parsed.length) {
+                    try { localStorage.setItem(PINNED_DOCK_STORAGE_KEY, JSON.stringify(filtered)); } catch (_) {}
                 }
-                return parsed;
+                return filtered;
             }
         }
     } catch (_) {}
-    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+    return ['scope', 'adapters', 'target', 'pins', 'console'];
 }
 
 function renderDockPinnedApps() {
@@ -4863,20 +4859,12 @@ function renderDockPinnedApps() {
 
     let html = '';
     pinned.forEach(appId => {
+        if (['scope', 'adapters', 'target', 'pins', 'console'].includes(appId)) return;
         let appName = appId;
         let clickAction = '';
         let iconSvg = '';
 
-        if (appId === 'terminal') {
-            appName = 'Serial Terminal';
-            clickAction = 'openTerminalApp()';
-            iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
-                <path d="M13.4876 6.44591C13.8877 6.55311 14.1251 6.96437 14.0179 7.36447L11.4297 17.0237C11.3225 17.4238 10.9113 17.6613 10.5112 17.5541C10.1111 17.4468 9.87362 17.0356 9.98082 16.6355L12.569 6.97624C12.6762 6.57614 13.0875 6.3387 13.4876 6.44591Z" fill="currentColor"/>
-                <path d="M14.9692 8.46967C15.2621 8.17678 15.7369 8.17678 16.0298 8.46967L16.2382 8.67801C16.8735 9.3133 17.4033 9.84308 17.7674 10.3202C18.1516 10.8238 18.4211 11.3559 18.4211 12C18.4211 12.6441 18.1516 13.1762 17.7674 13.6798C17.4033 14.1569 16.8735 14.6867 16.2382 15.322L16.0298 15.5303C15.7369 15.8232 15.2621 15.8232 14.9692 15.5303C14.6763 15.2374 14.6763 14.7626 14.9692 14.4697L15.1408 14.2981C15.8224 13.6164 16.2792 13.1574 16.5748 12.7699C16.8573 12.3998 16.9211 12.1843 16.9211 12C16.9211 11.8157 16.8573 11.6002 16.5748 11.2301C16.2792 10.8426 15.8224 10.3836 15.1408 9.70191L14.9692 9.53033C14.6763 9.23744 14.6763 8.76257 14.9692 8.46967Z" fill="currentColor"/>
-                <path d="M7.96937 8.46967C8.26226 8.17678 8.73713 8.17678 9.03003 8.46967C9.32292 8.76257 9.32292 9.23744 9.03003 9.53033L8.85846 9.70191C8.1768 10.3836 7.72003 10.8426 7.42439 11.2301C7.14196 11.6002 7.07812 11.8157 7.07812 12C7.07812 12.1843 7.14196 12.3998 7.42439 12.7699C7.72003 13.1574 8.1768 13.6164 8.85846 14.2981L9.03003 14.4697C9.32292 14.7626 9.32292 15.2374 9.03003 15.5303C8.73714 15.8232 8.26226 15.8232 7.96937 15.5303L7.76102 15.322C7.12568 14.6867 6.59589 14.1569 6.23186 13.6798C5.84762 13.1762 5.57812 12.6441 5.57812 12C5.57812 11.3559 5.84762 10.8238 6.23186 10.3202C6.59589 9.84308 7.12569 9.31331 7.76102 8.67801L7.96937 8.46967Z" fill="currentColor"/>
-            </svg>`;
-        } else if (appId === 'servo-master') {
+        if (appId === 'servo-master') {
             appName = 'Servo Master';
             clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/apps/servo-master/'";
             iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

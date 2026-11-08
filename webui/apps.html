@@ -1369,10 +1369,18 @@
                 const stored = localStorage.getItem(PINNED_DOCK_STORAGE_KEY);
                 if (stored) {
                     const parsed = JSON.parse(stored);
-                    if (Array.isArray(parsed)) return parsed;
+                    if (Array.isArray(parsed)) {
+                        // Filter out legacy hardcoded 'terminal' unless actively installed
+                        const isTerminalInstalled = installedApps && installedApps.some(a => (a.id || a.name) === 'terminal');
+                        const filtered = parsed.filter(id => id !== 'terminal' || isTerminalInstalled);
+                        if (filtered.length !== parsed.length) {
+                            try { localStorage.setItem(PINNED_DOCK_STORAGE_KEY, JSON.stringify(filtered)); } catch (_) {}
+                        }
+                        return filtered;
+                    }
                 }
             } catch (_) {}
-            return ['terminal']; // Default pinned app
+            return ['scope', 'adapters', 'target', 'pins', 'console'];
         }
 
         function setPinnedApps(list) {
@@ -1421,7 +1429,8 @@
             pinned.forEach(appId => {
                 if (['scope', 'adapters', 'target', 'pins', 'console'].includes(appId)) return;
 
-                const installed = installedApps.find(a => a.id === appId) || { id: appId, name: appId };
+                const installed = installedApps.find(a => (a.id || a.name) === appId);
+                if (!installed) return;
                 const appName = installed.title || installed.name || appId;
                 
                 let clickAction = '';
