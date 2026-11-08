@@ -1,0 +1,12 @@
+{
+  "name": "terminal",
+  "title": "Serial Terminal",
+  "version": "1.0.0",
+  "author": "AgentLA Team",
+  "description": "Full-duplex in-browser Web Serial Terminal with WebSocket streaming, ANSI colors, hybrid UART routing, and 1-click target reset.",
+  "category": "Communication",
+  "icon": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 17 10 11 4 5'/%3E%3Cline x1='12' y1='19' x2='20' y2='19'/%3E%3C/svg%3E",
+  "requires": ["uart", "gpio_flexible"],
+  "min_firmware_version": "1.0.0",
+  "homepage": "https://github.com/AgentLA/apps/tree/main/terminal"
+}

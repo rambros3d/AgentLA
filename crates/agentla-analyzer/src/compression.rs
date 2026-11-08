@@ -80,21 +80,22 @@ pub fn bit_delta_compress_block(src_words: &[u32], dst: &mut [u8]) -> usize {
         if delta == 0 {
             let mut run: usize = 1;
             while inpos + run < src_words.len()
-                && run < 65535
                 && (src_words[inpos + run] ^ src_words[inpos + run - 1]) == 0
             {
                 run += 1;
             }
-            if run <= 255 {
+            inpos += run;
+            while run > 0 {
+                let chunk = run.min(255);
                 if out + 2 > dst_cap {
                     return 0;
                 }
                 dst[out] = TAG_ZERO_SHORT;
                 out += 1;
-                dst[out] = run as u8;
+                dst[out] = chunk as u8;
                 out += 1;
+                run -= chunk;
             }
-            inpos += run;
         } else {
             if out + 5 > dst_cap {
                 return 0;

@@ -81,7 +81,7 @@ def pack_webui(
     output_uf2: Path,
     output_tar: Path,
     flash_offset: int = DEFAULT_FLASH_OFFSET,
-    include_user_apps: bool = False,
+    include_user_apps: bool = True,
 ) -> dict:
     web_dir = web_dir.resolve()
     if not web_dir.is_dir():
@@ -192,6 +192,8 @@ def main() -> int:
     parser.add_argument("--output-uf2", default="build/webui.uf2", help="Output path for UF2 file")
     parser.add_argument("--output-tar", default="build/webui.tar", help="Output path for update tarball")
     parser.add_argument("--offset", default=f"0x{DEFAULT_FLASH_OFFSET:08x}", help="Target flash offset for UF2")
+    parser.add_argument("--include-user-apps", action="store_true", default=True, help="Include apps directory in LittleFS image (default: true)")
+    parser.add_argument("--no-user-apps", action="store_false", dest="include_user_apps", help="Exclude apps directory from LittleFS image")
     args = parser.parse_args()
 
     offset = int(args.offset, 0)
@@ -202,6 +204,7 @@ def main() -> int:
             Path(args.output_uf2),
             Path(args.output_tar),
             flash_offset=offset,
+            include_user_apps=args.include_user_apps,
         )
         return 0
     except Exception as e:

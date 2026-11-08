@@ -65,3 +65,18 @@ fn test_bit_delta_block_clock_toggle() {
     assert_eq!(decomp_len, block.len());
     assert_eq!(&decompressed, &block);
 }
+
+#[test]
+fn test_bit_delta_large_all_zero_run() {
+    let block = [0u32; 1024];
+    let mut compressed = [0u8; 128];
+    let comp_len = bit_delta_compress_block(&block, &mut compressed);
+    assert!(comp_len > 0);
+    // 1024 / 255 = 4 runs of 255 + 1 run of 4 = 5 tags (10 bytes total)
+    assert_eq!(comp_len, 10);
+
+    let mut decompressed = [0u32; 1024];
+    let decomp_len = bit_delta_decompress_block(&compressed[..comp_len], &mut decompressed);
+    assert_eq!(decomp_len, 1024);
+    assert_eq!(&decompressed, &block);
+}

@@ -1,7 +1,7 @@
 # AgentLA Future Roadmap & Planned Features
 
 This document tracks upcoming and completed milestones for the **AgentLA Hardware & Firmware System**.
-> **Rule**: Once a feature is implemented and verified, mark it with `[x]` and document its availability.
+> **Rule**: Once a feature is implemented and verified, REMOVE IT FROM THIS DOCUMENT.
 
 ---
 

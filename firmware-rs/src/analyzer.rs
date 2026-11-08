@@ -22,6 +22,16 @@ use rp_pac as pac;
 static STATE: AtomicU8 = AtomicU8::new(State::Idle as u8);
 static BANK_CLAIM: Mutex<CriticalSectionRawMutex, Option<pin_owner::SlotId>> = Mutex::new(None);
 
+pub static STREAM_ACTIVE: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+pub static STREAM_CHANNELS: core::sync::atomic::AtomicU8 = core::sync::atomic::AtomicU8::new(8);
+pub static STREAM_FORMAT: core::sync::atomic::AtomicU8 = core::sync::atomic::AtomicU8::new(agentla_analyzer::FLAG_FORMAT_BIT_DELTA);
+pub static STREAM_RING: agentla_analyzer::SpscStreamBuffer<32768> = agentla_analyzer::SpscStreamBuffer::new();
+pub static STREAM_SIGNAL: embassy_sync::signal::Signal<CriticalSectionRawMutex, ()> = embassy_sync::signal::Signal::new();
+
+static mut PING_PONG_A: [u32; 1024] = [0; 1024];
+static mut PING_PONG_B: [u32; 1024] = [0; 1024];
+static STREAM_CLAIM: Mutex<CriticalSectionRawMutex, Option<pin_owner::SlotId>> = Mutex::new(None);
+
 static mut FREQ: u32 = 1_000_000;
 static mut LENGTH: u32 = 0;
 static mut PRE_BYTES: u32 = 0;
@@ -120,6 +130,116 @@ pub fn stop() {
         let _ = pin_owner::release(slot);
     }
     STATE.store(State::Idle as u8, Ordering::Relaxed);
+}
+
+pub fn core1_capture_loop() -> ! {
+    let mut comp_buf = [0u8; 2048];
+    let mut use_buf_a = true;
+
+    loop {
+        if !STREAM_ACTIVE.load(Ordering::Relaxed) {
+            cortex_m::asm::delay(50_000);
+            continue;
+        }
+
+        let channels = STREAM_CHANNELS.load(Ordering::Relaxed).max(4).min(16);
+        let format = STREAM_FORMAT.load(Ordering::Relaxed);
+
+        let slice: &mut [u32] = unsafe {
+            let ptr = if use_buf_a {
+                core::ptr::addr_of_mut!(PING_PONG_A) as *mut [u32; 1024]
+            } else {
+                core::ptr::addr_of_mut!(PING_PONG_B) as *mut [u32; 1024]
+            };
+            &mut *ptr
+        };
+
+        // Real-time hardware GPIO sampling across active channel width
+        let base_shift = if channels == 16 { 10 } else { 16 };
+        let mask = (1u32 << channels) - 1;
+        for i in 0..1024 {
+            let gpio = pac::SIO.gpio_in(0).read();
+            slice[i] = (gpio >> base_shift) & mask;
+            cortex_m::asm::delay(20);
+        }
+
+        let enc_len = if format == agentla_analyzer::FLAG_FORMAT_SUMP_RLE {
+            let byte_slice = unsafe {
+                core::slice::from_raw_parts(slice.as_ptr() as *const u8, slice.len() * 4)
+            };
+            agentla_analyzer::sump_rle_encode_8bit(byte_slice, &mut comp_buf)
+        } else {
+            agentla_analyzer::bit_delta_compress_block(slice, &mut comp_buf)
+        };
+
+        if enc_len > 0 {
+            STREAM_RING.push_frame(format, channels, &comp_buf[..enc_len]);
+            STREAM_SIGNAL.signal(());
+        }
+
+        use_buf_a = !use_buf_a;
+        cortex_m::asm::delay(500);
+    }
+}
+
+pub fn start_continuous_stream(channels: u8, format: u8, freq_hz: u32) -> Result<(), Error> {
+    if STREAM_ACTIVE.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
+    let ch_count = match channels {
+        4 => 4,
+        16 => 16,
+        _ => 8,
+    };
+
+    let base_pin: u32 = if ch_count == 16 { 10 } else { 16 };
+    let mut pins = heapless::Vec::<u32, 16>::new();
+    for i in 0..ch_count {
+        let pin = if ch_count == 16 && (base_pin + i as u32) >= 25 {
+            // Pin 25 is LED; skip to 26
+            base_pin + i as u32 + 1
+        } else {
+            base_pin + i as u32
+        };
+        let _ = pins.push(pin);
+    }
+
+    let slot = pin_owner::claim(pin_owner::Driver::Capture, pins.as_slice(), pin_owner::CAP_PIO)
+        .map_err(|_| Error::PinConflict { pins: heapless::Vec::new() })?;
+
+    {
+        let mut g = STREAM_CLAIM.try_lock().expect("claim");
+        *g = Some(slot);
+    }
+
+    STREAM_RING.reset();
+    STREAM_CHANNELS.store(ch_count as u8, Ordering::Relaxed);
+    STREAM_FORMAT.store(format, Ordering::Relaxed);
+    unsafe { FREQ = freq_hz.max(10_000).min(100_000_000); }
+    STREAM_ACTIVE.store(true, Ordering::Release);
+    Ok(())
+}
+
+pub fn stop_continuous_stream() {
+    STREAM_ACTIVE.store(false, Ordering::Release);
+    let freed = {
+        let mut g = STREAM_CLAIM.try_lock().expect("claim");
+        let s = *g;
+        *g = None;
+        s
+    };
+    if let Some(slot) = freed {
+        let _ = pin_owner::release(slot);
+    }
+}
+
+pub fn read_stream_chunk(dst: &mut [u8]) -> usize {
+    STREAM_RING.pop_bytes(dst)
+}
+
+pub fn read_stream_payload(dst: &mut [u8]) -> usize {
+    STREAM_RING.pop_payload(dst)
 }
 
 pub fn get_status() -> Status {

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>Serial Terminal — AgentLA</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../themes.css">
+  <script src="/agentla-bridge.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-base: var(--bg-canvas, var(--color-base-100, #090d16));
+      --card-bg: var(--bg-surface, var(--color-base-200, #131b2e));
+      --card-border: var(--border-color, var(--color-base-300, #22304e));
+      --accent: var(--color-primary, #38bdf8);
+      --accent-hover: #0284c7;
+      --text-main: var(--color-base-content, #f8fafc);
+      --text-dim: var(--text-secondary, #94a3b8);
+      --term-bg: #050811;
+      --term-fg: #f1f5f9;
+      --color-brand-light: #0284c7;
+      --color-brand-dark: #38bdf8;
+      accent-color: var(--accent);
+      scrollbar-color: #334155 #0f172a;
+    }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      z-index: 30;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.025em;
+    }
+    .badge-disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-connecting {
+      background: rgba(234, 179, 8, 0.15);
+      color: #facc15;
+      border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+    .badge-connected {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .controls-bar {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.5rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.8125rem;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    select, input[type="text"] {
+      background: #0b1120;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.3125rem 0.625rem;
+      border-radius: 0.375rem;
+      font-size: 0.8125rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.3125rem 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      border-radius: 0.375rem;
+      border: 1px solid var(--card-border);
+      background: #1e293b;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0b1120;
+      font-weight: 600;
+      border-color: transparent;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.35);
+    }
+    .btn-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fde68a;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    .btn-warning:hover {
+      background: rgba(245, 158, 11, 0.35);
+    }
+    #terminal-container {
+      flex: 1;
+      background: var(--term-bg);
+      padding: 0.75rem 1rem;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.875rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-all;
+      user-select: text;
+      position: relative;
+    }
+    #terminal-output {
+      min-height: 100%;
+    }
+    .term-cursor {
+      display: inline-block;
+      width: 0.55em;
+      height: 1.15em;
+      vertical-align: text-bottom;
+      background-color: var(--accent);
+      animation: blink 1s step-start infinite;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+    .input-bar {
+      background: var(--card-bg);
+      border-top: 1px solid var(--card-border);
+      padding: 0.5rem 1.25rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .input-bar input {
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    /* ANSI colors */
+    .ansi-black { color: #475569; }
+    .ansi-red { color: #f87171; }
+    .ansi-green { color: #4ade80; }
+    .ansi-yellow { color: #facc15; }
+    .ansi-blue { color: #60a5fa; }
+    .ansi-magenta { color: #c084fc; }
+    .ansi-cyan { color: #38bdf8; }
+    .ansi-white { color: #f8fafc; }
+    .ansi-bold { font-weight: 700; }
+    .ansi-dim { opacity: 0.6; }
+    .ansi-underline { text-decoration: underline; }
+    .ansi-sys { color: #38bdf8; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <a href="/apps" style="color: var(--text-dim); text-decoration: none; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8125rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Apps
+      </a>
+      <span style="color: var(--card-border);">|</span>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span style="font-weight: 600; font-size: 0.9375rem;">Serial Terminal</span>
+      </div>
+      <div id="status-badge" class="badge badge-disconnected">
+        <span class="status-dot"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <button id="btn-reset" class="btn btn-warning" title="Assert 50 ms active-low reset pulse on nRESET (GPIO 6)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Reset Target</span>
+      </button>
+      <button id="btn-clear" class="btn" title="Clear terminal screen">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></svg>
+        <span>Clear</span>
+      </button>
+      <button id="btn-download" class="btn" title="Download text logs">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Save Log</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Control Configuration Bar -->
+  <div class="controls-bar">
+    <div class="control-group">
+      <label for="sel-baud" style="color: var(--text-dim);">Baud:</label>
+      <select id="sel-baud">
+        <option value="9600">9600</option>
+        <option value="19200">19200</option>
+        <option value="38400">38400</option>
+        <option value="57600">57600</option>
+        <option value="115200" selected>115200</option>
+        <option value="230400">230400</option>
+        <option value="460800">460800</option>
+        <option value="921600">921600</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="sel-tx" style="color: var(--text-dim);">TX Pin:</label>
+      <select id="sel-tx"></select>
+    </div>
+
+    <div class="control-group">
+      <label for="sel-rx" style="color: var(--text-dim);">RX Pin:</label>
+      <select id="sel-rx"></select>
+    </div>
+
+    <div class="control-group">
+      <label for="sel-eol" style="color: var(--text-dim);">EOL:</label>
+      <select id="sel-eol">
+        <option value="\r\n" selected>CR+LF (\r\n)</option>
+        <option value="\n">LF (\n)</option>
+        <option value="\r">CR (\r)</option>
+        <option value="">None</option>
+      </select>
+    </div>
+
+    <div class="control-group" style="margin-left: auto; display: flex; align-items: center; gap: 0.75rem;">
+      <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; color: var(--text-dim);">
+        <input type="checkbox" id="chk-echo"> Local Echo
+      </label>
+      <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; color: var(--text-dim);">
+        <input type="checkbox" id="chk-autoscroll" checked> Auto Scroll
+      </label>
+      <button id="btn-connect" class="btn btn-primary">Connect</button>
+    </div>
+  </div>
+
+  <!-- Terminal Display Container -->
+  <div id="terminal-container" tabindex="0" role="region" aria-label="Terminal Output">
+    <div id="terminal-output"></div>
+    <span class="term-cursor" id="cursor"></span>
+  </div>
+
+  <!-- Direct Send Bar -->
+  <div class="input-bar">
+    <span style="color: var(--accent); font-family: monospace; font-weight: bold;">&gt;</span>
+    <input type="text" id="cmd-input" placeholder="Type command and press Enter (or focus terminal above to send direct keystrokes)..." autocomplete="off" spellcheck="false">
+    <button id="btn-send" class="btn">Send</button>
+  </div>
+
+  <script>
+    // Populate Pin Selectors (GPIO 0-29, default TX=8, RX=9)
+    const selTx = document.getElementById('sel-tx');
+    const selRx = document.getElementById('sel-rx');
+    for (let i = 0; i < 30; i++) {
+      const optTx = document.createElement('option');
+      optTx.value = i;
+      optTx.textContent = `GPIO ${i}` + (i === 8 ? ' (HW UART1)' : '');
+      if (i === 8) optTx.selected = true;
+      selTx.appendChild(optTx);
+
+      const optRx = document.createElement('option');
+      optRx.value = i;
+      optRx.textContent = `GPIO ${i}` + (i === 9 ? ' (HW UART1)' : '');
+      if (i === 9) optRx.selected = true;
+      selRx.appendChild(optRx);
+    }
+
+    const termContainer = document.getElementById('terminal-container');
+    const termOutput = document.getElementById('terminal-output');
+    const statusBadge = document.getElementById('status-badge');
+    const statusText = document.getElementById('status-text');
+    const btnConnect = document.getElementById('btn-connect');
+    const btnReset = document.getElementById('btn-reset');
+    const btnClear = document.getElementById('btn-clear');
+    const btnDownload = document.getElementById('btn-download');
+    const cmdInput = document.getElementById('cmd-input');
+    const btnSend = document.getElementById('btn-send');
+    const chkEcho = document.getElementById('chk-echo');
+    const chkAutoScroll = document.getElementById('chk-autoscroll');
+
+    let ws = null;
+    let rawLogBuffer = '';
+    const cmdHistory = [];
+    let historyIdx = -1;
+
+    function updateStatus(state) {
+      statusBadge.className = 'badge ' + (
+        state === 'connected' ? 'badge-connected' :
+        state === 'connecting' ? 'badge-connecting' : 'badge-disconnected'
+      );
+      statusText.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+      btnConnect.textContent = state === 'connected' ? 'Disconnect' : 'Connect';
+      btnConnect.className = state === 'connected' ? 'btn btn-danger' : 'btn btn-primary';
+    }
+
+    function appendSystemMsg(msg) {
+      const div = document.createElement('div');
+      div.className = 'ansi-sys';
+      div.textContent = `[SYSTEM] ${msg}`;
+      termOutput.appendChild(div);
+      rawLogBuffer += `[SYSTEM] ${msg}\n`;
+      scrollTerminal();
+    }
+
+    function scrollTerminal() {
+      if (chkAutoScroll.checked) {
+        termContainer.scrollTop = termContainer.scrollHeight;
+      }
+    }
+
+    // ANSI escape parser
+    function parseAnsi(text) {
+      const fragment = document.createDocumentFragment();
+      const parts = text.split(/(\x1b\[[0-9;]*[a-zA-Z])/g);
+      let curSpan = document.createElement('span');
+
+      const ansiMap = {
+        '30': 'ansi-black', '31': 'ansi-red', '32': 'ansi-green',
+        '33': 'ansi-yellow', '34': 'ansi-blue', '35': 'ansi-magenta',
+        '36': 'ansi-cyan', '37': 'ansi-white', '1': 'ansi-bold',
+        '2': 'ansi-dim', '4': 'ansi-underline'
+      };
+
+      for (const part of parts) {
+        if (part.startsWith('\x1b[')) {
+          const match = part.match(/\x1b\[([0-9;]*)m/);
+          if (match) {
+            const codes = match[1].split(';');
+            curSpan = document.createElement('span');
+            for (const code of codes) {
+              if (code === '0' || code === '') {
+                // reset
+              } else if (ansiMap[code]) {
+                curSpan.classList.add(ansiMap[code]);
+              }
+            }
+          }
+        } else if (part.length > 0) {
+          const node = curSpan.cloneNode(false);
+          node.textContent = part;
+          fragment.appendChild(node);
+        }
+      }
+      return fragment;
+    }
+
+    function appendOutput(chunk) {
+      rawLogBuffer += chunk;
+      const frag = parseAnsi(chunk);
+      termOutput.appendChild(frag);
+      scrollTerminal();
+    }
+
+    function connectWs() {
+      if (ws) {
+        ws.close();
+        ws = null;
+        updateStatus('disconnected');
+        return;
+      }
+
+      const baud = document.getElementById('sel-baud').value;
+      const tx = selTx.value;
+      const rx = selRx.value;
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${proto}//${location.host}/api/v1/terminal/ws?baud=${baud}&tx=${tx}&rx=${rx}`;
+
+      updateStatus('connecting');
+      appendSystemMsg(`Connecting to ${wsUrl}...`);
+
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          updateStatus('connected');
+          appendSystemMsg(`Session active (Baud: ${baud}, TX: GPIO ${tx}, RX: GPIO ${rx})`);
+        };
+
+        ws.onmessage = (event) => {
+          let text = '';
+          if (typeof event.data === 'string') {
+            text = event.data;
+          } else if (event.data instanceof ArrayBuffer) {
+            text = new TextDecoder('utf-8', { fatal: false }).decode(event.data);
+          }
+          appendOutput(text);
+        };
+
+        ws.onerror = (err) => {
+          appendSystemMsg(`WebSocket error occurred`);
+          console.error(err);
+        };
+
+        ws.onclose = (event) => {
+          updateStatus('disconnected');
+          appendSystemMsg(`Disconnected (code ${event.code})`);
+          ws = null;
+        };
+      } catch (e) {
+        updateStatus('disconnected');
+        appendSystemMsg(`Connection failed: ${e}`);
+      }
+    }
+
+    function sendData(str) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        appendSystemMsg('Cannot send: not connected');
+        return;
+      }
+      if (chkEcho.checked) {
+        appendOutput(str);
+      }
+      ws.send(str);
+    }
+
+    function getEol() {
+      const sel = document.getElementById('sel-eol').value;
+      if (sel === '\\r\\n') return '\r\n';
+      if (sel === '\\n') return '\n';
+      if (sel === '\\r') return '\r';
+      return '';
+    }
+
+    function handleSendInput() {
+      const val = cmdInput.value;
+      if (!val) return;
+      cmdHistory.push(val);
+      historyIdx = cmdHistory.length;
+      sendData(val + getEol());
+      cmdInput.value = '';
+    }
+
+    // Direct keystroke capture on container
+    termContainer.addEventListener('keydown', (e) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if (e.target === cmdInput) return;
+
+      if (e.ctrlKey) {
+        if (e.key === 'c' || e.key === 'C') {
+          sendData('\x03');
+          e.preventDefault();
+        } else if (e.key === 'd' || e.key === 'D') {
+          sendData('\x04');
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        sendData(getEol() || '\r');
+        e.preventDefault();
+      } else if (e.key === 'Backspace') {
+        sendData('\x08');
+        e.preventDefault();
+      } else if (e.key === 'Tab') {
+        sendData('\t');
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        sendData('\x1b[A');
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        sendData('\x1b[B');
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight') {
+        sendData('\x1b[C');
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft') {
+        sendData('\x1b[D');
+        e.preventDefault();
+      } else if (e.key.length === 1) {
+        sendData(e.key);
+        e.preventDefault();
+      }
+    });
+
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        handleSendInput();
+      } else if (e.key === 'ArrowUp') {
+        if (historyIdx > 0) {
+          historyIdx--;
+          cmdInput.value = cmdHistory[historyIdx];
+        }
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        if (historyIdx < cmdHistory.length - 1) {
+          historyIdx++;
+          cmdInput.value = cmdHistory[historyIdx];
+        } else {
+          historyIdx = cmdHistory.length;
+          cmdInput.value = '';
+        }
+        e.preventDefault();
+      }
+    });
+
+    btnSend.addEventListener('click', handleSendInput);
+    btnConnect.addEventListener('click', connectWs);
+
+    btnClear.addEventListener('click', () => {
+      termOutput.innerHTML = '';
+      rawLogBuffer = '';
+    });
+
+    btnDownload.addEventListener('click', () => {
+      const blob = new Blob([rawLogBuffer], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const now = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `agentla-serial-${now}.log`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    btnReset.addEventListener('click', async () => {
+      btnReset.disabled = true;
+      appendSystemMsg('Asserting target reset (50 ms active-low pulse on nRESET)...');
+      try {
+        const resp = await fetch('/api/v1/programmer/reset', { method: 'POST' });
+        if (resp.ok) {
+          appendSystemMsg('Target reset complete.');
+        } else {
+          appendSystemMsg(`Reset failed: HTTP ${resp.status}`);
+        }
+      } catch (err) {
+        appendSystemMsg(`Reset network error: ${err}`);
+      } finally {
+        setTimeout(() => { btnReset.disabled = false; }, 500);
+      }
+    });
+
+    // Auto connect on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      connectWs();
+    });
+  </script>
+</body>
+</html>

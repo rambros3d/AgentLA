@@ -14,7 +14,7 @@ embassy-futures = "0.1.2"
 embassy-usb = { version = "0.6.0", features = ["defmt", "usbd-hid"] }
 embassy-net = { version = "0.9.1", features = ["defmt", "tcp", "udp", "proto-ipv4", "medium-ethernet", "auto-icmp-echo-reply", "icmp"] }
 embassy-net-driver-channel = "0.4.0"
-picoserve = { version = "0.20.1", features = ["defmt", "embassy"] }
+picoserve = { version = "0.20.1", features = ["defmt", "embassy", "ws"] }
 littlefs2 = { version = "0.8.1", default-features = false }
 generic-array = "0.14"
 rp-pac = { version = "7.0.0", features = ["rp235x"] }

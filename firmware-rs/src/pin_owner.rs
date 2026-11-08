@@ -104,7 +104,11 @@ pub fn claim(driver: Driver, pins: &[u32], required_caps: u32) -> Result<SlotId,
     let mut registry = PIN_REGISTRY
         .try_lock()
         .map_err(|_| ClaimError::Busy)?;
-    let slot = registry.claim(driver, pins, required_caps)?;
+    let slot = if pins.iter().all(|&p| p == 8 || p == 9) {
+        registry.claim_fixed(driver, pins, required_caps)?
+    } else {
+        registry.claim(driver, pins, required_caps)?
+    };
     drop(registry);
     for &pin in pins {
         quiesce_pin(pin);

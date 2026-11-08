@@ -199,6 +199,9 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/firmware/status", crate::rest::FirmwareStatus)
         .route_service("/api/v1/system/firmware/rollback", crate::rest::FirmwareRollback)
         .route_service("/api/v1/system/firmware/ota", crate::rest::FirmwareOtaStream)
+        .route_service("/api/v1/system/telemetry", crate::rest::SystemTelemetry)
+        .route_service("/api/v1/system/telemetry/stream", crate::rest::SystemTelemetryStream)
+        .route_service("/api/v1/terminal/ws", crate::rest::TerminalWebSocket)
         .route(
             "/api/v1/pins",
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),
@@ -413,7 +416,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/analyzer/data", crate::rest::LogicAnalyzerData)
         .route_service("/api/v1/analyzer/vcd", crate::rest::LogicAnalyzerVcd)
         .route("/api/v1/logic-analyzer/stream", get(|| async move { picoserve::response::sse::EventStream(LogicAnalyzerEvents) }))
-        .route("/api/v1/analyzer/stream", get(|| async move { picoserve::response::sse::EventStream(LogicAnalyzerEvents) }))
+        .route_service("/api/v1/analyzer/stream", crate::rest::AnalyzerStream)
         .route_service("/api/v1/bridge", crate::rest::BridgeState)
         .route_service("/api/v1/bridge/state", crate::rest::BridgeState)
         .route_service("/api/v1/bridge/i2c/on", crate::rest::BridgeI2cOn)

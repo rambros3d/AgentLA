@@ -15,13 +15,11 @@ pub const PIN_UART_RX: usize = ActiveBoard::PROGRAMMER.uart_rx as usize;
 /// Programmer-bridge pin block (fixed programmatic resources).
 /// Single source of truth: `tristate_pins` below and the fixed claims in
 /// `crate::pin_owner` are seeded from this list.
-pub const BRIDGE_PINS: [usize; 6] = [
+pub const BRIDGE_PINS: [usize; 4] = [
     ActiveBoard::PROGRAMMER.swclk as usize,
     ActiveBoard::PROGRAMMER.swdio as usize,
     ActiveBoard::PROGRAMMER.nrst as usize,
     ActiveBoard::PROGRAMMER.boot0 as usize,
-    ActiveBoard::PROGRAMMER.uart_tx as usize,
-    ActiveBoard::PROGRAMMER.uart_rx as usize,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -30,6 +30,10 @@ mod web;
 mod web_assets;
 mod web_desktop;
 pub mod programmer;
+pub mod ols;
+pub mod telemetry;
+
+static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> = embassy_rp::multicore::Stack::new();
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
@@ -153,6 +157,15 @@ async fn main(spawner: embassy_executor::Spawner) {
     config.clocks.rosc = None;
     let p = embassy_rp::init(config);
 
+    // Spawn Core 1 dedicated hard-real-time capture & DSP loop
+    embassy_rp::multicore::spawn_core1(
+        p.CORE1,
+        unsafe { &mut *core::ptr::addr_of_mut!(CORE1_STACK) },
+        || {
+            crate::analyzer::core1_capture_loop();
+        },
+    );
+
     // Turn on status LED (GPIO 25) immediately to show CPU is running
     let mut led = embassy_rp::gpio::Output::new(p.PIN_25, embassy_rp::gpio::Level::High);
     led.set_high();
@@ -200,6 +213,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(net::dns_server_task(stack).unwrap());
     spawner.spawn(web::web_server_task(stack).unwrap());
     spawner.spawn(crate::programmer::gdb_server::gdb_server_task(stack).unwrap());
+    spawner.spawn(crate::ols::ols_server_task(stack).unwrap());
 
     // 3c. LittleFS partition on internal flash. Must complete before the
     // watchdog task starts: a first-boot format erases 512 x 4 KiB sectors

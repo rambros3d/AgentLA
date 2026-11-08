@@ -1821,3 +1821,182 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
         res
     }
 }
+
+// ---------------------------------------------------------------------------
+// In-Browser Web Serial Terminal WebSocket Handler: /api/v1/terminal/ws
+// ---------------------------------------------------------------------------
+
+pub struct TerminalWebSocket;
+
+struct TerminalWsCallback {
+    tx_pin: u32,
+    _rx_pin: u32,
+    baud: u32,
+    slot: pin_owner::SlotId,
+}
+
+impl picoserve::response::ws::WebSocketCallback for TerminalWsCallback {
+    async fn run<R: picoserve::io::Read, W: picoserve::io::Write<Error = R::Error>>(
+        self,
+        mut rx: picoserve::response::ws::SocketRx<R>,
+        mut tx: picoserve::response::ws::SocketTx<W>,
+    ) -> Result<(), W::Error> {
+        // Drain existing 2 KiB backlog first so client sees boot messages
+        let mut backlog_buf = [0u8; 256];
+        loop {
+            let n = crate::bridge::uart::drain_rx_bytes(&mut backlog_buf);
+            if n == 0 {
+                break;
+            }
+            let _ = tx.send_binary(&backlog_buf[..n]).await;
+        }
+        let _ = tx.flush().await;
+
+        let mut msg_buf = [0u8; 512];
+        let mut uart_rx_buf = [0u8; 128];
+
+        loop {
+            match rx.next_message(&mut msg_buf, crate::bridge::uart::wait_rx_data()).await {
+                Ok(picoserve::futures::Either::First(Ok(picoserve::response::ws::Message::Text(s)))) => {
+                    crate::bridge::uart::uart_write_bytes(self.tx_pin, self.baud, s.as_bytes());
+                }
+                Ok(picoserve::futures::Either::First(Ok(picoserve::response::ws::Message::Binary(b)))) => {
+                    crate::bridge::uart::uart_write_bytes(self.tx_pin, self.baud, b);
+                }
+                Ok(picoserve::futures::Either::Second(())) => {
+                    // Incoming UART RX byte(s) arrived in ring buffer
+                    let n = crate::bridge::uart::drain_rx_bytes(&mut uart_rx_buf);
+                    if n > 0 {
+                        let _ = tx.send_binary(&uart_rx_buf[..n]).await;
+                        let _ = tx.flush().await;
+                    }
+                }
+                _ => break, // Connection dropped or closed
+            }
+        }
+
+        let _ = pin_owner::release(self.slot);
+        Ok(())
+    }
+}
+
+impl picoserve::routing::MethodHandlerService<()> for TerminalWebSocket {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+
+        let query = request.parts.query();
+        let baud = key_u32(query, "", "baud").unwrap_or(115_200).clamp(1200, 921_600);
+        let tx_pin = key_u32(query, "", "tx").unwrap_or(crate::bridge::uart::PIN_UART_TX_DEFAULT);
+        let rx_pin = key_u32(query, "", "rx").unwrap_or(crate::bridge::uart::PIN_UART_RX_DEFAULT);
+
+        let pins = [tx_pin, rx_pin];
+        let claim_res = pin_owner::claim(pin_owner::Driver::Adapter, &pins, pin_owner::CAP_UART);
+        let slot = match claim_res {
+            Ok(s) => s,
+            Err(_) => {
+                return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+            }
+        };
+
+        crate::bridge::uart::init_uart_pins(tx_pin, rx_pin);
+
+        use picoserve::extract::FromRequest;
+        let upgrade = match picoserve::response::ws::WebSocketUpgrade::from_request(
+            &(),
+            request.parts,
+            request.body_connection.body(),
+        ).await {
+            Ok(u) => u,
+            Err(e) => {
+                let _ = pin_owner::release(slot);
+                return e.write_to(request.body_connection.finalize().await?, response_writer).await;
+            }
+        };
+
+        let callback = TerminalWsCallback { tx_pin, _rx_pin: rx_pin, baud, slot };
+        upgrade.on_upgrade(callback).write_to(request.body_connection.finalize().await?, response_writer).await
+    }
+}
+
+pub struct SystemTelemetry;
+
+impl picoserve::routing::MethodHandlerService<()> for SystemTelemetry {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+        let mut buf = heapless::String::<2048>::new();
+        crate::telemetry::format_telemetry_json(&mut buf);
+        send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
+    }
+}
+
+pub struct SystemTelemetryStream;
+
+impl picoserve::routing::MethodHandlerService<()> for SystemTelemetryStream {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+        let stream = picoserve::response::sse::EventStream(crate::telemetry::TelemetryEventSource);
+        let finalizer = request.body_connection.finalize().await?;
+        stream.write_to(finalizer, response_writer).await
+    }
+}
+
+pub struct AnalyzerStream;
+
+impl picoserve::routing::MethodHandlerService<()> for AnalyzerStream {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+        let _ = crate::analyzer::start_continuous_stream(8, agentla_analyzer::FLAG_FORMAT_BIT_DELTA, 1_000_000);
+        let mut chunk_buf = [0u8; 1024];
+        let mut n = crate::analyzer::read_stream_chunk(&mut chunk_buf);
+        if n == 0 {
+            crate::analyzer::STREAM_SIGNAL.wait().await;
+            n = crate::analyzer::read_stream_chunk(&mut chunk_buf);
+        }
+        let finalizer = request.body_connection.finalize().await?;
+        let res = (
+            StatusCode::OK,
+            ("Content-Type", "application/octet-stream"),
+            &chunk_buf[..n],
+        )
+            .write_to(finalizer, response_writer)
+            .await;
+        crate::analyzer::stop_continuous_stream();
+        res
+    }
+}

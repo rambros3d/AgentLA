@@ -18,7 +18,7 @@ pub const PIN_UART_TX_DEFAULT: u32 = ActiveBoard::ADAPTERS.default_uart.tx;
 pub const PIN_UART_RX_DEFAULT: u32 = ActiveBoard::ADAPTERS.default_uart.rx;
 pub const UART_PINS: [u32; 2] = [PIN_UART_TX_DEFAULT, PIN_UART_RX_DEFAULT];
 
-const RING_CAPACITY: usize = 1024;
+const RING_CAPACITY: usize = 2048;
 struct RingBuffer {
     buf: [u8; RING_CAPACITY],
     head: usize,
@@ -70,6 +70,8 @@ impl RingBuffer {
 
 static RX_RING: Mutex<CriticalSectionRawMutex, RefCell<RingBuffer>> =
     Mutex::new(RefCell::new(RingBuffer::new()));
+static RX_SIGNAL: embassy_sync::signal::Signal<CriticalSectionRawMutex, ()> =
+    embassy_sync::signal::Signal::new();
 
 pub struct UartBridge {
     active: bool,
@@ -154,11 +156,17 @@ fn delay_cycles(cycles: u32) {
     cortex_m::asm::delay(cycles.max(2));
 }
 
-/// Push a byte into the global RX ring buffer
+/// Push a byte into the global RX ring buffer and wake listeners
 pub fn push_rx_byte(byte: u8) {
     RX_RING.lock(|ring| {
         ring.borrow_mut().push(byte);
     });
+    RX_SIGNAL.signal(());
+}
+
+/// Wait asynchronously for incoming RX data
+pub async fn wait_rx_data() {
+    RX_SIGNAL.wait().await;
 }
 
 /// Read available bytes from the RX ring buffer
@@ -166,6 +174,11 @@ pub fn read_rx_bytes(dst: &mut [u8]) -> usize {
     RX_RING.lock(|ring| {
         ring.borrow_mut().read(dst)
     })
+}
+
+/// Drains up to dst.len() bytes from the 2 KiB ring buffer
+pub fn drain_rx_bytes(dst: &mut [u8]) -> usize {
+    read_rx_bytes(dst)
 }
 
 /// Number of bytes waiting in the RX ring buffer
