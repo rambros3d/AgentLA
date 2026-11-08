@@ -29,7 +29,7 @@ The App Launcher SHALL render a segmented storage capacity bar displaying system
 The App Launcher SHALL share the exact same top bar layout and `#modal-settings` System Settings modal as the workbench, omitting redundant "Workbench" and "App Launcher" navigation pills.
 
 #### Scenario: Opening settings from launcher
-- **WHEN** the user clicks the gear icon (`⚙`) in the launcher top bar
+- **WHEN** the user clicks the gear icon (``) in the launcher top bar
 - **THEN** the `#modal-settings` dialog opens, providing access to Theme Mode, Default Landing Page, Device Reboot, BOOTSEL mode, and Hardware Telemetry.
 
 #### Scenario: Switching theme from launcher

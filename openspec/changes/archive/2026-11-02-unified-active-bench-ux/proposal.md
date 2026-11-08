@@ -9,8 +9,8 @@ By unifying Observe and Interact into a cohesive **Active Bench** (with responsi
 ## What Changes
 
 - **Streamlined Top-Level Navigation**: Replace the multi-tab navigation with two prominent primary modes:
-  - `[ ⚡ Active Bench ]`: Unified live observation (logic capture, scope, protocol decoders) and stimulus interaction (bus masters, pattern gen, GPIO toggler).
-  - `[ 🎯 Target Station ]`: Dedicated flashing, target detection, CMSIS-DAP/SWD debugging, and target power management.
+  - `[ Active Bench ]`: Unified live observation (logic capture, scope, protocol decoders) and stimulus interaction (bus masters, pattern gen, GPIO toggler).
+  - `[ Target Station ]`: Dedicated flashing, target detection, CMSIS-DAP/SWD debugging, and target power management.
 - **Unified Active Bench Layout**:
   - Responsive Side-by-Side layout on desktop screens ($\ge 1200\text{px}$): Waveform canvas on left (65%), docked Stimulus Deck on right (35%).
   - Responsive Split-Deck layout on smaller/mobile displays (<1200px): Waveform canvas top (60%), collapsible Stimulus Deck bottom (40%).
@@ -18,7 +18,7 @@ By unifying Observe and Interact into a cohesive **Active Bench** (with responsi
   - When transmitting any transaction on a Bus Master (I2C, SPI, UART, CAN, Modbus, 1-Wire, LIN), an automatic capture sequence triggers immediately (if idle), auto-zooming and centering the timeline on the transmitted transaction.
   - Includes a visible `[x] Auto-Sniff on Transmit` toggle pill in the bench toolbar so users can toggle between auto and manual triggering at will.
 - **Slide-out Pin Matrix Drawer**:
-  - Global hardware pin configuration and transceiver routing is moved into a clean slide-out drawer accessible via a top-bar `[ 🔌 Pins ]` button or hotkey `P`, featuring live pin conflict badges.
+  - Global hardware pin configuration and transceiver routing is moved into a clean slide-out drawer accessible via a top-bar `[ Pins ]` button or hotkey `P`, featuring live pin conflict badges.
 - **Demo & Firmware Synchronization**:
   - Ensure identical responsive UX and styling across both the hosted web portal (`web/demo/`) and the embedded web server (`firmware/html/`).
 

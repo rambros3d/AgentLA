@@ -9,7 +9,7 @@ Specifies the dedicated Target Station surface consolidating firmware flashing, 
 The WebUI SHALL provide a dedicated Target Station view accessible from the top-level navigation that groups target programming, verification, and live debugging into a unified workspace.
 
 #### Scenario: Switching to Target Station
-- **WHEN** the user selects the `[ 🎯 Target Station ]` navigation tab
+- **WHEN** the user selects the `[ Target Station ]` navigation tab
 - **THEN** the active bench view SHALL be hidden and the Target Station view SHALL become active
 
 #### Scenario: Target Power Control

@@ -31,14 +31,14 @@
 - [x] 3.2 OR adopt BMP's unified sequence — line reset, 44-bit JTAG-to-dormant (`0x1F` 5b + `0x33BBBBBA` 31b + `0xFF` 8b), 128-bit selection alert, activation, line reset (single path for both JTAG-default and dormant targets)
 - [x] 3.3 Retry DPIDR read after each switch attempt (BMP loops: read → switch → read → give up)
 - [ ] 3.4 Verify CH32V203 dormant path still connects (regression)
-  - 📌 Carry-over: no CH32 target on the current rig — must run `test/test_ch32v203_swd_blink.py` / `test/test_ch32v203_hardware_verification.py` when one is wired. (Tracked in `import-debugprobe-pio-swd` 5.5.)
+  -  Carry-over: no CH32 target on the current rig — must run `test/test_ch32v203_swd_blink.py` / `test/test_ch32v203_hardware_verification.py` when one is wired. (Tracked in `import-debugprobe-pio-swd` 5.5.)
 
 ## 4. Target Detection Part IDs
 
 - [x] 4.1 Add `TARGET_PART_STM32F1_MD 0x410` (Blue Pill C8T6, 64 KiB flash / 20 KiB RAM) to `target.h`/`target.c`
 - [x] 4.2 Add `0x412` (low density), `0x414` (high density), `0x418` (connectivity), `0x430` (XL) with correct flash/ram geometry per BMP `stm32f1_probe`
 - [ ] 4.3 Verify `SWD TEST` reports `target=STM32F103` on the Blue Pill
-  - 📌 Hardware caveat: this Blue Pill **clone** FAULTs on the DBGMCU_IDCODE read (`0x40015800`), so the `0x410 → STM32F103` scenario never triggers — `SWD TEST` reports the generic `target=STM32 (Cortex-M3)`. Verified working either way (12/12 SWD, 5/5 suite). Needs a genuine-ST part to satisfy the spec scenario.
+  -  Hardware caveat: this Blue Pill **clone** FAULTs on the DBGMCU_IDCODE read (`0x40015800`), so the `0x410 → STM32F103` scenario never triggers — `SWD TEST` reports the generic `target=STM32 (Cortex-M3)`. Verified working either way (12/12 SWD, 5/5 suite). Needs a genuine-ST part to satisfy the spec scenario.
 
 ## 5. SWD Clock Rate Accounting
 
@@ -49,9 +49,9 @@
 
 - [x] 6.1 Build: `PICO_SDK_PATH=/home/sun/pico-sdk cmake --build build`
 - [x] 6.2 Run `test/test_blink_bluepill.py` on STM32F103C8T6 Blue Pill — full erase → write → verify → reset → PC13 LED blinks
-  - ✅ Done 2026-08-13: hardware suite Tier 5 (which runs this script) passes end-to-end; 9920-byte write byte-perfect.
+  - [PASS] Done 2026-08-13: hardware suite Tier 5 (which runs this script) passes end-to-end; 9920-byte write byte-perfect.
 - [x] 6.3 Error-path test: read back FLASH_SR after writes, assert `PGERR|WRPRTERR (0x14)` clear
-  - ✅ Done 2026-08-13: Tier 4/5 verify clean flash programming with the corrected EOP/PGERR handling; SRAM lane experiment + flash round-trips confirm.
+  - [PASS] Done 2026-08-13: Tier 4/5 verify clean flash programming with the corrected EOP/PGERR handling; SRAM lane experiment + flash round-trips confirm.
 - [ ] 6.4 Regression: `test/test_ch32v203_swd_blink.py` still passes after connect-sequence change
-  - 📌 Carry-over: same as 3.4 — needs a CH32 target wired; tracked in `import-debugprobe-pio-swd` 5.5.
+  -  Carry-over: same as 3.4 — needs a CH32 target wired; tracked in `import-debugprobe-pio-swd` 5.5.
 - [x] 6.5 Update `docs/programmer.md` — expected `SWD TEST` output for Blue Pill (`target=STM32F103`), note corrected erase/write behavior

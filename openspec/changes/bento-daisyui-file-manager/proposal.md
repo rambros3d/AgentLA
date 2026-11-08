@@ -9,7 +9,7 @@ Following the deployment of the global **Nothing OS Industrial Design System** (
 - **Prerequisite / Dependency**: Builds upon `industrial-nothing-os-design-system` (default Industrial style, `ndot57.woff2` font, Nothing Signal Red palette, and persona switcher).
 - **Standalone Storage Explorer (`webui/files.html`)**:
   - Full-page file explorer built with DaisyUI 5 and Tailwind CSS.
-  - Native **Industrial persona by default**: Dot-matrix partition labels (`[01] SYSTEM.STORAGE // 🔒 RO`, `[02] USER.STORAGE // ✏️ RW`), discrete dot progress meters, 16px technical dot-grid canvas, monospaced metadata, and Nothing Signal Red accent badges.
+  - Native **Industrial persona by default**: Dot-matrix partition labels (`[01] SYSTEM.STORAGE // RO`, `[02] USER.STORAGE // RW`), discrete dot progress meters, 16px technical dot-grid canvas, monospaced metadata, and Nothing Signal Red accent badges.
   - Automatically adapts to **Bento persona** with rounded squircle cards and soft sans-serif type if toggled in System Settings.
 - **Strict Partition Security**:
   - `system_fs` is strictly **Read-Only** (allows browsing, downloading, file preview, and copying out to user storage; write/delete/format actions are forbidden and blocked by backend guards).

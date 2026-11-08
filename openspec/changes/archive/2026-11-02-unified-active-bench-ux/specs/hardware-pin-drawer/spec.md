@@ -9,7 +9,7 @@ Specifies the slide-out Hardware Pin Drawer for live GPIO assignment, bus multip
 The WebUI SHALL provide a slide-out drawer for inspecting and reconfiguring hardware pin assignments without navigating away from the active workbench.
 
 #### Scenario: Opening drawer via button
-- **WHEN** the user clicks the `[ 🔌 Pins ]` toolbar button
+- **WHEN** the user clicks the `[ Pins ]` toolbar button
 - **THEN** the pin drawer SHALL slide out smoothly from the right side of the screen
 
 #### Scenario: Opening drawer via hotkey

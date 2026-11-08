@@ -17,7 +17,7 @@
 - **Risk**: Target chip unresponsiveness if SWCLK frequency changes dynamically.
   - **Mitigation**: Standardize on 100 kHz SWCLK frequency across both bitbanging and PIO modes.
 
-> ## ⛔ SUPERSEDED (2026-08-13)
+> ## [BLOCKED] SUPERSEDED (2026-08-13)
 >
 > Superseded by `import-debugprobe-pio-swd`: the old `tap_pio`-based PIO engine described
 > here was **replaced wholesale** by the vendored Raspberry Pi **debugprobe PIO transport**

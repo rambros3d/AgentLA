@@ -26,7 +26,7 @@
 - [x] 5.2 Build OS-style tactile squircle app grid with direct tap-to-launch, hover spring elevation, and flagship "AgentLA Lab" card pointing to `/lab`.
 - [x] 5.3 Add centered spotlight search bar with real-time fuzzy filtering across apps, tags, and descriptions.
 - [x] 5.4 Implement macOS/iOS style segmented flash storage capacity bar (System ROM, installed apps, free LittleFS).
-- [x] 5.5 Standardize top bar to match workbench: brand logo `[❖ AgentLA]`, Target Power status, Safe State button, Settings gear `[⚙]`, and 3-way Theme Toggle `[☼/☾]`, omitting redundant nav pills.
+- [x] 5.5 Standardize top bar to match workbench: brand logo `[❖ AgentLA]`, Target Power status, Safe State button, Settings gear `[]`, and 3-way Theme Toggle `[☼/☾]`, omitting redundant nav pills.
 - [x] 5.6 Embed and bind the `#modal-settings` System Settings modal in `apps.html` with full feature parity (themes, default landing page, reboot, BOOTSEL, telemetry).
 
 ## 6. Workbench Navigation & Settings UI (`index.html`, `app.js`)

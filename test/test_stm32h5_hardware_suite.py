@@ -45,7 +45,7 @@ def main():
     try:
         ser = serial.Serial(port, 115200, timeout=1.0)
     except Exception as e:
-        print(f"❌ Failed to open serial port {port}: {e}")
+        print(f"[FAIL] Failed to open serial port {port}: {e}")
         sys.exit(1)
 
     passed_tiers = 0
@@ -70,7 +70,7 @@ def main():
         print("  ✓ Tier 1 Passed: SWD Transport & IDCODE detected")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 1 Failed: Target not responding to SWD")
+        print("  [FAIL] Tier 1 Failed: Target not responding to SWD")
         print("     Ensure wiring: GPIO 4 -> PA14, GPIO 5 -> PA13, GND, and target powered.")
 
     # -------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def main():
         print("  ✓ Tier 2 Passed: Detected native STM32H5 target")
         passed_tiers += 1
     else:
-        print("  ⚠️ Tier 2 Failed or non-H5 target detected")
+        print("  [WARN] Tier 2 Failed or non-H5 target detected")
 
     # -------------------------------------------------------------------------
     # Tier 3: Cortex-M33 CPU Control & Debug Operations
@@ -108,7 +108,7 @@ def main():
         print("  ✓ Tier 3 Passed: Cortex-M33 HALT, REGS, and RUN functional")
         passed_tiers += 1
     else:
-        print("  ⚠️ Tier 3 Failed: Debug CPU control failure")
+        print("  [WARN] Tier 3 Failed: Debug CPU control failure")
 
     # -------------------------------------------------------------------------
     # Tier 4: Flash Programming (128-bit Quad-word Write, Read & Verify)
@@ -127,7 +127,7 @@ def main():
         print("  ✓ Tier 4 Passed: Flash memory reading functional")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 4 Failed: Flash access failed")
+        print("  [FAIL] Tier 4 Failed: Flash access failed")
 
     print_header(f"SUMMARY: {passed_tiers}/{total_tiers} Tiers Passed")
     ser.close()

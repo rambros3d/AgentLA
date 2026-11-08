@@ -12,7 +12,7 @@ Introducing a global dual-persona design system—with the **Nothing OS-inspired
   - High-tracking monospaced typographic stack for pin numbers, memory addresses, baud rates, and status tags (`[RO]`, `[RW]`, `[SAFE]`).
   - Standard clean sans/monospace body text to maintain optimal reading legibility.
 - **Global Persona Switcher in System Settings**:
-  - Adds an Interface Persona toggle (`[ ⚙️ Industrial (Default) ]` vs `[ 🍱 Bento ]`) in `#modal-settings`.
+  - Adds an Interface Persona toggle (`[ Industrial (Default) ]` vs `[ Bento ]`) in `#modal-settings`.
   - Persists preference in `localStorage.getItem('agentla-ui-style')` and restores it before DOM render across all web desktop pages (`index.html`, `lab.html`, `terminal.html`, `files.html`) to prevent theme flash.
 - **Dedicated DaisyUI Theme (`themes/nothing.css`)**:
   - Compiled into `webui/themes.css` via `tools/compile_themes.py`, defining exact tokens for Signal Red, OLED blacks, and 0.5rem radius geometry.

@@ -14,7 +14,7 @@
 
 ## 3. System Settings Switcher & FOUC Prevention
 
-- [x] 3.1 Add Interface Persona toggle (`[ ⚙️ Industrial (Default) ]` vs `[ 🍱 Bento ]`) to `#modal-settings` in `webui/index.html` and `webui/lab.html`
+- [x] 3.1 Add Interface Persona toggle (`[ Industrial (Default) ]` vs `[ Bento ]`) to `#modal-settings` in `webui/index.html` and `webui/lab.html`
 - [x] 3.2 Implement event listener in `webui/app.js` to toggle `data-style`, update DOM classes, and persist to `localStorage`
 - [x] 3.3 Update instant pre-render script in `<head>` across all HTML files to apply `data-style` before layout paint
 

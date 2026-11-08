@@ -16,7 +16,7 @@ This change unifies tactile neumorphic depth across both Dark and Light themes, 
   - Implement a shared dual-shadow formula: ambient diffuse drop shadow on the bottom-right + crisp specular rim catch highlight (`inset 0 1px 0 rgba(255, 255, 255, ...)`) on the top-left edge in both Dark and Light themes.
   - Soften border tokens from harsh wireframes into translucent boundary creases.
 - **Top-Bar Target Power Pill**:
-  - Relocate VTarget power control and INA180 current sensing from the Debugger card into a compact live toggle button in the top application header (`[ ⚡ 3.31V · 14mA ]`).
+  - Relocate VTarget power control and INA180 current sensing from the Debugger card into a compact live toggle button in the top application header (`[ 3.31V · 14mA ]`).
   - Single-click action directly toggles power rail ON / OFF.
   - Status indicator: vibrant emerald green with soft pulse when rail is enabled; muted gray when in standby/safe state; amber/red flash on overcurrent fault.
 - **Streamlined Two-Column Debugger View**:
@@ -38,7 +38,7 @@ This change unifies tactile neumorphic depth across both Dark and Light themes, 
     - **Hardware Bank Info**: `Bank: GP20–GP27 (8 Ch)`.
   - Move Zoom controls (`+`, `−`, `Fit`) into a sleek floating widget overlay inside the waveform canvas corner.
   - Transform the bottom Stimulus Deck into a **Collapsible Bottom Drawer**:
-    - Minimized by default as a compact footer bar (`[ ⚡ Signal Generator: GP12 @ 12 kHz (50% PWM) ▾ ]`).
+    - Minimized by default as a compact footer bar (`[ Signal Generator: GP12 @ 12 kHz (50% PWM) ▾ ]`).
     - Expands upward on click to adjust frequency, duty cycle, and pin, freeing up 90%+ of vertical height for waveform analysis.
 
 ## Capabilities

@@ -222,9 +222,9 @@ def print_summary():
     print(f"\n  Total: {passed}/{total} passed")
     
     if passed == total:
-        print("\n  🎉 All tests passed!")
+        print("\n  [PASS] All tests passed!")
     else:
-        print(f"\n  ⚠ {total - passed} test(s) failed")
+        print(f"\n  [WARN] {total - passed} test(s) failed")
     
     return passed == total
 
@@ -262,7 +262,7 @@ def main():
         
         idcode_ok = test_swd_idcode(ser)
         if not idcode_ok:
-            print("\n⚠ SWD IDCODE failed. Check wiring and target power.")
+            print("\n[WARN] SWD IDCODE failed. Check wiring and target power.")
             print("  Continuing with other tests...")
         
         test_swd_test(ser)

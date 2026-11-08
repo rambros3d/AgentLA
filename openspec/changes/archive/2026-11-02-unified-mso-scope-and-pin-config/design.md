@@ -56,7 +56,7 @@ Additionally:
 ### 5. Integrated Decoder Bar Above Digital Scope
 - **Placement**: Directly above the digital scope canvas, serving as its header.
 - **In-Canvas Packet Bubbles**: Decoded packets (`START`, `ADDR: 0x50+W`, `ACK`, `DATA: 0x33`, `STOP`) render time-aligned below the waveforms. Hovering shows a rich transaction tooltip; clicking centers and zooms the canvas to that packet.
-- **Decoded Packet Table (`[ 📋 Packet Table ]`)**: Slide-out drawer listing all captured transactions chronologically with search/filter capabilities.
+- **Decoded Packet Table (`[ Packet Table ]`)**: Slide-out drawer listing all captured transactions chronologically with search/filter capabilities.
 
 ### 6. Clustered Toolbar & Collapsible Signal Generator Drawer
 - **Toolbar Clusters**:
@@ -64,7 +64,7 @@ Additionally:
   - **Analysis**: `[ ☍ Decode ▾ ]` + `[ ⇪ Export ▾ ]` + `Auto-Sniff`.
   - **Hardware Bank Info**: `Bank: GP10–GP17 (8 Ch)`.
 - **Canvas Zoom Widget**: Semi-transparent floating overlay (`+`, `−`, `Fit`) in the top-right corner of the canvas.
-- **Signal Generator Drawer**: Minimized footer pill (`[ ⚡ Signal Generator: GP12 @ 12.0 kHz (50% PWM) ▴ ]`) that smoothly expands upward on click, leaving 90%+ vertical height for waveforms when closed.
+- **Signal Generator Drawer**: Minimized footer pill (`[ Signal Generator: GP12 @ 12.0 kHz (50% PWM) ▴ ]`) that smoothly expands upward on click, leaving 90%+ vertical height for waveforms when closed.
 
 ## Risks / Trade-offs
 

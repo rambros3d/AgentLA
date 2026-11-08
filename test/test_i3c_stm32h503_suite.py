@@ -153,7 +153,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
     print_header(f"AgentLA MIPI I3C & STM32H503 Verification Suite ({port})")
 
     if use_mock:
-        print("ℹ️ Running in mock transport verification mode.")
+        print("[INFO] Running in mock transport verification mode.")
         ser = MockAgentLA()
     else:
         try:
@@ -162,7 +162,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
             time.sleep(0.1)
             ser.reset_input_buffer()
         except Exception as e:
-            print(f"⚠️ Could not open {port}: {e}")
+            print(f"[WARN] Could not open {port}: {e}")
             print("  Falling back to simulated transport for test suite validation.")
             ser = MockAgentLA()
 
@@ -179,7 +179,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
 
     h503_found = any("STM32H503" in l or "0x474" in l for l in resp_detect)
     if not h503_found:
-        print("  ❌ Tier 1 Failed: Target is not detected as STM32H503.")
+        print("  [FAIL] Tier 1 Failed: Target is not detected as STM32H503.")
         return False
     print("  ✓ Detected STM32H503 target (Part ID: 0x474)")
 
@@ -199,7 +199,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
         print("  ✓ Tier 1 Passed: Target flashed and booted into I3C Target mode.")
         passed_tiers += 1
     else:
-        print(f"  ❌ Tier 1 Failed: Fixture binary not found at {FIXTURE_BIN}")
+        print(f"  [FAIL] Tier 1 Failed: Fixture binary not found at {FIXTURE_BIN}")
         return False
 
     # -------------------------------------------------------------------------
@@ -209,7 +209,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
     resp_init = send_cmd(ser, "I3C_INIT freq=12500 sda=10 scl=11")
     print(f"  > I3C_INIT -> {resp_init}")
     if not any("OK I3C INIT" in l for l in resp_init):
-        print("  ❌ Tier 2 Failed: I3C_INIT did not succeed.")
+        print("  [FAIL] Tier 2 Failed: I3C_INIT did not succeed.")
         return False
 
     # Check bounds
@@ -222,7 +222,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
         print("  ✓ Tier 2 Passed: I3C PIO2 engine initialized with verified clock limits.")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 2 Failed: Clock divisor checking failed.")
+        print("  [FAIL] Tier 2 Failed: Clock divisor checking failed.")
         return False
 
     # -------------------------------------------------------------------------
@@ -243,7 +243,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
         print("  ✓ Tier 3 Passed: Target accepted dynamic address 0x08 with valid PID/BCR.")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 3 Failed: ENTDAA failed.")
+        print("  [FAIL] Tier 3 Failed: ENTDAA failed.")
         return False
 
     # -------------------------------------------------------------------------
@@ -264,7 +264,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
 
         expected = "I3C DATA AA,55,12,34"
         if not any(expected in l for l in resp_r):
-            print(f"  ❌ Tier 4 Failed at {freq} kHz: expected {expected}")
+            print(f"  [FAIL] Tier 4 Failed at {freq} kHz: expected {expected}")
             tier4_ok = False
             break
 
@@ -299,7 +299,7 @@ def run_suite(port="/dev/ttyACM0", use_mock=False):
         print("  ✓ Tier 5 Passed: Target asserted IBI with MDB=0xA5, correctly decoded by AgentLA.")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 5 Failed: IBI not detected.")
+        print("  [FAIL] Tier 5 Failed: IBI not detected.")
         return False
 
     # -------------------------------------------------------------------------

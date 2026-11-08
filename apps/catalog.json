@@ -17,7 +17,7 @@
       "requires": [
         "has_hardware_can"
       ],
-      "size_bytes": 40960,
+      "size_bytes": 30720,
       "icon_url": "can-sniffer/icon.svg",
       "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/can-sniffer",
       "package_url": "/packages/can-sniffer.tar"

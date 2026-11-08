@@ -12,7 +12,7 @@ Strict partition safety is enforced: `system_fs` is permanent read-only, and `us
 
 **Goals:**
 - **Dedicated Application Page (`webui/files.html`)**: Clean, standalone Storage Explorer utilizing DaisyUI 5, Tailwind CSS, and Solar Icons.
-- **Industrial-First Design**: Inherits the default `data-style="industrial"` Nothing OS look with NDot dot-matrix headings (`[01] SYSTEM.STORAGE // 🔒 RO`) and Nothing Signal Red accents, while gracefully falling back to Bento if toggled.
+- **Industrial-First Design**: Inherits the default `data-style="industrial"` Nothing OS look with NDot dot-matrix headings (`[01] SYSTEM.STORAGE //  RO`) and Nothing Signal Red accents, while gracefully falling back to Bento if toggled.
 - **Physical Partition Transparency**: Real-time visualization of used and free storage for both `system_fs` and `user_fs` via DaisyUI `stats` and `progress` bars.
 - **Strict Read-Only Enforcement on `system_fs`**: Allow browsing, downloading, file inspection, and copying *out* to user storage, but strictly prohibit any modification, upload, deletion, or renaming.
 - **Full Read-Write Operations on `user_fs`**: Support file uploads, folder creation, renaming, deleting, recursive zip/tar downloads, and in-browser editing.

@@ -31,13 +31,13 @@ Renaming "Active Bench" to **"Scope"**, establishing a **Unified Mixed-Signal Os
     - **Bottom Subwindow (Analog Scope)**: All active analog channels (`CH0`–`CH3` / `GP26`–`GP29`) are superimposed on a **shared 8 × 10 division graticule** with calibrated `Volts/div` (0–3.3V), `Time/div`, and an interactive right-margin trigger level cursor (`◀ Trig`).
     - **Dynamic Visibility**: The Analog Scope subwindow is rendered **only** when at least one analog pin is active. When zero analog pins are configured, the Digital Scope automatically occupies 100% of the window height.
 - **Integrated Protocol Decoder Bar (Above Digital Scope)**:
-  - Position the decoder bar directly above the digital waveform lanes (`[ ☍ Decoder: I2C (SDA: D0, SCL: D1) ⚙ ▾ ]`).
+  - Position the decoder bar directly above the digital waveform lanes (`[ ☍ Decoder: I2C (SDA: D0, SCL: D1)  ▾ ]`).
   - Time-aligned in-canvas packet bubbles (`START`, `ADDR: 0x50`, `ACK`, `DATA: 0x33`, `STOP`) with hover tooltips and click-to-zoom interaction.
-  - Quick transaction search filter and slide-out **Decoded Packet Table** (`[ 📋 Packet Table ]`).
+  - Quick transaction search filter and slide-out **Decoded Packet Table** (`[ Packet Table ]`).
 - **Clustered Toolbar & Collapsible Signal Generator Drawer**:
   - Group toolbar controls into 3 visual clusters: Capture (`Run/Stop`, `Sample Rate`, `Trigger`), Analysis (`Export`, `Auto-Sniff`), and Hardware Bank claim info (`Bank: GP10–GP17`).
   - Floating zoom controls (`+`, `−`, `Fit`) inside the top-right corner of the canvas.
-  - Transform the bottom Stimulus Deck into a **Collapsible Bottom Drawer**: minimized by default as a sleek footer bar (`[ ⚡ Signal Generator: GP12 @ 12.0 kHz (50% PWM) ▴ ]`), expanding upward on demand to free up 90%+ vertical canvas height.
+  - Transform the bottom Stimulus Deck into a **Collapsible Bottom Drawer**: minimized by default as a sleek footer bar (`[ Signal Generator: GP12 @ 12.0 kHz (50% PWM) ▴ ]`), expanding upward on demand to free up 90%+ vertical canvas height.
 
 ## Capabilities
 

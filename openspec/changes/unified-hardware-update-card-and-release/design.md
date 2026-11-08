@@ -48,7 +48,7 @@ The packaging script `tools/package_uf2.py` constructs a single UF2 file contain
 *Rationale*: Users dragging a single `.uf2` into RP2350 USB BOOTSEL mode write all three partitions simultaneously, achieving 100% offline out-of-the-box operation with zero extra steps.
 
 ### 4. Browser-Orchestrated 2-Phase Auto Update Pipeline
-When clicking `[ ⚡ AUTO UPDATE ALL ]`:
+When clicking `[ AUTO UPDATE ALL ]`:
 1. Client fetches `https://api.github.com/repos/rambros3d/AgentLA/releases/latest`.
 2. Phase 1: Downloads `webui.tar` and posts to `/api/v1/system/webui/update`. LittleFS extracts files. Progress updates to 50%.
 3. Phase 2: Downloads `agentla-pico2-ota.bin` and posts to `/api/v1/system/firmware/ota`. Inactive slot is written and verified. Progress updates to 100%.

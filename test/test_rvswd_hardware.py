@@ -132,7 +132,7 @@ def main():
         ser.reset_input_buffer()
         ser.read_all()
     except Exception as e:
-        print(f"❌ Could not open port {PORT}: {e}")
+        print(f"[FAIL] Could not open port {PORT}: {e}")
         return 1
 
     time.sleep(1.0)

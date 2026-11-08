@@ -17,7 +17,7 @@
 
 ## 4. WebUI Header & Emergency Controls
 
-- [x] 4.1 Add prominent `[ 🛡️ SAFE STATE ]` button and top-bar profile selector dropdown in `firmware/html/index.html` and `style.css`.
+- [x] 4.1 Add prominent `[ SAFE STATE ]` button and top-bar profile selector dropdown in `firmware/html/index.html` and `style.css`.
 - [x] 4.2 Implement global `Shift+Esc` emergency hotkey in `firmware/html/app.js` triggering `/api/profiles/safe_state`.
 - [x] 4.3 Implement dynamic profile dropdown population and active status badge in `firmware/html/app.js`.
 

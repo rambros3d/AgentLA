@@ -53,13 +53,13 @@
 
 | Test | Status | Details |
 |------|--------|---------|
-| **LOOPBACK** | ✅ PASS | TX=0xAAAAAAAA RX=0x80000000 |
-| **DIAG** | ✅ OK | PIO1 SM0: PC=0, TXSTALL=1, no DMA timeout |
-| **CH32 DETECT (1wire)** | ✅ PASS | chip_id=0x00030514 (CH32V003) |
-| **CH32 DETECT (2wire)** | ✅ PASS | chip_id=0x02030504 (CH32V203) |
-| **SWD IDCODE** | ⚠️ Expected | ARM SWD not supported by CH32 |
-| **CRASHINFO** | ✅ OK | No crash info (clean boot) |
-| **Boot counter** | ✅ Auto-reset | 1/3 (reset from new firmware detection) |
+| **LOOPBACK** | [PASS] PASS | TX=0xAAAAAAAA RX=0x80000000 |
+| **DIAG** | [PASS] OK | PIO1 SM0: PC=0, TXSTALL=1, no DMA timeout |
+| **CH32 DETECT (1wire)** | [PASS] PASS | chip_id=0x00030514 (CH32V003) |
+| **CH32 DETECT (2wire)** | [PASS] PASS | chip_id=0x02030504 (CH32V203) |
+| **SWD IDCODE** | [WARN] Expected | ARM SWD not supported by CH32 |
+| **CRASHINFO** | [PASS] OK | No crash info (clean boot) |
+| **Boot counter** | [PASS] Auto-reset | 1/3 (reset from new firmware detection) |
 
 ## Key Findings
 

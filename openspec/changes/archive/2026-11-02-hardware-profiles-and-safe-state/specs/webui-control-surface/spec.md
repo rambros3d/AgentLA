@@ -5,7 +5,7 @@ The WebUI JavaScript SHALL execute without scoping errors on page load, attach t
 
 #### Scenario: Successful WebUI boot with profiles
 - **WHEN** the browser navigates to the WebUI root URL
-- **THEN** the top navigation bar SHALL display `[ 🛡️ SAFE STATE ]`, the active profile badge (e.g. `[ Profile: Safe State ▾ ]`), and populate the profile dropdown list
+- **THEN** the top navigation bar SHALL display `[ SAFE STATE ]`, the active profile badge (e.g. `[ Profile: Safe State ▾ ]`), and populate the profile dropdown list
 
 #### Scenario: Switching primary modes
 - **WHEN** the user clicks `#nav-target-station` or `#nav-active-bench`

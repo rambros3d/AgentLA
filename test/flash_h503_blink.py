@@ -41,20 +41,20 @@ def send_cmd(ser, cmd, timeout=5.0):
 def flash_firmware(port="/dev/ttyACM0", bin_path=DEFAULT_BIN, base_addr=0x08000000):
     bin_path = Path(bin_path)
     if not bin_path.exists():
-        print(f"❌ Binary not found at {bin_path}")
+        print(f"[FAIL] Binary not found at {bin_path}")
         return False
 
     with open(bin_path, "rb") as f:
         data = f.read()
 
     size = len(data)
-    print(f"📦 Firmware: {bin_path.name} ({size} bytes, ~{(size + 1023) // 1024} KB)")
+    print(f"[FIRMWARE] Firmware: {bin_path.name} ({size} bytes, ~{(size + 1023) // 1024} KB)")
 
-    print(f"🔌 Connecting to AgentLA on {port}...")
+    print(f"[INFO] Connecting to AgentLA on {port}...")
     try:
         ser = serial.Serial(port, 115200, timeout=1.0)
     except Exception as e:
-        print(f"❌ Could not open port {port}: {e}")
+        print(f"[FAIL] Could not open port {port}: {e}")
         return False
 
     time.sleep(0.1)
@@ -68,7 +68,7 @@ def flash_firmware(port="/dev/ttyACM0", bin_path=DEFAULT_BIN, base_addr=0x080000
     print(f"  > SWD TEST: {resp}")
 
     if not target_found:
-        print("❌ No target detected. Ensure SWD wiring and external 3.3V power to STM32H503.")
+        print("[FAIL] No target detected. Ensure SWD wiring and external 3.3V power to STM32H503.")
         ser.close()
         return False
 
@@ -85,7 +85,7 @@ def flash_firmware(port="/dev/ttyACM0", bin_path=DEFAULT_BIN, base_addr=0x080000
     resp = send_cmd(ser, f"FLASH ERASE {hex(base_addr)} {erase_size}", timeout=10.0)
     print(f"  > FLASH ERASE: {resp}")
     if not any("OK FLASH ERASE" in l for l in resp):
-        print("❌ Flash erase failed.")
+        print("[FAIL] Flash erase failed.")
         ser.close()
         return False
     print(f"  ✓ Erased in {time.time() - start_t:.2f}s")
@@ -102,14 +102,14 @@ def flash_firmware(port="/dev/ttyACM0", bin_path=DEFAULT_BIN, base_addr=0x080000
         # Write
         resp = send_cmd(ser, f"FLASH WRITE {hex(chunk_addr)} {hex_data}", timeout=5.0)
         if not any("OK FLASH WROTE" in l for l in resp):
-            print(f"\n❌ Write failed at 0x{chunk_addr:08X}: {resp}")
+            print(f"\n[FAIL] Write failed at 0x{chunk_addr:08X}: {resp}")
             ser.close()
             return False
 
         # Verify
         resp = send_cmd(ser, f"FLASH VERIFY {hex(chunk_addr)} {hex_data}", timeout=5.0)
         if not any("OK FLASH VERIFY PASS" in l for l in resp):
-            print(f"\n❌ Verify mismatch at 0x{chunk_addr:08X}: {resp}")
+            print(f"\n[FAIL] Verify mismatch at 0x{chunk_addr:08X}: {resp}")
             ser.close()
             return False
 

@@ -20,7 +20,7 @@ The primary waveform observation view (renamed to "Scope") SHALL provide a unifi
 - **THEN** all analog channels are drawn superimposed on the same 8 × 10 division graticule sharing calibrated voltage (`Volts/div`) and timebase (`Time/div`) axes
 
 ### Requirement: Docked Stimulus Deck
-The Scope view SHALL provide a collapsible bottom Signal Generator drawer that minimizes to a compact status footer by default (`[ ⚡ Signal Generator: GP12 @ 12.0 kHz ▴ ]`) and expands upward on click to expose frequency, duty cycle, and pin controls without obstructing waveform visibility.
+The Scope view SHALL provide a collapsible bottom Signal Generator drawer that minimizes to a compact status footer by default (`[ Signal Generator: GP12 @ 12.0 kHz ▴ ]`) and expands upward on click to expose frequency, duty cycle, and pin controls without obstructing waveform visibility.
 
 #### Scenario: Minimized signal generator footer
 - **WHEN** the Scope view loads

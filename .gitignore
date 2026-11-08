@@ -6,8 +6,10 @@
 build/
 build*/
 _site/
-target/
-!firmware-rs/src/programmer/target/
+/target/
+**/target/
+!**/src/**/target/
+!**/src/**/target/**
 *.o
 *.elf
 *.bin

@@ -1,4 +1,4 @@
-> ## ⛔ SUPERSEDED (2026-08-13)
+> ## [BLOCKED] SUPERSEDED (2026-08-13)
 >
 > This change is **superseded by `import-debugprobe-pio-swd`**. The bitbang plan was
 > abandoned: the bitbang transport was removed from the tree (`swd_bb_transfer` deleted,

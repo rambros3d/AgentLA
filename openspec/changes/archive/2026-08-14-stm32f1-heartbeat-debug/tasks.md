@@ -19,7 +19,7 @@
 - [x] 3.4 Implement Stage 4: resume the CPU with `DEBUG RUN` and sample PC13 LED output on `GPIO22` (L_CH2) with the logic analyzer, asserting the 100/100/100/700 ms double-pulse pattern
   - Implemented; **blocked on hardware** until the target-reset gap + capture hang below are resolved.
 - [ ] 3.5 Run `python3 test/test_stm32f1_heartbeat_debug.py /dev/ttyACM0` against the connected Blue Pill and confirm all stages pass
-  - ⛔ **BLOCKED** on two issues (see section 4): (a) `DEBUG RESET` does not reliably reboot the CPU (nRST effectiveness unverified), (b) LA `CAPTURE` hangs after `CONFIGURE` on the current build.
+  - [BLOCKED] **BLOCKED** on two issues (see section 4): (a) `DEBUG RESET` does not reliably reboot the CPU (nRST effectiveness unverified), (b) LA `CAPTURE` hangs after `CONFIGURE` on the current build.
 
 ## 4. Session State & Handoff (2026-08-13)
 

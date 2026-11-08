@@ -34,7 +34,7 @@ When browsing `system_fs`, the File Manager SHALL strictly prohibit mutating act
 
 #### Scenario: Viewing system_fs
 - **WHEN** the active partition is `system_fs`
-- **THEN** the UI displays a `🔒 Read-Only` status badge, disables file upload dropzones, hides the "New Folder" button, and omits destructive options from item context menus.
+- **THEN** the UI displays a ` Read-Only` status badge, disables file upload dropzones, hides the "New Folder" button, and omits destructive options from item context menus.
 
 ### Requirement: Full Read-Write UI for User Partition
 When browsing `user_fs`, the File Manager SHALL provide controls to upload files, create new folders, rename items, delete files or directories, and download files.

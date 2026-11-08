@@ -11,7 +11,7 @@ The firmware SHALL initialize all flexible and zone GPIO pins as High-Z inputs w
 The system SHALL provide an immediate emergency safe state mechanism accessible via the WebUI and keyboard hotkey that instantly disables target power and tri-states all pins.
 
 #### Scenario: Emergency trigger via WebUI button
-- **WHEN** the user clicks the `[ 🛡️ SAFE STATE ]` button in the WebUI header
+- **WHEN** the user clicks the `[ SAFE STATE ]` button in the WebUI header
 - **THEN** the probe SHALL cut VTARGET within 1ms, set all GPIOs to High-Z inputs, abort all active captures, and return the workbench to Safe State
 
 #### Scenario: Emergency trigger via keyboard hotkey

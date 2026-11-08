@@ -36,7 +36,7 @@ Unifying both pages under a single cohesive embedded OS model gives AgentLA a cl
   - Removes redundant "Workbench" and "App Launcher" navigation pills from both `/lab` and `/apps`.
   - In `/lab`, clicking `[❖ AgentLA]` navigates to `/apps`.
   - In `/apps`, clicking `[❖ AgentLA]` stays on the launcher, while launching the "AgentLA Lab" tile opens `/lab`.
-  - Top bar on both pages features the identical utility suite: Target Power status (`3.31V · 14mA`), Emergency Safe State (`🛡`), System Settings gear (`⚙`), and 3-way Theme Toggle (`☼ / ☾ / ☲`).
+  - Top bar on both pages features the identical utility suite: Target Power status (`3.31V · 14mA`), Emergency Safe State (``), System Settings gear (``), and 3-way Theme Toggle (`☼ / ☾ / ☲`).
 - **Shared System Settings Modal (`#modal-settings`)**:
   - Both `/lab` and `/apps` embed and share `#modal-settings`.
   - Unified controls: Theme Mode (System / Light / Dark), Default Light Theme (`emerald` / `caramellatte`), Default Dark Theme (`forest`), Default Landing Page (`/lab` / `/apps` / installed apps), Reboot RP2350, Enter USB BOOTSEL, and live Hardware Telemetry.

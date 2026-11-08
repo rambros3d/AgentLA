@@ -33,7 +33,7 @@ The WebUI JavaScript SHALL execute without scoping errors on page load, attach t
 
 #### Scenario: Successful WebUI boot
 - **WHEN** the browser navigates to the WebUI root URL
-- **THEN** `#loading-screen` receives the `fade-out` class within 500ms, the board branding header displays the board's name and `logo.svg`, and the top bar displays `[ ⚡ Active Bench ]` as the default active mode
+- **THEN** `#loading-screen` receives the `fade-out` class within 500ms, the board branding header displays the board's name and `logo.svg`, and the top bar displays `[ Active Bench ]` as the default active mode
 
 #### Scenario: Switching primary modes
 - **WHEN** the user clicks `#nav-target-station` or `#nav-active-bench`

@@ -15,7 +15,7 @@ The App Launcher (`/apps`) SHALL render applications as a responsive grid of tac
 The App Launcher SHALL share the exact same top bar layout and `#modal-settings` System Settings modal as the workbench, implemented using a standard DaisyUI `.navbar` (`bg-base-100`, `border-b border-base-300`) without frosted backdrop blur, omitting redundant "Workbench" and "App Launcher" navigation pills.
 
 #### Scenario: Opening settings from launcher
-- **WHEN** the user clicks the gear icon (`⚙`) in the launcher top bar
+- **WHEN** the user clicks the gear icon (``) in the launcher top bar
 - **THEN** the `#modal-settings` dialog opens, providing access to Theme Mode, Default Landing Page, Device Reboot, BOOTSEL mode, and Hardware Telemetry.
 
 #### Scenario: Switching theme from launcher

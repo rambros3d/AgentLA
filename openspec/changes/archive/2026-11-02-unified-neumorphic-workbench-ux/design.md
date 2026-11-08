@@ -11,7 +11,7 @@ AgentLA's WebUI is an integrated instrumentation workspace designed for physical
 
 **Goals:**
 - Unify tactile neumorphic depth across Dark and Light themes by aligning luminance hierarchies and applying a dual-shadow formula (ambient drop shadow + specular rim highlight).
-- Relocate VTarget power control and INA180 current sensing into a live top-bar toggle pill (`[ ⚡ 3.31V · 14mA ]`).
+- Relocate VTarget power control and INA180 current sensing into a live top-bar toggle pill (`[ 3.31V · 14mA ]`).
 - Reorganize the Debugger tab into an uncluttered two-column layout: Universal Flasher on the left (~400px), SWD / CMSIS-DAP Debugger & Memory Viewer on the right (`flex: 1`).
 - Transform the USB Protocol Adapters view into an intuitive Master-Detail layout with persistent per-protocol logs, global auto-sniffing, profile-aware default selection, and quick transaction preset chips.
 - Streamline the Active Bench observation bar into 3 functional clusters (Capture, Analysis, Bank Info), float canvas zoom controls, and turn the Signal Generator into a collapsible bottom drawer footer.
@@ -63,7 +63,7 @@ AgentLA's WebUI is an integrated instrumentation workspace designed for physical
   - **Hardware Claim Info**: `Bank: GP20–GP27 (8 Ch)`.
 - **Floating Canvas Zoom Controls**: Zoom in (`+`), Zoom out (`−`), and Zoom fit (`⊡`) are placed inside a compact, semi-transparent floating control block in the top-right corner of `#waveform-canvas-wrap`.
 - **Collapsible Signal Generator Drawer**:
-  - Minimized by default as a sleek bottom footer bar (`[ ⚡ Signal Generator: GP12 @ 12 kHz (50% PWM) ▾ ]`).
+  - Minimized by default as a sleek bottom footer bar (`[ Signal Generator: GP12 @ 12 kHz (50% PWM) ▾ ]`).
   - Expands upward on click to expose pin selection, frequency input, duty cycle slider, and output toggle, leaving 90%+ of vertical height for waveform analysis.
 
 ## Risks / Trade-offs

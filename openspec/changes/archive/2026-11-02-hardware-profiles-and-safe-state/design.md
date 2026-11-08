@@ -61,7 +61,7 @@ This design introduces a hardware-resident profile architecture with 32 on-devic
 - **Rationale**: Prevents cryptic failure errors when engineers share test setups across team members using different board revisions.
 
 ### 5. WebUI Header Integration & Emergency Controls
-- **Decision**: Add `[ 🛡️ SAFE STATE ]` button to the primary WebUI header bar alongside mode navigation, bound to the `Shift+Esc` hotkey. Add a top-bar profile selector dropdown displaying the active profile with a color-coded status badge.
+- **Decision**: Add `[ SAFE STATE ]` button to the primary WebUI header bar alongside mode navigation, bound to the `Shift+Esc` hotkey. Add a top-bar profile selector dropdown displaying the active profile with a color-coded status badge.
 
 ## Risks / Trade-offs
 

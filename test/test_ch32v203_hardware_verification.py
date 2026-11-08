@@ -54,7 +54,7 @@ def run_hardware_verification():
         ser.dtr = True
         ser.rts = True
     except Exception as e:
-        print(f"❌ Failed to open serial port {PORT}: {e}")
+        print(f"[FAIL] Failed to open serial port {PORT}: {e}")
         return False
 
     time.sleep(0.5)
@@ -69,7 +69,7 @@ def run_hardware_verification():
     if id_ok:
         print("  ✓ Stage 1 Passed: AgentLA Firmware Handshake Successful")
     else:
-        print("  ❌ Stage 1 Failed: Device did not return AGENTLA banner")
+        print("  [FAIL] Stage 1 Failed: Device did not return AGENTLA banner")
 
     # ------------------------------------------------------------------------
     # Stage 2: Target Probe (CH32 DETECT mode=2wire)
@@ -81,7 +81,7 @@ def run_hardware_verification():
     if probe_ok:
         print("  ✓ Stage 2 Passed: CH32V203 ESIG Probe Successful")
     else:
-        print("  ❌ Stage 2 Failed: CH32V203 Target Probe Failed")
+        print("  [FAIL] Stage 2 Failed: CH32V203 Target Probe Failed")
 
     # ------------------------------------------------------------------------
     # Stage 3: Sector Erase (CH32 ERASE 0x08000000 128)
@@ -93,7 +93,7 @@ def run_hardware_verification():
     if erase_ok:
         print("  ✓ Stage 3 Passed: Flash Page Erase Successful")
     else:
-        print("  ❌ Stage 3 Failed: Flash Erase Command Failed")
+        print("  [FAIL] Stage 3 Failed: Flash Erase Command Failed")
 
     # ------------------------------------------------------------------------
     # Stage 4: Fast Mode Flash Write (CH32 FLASH 0x08000000 <payload>)
@@ -111,7 +111,7 @@ def run_hardware_verification():
     if write_ok:
         print("  ✓ Stage 4 Passed: Fast Page Write Successful")
     else:
-        print("  ❌ Stage 4 Failed: Flash Write Command Failed")
+        print("  [FAIL] Stage 4 Failed: Flash Write Command Failed")
 
     # ------------------------------------------------------------------------
     # Stage 5: Readback & Payload Parity Verification
@@ -130,9 +130,9 @@ def run_hardware_verification():
                     read_ok = True
                     print(f"  ✓ Byte Parity Verification Match: {len(read_bytes)} bytes match payload exactly!")
                 else:
-                    print(f"  ❌ Mismatch: Read {len(read_bytes)} bytes, expected {len(test_payload)} bytes")
+                    print(f"  [FAIL] Mismatch: Read {len(read_bytes)} bytes, expected {len(test_payload)} bytes")
             except Exception as ex:
-                print(f"  ❌ Hex parsing error: {ex}")
+                print(f"  [FAIL] Hex parsing error: {ex}")
 
     ser.close()
 

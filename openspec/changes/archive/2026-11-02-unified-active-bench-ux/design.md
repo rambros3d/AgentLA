@@ -9,7 +9,7 @@ This design establishes a unified workbench architecture that integrates wavefor
 ## Goals / Non-Goals
 
 **Goals:**
-- Provide a clear, two-mode primary header navigation: `[ ⚡ Active Bench ]` and `[ 🎯 Target Station ]`.
+- Provide a clear, two-mode primary header navigation: `[ Active Bench ]` and `[ Target Station ]`.
 - Unify observation (Logic Analyzer canvas, Analog Scope, Protocol Decoders) and interaction (Bus Masters, Stimulus REPL, Pattern Gen, Pin Toggler) in the Active Bench.
 - Implement responsive dual-mode layout:
   - Desktop ($\ge 1200\text{px}$): Side-by-side layout with canvas left (65%) and stimulus deck right (35%).
@@ -45,7 +45,7 @@ This design establishes a unified workbench architecture that integrates wavefor
 
 ### 4. Slide-Out Pin Matrix Drawer
 - Global pin configuration (`#pin-matrix-drawer`) is anchored as a right-hand slide-out drawer (`transform: translateX(100%)`, animated with CSS transitions).
-- Opened via `[ 🔌 Pins ]` button in the header or pressing `P`.
+- Opened via `[ Pins ]` button in the header or pressing `P`.
 - Features real-time pin conflict alerts and hardware zone ownership indicators.
 
 ## Risks / Trade-offs

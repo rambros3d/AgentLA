@@ -46,7 +46,7 @@ Currently, `firmware/html/app.js` hardcodes pin arrays (GP0–GP19) and static l
     { id: 'can', isEnabled: (caps) => !!caps.has_hardware_can, mount: () => ... },
     { id: 'rs485', isEnabled: (caps) => !!caps.has_hardware_rs485, mount: () => ... },
     { id: 'power', isEnabled: (caps) => !!caps.target_current_sense, mount: () => ... }
-  ];
+ ];
   ```
   When hardware-dedicated transceivers are absent (such as CAN-FD or RS-485 on a standard Pico 2), the cards in the **Adapters** tab switch into **External Breakout Mode** instead of being hidden. The UI provides explicit breakout pinout diagrams (e.g., GP18 TX, GP19 RX, GP22 Term) and wiring instructions for connecting standard external transceiver modules.
 

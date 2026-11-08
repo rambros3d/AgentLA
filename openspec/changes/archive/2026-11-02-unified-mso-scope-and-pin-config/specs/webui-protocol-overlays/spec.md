@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: Integrated Protocol Decoder Controls
-The WebUI SHALL display protocol decoder configuration and state within an integrated decoder bar positioned directly above the digital scope lanes (`[ ☍ Decoder: I2C (SDA: D0, SCL: D1) ⚙ ▾ ] [ 📋 Packet Table ]`), providing immediate access to protocol selection, channel mapping, baud/clock settings, and a slide-out packet list drawer.
+The WebUI SHALL display protocol decoder configuration and state within an integrated decoder bar positioned directly above the digital scope lanes (`[ ☍ Decoder: I2C (SDA: D0, SCL: D1)  ▾ ] [ Packet Table ]`), providing immediate access to protocol selection, channel mapping, baud/clock settings, and a slide-out packet list drawer.
 
 #### Scenario: Decoder controls placement
 - **WHEN** the Scope view is active and digital channels are displayed
 - **THEN** the protocol decoder bar renders directly above the digital waveform lanes without obstructing the top toolbar or the waveform canvas
 
 #### Scenario: Packet table drawer toggle
-- **WHEN** the user clicks `[ 📋 Packet Table ]` in the decoder bar
+- **WHEN** the user clicks `[ Packet Table ]` in the decoder bar
 - **THEN** an interactive drawer or panel displays a chronologically indexed list of decoded packets with timestamp, direction, address, data payload, and parity/CRC status
 
 #### Scenario: In-canvas bubble hover tooltip

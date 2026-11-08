@@ -24,14 +24,14 @@
 
 ## 5. Integrated Protocol Decoder Bar & Packet Drawer
 
-- [x] 5.1 Place integrated decoder bar directly above digital scope lanes in `firmware/html/index.html` (`#scope-decoder-bar`) with protocol selector dropdown, channel mapping pills, and `[ 📋 Packet Table ]` button
+- [x] 5.1 Place integrated decoder bar directly above digital scope lanes in `firmware/html/index.html` (`#scope-decoder-bar`) with protocol selector dropdown, channel mapping pills, and `[ Packet Table ]` button
 - [x] 5.2 Add styles for decoder bar, in-canvas packet bubbles, hover tooltips, and slide-out packet table drawer in `firmware/html/style.css`
 - [x] 5.3 Implement decoder UI controller in `firmware/html/app.js`: protocol selection, channel mapping update, packet tooltip rendering on canvas hover, and table drawer toggle with search filter
 
 ## 6. Clustered Scope Toolbar & Collapsible Stimulus Drawer
 
 - [x] 6.1 Reorganize Scope top toolbar in `firmware/html/index.html` into 3 semantic clusters (Capture, Analysis, Bank Claim) and integrate floating zoom controls (`+`, `−`, `Fit`) on the canvas overlay
-- [x] 6.2 Convert bottom Stimulus Deck (Signal Generator) into a collapsible footer drawer with minimized single-line status bar (`[ ⚡ Signal Generator: GP12 @ 12.0 kHz (50% PWM) ▴ ]`) and expanding panel
+- [x] 6.2 Convert bottom Stimulus Deck (Signal Generator) into a collapsible footer drawer with minimized single-line status bar (`[ Signal Generator: GP12 @ 12.0 kHz (50% PWM) ▴ ]`) and expanding panel
 - [x] 6.3 Add CSS transitions and styling for clustered toolbar and collapsible stimulus drawer in `firmware/html/style.css`
 - [x] 6.4 Implement drawer toggle and status bar update logic in `firmware/html/app.js`
 

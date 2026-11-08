@@ -11,7 +11,7 @@
 - [ ] 2.2 Build Bento Storage Stats section with `stats` and `progress` bars displaying live partition utilization
 - [ ] 2.3 Implement interactive breadcrumbs (`.breadcrumbs`) and root partition selector (`.join`)
 - [ ] 2.4 Implement responsive file canvas supporting squircle grid view (`.card`) and details list view (`.table`)
-- [ ] 2.5 Add frontend permission guards (disabling write actions, displaying `🔒 Read-Only` badges for `system_fs`)
+- [ ] 2.5 Add frontend permission guards (disabling write actions, displaying ` Read-Only` badges for `system_fs`)
 - [ ] 2.6 Implement in-place file viewer and editor modal (`.modal`) with monospace textarea and syntax support
 - [ ] 2.7 Implement drag-and-drop file uploader and new folder creation dialog for `user_fs`
 

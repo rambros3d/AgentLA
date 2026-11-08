@@ -36,7 +36,7 @@ def main():
     try:
         ser = serial.Serial(port, 115200, timeout=1.0)
     except Exception as e:
-        print(f"❌ Failed to open serial port {port}: {e}")
+        print(f"[FAIL] Failed to open serial port {port}: {e}")
         sys.exit(1)
 
     passed_tiers = 0
@@ -64,7 +64,7 @@ def main():
         print("  ✓ Tier 1 Passed: SWD Transport & DPIDR 0x1BA01477 Match")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 1 Failed: DPIDR match or SWD protocol error")
+        print("  [FAIL] Tier 1 Failed: DPIDR match or SWD protocol error")
 
     # -------------------------------------------------------------------------
     # Tier 2: Cortex-M3 CPU Control & Debug Verification
@@ -87,7 +87,7 @@ def main():
         print("  ✓ Tier 2 Passed: Cortex-M3 DHCSR Core Control Validated")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 2 Failed: CPU Halt/Unhalt failed")
+        print("  [FAIL] Tier 2 Failed: CPU Halt/Unhalt failed")
 
     # -------------------------------------------------------------------------
     # Tier 3: AHB System Bus & Chip Identification
@@ -118,7 +118,7 @@ def main():
         print("  ✓ Tier 3 Passed: AHB SRAM Read/Write & Peripheral Register Access Validated")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 3 Failed: AHB SRAM Read/Write Mismatch")
+        print("  [FAIL] Tier 3 Failed: AHB SRAM Read/Write Mismatch")
 
     # -------------------------------------------------------------------------
     # Tier 4: STM32F1 Flash Controller (FPEC) Algorithm
@@ -132,7 +132,7 @@ def main():
         print("  ✓ Tier 4 Passed: FPEC Key Unlock & 1 KiB Page Erase Verified")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 4 Failed: FPEC Erase returned error")
+        print("  [FAIL] Tier 4 Failed: FPEC Erase returned error")
 
     ser.close()
 
@@ -149,17 +149,17 @@ def main():
         print("  ✓ Tier 5 Passed: Application Flash Erase/Program/Verify/Run & Logic Analyzer Signal Capture Successful")
         passed_tiers += 1
     else:
-        print("  ❌ Tier 5 Failed: Flasher script returned error")
+        print("  [FAIL] Tier 5 Failed: Flasher script returned error")
 
     # -------------------------------------------------------------------------
     # Final Suite Summary
     # -------------------------------------------------------------------------
     print_header(f"SUITE RESULTS: {passed_tiers}/{total_tiers} Tiers Passed")
     if passed_tiers == total_tiers:
-        print("🎉 ALL 5 HARWARE VERIFICATION TIERS PASSED PERFECTLY!")
+        print("[PASS] ALL 5 HARWARE VERIFICATION TIERS PASSED PERFECTLY!")
         sys.exit(0)
     else:
-        print(f"❌ VERIFICATION FAILED: {total_tiers - passed_tiers} Tier(s) Errored.")
+        print(f"[FAIL] VERIFICATION FAILED: {total_tiers - passed_tiers} Tier(s) Errored.")
         sys.exit(1)
 
 if __name__ == "__main__":

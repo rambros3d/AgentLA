@@ -9,7 +9,7 @@ This change introduces hardware-resident Profiles and an Emergency Safe State sy
 - **32 On-Device Flash Profile Slots**: Allocates a dedicated 64 KB sector block (`FLASH_SIZE - 64KB`) in RP2350 flash storing up to 32 named profiles with Slot 0 reserved for factory Safe State.
 - **Strict Safe State Boot Contract**: Firmware boots into High-Z inputs with target power disabled by default, supporting an optional user-designated boot default profile.
 - **Safe Handover Engine**: Transits through a 5ms intermediate tri-state and power discharge window before applying a new profile to prevent drive contention.
-- **Emergency Safe State Control**: Prominent `[ 🛡️ SAFE STATE ]` header button and `Shift+Esc` hotkey for instant hardware tri-state and target power shutoff.
+- **Emergency Safe State Control**: Prominent `[ SAFE STATE ]` header button and `Shift+Esc` hotkey for instant hardware tri-state and target power shutoff.
 - **Cross-Board Graceful Partial Loading**: Enables profiles created on BakuProbe (48 GPIOs, CAN-FD, RS-485, INA180) to load cleanly on Pico 2 (30 GPIOs), applying all physically present pins/instruments and flagging skipped hardware in a compatibility dialog.
 - **Full Workbench State Snapshot**: Captures pin matrix assignments, logic analyzer sample rates/triggers, oscilloscope scales, bus adapter baud rates, power rails, and active protocol decoders.
 - **REST Endpoints**: `/api/profiles`, `/api/profiles/{id}`, `/api/profiles/{id}/apply`, `/api/profiles/{id}/boot`, and `/api/profiles/safe_state`.

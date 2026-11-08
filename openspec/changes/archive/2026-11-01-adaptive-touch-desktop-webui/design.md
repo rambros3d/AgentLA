@@ -48,16 +48,16 @@ We need a unified, touch-first and desktop-friendly architecture that provides o
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        Workspace Shell Layout                          │
 ├────────────────────────────────────────────────────────────────────────┤
-│ [Top Bar: Logo | Health Badge | Mode Switch: ▤/▥ | Theme Toggle ☀️/🌙] │
+│ [Top Bar: Logo | Health Badge | Mode Switch: ▤/▥ | Theme Toggle /] │
 ├────────────┬─────────────────────────────┬─────────────────────────────┤
 │ LEFT RAIL  │ SLOT 1                      │ SLOT 2 (Split View)         │
 │ (Desktop)  │ [Tool Selector / Header]    │ [Tool Selector / Header]    │
 │            │                             │                             │
-│ 🏠 Hub     │ Active Instrument View      │ Active Instrument View      │
-│ ⚡ Flasher  │                             │                             │
-│ 📊 Logic   │ (e.g. Logic Analyzer        │ (e.g. I3C Controller /      │
-│ 🔌 Adapter │  Waveform Canvas)           │  Serial Terminal)           │
-│ 💻 Terminal│                             │                             │
+│   Hub      │ Active Instrument View      │ Active Instrument View      │
+│   Flasher  │                             │                             │
+│   Logic    │ (e.g. Logic Analyzer        │ (e.g. I3C Controller /      │
+│   Adapter  │  Waveform Canvas)           │  Serial Terminal)           │
+│   Terminal │                             │                             │
 ├────────────┴─────────────────────────────┴─────────────────────────────┤
 │ BOTTOM BAR (Touch/Mobile Viewport: 48px+ thumb targets)                │
 └────────────────────────────────────────────────────────────────────────┘
