@@ -5241,6 +5241,86 @@ body.no-transparency {
     margin-top: 2px;
 }
 
+.telemetry-glass-popover {
+    width: 360px;
+    right: -48px;
+}
+
+/* ==========================================================================
+   Launchpad Project Info Hero
+   ========================================================================== */
+.launchpad-project-hero {
+    text-align: center;
+    margin: 18px auto 26px auto;
+    max-width: 660px;
+    padding: 20px 24px 18px 24px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.project-hero-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+    background: color-mix(in oklch, var(--color-primary) 12%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-primary) 30%, transparent);
+    padding: 3px 10px;
+    border-radius: 9999px;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+.project-hero-title {
+    font-size: 21px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin: 0 0 6px 0;
+}
+
+.project-hero-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 14px 0;
+}
+
+.project-hero-specs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.hero-spec-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--color-base-content) 5%, var(--bg-surface));
+    border: 1px solid var(--border-color);
+    padding: 4px 11px;
+    border-radius: 8px;
+    font-feature-settings: "tnum";
+}
+
+.hero-spec-chip .chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 0 6px var(--color-primary);
+}
+
 /* Dock Tooltips */
 .dock-icon-btn[data-dock-tooltip]::before {
     content: attr(data-dock-tooltip);
@@ -5344,6 +5424,223 @@ body.no-transparency {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     margin: 0 auto;
+}
+
+/* ==========================================================================
+   Manage Apps Dashboard Styles
+   ========================================================================== */
+
+.manage-apps-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.manage-apps-summary {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+}
+
+.manage-stat-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.manage-stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.manage-stat-val {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-feature-settings: "tnum";
+}
+
+.manage-apps-search-wrap {
+    min-width: 260px;
+    max-width: 360px;
+    flex: 1;
+}
+
+.manage-apps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.manage-app-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 16px;
+}
+
+.manage-app-row:hover {
+    border-color: color-mix(in oklch, var(--color-primary) 40%, var(--border-color));
+    background: color-mix(in oklch, var(--color-primary) 3%, var(--bg-surface));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.manage-app-main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    flex: 1;
+}
+
+.manage-app-thumb {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.manage-app-thumb img, .manage-app-thumb svg {
+    width: 30px;
+    height: 30px;
+    display: block;
+}
+
+.manage-app-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.manage-app-title-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.manage-app-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.manage-app-ver {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: color-mix(in oklch, var(--color-base-content) 8%, var(--bg-surface));
+    color: var(--text-muted);
+}
+
+.manage-app-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.manage-app-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.manage-app-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.manage-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 13px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.manage-btn:hover {
+    background: color-mix(in oklch, var(--color-base-content) 8%, var(--bg-surface));
+    border-color: color-mix(in oklch, var(--color-base-content) 25%, var(--border-color));
+}
+
+.manage-btn.btn-pin {
+    color: var(--text-secondary);
+}
+
+.manage-btn.btn-pin.is-pinned {
+    background: color-mix(in oklch, var(--color-primary) 12%, var(--bg-surface));
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.manage-btn.btn-pin.is-pinned:hover {
+    background: color-mix(in oklch, var(--color-primary) 20%, var(--bg-surface));
+}
+
+.manage-btn.btn-launch {
+    background: color-mix(in oklch, var(--color-primary) 14%, var(--bg-surface));
+    border-color: color-mix(in oklch, var(--color-primary) 30%, transparent);
+    color: var(--color-primary);
+}
+
+.manage-btn.btn-launch:hover {
+    background: var(--color-primary);
+    color: var(--color-primary-content, #fff);
+}
+
+.manage-btn.btn-delete {
+    color: var(--color-error, #f87171);
+    border-color: color-mix(in oklch, var(--color-error, #f87171) 30%, var(--border-color));
+}
+
+.manage-btn.btn-delete:hover {
+    background: color-mix(in oklch, var(--color-error, #f87171) 15%, var(--bg-surface));
+    border-color: var(--color-error, #f87171);
 }
 
 .os-switch-btn {

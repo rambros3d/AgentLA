@@ -4722,6 +4722,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { applyHashMode(); } catch (err) { console.error('[Init] Error in applyHashMode:', err); }
     try { initTelemetryHUD(); } catch (err) { console.error('[Init] Error in initTelemetryHUD:', err); }
     try { fetchStorage(); } catch (err) { console.error('[Init] Error in fetchStorage:', err); }
+    try { renderDockPinnedApps(); } catch (err) { console.error('[Init] Error in renderDockPinnedApps:', err); }
 
     console.log('AgentLA Unified Scope & Debugger initialized.');
 });
@@ -4753,8 +4754,14 @@ window.addEventListener('hashchange', applyHashMode);
 function toggleTelemetryHUD(e, forceState) {
     if (e && e.stopPropagation) e.stopPropagation();
     const hud = document.getElementById('telemetry-hud');
+    const storagePopover = document.getElementById('storage-glass-popover');
     const btn = document.getElementById('dock-btn-telemetry');
+    const storageBtn = document.getElementById('dock-btn-storage');
     if (!hud) return;
+    if (storagePopover) {
+        storagePopover.style.display = 'none';
+        if (storageBtn) storageBtn.classList.remove('active');
+    }
     const isVisible = hud.style.display !== 'none';
     const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
     hud.style.display = show ? 'block' : 'none';
@@ -4764,8 +4771,14 @@ function toggleTelemetryHUD(e, forceState) {
 function toggleStoragePopover(e, forceState) {
     if (e && e.stopPropagation) e.stopPropagation();
     const popover = document.getElementById('storage-glass-popover');
+    const hud = document.getElementById('telemetry-hud');
     const btn = document.getElementById('dock-btn-storage');
+    const telemBtn = document.getElementById('dock-btn-telemetry');
     if (!popover) return;
+    if (hud) {
+        hud.style.display = 'none';
+        if (telemBtn) telemBtn.classList.remove('active');
+    }
     const isVisible = popover.style.display !== 'none';
     const show = (typeof forceState === 'boolean') ? forceState : !isVisible;
     popover.style.display = show ? 'block' : 'none';
@@ -4774,6 +4787,27 @@ function toggleStoragePopover(e, forceState) {
         fetchStorage();
     }
 }
+
+// Global listener for closing floating dock popovers on outside click
+document.addEventListener('click', (e) => {
+    const storagePopover = document.getElementById('storage-glass-popover');
+    const storageBtn = document.getElementById('dock-btn-storage');
+    if (storagePopover && storagePopover.style.display === 'block') {
+        if (!storagePopover.contains(e.target) && (!storageBtn || !storageBtn.contains(e.target))) {
+            storagePopover.style.display = 'none';
+            if (storageBtn) storageBtn.classList.remove('active');
+        }
+    }
+    const hud = document.getElementById('telemetry-hud');
+    const telemBtn = document.getElementById('dock-btn-telemetry');
+    if (hud && hud.style.display === 'block') {
+        if (!hud.contains(e.target) && (!telemBtn || !telemBtn.contains(e.target))) {
+            hud.style.display = 'none';
+            if (telemBtn) telemBtn.classList.remove('active');
+        }
+    }
+});
+
 
 function openTerminalApp() {
     const isDemo = window.location.protocol === 'https:' || 
@@ -4786,6 +4820,82 @@ function openTerminalApp() {
         window.location.href = '/apps/terminal/';
     }
 }
+
+// Pinned Dock Apps Management (Persisted in localStorage & synced across tabs)
+const PINNED_DOCK_STORAGE_KEY = 'agentla_pinned_dock_apps';
+
+function getPinnedApps() {
+    try {
+        const stored = localStorage.getItem(PINNED_DOCK_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch (_) {}
+    return ['terminal']; // Default pinned app
+}
+
+function renderDockPinnedApps() {
+    const container = document.getElementById('dock-pinned-apps');
+    if (!container) return;
+    const pinned = getPinnedApps();
+    const isDemo = window.location.protocol === 'https:' || 
+                   window.location.hostname.includes('github.io') ||
+                   window.location.search.includes('demo=1') ||
+                   window.location.pathname.endsWith('.html');
+
+    let html = '';
+    pinned.forEach(appId => {
+        let appName = appId;
+        let clickAction = '';
+        let iconSvg = '';
+
+        if (appId === 'terminal') {
+            appName = 'Serial Terminal';
+            clickAction = 'openTerminalApp()';
+            iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
+                <path d="M13.4876 6.44591C13.8877 6.55311 14.1251 6.96437 14.0179 7.36447L11.4297 17.0237C11.3225 17.4238 10.9113 17.6613 10.5112 17.5541C10.1111 17.4468 9.87362 17.0356 9.98082 16.6355L12.569 6.97624C12.6762 6.57614 13.0875 6.3387 13.4876 6.44591Z" fill="currentColor"/>
+                <path d="M14.9692 8.46967C15.2621 8.17678 15.7369 8.17678 16.0298 8.46967L16.2382 8.67801C16.8735 9.3133 17.4033 9.84308 17.7674 10.3202C18.1516 10.8238 18.4211 11.3559 18.4211 12C18.4211 12.6441 18.1516 13.1762 17.7674 13.6798C17.4033 14.1569 16.8735 14.6867 16.2382 15.322L16.0298 15.5303C15.7369 15.8232 15.2621 15.8232 14.9692 15.5303C14.6763 15.2374 14.6763 14.7626 14.9692 14.4697L15.1408 14.2981C15.8224 13.6164 16.2792 13.1574 16.5748 12.7699C16.8573 12.3998 16.9211 12.1843 16.9211 12C16.9211 11.8157 16.8573 11.6002 16.5748 11.2301C16.2792 10.8426 15.8224 10.3836 15.1408 9.70191L14.9692 9.53033C14.6763 9.23744 14.6763 8.76257 14.9692 8.46967Z" fill="currentColor"/>
+                <path d="M7.96937 8.46967C8.26226 8.17678 8.73713 8.17678 9.03003 8.46967C9.32292 8.76257 9.32292 9.23744 9.03003 9.53033L8.85846 9.70191C8.1768 10.3836 7.72003 10.8426 7.42439 11.2301C7.14196 11.6002 7.07812 11.8157 7.07812 12C7.07812 12.1843 7.14196 12.3998 7.42439 12.7699C7.72003 13.1574 8.1768 13.6164 8.85846 14.2981L9.03003 14.4697C9.32292 14.7626 9.32292 15.2374 9.03003 15.5303C8.73714 15.8232 8.26226 15.8232 7.96937 15.5303L7.76102 15.322C7.12568 14.6867 6.59589 14.1569 6.23186 13.6798C5.84762 13.1762 5.57812 12.6441 5.57812 12C5.57812 11.3559 5.84762 10.8238 6.23186 10.3202C6.59589 9.84308 7.12569 9.31331 7.76102 8.67801L7.96937 8.46967Z" fill="currentColor"/>
+            </svg>`;
+        } else if (appId === 'servo-master') {
+            appName = 'Servo Master';
+            clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/apps/servo-master/'";
+            iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
+                <path d="M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" fill="currentColor"/>
+                <path d="M12 4V7M12 17V20M4 12H7M17 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>`;
+        } else {
+            clickAction = isDemo ? `window.location.href='apps/${encodeURIComponent(appId)}/index.html'` : `window.location.href='/apps/${encodeURIComponent(appId)}/'`;
+            iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
+                <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>`;
+        }
+
+        html += `<button class="dock-icon-btn" data-dock-tooltip="${appName}" onclick="${clickAction}">${iconSvg}</button>`;
+    });
+
+    container.innerHTML = html;
+}
+
+if (typeof BroadcastChannel !== 'undefined') {
+    try {
+        const dockChan = new BroadcastChannel('agentla-dock-channel');
+        dockChan.onmessage = (e) => {
+            if (e.data && e.data.type === 'DOCK_PIN_CHANGE') {
+                renderDockPinnedApps();
+            }
+        };
+    } catch (_) {}
+}
+window.addEventListener('storage', (e) => {
+    if (e.key === PINNED_DOCK_STORAGE_KEY) {
+        renderDockPinnedApps();
+    }
+});
 
 let deviceStorageData = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
 let deviceSystemData = { chip: "RP2350B", board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0-Forest" };
@@ -4807,11 +4917,13 @@ async function fetchStorage() {
 }
 
 function updateStorageDisplay() {
-    const romBytes = 1638400; // ~1.56 MB System ROM
-    const totalFlash = deviceSystemData.flash_bytes || (8 * 1024 * 1024);
-    const lfsTotal = deviceStorageData.total_bytes || (totalFlash - romBytes);
-    const lfsUsed = deviceStorageData.used_bytes || 1468006;
-    const lfsFree = (lfsTotal > lfsUsed) ? (lfsTotal - lfsUsed) : (deviceStorageData.free_bytes || 6920602);
+    if (!deviceStorageData && !deviceSystemData) return;
+
+    const totalFlash = (deviceSystemData && deviceSystemData.flash_bytes) ? deviceSystemData.flash_bytes : 4194304; // 4MB real RP2350 flash
+    const lfsTotal = (deviceStorageData && deviceStorageData.total_bytes) ? deviceStorageData.total_bytes : 1097728; // ~1.05 MB LittleFS
+    const lfsUsed = (deviceStorageData && deviceStorageData.used_bytes) ? deviceStorageData.used_bytes : 0;
+    const lfsFree = (deviceStorageData && deviceStorageData.free_bytes) ? deviceStorageData.free_bytes : Math.max(0, lfsTotal - lfsUsed);
+    const romBytes = Math.max(0, totalFlash - lfsTotal);
 
     const romPct = ((romBytes / totalFlash) * 100).toFixed(1);
     const appsPct = ((lfsUsed / totalFlash) * 100).toFixed(1);
@@ -4839,15 +4951,28 @@ function updateStorageDisplay() {
     if (lblApps) lblApps.innerText = `${formatBytes(lfsUsed)} (${appsPct}%)`;
     if (lblFree) lblFree.innerText = `${formatBytes(lfsFree)} (${freePct}%)`;
 
-    // Populate Hardware & Firmware System Specs inside Popover
+    // Update Flash Partitioning total
+    const totalFlashEl = document.getElementById('popover-total-flash');
+    if (totalFlashEl) totalFlashEl.innerText = formatBytes(totalFlash);
+
+    // Populate Hardware & Firmware System Specs inside Popover (no hardcoded BakuProbe or 8MB)
     const elChip = document.getElementById('popover-info-chip');
     const elClock = document.getElementById('popover-info-clock');
     const elBoard = document.getElementById('popover-info-board');
     const elFw = document.getElementById('popover-info-fw');
-    if (elChip) elChip.innerText = deviceSystemData.chip ? `${deviceSystemData.chip} Cortex-M33` : "RP2350B Cortex-M33";
-    if (elClock) elClock.innerText = (deviceSystemData.clock_mhz ? `${deviceSystemData.clock_mhz}MHz` : "150MHz") + " · 520KB";
-    if (elBoard) elBoard.innerText = deviceSystemData.board_name || "BakuProbe / Pico 2";
-    if (elFw) elFw.innerText = deviceSystemData.firmware_version || "v2.0-Forest";
+    if (elChip && deviceSystemData) {
+        elChip.innerText = `${deviceSystemData.chip || 'RP2350'} ${deviceSystemData.architecture || 'Cortex-M33'}`;
+    }
+    if (elClock && deviceSystemData) {
+        elClock.innerText = `${deviceSystemData.cores || 2} Cores @ ${deviceSystemData.clock_mhz || 150}MHz`;
+    }
+    if (elBoard && deviceSystemData) {
+        const sramKb = deviceSystemData.sram_bytes ? Math.round(deviceSystemData.sram_bytes / 1024) : 520;
+        elBoard.innerText = `${sramKb} KB SRAM`;
+    }
+    if (elFw && deviceSystemData) {
+        elFw.innerText = deviceSystemData.firmware || "AgentLA v1.0";
+    }
 }
 
 function initTelemetryHUD() {

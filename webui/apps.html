@@ -44,11 +44,11 @@
     <!-- Unified Clean OS Top Bar (Matching Workbench) -->
     <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
         <div class="bar-left navbar-start">
-            <div class="brand-item" id="brand-logo" title="AgentLA App Launcher" style="text-decoration:none; color:inherit; cursor:default; display:inline-flex; align-items:center; gap:8px;">
+            <a href="apps.html" class="brand-item" id="brand-logo" title="AgentLA Launcher (Home)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
                 <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
-            </div>
+            </a>
         </div>
 
         <div class="bar-right navbar-end">
@@ -83,13 +83,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Open Source Project Link -->
-            <a id="btn-open-source" href="https://rambros3d.github.io/AgentLA" target="_blank" rel="noopener noreferrer" class="theme-toggle-btn header-icon-btn" title="AgentLA Open Source Project" aria-label="Open Source Repository">
-                <svg class="solar-icon icon-osi" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M11.959.447A11.938 11.938 0 000 12.407c0 5.576 3.874 10.097 7.783 11.114.193.05.392-.05.467-.234l2.771-6.822a.396.396 0 00-.246-.528C9.365 15.47 8.53 14.32 8.48 12.4c-.024-1.828 1.5-3.45 3.561-3.447 1.931.003 3.479 1.632 3.479 3.453 0 .966-.203 1.687-.575 2.238-.371.552-.922.951-1.695 1.239a.396.396 0 00-.23.515l2.685 6.903a.396.396 0 00.465.24C20.163 22.534 24 18.062 24 12.406 24 5.804 18.603.447 11.959.447zm0 .791c6.22 0 11.25 4.997 11.25 11.168 0 5.138-3.423 9.208-6.895 10.272L13.9 16.47c.703-.308 1.302-.79 1.702-1.384.477-.708.709-1.602.709-2.68 0-2.266-1.898-4.24-4.27-4.244-2.48-.004-4.382 1.976-4.352 4.25.023 1.995.934 3.492 2.451 4.13L7.648 22.66C4.251 21.592.791 17.458.791 12.406A11.13 11.13 0 0111.959 1.238zm10.617 20.149a1.03 1.03 0 000 2.058 1.03 1.03 0 000-2.058zm0 .162c.48 0 .865.388.865.867a.856.856 0 01-.271.623l-.172-.342a.847.847 0 00-.111-.178.263.263 0 00-.114-.084.301.301 0 00.17-.117.356.356 0 00.061-.21c0-.13-.038-.227-.113-.292-.076-.064-.192-.095-.346-.095h-.41v1.343h.181v-.568h.2c.072 0 .128.015.17.045a.48.48 0 01.129.18l.171.343.157.001a.878.878 0 01-.567.216.865.865 0 010-1.732zm-.26.322h.229c.088 0 .155.018.2.059.044.04.066.099.066.177 0 .079-.022.14-.067.18-.044.04-.111.06-.2.06h-.228z"/>
-                </svg>
-            </a>
 
             <!-- Tri-State Theme Toggle (System -> Light -> Dark -> System) -->
             <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)" aria-label="Toggle Theme Mode">
@@ -144,6 +137,13 @@
                             </svg>
                             Launchpad
                         </button>
+                        <button class="os-switch-btn" id="tab-btn-manage" onclick="switchLauncherView('manage')">
+                            <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M14.2788 2.15224C13.9085 2 13.439 2 12.5 2C11.561 2 11.0915 2 10.7212 2.15224C10.2274 2.35523 9.83509 2.74458 9.63056 3.23463C9.53719 3.45834 9.50065 3.7185 9.48635 4.09799C9.46534 4.65568 9.17716 5.17189 8.69017 5.45093C8.20318 5.72996 7.60864 5.71954 7.11149 5.45876C6.77318 5.2813 6.52789 5.18262 6.28599 5.15102C5.75609 5.08178 5.22018 5.22429 4.79616 5.5472C4.47814 5.78938 4.24339 6.1929 3.7739 6.99993C3.30441 7.80697 3.06967 8.21048 3.01735 8.60491C2.94758 9.1308 3.09118 9.66266 3.41655 10.0835C3.56506 10.2756 3.77377 10.437 4.0977 10.639C4.57391 10.936 4.88032 11.4419 4.88029 12C4.88026 12.5581 4.57386 13.0639 4.0977 13.3608C3.77372 13.5629 3.56497 13.7244 3.41645 13.9165C3.09108 14.3373 2.94749 14.8691 3.01725 15.395C3.06957 15.7894 3.30432 16.193 3.7738 17C4.24329 17.807 4.47804 18.2106 4.79606 18.4527C5.22008 18.7756 5.75599 18.9181 6.28589 18.8489C6.52778 18.8173 6.77305 18.7186 7.11133 18.5412C7.60852 18.2804 8.2031 18.27 8.69012 18.549C9.17714 18.8281 9.46533 19.3443 9.48635 19.9021C9.50065 20.2815 9.53719 20.5417 9.63056 20.7654C9.83509 21.2554 10.2274 21.6448 10.7212 21.8478C11.0915 22 11.561 22 12.5 22C13.439 22 13.9085 22 14.2788 21.8478C14.7726 21.6448 15.1649 21.2554 15.3694 20.7654C15.4628 20.5417 15.4994 20.2815 15.5137 19.902C15.5347 19.3443 15.8228 18.8281 16.3098 18.549C16.7968 18.2699 17.3914 18.2804 17.8886 18.5412C18.2269 18.7186 18.4721 18.8172 18.714 18.8488C19.2439 18.9181 19.7798 18.7756 20.2038 18.4527C20.5219 18.2105 20.7566 17.807 21.2261 16.9999C21.6956 16.1929 21.9303 15.7894 21.9827 15.395C22.0524 14.8691 21.9088 14.3372 21.5835 13.9164C21.4349 13.7243 21.2262 13.5628 20.9022 13.3608C20.4261 13.0639 20.1197 12.558 20.1197 11.9999C20.1197 11.4418 20.4261 10.9361 20.9022 10.6392C21.2263 10.4371 21.435 10.2757 21.5836 10.0835C21.9089 9.66273 22.0525 9.13087 21.9828 8.60497C21.9304 8.21055 21.6957 7.80703 21.2262 7C20.7567 6.19297 20.522 5.78945 20.2039 5.54727C19.7799 5.22436 19.244 5.08185 18.7141 5.15109C18.4722 5.18269 18.2269 5.28136 17.8887 5.4588C17.3915 5.71959 16.7969 5.73002 16.3099 5.45096C15.8229 5.17191 15.5347 4.65566 15.5136 4.09794C15.4993 3.71848 15.4628 3.45833 15.3694 3.23463C15.1649 2.74458 14.7726 2.35523 14.2788 2.15224Z" fill="currentColor"/>
+                                <path d="M15.5227 12C15.5227 13.6569 14.1694 15 12.4999 15C10.8304 15 9.47705 13.6569 9.47705 12C9.47705 10.3431 10.8304 9 12.4999 9C14.1694 9 15.5227 10.3431 15.5227 12Z" fill="currentColor"/>
+                            </svg>
+                            Manage Apps
+                        </button>
                         <button class="os-switch-btn" id="tab-btn-appstore" onclick="switchLauncherView('store')">
                             <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path opacity="0.5" d="M3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355Z" fill="currentColor"/>
@@ -156,15 +156,21 @@
 
                 <!-- VIEW 1: Launchpad Desktop View -->
                 <div id="view-launchpad">
-                    <!-- Centered Spotlight Search Bar -->
-                    <div class="launcher-spotlight">
-                        <div class="launcher-spotlight-wrapper">
-                            <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"/>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                            </svg>
-                            <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search apps, instruments, and protocols... (Press / to focus)" autocomplete="off">
-                            <kbd class="kbd kbd-sm spotlight-shortcut-hint">/</kbd>
+                    <!-- Project Info Hero -->
+                    <div class=launchpad-project-hero>
+                        <div class=project-hero-badge>
+                            <span class=chip-dot></span>
+                            AGENTLA EMBEDDED OS
+                        </div>
+                        <h1 class=project-hero-title>Open Hardware Analysis &amp; Automation Platform</h1>
+                        <p class=project-hero-desc>
+                            Dual-Core RP2350 mixed-signal workstation combining 100&nbsp;MS/s logic analyzer, DSO, CMSIS-DAP/SWD target debugger, scriptable bus protocol adapters, and a dynamic hardware pin multiplexer in zero-heap bare-metal Rust.
+                        </p>
+                        <div class=project-hero-specs>
+                            <span class=hero-spec-chip><span class=chip-dot></span> RP2350 Dual Cortex-M33 @ 150MHz</span>
+                            <span class=hero-spec-chip><span class=chip-dot></span> Embassy Async Realtime I/O</span>
+                            <span class=hero-spec-chip><span class=chip-dot></span> Dynamic Pin Matrix Arbiter</span>
+                            <span class=hero-spec-chip><span class=chip-dot></span> Sandboxed WebAssembly Apps</span>
                         </div>
                     </div>
 
@@ -217,16 +223,16 @@
                                 <span class="os-squircle-sublabel">SWD·FLM</span>
                             </button>
 
-                            <!-- Pin Crossbar -->
-                            <button class="os-squircle-tile accent-pins" onclick="openLab('pins')" data-name="Pin Crossbar" data-tags="Pins GPIO Matrix Multiplexer Routing Crossbar" data-desc="Dynamic pin routing crossbar switch, software multiplexer, and emergency high-Z safe state." title="Pin Crossbar Switch">
+                            <!-- Pin Control -->
+                            <button class="os-squircle-tile accent-pins" onclick="openLab('pins')" data-name="Pin Control" data-tags="Pins GPIO Matrix Multiplexer Routing Crossbar PinControl" data-desc="Dynamic pin routing crossbar switch, software multiplexer, and emergency high-Z safe state." title="Pin Control (Matrix Crossbar &amp; Safe State)">
                                 <div class="os-squircle-icon">
                                     <svg class="solar-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C12.3853 3 12.6977 3.31236 12.6977 3.69767V6.48884C13.2084 6.48991 13.6717 6.49342 14.0932 6.50495L14.093 6.48837V3.69767C14.093 3.31236 14.4054 3 14.7907 3C15.176 3 15.4884 3.31236 15.4884 3.69767V6.48837C15.4884 6.52487 15.4856 6.56072 15.4802 6.5957C16.4162 6.71067 17.0648 6.94879 17.558 7.44198C18.0512 7.93517 18.2893 8.58381 18.4043 9.51984C18.4393 9.51443 18.4751 9.51163 18.5116 9.51163H21.3023C21.6876 9.51163 22 9.82399 22 10.2093C22 10.5946 21.6876 10.907 21.3023 10.907H18.5116L18.495 10.9068C18.5066 11.3283 18.5106 11.7916 18.5116 12.3023H21.3023C21.6876 12.3023 22 12.6147 22 13C22 13.3853 21.6876 13.6977 21.3023 13.6977L18.5112 13.6977C18.5101 14.2084 18.5066 14.6717 18.495 15.0932L18.5116 15.093H21.3023C21.6876 15.093 22 15.4054 22 15.7907C22 16.176 21.6876 16.4884 21.3023 16.4884H18.5116C18.4751 16.4884 18.4393 16.4856 18.4043 16.4802C18.2893 17.4162 18.0512 18.0648 17.558 18.558C17.0648 19.0512 16.4162 19.2893 15.4802 19.4043C15.4856 19.4393 15.4884 19.4751 15.4884 19.5116V22.3023C15.4884 22.6876 15.176 23 14.7907 23C14.4054 23 14.093 22.6876 14.093 22.3023V19.5116L14.0932 19.495C13.6717 19.5066 13.2084 19.5106 12.6977 19.5116V22.3023C12.6977 22.6876 12.3853 23 12 23C11.6147 23 11.3023 22.6876 11.3023 22.3023L11.3023 19.5112C10.7916 19.5101 10.3283 19.5066 9.90678 19.495L9.90698 19.5116V22.3023C9.90698 22.6876 9.59462 23 9.2093 23C8.82399 23 8.51163 22.6876 8.51163 22.3023V19.5116C8.51163 19.4751 8.51443 19.4393 8.51984 19.4043C7.58381 19.2893 6.93517 19.0512 6.44198 18.558C5.94879 18.0648 5.71067 17.4162 5.5957 16.4802C5.56071 16.4856 5.52487 16.4884 5.48837 16.4884H2.69767C2.31236 16.4884 2 16.176 2 15.7907C2 15.4054 2.31236 15.093 2.69767 15.093H5.48837L5.50495 15.0932C5.49342 14.6717 5.48944 14.2084 5.48837 13.6977H2.69767C2.31236 13.6977 2 13.3853 2 13C2 12.6147 2.31236 12.3023 2.69767 12.3023L5.48884 12.3023C5.48991 11.7916 5.49342 11.3283 5.50495 10.9068L5.48837 10.907H2.69767C2.31236 10.907 2 10.2093 2 10.2093C2 9.82399 2.31236 9.51163 2.69767 9.51163H5.48837C5.52487 9.51163 5.56071 9.51443 5.5957 9.51984C5.71067 8.58381 5.94879 7.93517 6.44198 7.44198C6.93517 6.94879 7.58381 6.71067 8.51984 6.5957C8.51443 6.56072 8.51163 6.52487 8.51163 6.48837V3.69767C8.51163 3.31236 8.82399 3 9.2093 3C9.59462 3 9.90698 3.31236 9.90698 3.69767V6.48837L9.90678 6.50495C10.3283 6.49342 10.7916 6.48944 11.3023 6.48837V3.69767C11.3023 3.31236 11.6147 3 12 3ZM11.0238 8.5814C10.4054 8.58136 9.87247 8.58133 9.44573 8.63871C8.98839 8.70019 8.55001 8.83885 8.19443 9.19443C7.83885 9.55001 7.70019 9.98839 7.63871 10.4457C7.58133 10.8725 7.58136 11.4054 7.5814 12.0238V13.9762C7.58136 14.5946 7.58133 15.1275 7.63871 15.5543C7.70019 16.0116 7.83885 16.45 8.19443 16.8056C8.55001 17.1612 8.98839 17.2998 9.44573 17.3613C9.87247 17.4187 10.4054 17.4186 11.0238 17.4186H12.9762C13.5946 17.4186 14.1275 17.4187 14.5543 17.3613C15.0116 17.2998 15.45 17.1612 15.8056 16.8056C16.1612 16.45 16.2998 16.0116 16.3613 15.5543C16.4187 15.1275 16.4186 14.5946 16.4186 13.9762V12.0238C16.4186 11.4054 16.4187 10.8725 16.3613 10.4457C16.2998 9.98839 16.1612 9.55001 15.8056 9.19443C15.45 8.83885 15.0116 8.70019 14.5543 8.63871C14.1275 8.58133 13.5947 8.58136 12.9762 8.5814H11.0238Z" fill="currentColor"/>
                                         <path opacity="0.5" d="M9.18091 10.1809C9.23402 10.1278 9.32886 10.0621 9.63147 10.0214C9.95415 9.97804 10.3921 9.97656 11.0696 9.97656H12.9301C13.6075 9.97656 14.0455 9.97804 14.3682 10.0214C14.6708 10.0621 14.7656 10.1278 14.8187 10.1809C14.8718 10.234 14.9375 10.3289 14.9782 10.6315C15.0216 10.9542 15.0231 11.3921 15.0231 12.0696V13.9301C15.0231 14.6075 15.0216 15.0455 14.9782 15.3682C14.9375 15.6708 14.8718 15.7656 14.8187 15.8187C14.7656 15.8718 14.6708 15.9375 14.3682 15.9782C14.0455 16.0216 13.6075 16.0231 12.9301 16.0231H11.0696C10.3921 16.0231 9.95415 16.0216 9.63147 15.9782C9.32886 15.9375 9.23402 15.8718 9.18091 15.8187C9.1278 15.7656 9.06211 15.6708 9.02143 15.3682C8.97804 15.0455 8.97656 14.6075 8.97656 13.9301V12.0696C8.97656 11.3921 8.97804 10.9542 9.02143 10.6315C9.06211 10.3289 9.1278 10.234 9.18091 10.1809Z" fill="currentColor"/>
                                     </svg>
                                 </div>
-                                <span class="os-squircle-label">Crossbar</span>
-                                <span class="os-squircle-sublabel">Routing·Safe</span>
+                                <span class="os-squircle-label">Pin Control</span>
+                                <span class="os-squircle-sublabel">Matrix Crossbar</span>
                             </button>
 
                             <!-- Firmware Console -->
@@ -260,7 +266,32 @@
                     </section>
                 </div>
 
-                <!-- VIEW 2: App Store Catalog View (Full Screen) -->
+                <!-- VIEW 2: Manage Apps View -->
+                <div id="view-manage" style="display: none;">
+                    <div class="manage-apps-header">
+                        <div class="manage-apps-summary">
+                            <div class="manage-stat-box">
+                                <span class="manage-stat-label">INSTALLED APPS</span>
+                                <span class="manage-stat-val" id="manage-installed-count">0</span>
+                            </div>
+                            <div class="manage-stat-box">
+                                <span class="manage-stat-label">STORAGE USED</span>
+                                <span class="manage-stat-val" id="manage-storage-used">0 B</span>
+                            </div>
+                            <div class="manage-stat-box">
+                                <span class="manage-stat-label">FREE FLASH</span>
+                                <span class="manage-stat-val" id="manage-storage-free">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Installed Apps Management List -->
+                    <div class="manage-apps-list" id="manage-apps-list">
+                        <!-- Rendered dynamically via renderManageApps() -->
+                    </div>
+                </div>
+
+                <!-- VIEW 3: App Store Catalog View (Full Screen) -->
                 <div id="view-appstore" style="display: none;">
                     <!-- App Store Category Bar -->
                     <div class="store-category-bar">
@@ -358,25 +389,55 @@
             </svg>
         </button>
 
-        <!-- Serial Terminal Quick Launch -->
-        <button class="dock-icon-btn" data-dock-tooltip="Serial Terminal" onclick="openTerminalApp()">
-            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-                <path d="M13.4876 6.44591C13.8877 6.55311 14.1251 6.96437 14.0179 7.36447L11.4297 17.0237C11.3225 17.4238 10.9113 17.6613 10.5112 17.5541C10.1111 17.4468 9.87362 17.0356 9.98082 16.6355L12.569 6.97624C12.6762 6.57614 13.0875 6.3387 13.4876 6.44591Z" fill="currentColor"/>
-                <path d="M14.9692 8.46967C15.2621 8.17678 15.7369 8.17678 16.0298 8.46967L16.2382 8.67801C16.8735 9.3133 17.4033 9.84308 17.7674 10.3202C18.1516 10.8238 18.4211 11.3559 18.4211 12C18.4211 12.6441 18.1516 13.1762 17.7674 13.6798C17.4033 14.1569 16.8735 14.6867 16.2382 15.322L16.0298 15.5303C15.7369 15.8232 15.2621 15.8232 14.9692 15.5303C14.6763 15.2374 14.6763 14.7626 14.9692 14.4697L15.1408 14.2981C15.8224 13.6164 16.2792 13.1574 16.5748 12.7699C16.8573 12.3998 16.9211 12.1843 16.9211 12C16.9211 11.8157 16.8573 11.6002 16.5748 11.2301C16.2792 10.8426 15.8224 10.3836 15.1408 9.70191L14.9692 9.53033C14.6763 9.23744 14.6763 8.76257 14.9692 8.46967Z" fill="currentColor"/>
-                <path d="M7.96937 8.46967C8.26226 8.17678 8.73713 8.17678 9.03003 8.46967C9.32292 8.76257 9.32292 9.23744 9.03003 9.53033L8.85846 9.70191C8.1768 10.3836 7.72003 10.8426 7.42439 11.2301C7.14196 11.6002 7.07812 11.8157 7.07812 12C7.07812 12.1843 7.14196 12.3998 7.42439 12.7699C7.72003 13.1574 8.1768 13.6164 8.85846 14.2981L9.03003 14.4697C9.32292 14.7626 9.32292 15.2374 9.03003 15.5303C8.73714 15.8232 8.26226 15.8232 7.96937 15.5303L7.76102 15.322C7.12568 14.6867 6.59589 14.1569 6.23186 13.6798C5.84762 13.1762 5.57812 12.6441 5.57812 12C5.57812 11.3559 5.84762 10.8238 6.23186 10.3202C6.59589 9.84308 7.12569 9.31331 7.76102 8.67801L7.96937 8.46967Z" fill="currentColor"/>
-            </svg>
-        </button>
+        <!-- Pinned LittleFS Applications in Dock -->
+        <div id="dock-pinned-apps" style="display: contents;"></div>
 
         <div class="dock-separator"></div>
 
-        <!-- Dedicated Hardware Telemetry HUD Icon -->
-        <button class="dock-icon-btn" id="dock-btn-telemetry" data-dock-tooltip="Hardware Telemetry HUD" onclick="toggleTelemetryHUD(event)">
-            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
-                <path fill="currentColor" d="M2.00781 14.25C2.0443 17.5057 2.25442 19.3254 3.46461 20.5356C4.92908 22 7.2861 22 12.0001 22C16.7142 22 19.0712 22 20.5357 20.5356C21.7459 19.3254 21.956 17.5057 21.9925 14.25H19.0757C18.3381 14.25 18.1984 14.2344 18.0852 14.183C17.972 14.1316 17.8682 14.0368 17.3824 13.4817L15.5786 11.4202C15.4115 11.229 15.2372 11.0297 15.07 10.8863C14.8788 10.7223 14.5884 10.5346 14.1939 10.5527C13.7994 10.5709 13.5274 10.7844 13.352 10.9653C13.1987 11.1234 13.0434 11.3379 12.8945 11.5435L9.24075 16.5868C9.14847 16.7141 8.96574 16.7264 8.85727 16.6125L7.71566 15.4138L7.64145 15.3357C7.27927 14.9542 6.95775 14.6156 6.52932 14.4319C6.1009 14.2483 5.63391 14.2491 5.10787 14.2499L5.00015 14.25H2.00781Z"/>
-            </svg>
-        </button>
+                <!-- Dedicated Hardware Telemetry HUD (Solar bold duotone pulse icon) -->
+        <div class="dock-item-wrapper">
+            <button class="dock-icon-btn" id="dock-btn-telemetry" data-dock-tooltip="Hardware Telemetry" onclick="toggleTelemetryHUD(event)">
+                <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
+                    <path fill="currentColor" d="M2.00781 14.25C2.0443 17.5057 2.25442 19.3254 3.46461 20.5356C4.92908 22 7.2861 22 12.0001 22C16.7142 22 19.0712 22 20.5357 20.5356C21.7459 19.3254 21.956 17.5057 21.9925 14.25H19.0757C18.3381 14.25 18.1984 14.2344 18.0852 14.183C17.972 14.1316 17.8682 14.0368 17.3824 13.4817L15.5786 11.4202C15.4115 11.229 15.2372 11.0297 15.07 10.8863C14.8788 10.7223 14.5884 10.5346 14.1939 10.5527C13.7994 10.5709 13.5274 10.7844 13.352 10.9653C13.1987 11.1234 13.0434 11.3379 12.8945 11.5435L9.24075 16.5868C9.14847 16.7141 8.96574 16.7264 8.85727 16.6125L7.71566 15.4138L7.64145 15.3357C7.27927 14.9542 6.95775 14.6156 6.52932 14.4319C6.1009 14.2483 5.63391 14.2491 5.10787 14.2499L5.00015 14.25H2.00781Z"/>
+                </svg>
+            </button>
+
+            <!-- Floating Glass Popover (Matching Device Info style) -->
+            <div class="storage-glass-popover telemetry-glass-popover" id="telemetry-hud" style="display: none;" onclick="event.stopPropagation()">
+                <div class="popover-header">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
+                            <path fill="currentColor" d="M2.00781 14.25C2.0443 17.5057 2.25442 19.3254 3.46461 20.5356C4.92908 22 7.2861 22 12.0001 22C16.7142 22 19.0712 22 20.5357 20.5356C21.7459 19.3254 21.956 17.5057 21.9925 14.25H19.0757C18.3381 14.25 18.1984 14.2344 18.0852 14.183C17.972 14.1316 17.8682 14.0368 17.3824 13.4817L15.5786 11.4202C15.4115 11.229 15.2372 11.0297 15.07 10.8863C14.8788 10.7223 14.5884 10.5346 14.1939 10.5527C13.7994 10.5709 13.5274 10.7844 13.352 10.9653C13.1987 11.1234 13.0434 11.3379 12.8945 11.5435L9.24075 16.5868C9.14847 16.7141 8.96574 16.7264 8.85727 16.6125L7.71566 15.4138L7.64145 15.3357C7.27927 14.9542 6.95775 14.6156 6.52932 14.4319C6.1009 14.2483 5.63391 14.2491 5.10787 14.2499L5.00015 14.25H2.00781Z"/>
+                        </svg>
+                        <span class="popover-title">Hardware Telemetry</span>
+                    </div>
+                    <span id="hud-alarm-badge" class="badge-alarm" style="display: none;">OVERCURRENT</span>
+                </div>
+
+                <!-- Live Metrics Grid -->
+                <div class="popover-info-grid">
+                    <div class="info-pill"><span class="info-label">V_TARGET</span><span class="info-val" id="hud-vtarget">-- V</span></div>
+                    <div class="info-pill"><span class="info-label">I_TARGET</span><span class="info-val" id="hud-itarget">-- mA</span></div>
+                    <div class="info-pill"><span class="info-label">POWER</span><span class="info-val" id="hud-ptarget">-- mW</span></div>
+                    <div class="info-pill"><span class="info-label">CORE TEMP</span><span class="info-val" id="hud-temp">-- °C</span></div>
+                </div>
+
+                <!-- GPIO Pin Claims -->
+                <div class="popover-storage-section">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                        GPIO Pin Claims (GP0–GP29)
+                    </div>
+                    <div class="hud-pin-matrix" id="hud-pin-matrix"></div>
+                </div>
+
+                <div id="hud-overcurrent-banner" class="hud-alert-banner" style="display: none; margin-top: 6px;">
+                    <div>⚠️ Overcurrent trip! Pins in High-Z.</div>
+                    <button style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.6875rem; cursor: pointer;" onclick="fetch('/api/v1/system/telemetry')">Reset</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Device & Storage Info Icon (Solar info-square-bold-duotone) -->
         <div class="dock-item-wrapper">
@@ -401,28 +462,28 @@
                     </div>
                 </div>
 
-                <!-- Hardware & Firmware Specs (Moved from System Settings) -->
+                <!-- Hardware & Firmware Specs (No hardcoded values) -->
                 <div class="popover-info-grid">
-                    <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="popover-info-chip">RP2350B Cortex-M33</span></div>
-                    <div class="info-pill"><span class="info-label">CLOCK / SRAM</span><span class="info-val" id="popover-info-clock">150MHz · 520KB</span></div>
-                    <div class="info-pill"><span class="info-label">BOARD PROFILE</span><span class="info-val" id="popover-info-board">BakuProbe / Pico 2</span></div>
-                    <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="popover-info-fw">v2.0-Forest</span></div>
+                    <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="popover-info-chip">--</span></div>
+                    <div class="info-pill"><span class="info-label">CORES / CLOCK</span><span class="info-val" id="popover-info-clock">--</span></div>
+                    <div class="info-pill"><span class="info-label">SRAM MEMORY</span><span class="info-val" id="popover-info-board">--</span></div>
+                    <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="popover-info-fw">--</span></div>
                 </div>
 
                 <!-- Flash Partitioning -->
                 <div class="popover-storage-section">
                     <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                        Flash Partitioning (8 MB Total)
+                        Flash Partitioning (<span id="popover-total-flash">--</span> Total)
                     </div>
                     <div class="storage-segmented-bar" id="storage-bar">
-                        <div class="segment-rom" id="seg-rom" style="width: 25%;" title="System ROM Firmware"></div>
-                        <div class="segment-apps" id="seg-apps" style="width: 15%;" title="Installed Apps (LittleFS)"></div>
-                        <div class="segment-free" id="seg-free" style="width: 60%;" title="Free LittleFS Flash Space"></div>
+                        <div class="segment-rom" id="seg-rom" style="width: 0%;" title="System ROM Firmware"></div>
+                        <div class="segment-apps" id="seg-apps" style="width: 0%;" title="Installed Apps (LittleFS)"></div>
+                        <div class="segment-free" id="seg-free" style="width: 0%;" title="Free LittleFS Flash Space"></div>
                     </div>
                     <div class="storage-dock-legend" style="margin-top: 6px;">
-                        <span class="legend-item"><span class="legend-dot seg-dot-rom"></span> ROM: <span id="label-rom">~1.56 MB</span></span>
-                        <span class="legend-item"><span class="legend-dot seg-dot-apps"></span> Apps: <span id="label-apps">0 B</span></span>
-                        <span class="legend-item"><span class="legend-dot seg-dot-free"></span> Free: <span id="label-free">0 B</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-rom"></span> ROM: <span id="label-rom">--</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-apps"></span> Apps: <span id="label-apps">--</span></span>
+                        <span class="legend-item"><span class="legend-dot seg-dot-free"></span> Free: <span id="label-free">--</span></span>
                     </div>
                 </div>
             </div>
@@ -1199,31 +1260,240 @@
 
         let currentLauncherView = 'launchpad';
 
+        // Pinned Dock Apps Management (Persisted in localStorage & synced across tabs)
+        const PINNED_DOCK_STORAGE_KEY = 'agentla_pinned_dock_apps';
+
+        function getPinnedApps() {
+            try {
+                const stored = localStorage.getItem(PINNED_DOCK_STORAGE_KEY);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (_) {}
+            return ['terminal']; // Default pinned app
+        }
+
+        function setPinnedApps(list) {
+            try {
+                localStorage.setItem(PINNED_DOCK_STORAGE_KEY, JSON.stringify(list));
+            } catch (_) {}
+            renderDockPinnedApps();
+            if (typeof BroadcastChannel !== 'undefined') {
+                try {
+                    const ch = new BroadcastChannel('agentla-dock-channel');
+                    ch.postMessage({ type: 'DOCK_PIN_CHANGE', list });
+                } catch (_) {}
+            }
+        }
+
+        function isAppPinned(appId) {
+            return getPinnedApps().includes(appId);
+        }
+
+        function toggleDockPin(appId) {
+            let list = getPinnedApps();
+            if (list.includes(appId)) {
+                list = list.filter(id => id !== appId);
+            } else {
+                list.push(appId);
+            }
+            setPinnedApps(list);
+            renderManageApps();
+        }
+
+        function renderDockPinnedApps() {
+            const container = document.getElementById('dock-pinned-apps');
+            if (!container) return;
+            const pinned = getPinnedApps();
+            
+            let html = '';
+            pinned.forEach(appId => {
+                const installed = installedApps.find(a => a.id === appId) || { id: appId, name: appId };
+                const appName = installed.title || installed.name || appId;
+                
+                let clickAction = '';
+                if (appId === 'terminal') {
+                    clickAction = 'openTerminalApp()';
+                } else if (appId === 'servo-master') {
+                    clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/apps/servo-master/'";
+                } else {
+                    const path = installed.path || `/apps/${encodeURIComponent(appId)}/`;
+                    clickAction = `window.location.href='${path}'`;
+                }
+
+                // Solar Duotone Icons for known dock apps
+                let iconSvg = '';
+                if (appId === 'terminal') {
+                    iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                        <path d="M13.4876 6.44591C13.8877 6.55311 14.1251 6.96437 14.0179 7.36447L11.4297 17.0237C11.3225 17.4238 10.9113 17.6613 10.5112 17.5541C10.1111 17.4468 9.87362 17.0356 9.98082 16.6355L12.569 6.97624C12.6762 6.57614 13.0875 6.3387 13.4876 6.44591Z" fill="currentColor"/>
+                        <path d="M14.9692 8.46967C15.2621 8.17678 15.7369 8.17678 16.0298 8.46967L16.2382 8.67801C16.8735 9.3133 17.4033 9.84308 17.7674 10.3202C18.1516 10.8238 18.4211 11.3559 18.4211 12C18.4211 12.6441 18.1516 13.1762 17.7674 13.6798C17.4033 14.1569 16.8735 14.6867 16.2382 15.322L16.0298 15.5303C15.7369 15.8232 15.2621 15.8232 14.9692 15.5303C14.6763 15.2374 14.6763 14.7626 14.9692 14.4697L15.1408 14.2981C15.8224 13.6164 16.2792 13.1574 16.5748 12.7699C16.8573 12.3998 16.9211 12.1843 16.9211 12C16.9211 11.8157 16.8573 11.6002 16.5748 11.2301C16.2792 10.8426 15.8224 10.3836 15.1408 9.70191L14.9692 9.53033C14.6763 9.23744 14.6763 8.76257 14.9692 8.46967Z" fill="currentColor"/>
+                        <path d="M7.96937 8.46967C8.26226 8.17678 8.73713 8.17678 9.03003 8.46967C9.32292 8.76257 9.32292 9.23744 9.03003 9.53033L8.85846 9.70191C8.1768 10.3836 7.72003 10.8426 7.42439 11.2301C7.14196 11.6002 7.07812 11.8157 7.07812 12C7.07812 12.1843 7.14196 12.3998 7.42439 12.7699C7.72003 13.1574 8.1768 13.6164 8.85846 14.2981L9.03003 14.4697C9.32292 14.7626 9.32292 15.2374 9.03003 15.5303C8.73714 15.8232 8.26226 15.8232 7.96937 15.5303L7.76102 15.322C7.12568 14.6867 6.59589 14.1569 6.23186 13.6798C5.84762 13.1762 5.57812 12.6441 5.57812 12C5.57812 11.3559 5.84762 10.8238 6.23186 10.3202C6.59589 9.84308 7.12569 9.31331 7.76102 8.67801L7.96937 8.46967Z" fill="currentColor"/>
+                    </svg>`;
+                } else if (appId === 'servo-master') {
+                    iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
+                        <path d="M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" fill="currentColor"/>
+                        <path d="M12 4V7M12 17V20M4 12H7M17 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>`;
+                } else if (installed.iconSvg) {
+                    iconSvg = installed.iconSvg;
+                } else {
+                    iconSvg = solarFallbackSvg;
+                }
+
+                html += `<button class="dock-icon-btn" data-dock-tooltip="${escapeHtml(appName)}" onclick="${clickAction}">${iconSvg}</button>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Listen for dock pin updates from other tabs
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const dockChan = new BroadcastChannel('agentla-dock-channel');
+                dockChan.onmessage = (e) => {
+                    if (e.data && e.data.type === 'DOCK_PIN_CHANGE') {
+                        renderDockPinnedApps();
+                        renderManageApps();
+                    }
+                };
+            } catch (_) {}
+        }
+        window.addEventListener('storage', (e) => {
+            if (e.key === PINNED_DOCK_STORAGE_KEY) {
+                renderDockPinnedApps();
+                renderManageApps();
+            }
+        });
+
         function switchLauncherView(view) {
             currentLauncherView = view;
             const btnLaunchpad = document.getElementById('tab-btn-launchpad');
+            const btnManage = document.getElementById('tab-btn-manage');
             const btnAppStore = document.getElementById('tab-btn-appstore');
+
             const viewLaunchpad = document.getElementById('view-launchpad');
+            const viewManage = document.getElementById('view-manage');
             const viewAppStore = document.getElementById('view-appstore');
 
+            if (btnLaunchpad) btnLaunchpad.classList.toggle('active', view === 'launchpad');
+            if (btnManage) btnManage.classList.toggle('active', view === 'manage');
+            if (btnAppStore) btnAppStore.classList.toggle('active', view === 'store');
+
+            if (viewLaunchpad) viewLaunchpad.style.display = (view === 'launchpad') ? 'block' : 'none';
+            if (viewManage) viewManage.style.display = (view === 'manage') ? 'block' : 'none';
+            if (viewAppStore) viewAppStore.style.display = (view === 'store') ? 'block' : 'none';
+
+            try { history.replaceState(null, '', '#' + view); } catch (_) {}
+
             if (view === 'store') {
-                if (btnLaunchpad) btnLaunchpad.classList.remove('active');
-                if (btnAppStore) btnAppStore.classList.add('active');
-                if (viewLaunchpad) viewLaunchpad.style.display = 'none';
-                if (viewAppStore) viewAppStore.style.display = 'block';
-                try { history.replaceState(null, '', '#store'); } catch (_) {}
-                if (catalogApps.length === 0) {
-                    fetchCatalog();
-                } else {
-                    renderCatalog();
-                }
-            } else {
-                if (btnLaunchpad) btnLaunchpad.classList.add('active');
-                if (btnAppStore) btnAppStore.classList.remove('active');
-                if (viewLaunchpad) viewLaunchpad.style.display = 'block';
-                if (viewAppStore) viewAppStore.style.display = 'none';
-                try { history.replaceState(null, '', '#launchpad'); } catch (_) {}
+                if (catalogApps.length === 0) fetchCatalog();
+                else renderCatalog();
+            } else if (view === 'manage') {
+                renderManageApps();
             }
+        }
+
+        function renderManageApps() {
+            const listEl = document.getElementById('manage-apps-list');
+            if (!listEl) return;
+
+            const search = (document.getElementById('manage-search')?.value || '').toLowerCase().trim();
+            const countEl = document.getElementById('manage-installed-count');
+            const usedEl = document.getElementById('manage-storage-used');
+            const freeEl = document.getElementById('manage-storage-free');
+
+            if (countEl) countEl.textContent = installedApps.length;
+            if (usedEl) {
+                const totalUsedBytes = installedApps.reduce((acc, a) => acc + (a.size_bytes || a.size || 0), 0);
+                usedEl.textContent = formatBytes(totalUsedBytes);
+            }
+            if (freeEl) freeEl.textContent = `${formatBytes(deviceStorage.free_bytes)} Free`;
+
+            const filtered = installedApps.filter(app => {
+                if (!search) return true;
+                const name = (app.name || app.title || app.id || '').toLowerCase();
+                const desc = (app.description || '').toLowerCase();
+                const tags = (app.tags || []).join(' ').toLowerCase();
+                return name.includes(search) || desc.includes(search) || tags.includes(search);
+            });
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 48px; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: 14px;">
+                    <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">No installed applications found</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Explore the App Store tab to install robotics, communications, and protocol tools.</div>
+                </div>`;
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(app => {
+                const appId = app.id || app.name;
+                const appName = app.title || app.name || appId;
+                const appVer = app.version || '1.0.0';
+                const appDesc = app.description || 'LittleFS flash application for AgentLA.';
+                const appSize = formatBytes(app.size_bytes || app.size || 0);
+                const pinned = isAppPinned(appId);
+
+                let iconMarkup = solarFallbackSvg;
+                if (app.iconSvg) {
+                    iconMarkup = app.iconSvg;
+                } else if (app.icon) {
+                    const iconUrl = (app.icon.startsWith('http') || app.icon.startsWith('/') || app.icon.startsWith('data:')) ? app.icon : `/apps/${encodeURIComponent(appId)}/${app.icon}`;
+                    iconMarkup = `<img src="${iconUrl}" alt="${escapeHtml(appName)}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';">${solarFallbackSvg.replace('class="solar-icon solar-fallback-icon"', 'class="solar-icon solar-fallback-icon" style="display:none;"')}`;
+                }
+
+                let launchAction = `window.location.href='/apps/${encodeURIComponent(appId)}/'`;
+                if (isDemo) {
+                    if (appId === 'terminal') launchAction = `window.location.href='apps/terminal/index.html'`;
+                    else if (appId === 'servo-master') launchAction = `window.location.href='apps/servo-master/index.html'`;
+                }
+
+                const pinIcon = pinned ? `
+                    <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 3a1 1 0 0 1 .117 1.993L16 5v4.586l1.707 1.707A1 1 0 0 1 18 12v2a1 1 0 0 1-.883.993L17 15h-4v6a1 1 0 0 1-1.993.117L11 21v-6H7a1 1 0 0 1-.993-.883L6 14v-2a1 1 0 0 1 .206-.608l.087-.099L8 9.586V5a1 1 0 0 1-.117-1.993L8 3h8z"/>
+                    </svg>
+                    <span>Pinned to Dock</span>
+                ` : `
+                    <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 3v2M8 3v2M8 9.586V5h8v4.586l2 2V14h-5v7h-2v-7H6v-2.414l2-2z"/>
+                    </svg>
+                    <span>Pin to Dock</span>
+                `;
+
+                return `
+                    <div class="manage-app-row">
+                        <div class="manage-app-main">
+                            <div class="manage-app-thumb">
+                                ${iconMarkup}
+                            </div>
+                            <div class="manage-app-info">
+                                <div class="manage-app-title-line">
+                                    <span class="manage-app-title">${escapeHtml(appName)}</span>
+                                    <span class="manage-app-ver">v${escapeHtml(appVer)}</span>
+                                </div>
+                                <div class="manage-app-desc">${escapeHtml(appDesc)}</div>
+                                <div class="manage-app-meta">
+                                    <span>Size: ${appSize}</span>
+                                    ${(app.tags || []).slice(0, 3).map(t => `<span class="badge badge-outline badge-xs">${escapeHtml(t)}</span>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="manage-app-actions">
+                            <button class="manage-btn btn-pin ${pinned ? 'is-pinned' : ''}" onclick="toggleDockPin('${escapeHtml(appId)}')" title="${pinned ? 'Unpin from Floating Dock' : 'Pin to Floating Dock'}">
+                                ${pinIcon}
+                            </button>
+                            <button class="manage-btn btn-launch" onclick="${launchAction}" title="Open Application">
+                                Launch
+                            </button>
+                            <button class="manage-btn btn-delete" onclick="deleteApp('${escapeHtml(appId)}')" title="Uninstall Application from LittleFS">
+                                Uninstall
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         let selectedStoreCategory = 'all';
@@ -1290,7 +1560,6 @@
 
                 return `
                     <div class="os-squircle-tile ${accentClass}" ${clickHandler} data-name="${escapeHtml(appDisplayName)}" data-tags="${escapeHtml(tagsList.join(' '))}" data-desc="${escapeHtml(app.description || '')}" title="${escapeHtml(appDisplayName)} (v${escapeHtml(app.version || '1.0.0')})">
-                        <button class="os-squircle-delete" title="Uninstall App" onclick="event.stopPropagation(); deleteApp('${escapeHtml(appId)}')">&times;</button>
                         <div class="os-squircle-icon">
                             ${iconContent}
                         </div>
@@ -1427,16 +1696,26 @@
             try {
                 const res = await fetch(`/api/v1/apps/${encodeURIComponent(appId)}`, { method: 'DELETE' });
                 if (res.ok) {
+                    // Unpin from dock if pinned
+                    if (isAppPinned(appId)) {
+                        setPinnedApps(getPinnedApps().filter(id => id !== appId));
+                    }
                     await fetchInstalledApps();
                     await fetchStorage();
+                    renderManageApps();
                 } else {
                     alert('Uninstall failed: HTTP ' + res.status);
                 }
             } catch (e) {
                 // In demo mode, remove from local memory array
                 installedApps = installedApps.filter(a => a.id !== appId);
-                document.getElementById('installed-count').innerText = installedApps.length;
+                if (isAppPinned(appId)) {
+                    setPinnedApps(getPinnedApps().filter(id => id !== appId));
+                }
+                const cnt = document.getElementById('installed-count');
+                if (cnt) cnt.innerText = installedApps.length;
                 renderInstalledApps();
+                renderManageApps();
             }
         }
 
@@ -1960,54 +2239,22 @@
             await fetchInstalledApps();
             initTelemetryHUD();
 
-            if (window.location.hash === '#store' || window.location.search.includes('view=store')) {
+            renderDockPinnedApps();
+
+            const manageSearch = document.getElementById('manage-search');
+            if (manageSearch) {
+                manageSearch.addEventListener('input', () => renderManageApps());
+            }
+
+            const initialHash = window.location.hash.toLowerCase();
+            if (initialHash === '#store' || window.location.search.includes('view=store')) {
                 switchLauncherView('store');
+            } else if (initialHash === '#manage' || window.location.search.includes('view=manage')) {
+                switchLauncherView('manage');
             } else {
                 switchLauncherView('launchpad');
             }
         })();
     </script>
-
-    <!-- Floating Collapsible Telemetry HUD Overlay (Styled via style.css) -->
-    <div id="telemetry-hud" class="telemetry-hud-overlay" style="display: none;">
-        <div class="hud-header" id="hud-header">
-            <div class="hud-title">
-                <span class="hud-indicator-dot"></span>
-                <span style="font-weight: 600;">Hardware Telemetry</span>
-                <span id="hud-alarm-badge" class="badge-alarm" style="display: none;">OVERCURRENT</span>
-            </div>
-            <button class="hud-toggle-btn" id="hud-toggle-btn" title="Toggle Telemetry HUD">
-                <svg id="hud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-        </div>
-        <div class="hud-body" id="hud-body">
-            <div class="hud-metrics-grid">
-                <div class="hud-metric-card">
-                    <div class="hud-metric-label">V_TARGET</div>
-                    <div class="hud-metric-value" id="hud-vtarget">-- V</div>
-                </div>
-                <div class="hud-metric-card">
-                    <div class="hud-metric-label">I_TARGET</div>
-                    <div class="hud-metric-value" id="hud-itarget">-- mA</div>
-                </div>
-                <div class="hud-metric-card">
-                    <div class="hud-metric-label">POWER</div>
-                    <div class="hud-metric-value" id="hud-ptarget">-- mW</div>
-                </div>
-                <div class="hud-metric-card">
-                    <div class="hud-metric-label">TEMP</div>
-                    <div class="hud-metric-value" id="hud-temp">-- °C</div>
-                </div>
-            </div>
-
-            <div class="hud-section-label">GPIO Pin Ownership Matrix (GP0–GP29)</div>
-            <div class="hud-pin-matrix" id="hud-pin-matrix"></div>
-
-            <div id="hud-overcurrent-banner" class="hud-alert-banner" style="display: none;">
-                <div>⚠️ Overcurrent trip! Pins in High-Z.</div>
-                <button style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.6875rem; cursor: pointer;" onclick="fetch('/api/v1/system/telemetry')">Reset</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
