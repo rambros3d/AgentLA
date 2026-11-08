@@ -5532,21 +5532,6 @@ body.no-transparency {
     line-height: 1.2;
 }
 
-.os-squircle-badge {
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    background: var(--color-primary);
-    color: var(--color-primary-content, #fff);
-    font-size: 9px;
-    font-weight: 700;
-    padding: 2px 5px;
-    border-radius: 9999px;
-    border: 1px solid var(--color-base-100);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    pointer-events: none;
-}
-
 .os-squircle-delete {
     position: absolute;
     top: -3px;
