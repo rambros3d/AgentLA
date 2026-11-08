@@ -105,13 +105,21 @@ def pack_webui(
     # Also include packages from packages_dir or apps/packages if available
     pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
     if pkg_dir.is_dir():
-        for root, _, files in os.walk(pkg_dir):
+        for root, _, files in os.walk(pkg_dir, followlinks=True):
             for f in sorted(files):
                 if f.startswith(".") or f.endswith(".tmp") or f.endswith(".bak"):
                     continue
                 full_path = Path(root) / f
                 rel_path = f"packages/{full_path.relative_to(pkg_dir).as_posix()}"
                 asset_files.append((rel_path, full_path))
+
+    # Official app store catalog at apps/catalog.json
+    apps_catalog = (web_dir.parent / "apps" / "catalog.json").resolve()
+    if apps_catalog.is_file():
+        if not any(rel == "apps/catalog.json" for rel, _ in asset_files):
+            asset_files.append(("apps/catalog.json", apps_catalog))
+        if not any(rel == "packages/catalog.json" for rel, _ in asset_files):
+            asset_files.append(("packages/catalog.json", apps_catalog))
 
     if not asset_files:
         raise ValueError(f"No asset files found in {web_dir}")

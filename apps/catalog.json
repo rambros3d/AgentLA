@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "apps": [
+    {
+      "id": "servo-master",
+      "name": "Servo Master",
+      "version": "1.0.0",
+      "author": "AgentLA Team",
+      "description": "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
+      "requires": ["pwm", "gpio_flexible"],
+      "tags": ["Robotics", "PWM", "Actuation"],
+      "size_bytes": 51200,
+      "package_url": "/packages/servo-master.tar"
+    },
+    {
+      "id": "can-sniffer",
+      "name": "CAN Bus Analyzer",
+      "version": "1.2.0",
+      "author": "AgentLA Team",
+      "description": "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, frame transmission, and 120Ω termination control.",
+      "requires": ["has_hardware_can"],
+      "tags": ["Automotive", "CAN", "Analyzer"],
+      "size_bytes": 30720,
+      "package_url": "/packages/can-sniffer.tar"
+    }
+  ]
+}

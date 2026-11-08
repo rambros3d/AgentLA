@@ -195,9 +195,9 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/ok.json", get_service(crate::fs_http::SystemWebFile::new("ok.json", "application/json")))
         .route("/mcp.json", get_service(crate::fs_http::SystemWebFile::new("mcp.json", "application/json")))
         .route("/packages/catalog.json", get_service(crate::fs_http::SystemWebFile::new("packages/catalog.json", "application/json")))
+        .route("/apps/catalog.json", get_service(crate::fs_http::SystemWebFile::new("apps/catalog.json", "application/json")))
         .route("/packages/servo-master.tar", get_service(crate::fs_http::SystemWebFile::new("packages/servo-master.tar", "application/x-tar")))
         .route("/packages/can-sniffer.tar", get_service(crate::fs_http::SystemWebFile::new("packages/can-sniffer.tar", "application/x-tar")))
-        .route("/packages/terminal.tar", get_service(crate::fs_http::SystemWebFile::new("packages/terminal.tar", "application/x-tar")))
         .route_service("/api/v1/system/webui/update", crate::fs_http::SystemWebUiUpdate)
         .route(
             "/api/v1/system",

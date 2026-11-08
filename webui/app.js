@@ -32,8 +32,8 @@ const APP_TITLES = Object.freeze({
     gpio: "GPIO & Pin Matrix",
     i2c: "I2C Master",
     spi: "SPI Master",
-    command: "Command Console",
-    console: "Command Console",
+    command: "MCP Console",
+    console: "MCP Console",
     about: "About & Pinout",
     settings: "System Settings"
 });

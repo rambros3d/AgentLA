@@ -4693,7 +4693,8 @@ body.no-transparency {
 .launcher-section-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    text-align: center;
     margin-bottom: 16px;
 }
 
@@ -4705,6 +4706,7 @@ body.no-transparency {
     color: var(--text-secondary);
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     margin: 0;
 }
@@ -5701,11 +5703,11 @@ body.no-transparency {
 
 /* Squircle Icon Grid */
 .os-squircle-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
-    gap: 28px 18px;
-    justify-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: start;
+    gap: 28px 24px;
     width: 100%;
     padding: 8px 0 20px 0;
 }
@@ -5724,8 +5726,8 @@ body.no-transparency {
     transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
     user-select: none;
     outline: none;
-    width: 100%;
-    max-width: 104px;
+    width: 104px;
+    flex: 0 0 104px;
     box-sizing: border-box;
     text-decoration: none;
     color: inherit;
@@ -5932,8 +5934,12 @@ body.no-transparency {
         width: 290px;
     }
     .os-squircle-grid {
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 20px 12px;
+        justify-content: center;
+        gap: 20px 14px;
+    }
+    .os-squircle-tile {
+        width: 84px;
+        flex: 0 0 84px;
     }
     .os-squircle-icon {
         width: 58px;

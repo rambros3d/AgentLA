@@ -81,19 +81,27 @@ def test_firmware_can_seeding_and_websocket():
 
 
 def test_official_app_packages():
-    pkg_dir = Path("apps/packages")
-    assert pkg_dir.exists() and pkg_dir.is_dir(), "apps/packages must exist"
+    apps_dir = Path("apps")
+    assert apps_dir.exists() and apps_dir.is_dir(), "apps must exist"
 
-    catalog_file = pkg_dir / "catalog.json"
-    assert catalog_file.exists(), "apps/packages/catalog.json must exist"
+    # Terminal is promoted to built-in system app and must not exist in apps/
+    assert not (apps_dir / "terminal").exists(), "apps/terminal must be removed (it is a built-in system app)"
+
+    # apps/catalog.json is the official app store catalog for user installable apps
+    catalog_file = apps_dir / "catalog.json"
+    assert catalog_file.exists(), "apps/catalog.json must exist as official app store catalog"
 
     catalog = json.loads(catalog_file.read_text(encoding="utf-8"))
     app_ids = [a["id"] for a in catalog.get("apps", [])]
     assert "servo-master" in app_ids
     assert "can-sniffer" in app_ids
-    assert "terminal" in app_ids
+    assert "terminal" not in app_ids, "Terminal must not be in user app store catalog"
 
-    for app_id in ["servo-master", "can-sniffer", "terminal"]:
+    pkg_dir = apps_dir / "packages"
+    assert pkg_dir.exists() and pkg_dir.is_dir(), "apps/packages must exist"
+    assert (pkg_dir / "catalog.json").exists(), "apps/packages/catalog.json must exist"
+
+    for app_id in ["servo-master", "can-sniffer"]:
         tar_file = pkg_dir / f"{app_id}.tar"
         assert tar_file.exists(), f"apps/packages/{app_id}.tar must exist"
         assert tar_file.stat().st_size > 0
