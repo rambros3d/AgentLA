@@ -1237,6 +1237,19 @@ static UI_SETTINGS: embassy_sync::blocking_mutex::Mutex<
     active_profile: heapless::String::new(),
 }));
 
+pub fn get_default_home_route() -> heapless::String<64> {
+    UI_SETTINGS.lock(|cell| {
+        let s = cell.borrow();
+        if s.default_home_route.is_empty() {
+            let mut r = heapless::String::new();
+            let _ = r.push_str("/home/");
+            r
+        } else {
+            s.default_home_route.clone()
+        }
+    })
+}
+
 impl MethodHandlerService<(), ()> for SettingsEndpoint {
     async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
@@ -1254,7 +1267,7 @@ impl MethodHandlerService<(), ()> for SettingsEndpoint {
                 let theme_mode = if s.theme_mode.is_empty() { "system" } else { s.theme_mode.as_str() };
                 let light_theme = if s.default_light_theme.is_empty() { "emerald" } else { s.default_light_theme.as_str() };
                 let dark_theme = if s.default_dark_theme.is_empty() { "forest" } else { s.default_dark_theme.as_str() };
-                let home_route = if s.default_home_route.is_empty() { "/lab" } else { s.default_home_route.as_str() };
+                let home_route = if s.default_home_route.is_empty() { "/home/" } else { s.default_home_route.as_str() };
                 let profile = if s.active_profile.is_empty() { "Safe State" } else { s.active_profile.as_str() };
                 let _ = write!(
                     body,
@@ -1263,7 +1276,7 @@ impl MethodHandlerService<(), ()> for SettingsEndpoint {
                 );
             });
             send_json(request, response_writer, StatusCode::OK, body.as_str()).await
-        } else if method == "POST" {
+        } else if method == "POST" || method == "PUT" {
             let body = read_body_str(&mut request).await;
             UI_SETTINGS.lock(|cell| {
                 let mut s = cell.borrow_mut();

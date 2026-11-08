@@ -773,7 +773,7 @@ pub fn list_apps_json(buf: &mut String<1024>) -> Option<Result<(), UnpackError>>
             let s = core::str::from_utf8(body).unwrap_or("");
             write!(
                 buf,
-                "{},\"size\":{},\"path\":\"/apps/{}/\"}}",
+                "{},\"size\":{},\"path\":\"/app/{}/\"}}",
                 s,
                 entry.size,
                 entry.name.as_str()
@@ -781,7 +781,7 @@ pub fn list_apps_json(buf: &mut String<1024>) -> Option<Result<(), UnpackError>>
         } else {
             write!(
                 buf,
-                "{{\"id\":\"{}\",\"name\":\"{}\",\"version\":\"1.0.0\",\"description\":\"Installed Application\",\"size\":{},\"path\":\"/apps/{}/\"}}",
+                "{{\"id\":\"{}\",\"name\":\"{}\",\"version\":\"1.0.0\",\"description\":\"Installed Application\",\"size\":{},\"path\":\"/app/{}/\"}}",
                 entry.name.as_str(),
                 entry.name.as_str(),
                 entry.size,

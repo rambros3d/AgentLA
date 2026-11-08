@@ -343,7 +343,7 @@ async function saveSettings() {
         theme_mode: themeState.mode,
         default_light_theme: themeState.defaultLightTheme,
         default_dark_theme: themeState.defaultDarkTheme,
-        default_home_route: themeState.defaultHomeRoute || '/lab',
+        default_home_route: themeState.defaultHomeRoute || '/home/',
         active_profile: "Default Lab Bench"
     };
     try {
@@ -440,10 +440,17 @@ async function populateLandingPageDropdown() {
     const selRoute = document.getElementById('settings-default-home-route-select');
     if (!selRoute) return;
 
-    const currentVal = themeState.defaultHomeRoute || '/lab';
+    const currentVal = themeState.defaultHomeRoute || '/home/';
     selRoute.innerHTML = `
-        <option value="/lab">AgentLA Lab (/lab)</option>
-        <option value="/apps">App Store &amp; Hub (/apps)</option>
+        <option value="/home/">Home Launcher (/home/)</option>
+        <option value="/scope/">Scope (/scope/)</option>
+        <option value="/adapter/">Protocol Adapter (/adapter/)</option>
+        <option value="/debug/">SWD Debugger (/debug/)</option>
+        <option value="/pin/">Pin Control (/pin/)</option>
+        <option value="/terminal/">Terminal (/terminal/)</option>
+        <option value="/agent/">MCP Agent Console (/agent/)</option>
+        <option value="/apps">Legacy Apps (/apps)</option>
+        <option value="/lab">Legacy Lab (/lab)</option>
     `;
 
     try {
@@ -453,7 +460,7 @@ async function populateLandingPageDropdown() {
             if (Array.isArray(apps)) {
                 apps.forEach(app => {
                     const opt = document.createElement('option');
-                    const appPath = app.path || `/apps/${app.id}/`;
+                    const appPath = app.path || `/app/${app.id}/`;
                     opt.value = appPath;
                     opt.textContent = `${app.name || app.id} (${appPath})`;
                     selRoute.appendChild(opt);
@@ -826,7 +833,7 @@ function closeAgentGuideModal() {
     }
 }
 
-function switchMode(mode) {
+function switchMode(mode, updateUrl = true) {
     if (mode === 'adapters' || mode === 'adapter') {
         primaryMode = 'adapters';
     } else if (mode === 'target' || mode === 'debugger' || mode === 'debug') {
@@ -871,13 +878,30 @@ function switchMode(mode) {
         });
     });
 
-    // Update URL hash parameter for direct deep linking and mode routing
-    try {
-        const curHash = window.location.hash.replace(/^#/, '');
-        if (curHash !== primaryMode && curHash !== `mode=${primaryMode}`) {
-            history.replaceState(null, '', `#${primaryMode}`);
-        }
-    } catch (_) {}
+    // Update URL parameter for direct deep linking and mode routing
+    if (updateUrl !== false) {
+        try {
+            const routeMap = {
+                'scope': '/scope/',
+                'adapters': '/adapter/',
+                'target': '/debug/',
+                'pins': '/pin/',
+                'console': '/agent/'
+            };
+            const currentPath = window.location.pathname;
+            const targetPath = routeMap[primaryMode];
+            if (targetPath && (currentPath.startsWith('/scope') || currentPath.startsWith('/adapter') || currentPath.startsWith('/debug') || currentPath.startsWith('/target') || currentPath.startsWith('/pin') || currentPath.startsWith('/agent') || currentPath.startsWith('/console'))) {
+                if (currentPath !== targetPath) {
+                    history.pushState(null, '', targetPath);
+                }
+            } else {
+                const curHash = window.location.hash.replace(/^#/, '');
+                if (curHash !== primaryMode && curHash !== `mode=${primaryMode}`) {
+                    history.replaceState(null, '', `#${primaryMode}`);
+                }
+            }
+        } catch (_) {}
+    }
 
     if (primaryMode === 'adapters') {
         if (typeof selectAdapter === 'function') {
@@ -4728,25 +4752,46 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // --------------------------------------------------------------------------
-// URL Hash Deep Linking & Mode Synchronizer
+// URL Path / Hash Deep Linking & Mode Synchronizer
 // --------------------------------------------------------------------------
 function applyHashMode() {
+    // 1. Check pathname for dedicated system app route
+    const path = (window.location.pathname || '').toLowerCase();
+    if (path.startsWith('/scope')) {
+        switchMode('scope', false);
+        return;
+    } else if (path.startsWith('/adapter')) {
+        switchMode('adapters', false);
+        return;
+    } else if (path.startsWith('/debug') || path.startsWith('/target')) {
+        switchMode('target', false);
+        return;
+    } else if (path.startsWith('/pin')) {
+        switchMode('pins', false);
+        return;
+    } else if (path.startsWith('/agent') || path.startsWith('/console')) {
+        switchMode('console', false);
+        return;
+    }
+
+    // 2. Check URL hash parameter
     const rawHash = (window.location.hash || '').replace(/^#\/?/, '').toLowerCase().trim();
     if (!rawHash) return;
     const cleanHash = rawHash.split('?')[0].split('&')[0];
     if (cleanHash === 'scope' || cleanHash === 'bench') {
-        switchMode('scope');
+        switchMode('scope', false);
     } else if (cleanHash === 'adapters' || cleanHash === 'adapter') {
-        switchMode('adapters');
+        switchMode('adapters', false);
     } else if (cleanHash === 'target' || cleanHash === 'debugger' || cleanHash === 'flasher' || cleanHash === 'debug') {
-        switchMode('target');
-    } else if (cleanHash === 'pins' || cleanHash === 'matrix') {
-        switchMode('pins');
-    } else if (cleanHash === 'console' || cleanHash === 'repl' || cleanHash === 'shell' || cleanHash === 'command') {
-        switchMode('console');
+        switchMode('target', false);
+    } else if (cleanHash === 'pins' || cleanHash === 'matrix' || cleanHash === 'pin') {
+        switchMode('pins', false);
+    } else if (cleanHash === 'console' || cleanHash === 'repl' || cleanHash === 'shell' || cleanHash === 'command' || cleanHash === 'agent') {
+        switchMode('console', false);
     }
 }
 window.addEventListener('hashchange', applyHashMode);
+window.addEventListener('popstate', applyHashMode);
 
 // --------------------------------------------------------------------------
 // Floating Dock Utilities: Telemetry HUD, Storage Popover & Terminal
@@ -4815,9 +4860,9 @@ function openTerminalApp() {
                    window.location.search.includes('demo=1') ||
                    window.location.pathname.endsWith('.html');
     if (isDemo) {
-        window.location.href = 'apps/terminal/index.html';
+        window.location.href = 'terminal.html';
     } else {
-        window.location.href = '/apps/terminal/';
+        window.location.href = '/terminal/';
     }
 }
 
@@ -4830,15 +4875,11 @@ function getPinnedApps() {
         if (stored) {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed)) {
-                const filtered = parsed.filter(id => id !== 'terminal');
-                if (filtered.length !== parsed.length) {
-                    try { localStorage.setItem(PINNED_DOCK_STORAGE_KEY, JSON.stringify(filtered)); } catch (_) {}
-                }
-                return filtered;
+                return parsed;
             }
         }
     } catch (_) {}
-    return ['scope', 'adapters', 'target', 'pins', 'console'];
+    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
 }
 
 function renderDockPinnedApps() {
@@ -4846,7 +4887,7 @@ function renderDockPinnedApps() {
     const pinned = getPinnedApps();
 
     // Toggle visibility of system instruments in dock
-    ['scope', 'adapters', 'target', 'pins', 'console'].forEach(sysId => {
+    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].forEach(sysId => {
         const el = document.getElementById(`dock-app-${sysId}`);
         if (el) {
             el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -4859,21 +4900,21 @@ function renderDockPinnedApps() {
 
     let html = '';
     pinned.forEach(appId => {
-        if (['scope', 'adapters', 'target', 'pins', 'console'].includes(appId)) return;
+        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].includes(appId)) return;
         let appName = appId;
         let clickAction = '';
         let iconSvg = '';
 
         if (appId === 'servo-master') {
             appName = 'Servo Master';
-            clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/apps/servo-master/'";
+            clickAction = isDemo ? "window.location.href='apps/servo-master/index.html'" : "window.location.href='/app/servo-master/'";
             iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
                 <path d="M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" fill="currentColor"/>
                 <path d="M12 4V7M12 17V20M4 12H7M17 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>`;
         } else {
-            clickAction = isDemo ? `window.location.href='apps/${encodeURIComponent(appId)}/index.html'` : `window.location.href='/apps/${encodeURIComponent(appId)}/'`;
+            clickAction = isDemo ? `window.location.href='apps/${encodeURIComponent(appId)}/index.html'` : `window.location.href='/app/${encodeURIComponent(appId)}/'`;
             iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
                 <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>

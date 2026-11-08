@@ -49,14 +49,14 @@ def test_index_html_clean_header_and_landing_setting():
     assert '<nav class="header-nav-links"' not in content, "Redundant nav pill container must be removed"
     assert 'class="preset-pill">App Launcher</a>' not in content
 
-    # 2. Brand logo acts as link to /apps
-    assert 'href="/apps"' in content, "Brand logo must link to /apps"
+    # 2. Brand logo acts as link to /home/
+    assert 'href="/home/"' in content, "Brand logo must link to /home/"
     assert 'id="brand-logo"' in content
 
     # 3. Settings modal includes landing page selector
     assert 'id="settings-default-home-route-select"' in content, "Landing page selector must be present"
-    assert 'value="/lab"' in content
-    assert 'value="/apps"' in content
+    assert 'value="/home/"' in content
+    assert 'value="/scope/"' in content
 
     # 4. Uses relative asset links compatible with both firmware and GitHub Pages
     assert 'href="style.css"' in content

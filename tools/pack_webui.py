@@ -92,8 +92,10 @@ def pack_webui(
     asset_files = []
     for root, _, files in os.walk(web_dir):
         for f in sorted(files):
-            # Skip hidden files and temp files
+            # Skip hidden files, temp files, and simulation/mock files
             if f.startswith(".") or f.endswith(".tmp") or f.endswith(".bak"):
+                continue
+            if f == "mock-bridge.js" or f.startswith("mock-") or f.endswith(".sim.js"):
                 continue
             full_path = Path(root) / f
             rel_path = full_path.relative_to(web_dir).as_posix()

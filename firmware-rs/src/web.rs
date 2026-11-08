@@ -175,13 +175,50 @@ impl EventSource for OscilloscopeEvents {
 
 pub fn make_app() -> picoserve::Router<impl PathRouter> {
     picoserve::Router::new()
-        .route("/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/lab", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
-        .route("/apps", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
-        .route("/apps.html", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route(
+            "/",
+            get(|| async move {
+                let target = crate::rest::get_default_home_route();
+                (
+                    StatusCode::FOUND,
+                    ("Location", target),
+                    ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                    ("Content-Type", "text/plain"),
+                    "Redirecting...",
+                )
+            }),
+        )
+        // --- System Apps & Instruments ----------------------------------
+        .route("/home", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route("/home/", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route("/scope", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/scope/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/adapter", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/adapter/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/adapters", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/adapters/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/debug", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/debug/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/target", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/target/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/pin", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/pin/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/pins", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/pins/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/terminal", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
+        .route("/terminal/", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
         .route("/terminal.html", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
+        .route("/agent", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/agent/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/console", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/console/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        // Legacy aliases
+        .route("/lab", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/lab/", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
+        .route("/apps", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route("/apps/", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route("/apps.html", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/app.js", get_service(crate::fs_http::SystemWebFile::new("app.js", "application/javascript")))
         .route("/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
         .route("/agentla-bridge.js", get_service(crate::fs_http::SystemWebFile::new("agentla-bridge.js", "application/javascript")))
@@ -377,12 +414,31 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/mcp/health", crate::rest::McpHealth)
         .route_service("/api/v1/mcp", crate::rest::McpHealth)
         .route("/mcp/sse", get(|| async move { picoserve::response::sse::EventStream(crate::mcp::McpSseEvents) }))
-        // GET /apps/{name} -> redirect to /apps/{name}/
+        // GET /app/{name} -> redirect to /app/{name}/
+        .route(
+            ("/app", parse_path_segment::<crate::apps::AppParams>()),
+            get(|name: crate::apps::AppParams| async move {
+                let mut loc = heapless::String::<64>::new();
+                let _ = write!(loc, "/app/{}/", name.as_str());
+                (
+                    StatusCode::MOVED_PERMANENTLY,
+                    ("Location", loc),
+                    ("Content-Type", "text/plain"),
+                    "Redirecting...",
+                )
+            }),
+        )
+        // GET /app/{name}/{path} — static files from LittleFS
+        .nest_service(
+            ("/app", parse_path_segment::<crate::apps::AppParams>()),
+            crate::fs_http::AppFiles,
+        )
+        // Backwards-compatible /apps/{name} -> redirect to /app/{name}/
         .route(
             ("/apps", parse_path_segment::<crate::apps::AppParams>()),
             get(|name: crate::apps::AppParams| async move {
                 let mut loc = heapless::String::<64>::new();
-                let _ = write!(loc, "/apps/{}/", name.as_str());
+                let _ = write!(loc, "/app/{}/", name.as_str());
                 (
                     StatusCode::MOVED_PERMANENTLY,
                     ("Location", loc),

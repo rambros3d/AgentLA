@@ -47,7 +47,7 @@
     <!-- Top Application Bar -->
     <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
         <div class="bar-left navbar-start">
-            <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Apps)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+            <a href="/home/" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Home)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="brand-title">AgentLA</span>
                 <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
@@ -1626,8 +1626,15 @@
                         </div>
                         <div class="settings-control-group">
                             <select class="compact-select" id="settings-default-home-route-select">
-                                <option value="/lab">AgentLA Lab (/lab)</option>
-                                <option value="/apps">App Store &amp; Hub (/apps)</option>
+                                <option value="/home/">Home Launcher (/home/)</option>
+                                <option value="/scope/">Scope (/scope/)</option>
+                                <option value="/adapter/">Protocol Adapter (/adapter/)</option>
+                                <option value="/debug/">SWD Debugger (/debug/)</option>
+                                <option value="/pin/">Pin Control (/pin/)</option>
+                                <option value="/terminal/">Terminal (/terminal/)</option>
+                                <option value="/agent/">MCP Agent Console (/agent/)</option>
+                                <option value="/apps">Legacy Apps (/apps)</option>
+                                <option value="/lab">Legacy Lab (/lab)</option>
                             </select>
                         </div>
                     </div>
@@ -1865,7 +1872,7 @@
     <!-- Floating macOS-Style Glass Dock -->
     <div class="floating-glass-dock" id="floating-glass-dock">
         <!-- Launcher Link -->
-        <a href="apps.html" class="dock-icon-btn" data-dock-tooltip="Apps Launcher">
+        <a href="/home/" class="dock-icon-btn" data-dock-tooltip="Apps Launcher">
             <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g fill="currentColor" opacity="0.5">
                     <path d="M17.5 13C19.6213 13 20.6818 13.0002 21.3408 13.6592C21.9998 14.3182 22 15.3787 22 17.5C22 19.6213 21.9998 20.6818 21.3408 21.3408C20.6818 21.9998 19.6213 22 17.5 22C15.3787 22 14.3182 21.9998 13.6592 21.3408C13.0002 20.6818 13 19.6213 13 17.5C13 15.3787 13.0002 14.3182 13.6592 13.6592C14.3182 13.0002 15.3787 13 17.5 13Z"/>
@@ -1919,6 +1926,15 @@
                 <path d="M12 2C12.8284 2 13.5 2.67157 13.5 3.5C13.5 4.05495 13.198 4.5384 12.75 4.79785V9H11.25V4.79785C10.802 4.5384 10.5 4.05495 10.5 3.5C10.5 2.67157 11.1716 2 12 2Z" fill="currentColor"/>
             </svg>
         </button>
+
+        <!-- Serial Terminal System Instrument -->
+        <a href="/terminal/" class="dock-icon-btn" id="dock-app-terminal" data-dock-tooltip="Serial Terminal">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
+                <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
+            </svg>
+        </a>
 
         
         <!-- Pinned LittleFS Applications in Dock -->

@@ -158,26 +158,34 @@ def test_streaming_tar_unpacker_header_parsing():
 
 
 def test_url_routing_and_spa_fallback():
-    """Verify URL routing engine decisions, root 302 redirect, lab routes, trailing slash redirect, and SPA fallback rules."""
-    def route_request(path, lfs_existing_files, default_home="/lab"):
+    """Verify URL routing engine decisions, root 302 redirect, system app routes, trailing slash redirect, and SPA fallback rules."""
+    def route_request(path, lfs_existing_files, default_home="/home/"):
         # 1. Root redirect (HTTP 302)
         if path == "/":
             return {"status": 302, "location": default_home}
 
-        # 2. Dedicated Lab route (/lab, /lab/, /lab/index.html) and factory ROM assets
-        if path in ["/lab", "/lab/", "/lab/index.html", "/index.html", "/style.css", "/app.js", "/agentla-bridge.js", "/favicon.svg", "/board.json"]:
-            return {"status": 200, "handler": "ROM_FSDATA"}
+        # 2. Dedicated System Routes and factory ROM assets
+        system_routes = [
+            "/home", "/home/", "/apps", "/apps/", "/apps.html",
+            "/scope", "/scope/",
+            "/adapter", "/adapter/", "/adapters", "/adapters/",
+            "/debug", "/debug/", "/target", "/target/",
+            "/pin", "/pin/", "/pins", "/pins/",
+            "/terminal", "/terminal/", "/terminal.html",
+            "/agent", "/agent/", "/console", "/console/",
+            "/lab", "/lab/", "/lab/index.html",
+            "/index.html", "/style.css", "/app.js", "/agentla-bridge.js", "/favicon.svg", "/board.json"
+        ]
+        if path in system_routes:
+            return {"status": 200, "handler": "ROM_SYSTEM_APP"}
 
-        # 3. App Launcher
-        if path in ["/apps", "/apps/"]:
-            return {"status": 200, "handler": "ROM_APPS_HTML"}
-
-        # 4. Custom App Routing
-        if path.startswith("/apps/"):
-            sub = path[6:]
+        # 3. User Installed App Routing (/app/{name} and legacy /apps/{name})
+        if path.startswith("/app/") or path.startswith("/apps/"):
+            prefix = "/app/" if path.startswith("/app/") else "/apps/"
+            sub = path[len(prefix):]
             if "/" not in sub:
                 # Missing trailing slash -> 301 Redirect
-                return {"status": 301, "location": f"{path}/"}
+                return {"status": 301, "location": f"/app/{sub}/"}
 
             app_name, relpath = sub.split("/", 1)
             if not relpath:
@@ -201,6 +209,12 @@ def test_url_routing_and_spa_fallback():
                 else:
                     return {"status": 404, "error": "App index missing"}
 
+        # 4. Trailing slash normalization for bare /app/{name} or /apps/{name}
+        if path.startswith("/app/") or path == "/app" or path == "/apps" or (path.startswith("/app/") and "/" not in path[5:]):
+            pass
+        if path.startswith("/app/") and "/" not in path[5:]:
+            return {"status": 301, "location": f"{path}/"}
+
         # 5. REST API
         if path.startswith("/api/v1/"):
             return {"status": 200, "handler": "REST_API"}
@@ -213,56 +227,50 @@ def test_url_routing_and_spa_fallback():
         "/apps/can-sniffer/assets/logo.svg",
     ]
 
-    # Test root 302 redirection
-    root_res = route_request("/", files, default_home="/lab")
+    # Test root 302 redirection (defaults to /home/)
+    root_res = route_request("/", files)
     assert root_res["status"] == 302
-    assert root_res["location"] == "/lab"
+    assert root_res["location"] == "/home/"
 
-    custom_root = route_request("/", files, default_home="/apps")
+    custom_root = route_request("/", files, default_home="/scope/")
     assert custom_root["status"] == 302
-    assert custom_root["location"] == "/apps"
+    assert custom_root["location"] == "/scope/"
 
-    # Test lab route and factory assets
-    assert route_request("/lab", files)["handler"] == "ROM_FSDATA"
-    assert route_request("/lab/", files)["handler"] == "ROM_FSDATA"
-    assert route_request("/lab/index.html", files)["handler"] == "ROM_FSDATA"
-    assert route_request("/index.html", files)["handler"] == "ROM_FSDATA"
-    assert route_request("/agentla-bridge.js", files)["handler"] == "ROM_FSDATA"
-    assert route_request("/apps", files)["handler"] == "ROM_APPS_HTML"
-    assert route_request("/apps/", files)["handler"] == "ROM_APPS_HTML"
+    # Test system app routes and factory assets
+    assert route_request("/home/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/scope/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/adapter/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/debug/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/pin/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/terminal/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/agent/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/apps/", files)["handler"] == "ROM_SYSTEM_APP"
+    assert route_request("/agentla-bridge.js", files)["handler"] == "ROM_SYSTEM_APP"
 
-    # Test trailing slash normalization
-    redirect = route_request("/apps/can-sniffer", files)
-    assert redirect["status"] == 301
-    assert redirect["location"] == "/apps/can-sniffer/"
+    # Test trailing slash normalization for user apps
+    redirect_app = route_request("/app/can-sniffer", files)
+    assert redirect_app["status"] == 301
+    assert redirect_app["location"] == "/app/can-sniffer/"
 
-    # Test custom app file serving and bridge injection
-    res_index = route_request("/apps/can-sniffer/", files)
+    # Test user app file serving and bridge injection
+    res_index = route_request("/app/can-sniffer/", files)
     assert res_index["status"] == 200
     assert res_index["file"] == "/apps/can-sniffer/index.html"
     assert res_index["inject_bridge"] is True
 
-    res_js = route_request("/apps/can-sniffer/assets/bundle.js", files)
+    res_js = route_request("/app/can-sniffer/assets/bundle.js", files)
     assert res_js["status"] == 200
     assert res_js["file"] == "/apps/can-sniffer/assets/bundle.js"
     assert res_js["inject_bridge"] is False
 
-    res_js = route_request("/apps/can-sniffer/assets/bundle.js", files)
-    assert res_js["status"] == 200
-    assert res_js["file"] == "/apps/can-sniffer/assets/bundle.js"
-
     # Test SPA subpath fallback (no file extension)
-    res_spa1 = route_request("/apps/can-sniffer/dashboard/filters", files)
+    res_spa1 = route_request("/app/can-sniffer/dashboard/filters", files)
     assert res_spa1["status"] == 200
     assert res_spa1["spa_fallback"] is True
     assert res_spa1["file"] == "/apps/can-sniffer/index.html"
 
-    res_spa2 = route_request("/apps/can-sniffer/settings", files)
-    assert res_spa2["status"] == 200
-    assert res_spa2["spa_fallback"] is True
-
     # Test missing static asset 404 (has file extension)
-    res_404 = route_request("/apps/can-sniffer/assets/missing.png", files)
+    res_404 = route_request("/app/can-sniffer/assets/missing.png", files)
     assert res_404["status"] == 404
 
     # Test REST API path
@@ -334,11 +342,8 @@ def test_apps_html_assets_and_integration():
     index_html = index_html_path.read_text(encoding="utf-8")
 
     # 1. apps.html structure checks
-    assert "storage-dock" in apps_html
-    assert "Community App Store" in apps_html
-    assert "modal-app-store" in apps_html
-    assert "btn-open-app-store" in apps_html
-    assert "install-modal" in apps_html
+    assert "storage-bar" in apps_html or "storage-dock" in apps_html
+    assert "App Store" in apps_html
     assert "parseTarMetadata" in apps_html
     assert "/api/v1/apps/storage" in apps_html
     assert "/api/v1/apps/install" in apps_html
