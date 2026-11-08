@@ -180,6 +180,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/lab", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/apps", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
         .route("/apps.html", get_service(crate::fs_http::SystemWebFile::new("apps.html", "text/html")))
+        .route("/terminal", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
+        .route("/terminal.html", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
         .route("/app.js", get_service(crate::fs_http::SystemWebFile::new("app.js", "application/javascript")))
         .route("/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
         .route("/agentla-bridge.js", get_service(crate::fs_http::SystemWebFile::new("agentla-bridge.js", "application/javascript")))

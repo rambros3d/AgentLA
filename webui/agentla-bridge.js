@@ -525,15 +525,11 @@
             if (stored) {
                 var list = JSON.parse(stored);
                 if (Array.isArray(list)) {
-                    var filtered = list.filter(function(id) { return id !== 'terminal'; });
-                    if (filtered.length !== list.length) {
-                        try { localStorage.setItem('agentla_pinned_dock_apps', JSON.stringify(filtered)); } catch (_) {}
-                    }
-                    return filtered;
+                    return list;
                 }
             }
         } catch (_) {}
-        return ['scope', 'adapters', 'target', 'pins', 'console'];
+        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
     }
 
     function renderDockPinnedApps(container) {
@@ -541,7 +537,7 @@
         if (!container) return;
 
         var pinned = getPinnedApps();
-        ['scope', 'adapters', 'target', 'pins', 'console'].forEach(function(sysId) {
+        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].forEach(function(sysId) {
             var el = document.getElementById('dock-app-' + sysId);
             if (el) {
                 el.style.display = pinned.indexOf(sysId) !== -1 ? 'inline-flex' : 'none';
@@ -550,7 +546,7 @@
         var html = '';
 
         pinned.forEach(function(appId) {
-            if (['scope', 'adapters', 'target', 'pins', 'console'].indexOf(appId) !== -1) return;
+            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].indexOf(appId) !== -1) return;
 
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
@@ -635,6 +631,15 @@
 
                 <!-- Console -->
                 <a href="${labUrl}#console" class="dock-icon-btn" id="dock-app-console" data-dock-tooltip="Firmware Console">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
+                        <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
+                        <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
+                    </svg>
+                </a>
+
+                <!-- Terminal -->
+                <a href="${isDemo ? 'terminal.html' : '/terminal'}" class="dock-icon-btn${window.location.pathname.includes('terminal') ? ' active' : ''}" id="dock-app-terminal" data-dock-tooltip="Serial Terminal">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
                         <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
@@ -1235,6 +1240,12 @@
     window.AgentLA = AgentLA;
 
     function initBridge() {
+        try {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('no_launcher') === '1' || window.AgentLANoLauncher === true) {
+                return;
+            }
+        } catch (_) {}
         initTopBar();
         mountDock();
     }

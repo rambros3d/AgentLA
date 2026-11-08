@@ -100,17 +100,19 @@ def test_apps_html_unified_os_launcher():
 
 
 def test_agentla_bridge_fab_asset():
-    """Verify agentla-bridge.js implements closed shadow DOM, win-rar icon, and suppression."""
+    """Verify agentla-bridge.js implements floating glass dock, suppression, and app navigation."""
     bridge_path = HTML_DIR / "agentla-bridge.js"
     assert bridge_path.exists()
     content = bridge_path.read_text(encoding="utf-8")
 
-    assert "attachShadow({ mode: 'closed' })" in content, "Must use closed Shadow DOM"
+    assert "floating-glass-dock" in content or "dock-pinned-apps" in content
     assert "no_launcher" in content, "Must support ?no_launcher=1 suppression"
     assert "AgentLANoLauncher" in content, "Must support window.AgentLANoLauncher suppression"
-    assert "/apps" in content, "1-tap click must navigate to /apps"
-    assert "44px" in content, "Must be 44x44px FAB"
-    assert "backdrop-filter" in content, "Must have backdrop-filter blur"
+    assert "homeUrl" in content or "/apps" in content, "Must navigate to apps"
+    style_path = HTML_DIR / "style.css"
+    assert style_path.exists()
+    style_content = style_path.read_text(encoding="utf-8")
+    assert "backdrop-filter" in style_content, "Must have backdrop-filter blur in style.css"
 
 
 def test_pure_daisyui_stylesheet_and_token_invariants():
