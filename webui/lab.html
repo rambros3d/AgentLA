@@ -321,6 +321,14 @@
                                     <span class="badge" id="packet-count-badge">0 packets</span>
                                 </div>
                                 <div class="packet-drawer-controls">
+                                    <div class="join" id="packet-bus-filter" style="margin-right: 6px;">
+                                        <button class="action-btn outline btn-xs join-item active" data-bus="all">ALL</button>
+                                        <button class="action-btn outline btn-xs join-item" data-bus="uart">UART</button>
+                                        <button class="action-btn outline btn-xs join-item" data-bus="i2c">I2C</button>
+                                        <button class="action-btn outline btn-xs join-item" data-bus="spi">SPI</button>
+                                        <button class="action-btn outline btn-xs join-item" data-bus="can">CAN</button>
+                                    </div>
+                                    <button class="action-btn outline btn-xs" id="btn-open-trigger-builder" title="Configure Hardware Trigger Rules">⚡ Trigger Matrix</button>
                                     <input type="text" id="packet-search-input" class="cmd-input" placeholder="Filter packets..." />
                                     <button class="action-btn icon-btn" id="btn-close-packet-drawer" title="Close Packet Drawer">✕</button>
                                 </div>
@@ -2120,6 +2128,54 @@
             }
         })();
     </script>
+    <!-- Hardware Trigger Rule Builder Modal -->
+    <dialog id="modal-trigger-builder" class="modal">
+      <div class="modal-box">
+        <h3 class="font-bold text-lg">⚡ Protocol Hardware Trigger Matrix</h3>
+        <p class="py-2 text-xs opacity-75">Configure real-time sub-microsecond hardware trigger rules evaluated directly on the RP2350.</p>
+        <div class="form-control gap-2 my-3">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="label"><span class="label-text">Rule Slot</span></label>
+              <select id="trig-rule-id" class="select select-bordered select-sm w-full">
+                <option value="0">Rule 0</option><option value="1">Rule 1</option><option value="2">Rule 2</option><option value="3">Rule 3</option>
+              </select>
+            </div>
+            <div>
+              <label class="label"><span class="label-text">Target Bus</span></label>
+              <select id="trig-bus" class="select select-bordered select-sm w-full">
+                <option value="i2c">I2C / SMBus</option><option value="can">CAN 2.0A/B</option><option value="uart">UART</option><option value="spi">SPI</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="label"><span class="label-text">Match Address / ID</span></label>
+              <input type="text" id="trig-match-val" class="input input-bordered input-sm w-full" placeholder="e.g. 0x48 or 0x7DF" />
+            </div>
+            <div>
+              <label class="label"><span class="label-text">Match Condition</span></label>
+              <select id="trig-condition" class="select select-bordered select-sm w-full">
+                <option value="any">Any / Address Match</option>
+                <option value="nack">I2C NACK (Slave Missing)</option>
+                <option value="error">CRC / Framing Error</option>
+              </select>
+            </div>
+          </div>
+          <div class="divider my-1 text-xs">HARDWARE ACTIONS</div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="cursor-pointer label"><input type="checkbox" id="trig-act-freeze" checked class="checkbox checkbox-xs" /> <span class="label-text ml-1">Freeze Capture Buffer</span></label>
+            <label class="cursor-pointer label"><input type="checkbox" id="trig-act-alert" checked class="checkbox checkbox-xs" /> <span class="label-text ml-1">Emit WebSocket Alert</span></label>
+            <label class="cursor-pointer label"><input type="checkbox" id="trig-act-halt" class="checkbox checkbox-xs" /> <span class="label-text ml-1">Halt Target (SWD)</span></label>
+          </div>
+        </div>
+        <div class="modal-action">
+          <button class="btn btn-sm btn-ghost" onclick="document.getElementById('modal-trigger-builder').close()">Cancel</button>
+          <button class="btn btn-sm btn-primary" id="btn-save-trigger-rule">Install Rule</button>
+        </div>
+      </div>
+    </dialog>
+
     <script src="app.js"></script>
 </body>
 </html>

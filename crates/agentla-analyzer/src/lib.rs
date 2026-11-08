@@ -6,6 +6,7 @@ extern crate std;
 pub mod compression;
 pub mod config;
 pub mod decoders;
+pub use decoders as decoder;
 pub mod ols;
 pub mod stream;
 pub mod trigger;

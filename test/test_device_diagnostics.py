@@ -106,6 +106,33 @@ def test_device_html_contains_required_sections_and_hooks():
     assert "Auto Update from GitHub" in content
     assert "toggleRecoveryBanner" in content
 
+    # Multi-view Tab Switcher & Panels
+    assert "tabHardware" in content
+    assert "tabPins" in content
+    assert "tabApi" in content
+    assert "tabMcp" in content
+    assert "viewHardware" in content
+    assert "viewPins" in content
+    assert "viewApi" in content
+    assert "viewMcp" in content
+    assert "switchView" in content
+    assert "initView" in content
+
+    # REST API Catalog & Interactive Runner
+    assert "API_ENDPOINTS" in content
+    assert "apiTable" in content
+    assert "copyCurl" in content
+    assert "tryApi" in content
+    assert "apiRunnerOutput" in content
+
+    # MCP Agent Bridge & Schemas
+    assert "MCP_TOOLS" in content
+    assert "mcp_target_diagnose" in content
+    assert "mcp_inspect_firmware" in content
+    assert "mcpConfigSnippet" in content
+    assert "copyMcpConfig" in content
+    assert "executeMcpRpc" in content
+
 
 def test_firmware_routing_for_device_and_developer_endpoints():
     web_rs = open(WEB_RS_PATH, "r", encoding="utf-8").read()
@@ -115,6 +142,12 @@ def test_firmware_routing_for_device_and_developer_endpoints():
     assert '.route("/device",' in web_rs
     assert '.route("/device.html",' in web_rs
     assert '.route("/device/",' in web_rs
+    assert '.route("/device/pins",' in web_rs
+    assert '.route("/device/pins/",' in web_rs
+    assert '.route("/device/api",' in web_rs
+    assert '.route("/device/api/",' in web_rs
+    assert '.route("/device/mcp",' in web_rs
+    assert '.route("/device/mcp/",' in web_rs
 
     # Developer REST services registered
     assert '.route_service("/api/v1/system/bootsel", crate::rest::SystemBootsel)' in web_rs

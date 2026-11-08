@@ -2215,9 +2215,13 @@ function initLogicAnalyzer(container) {
         }
 
         const query = packetSearchInput ? packetSearchInput.value.trim().toLowerCase() : '';
-        const filtered = query 
-            ? decodedFrames.filter(f => (f.label || '').toLowerCase().includes(query) || decoderConfig.protocol.toLowerCase().includes(query))
-            : decodedFrames;
+        let filtered = decodedFrames;
+        if (activeBusFilter !== 'all') {
+            filtered = filtered.filter(f => (f.bus && f.bus.toLowerCase() === activeBusFilter) || (decoderConfig.protocol && decoderConfig.protocol.toLowerCase() === activeBusFilter));
+        }
+        if (query) {
+            filtered = filtered.filter(f => (f.label || '').toLowerCase().includes(query) || (f.bus || decoderConfig.protocol || '').toLowerCase().includes(query));
+        }
 
         if (filtered.length === 0) {
             packetTableBody.innerHTML = '<tr><td colspan="6" class="empty-packet-row">No packets match filter</td></tr>';
@@ -2265,12 +2269,108 @@ function initLogicAnalyzer(container) {
         });
     }
 
+    let activeBusFilter = 'all';
+    document.querySelectorAll('#packet-bus-filter button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#packet-bus-filter button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeBusFilter = btn.dataset.bus || 'all';
+            renderPacketTable();
+        });
+    });
+
+    const btnOpenTrigger = document.getElementById('btn-open-trigger-builder');
+    if (btnOpenTrigger) {
+        btnOpenTrigger.addEventListener('click', () => {
+            document.getElementById('modal-trigger-builder')?.showModal();
+        });
+    }
+
+    const btnSaveTrigger = document.getElementById('btn-save-trigger-rule');
+    if (btnSaveTrigger) {
+        btnSaveTrigger.addEventListener('click', async () => {
+            const ruleId = parseInt(document.getElementById('trig-rule-id')?.value || '0', 10);
+            const bus = document.getElementById('trig-bus')?.value || 'i2c';
+            const matchRaw = document.getElementById('trig-match-val')?.value.trim() || '0';
+            const matchVal = matchRaw.startsWith('0x') || matchRaw.startsWith('0X') ? parseInt(matchRaw, 16) : parseInt(matchRaw, 10);
+            const condition = document.getElementById('trig-condition')?.value || 'any';
+            const freeze = document.getElementById('trig-act-freeze')?.checked ?? true;
+            const alert = document.getElementById('trig-act-alert')?.checked ?? true;
+            const halt = document.getElementById('trig-act-halt')?.checked ?? false;
+
+            const payload = {
+                rule_id: ruleId,
+                bus,
+                addr: bus === 'i2c' ? matchVal : 0,
+                id: bus === 'can' ? matchVal : 0,
+                ack: condition === 'nack' ? false : (condition === 'any' ? null : true),
+                error: condition === 'error',
+                freeze,
+                alert,
+                halt_swd: halt
+            };
+
+            try {
+                const res = await fetch('/api/v1/analyzer/triggers/configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    document.getElementById('modal-trigger-builder')?.close();
+                }
+            } catch (e) {
+                console.warn("Failed to install trigger rule:", e);
+            }
+        });
+    }
+
+    let decodedStreamWs = null;
+    function ensureDecodedStreamWebSocket() {
+        if (decodedStreamWs && decodedStreamWs.readyState === WebSocket.OPEN) return;
+        try {
+            const loc = window.location;
+            const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+            decodedStreamWs = new WebSocket(`${wsProto}//${loc.host}/api/v1/analyzer/stream/decoded`, ['agentla-decoded-v1']);
+            decodedStreamWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data && data.bus) {
+                        decodedFrames.push({
+                            start: (data.t || 0) * (displayedSampleRate / 1e6),
+                            end: ((data.t || 0) + 10) * (displayedSampleRate / 1e6),
+                            label: `${data.bus.toUpperCase()} [${data.addr ? '0x' + Number(data.addr).toString(16) : (data.id ? '0x' + Number(data.id).toString(16) : data.byte || '')}]`,
+                            bus: data.bus,
+                            color: 'var(--color-primary)'
+                        });
+                        renderPacketTable();
+                    }
+                } catch (e) {}
+            };
+        } catch (e) {}
+    }
+
     if (decoderApply) {
         decoderApply.addEventListener('click', () => {
             readDecoderConfig();
             runDecoders();
             forceRedraw();
             if (decoderMenu) decoderMenu.classList.remove('show');
+            ensureDecodedStreamWebSocket();
+            // Notify firmware of active decoder
+            const bus = decoderConfig.protocol;
+            if (bus !== 'off') {
+                fetch('/api/v1/analyzer/decoders/configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bus,
+                        pin_a: decoderConfig.sck || decoderConfig.rx || decoderConfig.scl || 0,
+                        pin_b: decoderConfig.mosi || decoderConfig.sda || 1,
+                        baud: decoderConfig.baud || 115200
+                    })
+                }).catch(() => {});
+            }
         });
     }
 

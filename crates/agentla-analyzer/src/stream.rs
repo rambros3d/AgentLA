@@ -153,6 +153,24 @@ impl<const CAPACITY: usize> SpscStreamBuffer<CAPACITY> {
         true
     }
 
+    /// Pushes raw bytes directly into the queue without a frame header.
+    pub fn push_raw(&self, data: &[u8]) -> bool {
+        let avail = self.available_to_write();
+        if data.len() > avail {
+            return false;
+        }
+        let buf_ptr = self.buffer.get();
+        let mut head = self.head.load(Ordering::Relaxed);
+        unsafe {
+            for &b in data {
+                (*buf_ptr)[head] = b;
+                head = (head + 1) % CAPACITY;
+            }
+        }
+        self.head.store(head, Ordering::Release);
+        true
+    }
+
     /// Consumer (Core 0): Pop up to `dst.len()` raw bytes from the stream buffer.
     /// Returns actual number of bytes read.
     pub fn pop_bytes(&self, dst: &mut [u8]) -> usize {

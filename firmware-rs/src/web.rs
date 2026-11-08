@@ -274,6 +274,36 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 "Redirecting...",
             )
         }))
+        .route("/device/pins", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/device/pins/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/device/pins"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/device/api", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/device/api/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/device/api"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/device/mcp", get_service(File::html(crate::device_html::DEVICE_HTML)))
+        .route("/device/mcp/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/device/mcp"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/diagnostics", get_service(File::html(crate::device_html::DEVICE_HTML)))
         .route("/diagnostics.html", get_service(File::html(crate::device_html::DEVICE_HTML)))
         .route("/diagnostics/", get(|| async move {
@@ -328,6 +358,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/firmware/ota", crate::rest::FirmwareOtaStream)
         .route_service("/api/v1/system/telemetry", crate::rest::SystemTelemetry)
         .route_service("/api/v1/system/telemetry/stream", crate::rest::SystemTelemetryStream)
+        .route_service("/api/v1/system/clock/benchmark", crate::rest::SystemClockBenchmark)
         .route_service("/api/v1/terminal/ws", crate::rest::TerminalWebSocket)
         .route_service("/api/v1/can/ws", crate::rest::CanWebSocket)
         .route_service("/api/v1/led/ws", crate::rest::LedWebSocket)

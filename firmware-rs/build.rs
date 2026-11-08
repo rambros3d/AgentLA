@@ -8,14 +8,14 @@ fn main() {
 
     let is_slot_b = env::var("CARGO_FEATURE_SLOT_B").is_ok();
     let flash_origin = if is_slot_b {
-        "0x10130000"
+        "0x10104000"
     } else {
         "0x10004000"
     };
 
     let memory_x = format!(
 r#"MEMORY {{
-    FLASH : ORIGIN = {flash_origin}, LENGTH = 1200K
+    FLASH : ORIGIN = {flash_origin}, LENGTH = 1024K
     RAM   : ORIGIN = 0x20000000, LENGTH = 520K
 }}
 "#);

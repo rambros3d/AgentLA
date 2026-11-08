@@ -33,6 +33,7 @@ pub mod device_html;
 pub mod programmer;
 pub mod ols;
 pub mod telemetry;
+pub mod benchmark;
 
 static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> = embassy_rp::multicore::Stack::new();
 

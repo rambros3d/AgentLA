@@ -28,8 +28,8 @@ pub fn current_executing_slot() -> SlotId {
     unsafe {
         core::arch::asm!("mov {}, pc", out(reg) pc);
     }
-    // Slot B starts at 0x10130000 (XIP)
-    if vtor >= 0x1013_0000 || (pc >= 0x1013_0000 && pc < 0x1026_0000) {
+    // Slot B starts at 0x10104000 (XIP)
+    if vtor >= 0x1010_4000 || (pc >= 0x1010_4000 && pc < 0x1020_4000) {
         SlotId::SlotB
     } else {
         SlotId::SlotA

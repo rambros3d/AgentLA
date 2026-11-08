@@ -69,9 +69,32 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 .drop-zone:hover,.drop-zone.dragover{border-color:var(--fg);background:#111115}
 .drop-zone strong{font-size:11px;color:var(--fg);display:block}
 .drop-zone span{font-size:10px;color:var(--fg-dim);display:block;margin-top:4px}
+.tab-bar{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--border-bright);padding-bottom:8px}
+.tab-btn{background:#111114;border:1px solid var(--border-bright);color:var(--fg-dim);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer}
+.tab-btn:hover{background:#1c1c22;color:var(--fg);border-color:var(--fg)}
+.tab-btn.active{background:var(--fg);color:#000;border-color:var(--fg)}
+.view-panel{display:none;width:100%}
+.view-panel.active{display:block}
+.api-table{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.api-row{display:grid;grid-template-columns:60px 220px 1fr 140px;gap:8px;padding:8px 10px;background:#0d0d10;border:1px solid var(--border);align-items:center;font-size:11px}
+.api-row:hover{border-color:var(--border-bright);background:#131317}
+.badge-get{color:#22d3ee;font-weight:700}
+.badge-post{color:#fbbf24;font-weight:700}
+.badge-del{color:#ef4444;font-weight:700}
+.badge-ws{color:#c084fc;font-weight:700}
+.code-box{background:#08080a;border:1px solid var(--border-bright);padding:10px;font-family:var(--font);font-size:11px;color:var(--fg);position:relative;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:8px}
+.tool-card{border:1px solid var(--border);background:#0d0d10;padding:12px;display:flex;flex-direction:column;gap:6px}
+.tool-name{font-weight:700;color:#22d3ee;font-size:12px;letter-spacing:0.5px}
+.tool-desc{color:var(--fg-dim);font-size:11px;line-height:1.4}
+.tool-args{font-size:10px;color:#a1a1aa;background:#18181c;padding:3px 6px;border-left:2px solid #22d3ee;margin-top:4px}
+.copy-pill{font-size:10px;padding:3px 8px;border:1px solid var(--border-bright);background:#18181b;color:var(--fg);cursor:pointer;font-weight:600}
+.copy-pill:hover{background:var(--fg);color:#000}
 @media (max-width:720px){
   .pt-row{grid-template-columns:100px 80px 80px 1fr}
   .pt-row span:nth-child(2),.pt-row span:nth-child(3){display:none}
+  .api-row{grid-template-columns:50px 1fr;gap:6px}
+  .api-row span:nth-child(3),.api-row div:last-child{grid-column:1/-1}
 }
 </style>
 </head>
@@ -89,6 +112,14 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
   </div>
 </header>
 
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabHardware" onclick="switchView('hardware')">HARDWARE</button>
+  <button class="tab-btn" id="tabPins" onclick="switchView('pins')">PIN DIAGNOSTICS</button>
+  <button class="tab-btn" id="tabApi" onclick="switchView('api')">REST API</button>
+  <button class="tab-btn" id="tabMcp" onclick="switchView('mcp')">MCP AGENT</button>
+</div>
+
+<div class="view-panel active" id="viewHardware">
 <div class="grid">
   <!-- Dynamic Recovery Banner (Expands automatically if SYSTEM_FS is unpopulated/corrupted or ?recovery=1) -->
   <div class="card full recovery-banner" id="recoveryBanner">
@@ -97,7 +128,7 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
       <span class="tag tag-warn">RECOVERY ACTIVE</span>
     </div>
     <p style="color:var(--fg-dim);font-size:11px">
-      Partition 1 (<code>SYSTEM_FS</code> @ 0x00260000) is unpopulated or missing required web assets. Select a restore method below to flash the WebUI distribution:
+      Partition 1 (<code>SYSTEM_FS</code> @ 0x00204000) is unpopulated or missing required web assets. Select a restore method below to flash the WebUI distribution:
     </p>
     <div class="rec-grid">
       <div class="rec-box">
@@ -201,29 +232,104 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
     <div class="part-bar">
       <div class="part-seg" style="flex:16" title="Boot Switcher &amp; Metadata (16 KB) [0x00000000]">BOOT<br><span class="seg-sub">16K</span></div>
-      <div class="part-seg active" id="segSlotA" style="flex:1200" title="Firmware Slot A (1200 KB) [0x00004000]">SLOT_A<br><span class="seg-sub" id="lblSlotA">1.2M [RUN]</span></div>
-      <div class="part-seg" id="segSlotB" style="flex:1200" title="Firmware Slot B (1200 KB) [0x00130000]">SLOT_B<br><span class="seg-sub" id="lblSlotB">1.2M [OTA]</span></div>
-      <div class="part-seg" style="flex:512" title="SYSTEM_FS LittleFS (512 KB) [0x00260000]">SYSTEM_FS<br><span class="seg-sub">512K (LFS)</span></div>
-      <div class="part-seg" style="flex:1136" title="USER_FS LittleFS (1136 KB) [0x002E0000]">USER_FS<br><span class="seg-sub">1.1M (LFS)</span></div>
+      <div class="part-seg active" id="segSlotA" style="flex:1024" title="Firmware Slot A (1024 KB) [0x00004000]">SLOT_A<br><span class="seg-sub" id="lblSlotA">1.0M [RUN]</span></div>
+      <div class="part-seg" id="segSlotB" style="flex:1024" title="Firmware Slot B (1024 KB) [0x00104000]">SLOT_B<br><span class="seg-sub" id="lblSlotB">1.0M [OTA]</span></div>
+      <div class="part-seg" style="flex:512" title="SYSTEM_FS LittleFS (512 KB) [0x00204000]">SYSTEM_FS<br><span class="seg-sub">512K (LFS)</span></div>
+      <div class="part-seg" style="flex:1504" title="USER_FS LittleFS (1504 KB) [0x00284000]">USER_FS<br><span class="seg-sub">1.5M (LFS)</span></div>
       <div class="part-seg" style="flex:16" title="Reserved Trail (16 KB) [0x003FC000]">END<br><span class="seg-sub">16K</span></div>
     </div>
     <div class="part-table">
       <div class="pt-row header"><span>PARTITION</span><span>START</span><span>END</span><span>SIZE</span><span>TYPE</span><span>ROLE / STATUS</span></div>
       <div class="pt-row"><span>BOOT_TABLE</span><span>0x00000000</span><span>0x00004000</span><span>16 KB</span><span>ROM</span><span>Bootloader Switcher</span></div>
-      <div class="pt-row" id="rowSlotA"><span>FW_SLOT_A</span><span>0x00004000</span><span>0x00130000</span><span>1200 KB</span><span>XIP_FLASH</span><span id="roleSlotA">Active Firmware [Running]</span></div>
-      <div class="pt-row" id="rowSlotB"><span>FW_SLOT_B</span><span>0x00130000</span><span>0x00260000</span><span>1200 KB</span><span>XIP_FLASH</span><span id="roleSlotB">Alternate Firmware [Standby]</span></div>
-      <div class="pt-row"><span>SYSTEM_FS</span><span>0x00260000</span><span>0x002E0000</span><span>512 KB</span><span>LITTLEFS2</span><span>WebUI &amp; System Bundle</span></div>
-      <div class="pt-row"><span>USER_FS</span><span>0x002E0000</span><span>0x003FC000</span><span>1136 KB</span><span>LITTLEFS2</span><span>User Apps, Profiles &amp; Data</span></div>
+      <div class="pt-row" id="rowSlotA"><span>FW_SLOT_A</span><span>0x00004000</span><span>0x00104000</span><span>1024 KB</span><span>XIP_FLASH</span><span id="roleSlotA">Active Firmware [Running]</span></div>
+      <div class="pt-row" id="rowSlotB"><span>FW_SLOT_B</span><span>0x00104000</span><span>0x00204000</span><span>1024 KB</span><span>XIP_FLASH</span><span id="roleSlotB">Alternate Firmware [Standby]</span></div>
+      <div class="pt-row"><span>SYSTEM_FS</span><span>0x00204000</span><span>0x00284000</span><span>512 KB</span><span>LITTLEFS2</span><span>WebUI &amp; System Bundle</span></div>
+      <div class="pt-row"><span>USER_FS</span><span>0x00284000</span><span>0x003FC000</span><span>1504 KB</span><span>LITTLEFS2</span><span>User Apps, Profiles &amp; Data</span></div>
     </div>
   </div>
+</div>
+</div>
 
-  <!-- Card 7: Pin Diagnostics -->
+<!-- VIEW PANEL: PIN DIAGNOSTICS -->
+<div class="view-panel" id="viewPins">
   <div class="card full">
     <div class="card-hdr">
       <span class="title">Pin Diagnostics</span>
       <button class="danger" style="padding:2px 8px;font-size:10px" onclick="releaseAllPins()">Emergency Release All</button>
     </div>
     <div class="pin-matrix" id="pinMatrix"></div>
+  </div>
+</div>
+
+<!-- VIEW PANEL 2: REST API CATALOG -->
+<div class="view-panel" id="viewApi">
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">REST API Endpoint Catalog &amp; Interactive Runner</span>
+      <span class="tag">HTTP JSON / WEBSOCKET</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <p style="color:var(--fg-dim);font-size:11px">Categorized endpoints hosted directly on-probe. All endpoints operate independent of LittleFS.</p>
+      <input type="text" id="apiFilter" placeholder="Filter endpoints..." style="background:#08080a;border:1px solid var(--border-bright);color:var(--fg);padding:4px 8px;font-family:var(--font);font-size:11px;width:180px" oninput="filterApi(this.value)">
+    </div>
+    <div class="api-table" id="apiTable"></div>
+  </div>
+
+  <!-- Interactive API Response Viewer -->
+  <div class="card full" id="apiRunnerCard">
+    <div class="card-hdr">
+      <span class="title">Live API Execution Output</span>
+      <span class="tag" id="apiRunnerStatus">IDLE</span>
+    </div>
+    <pre class="code-box" id="apiRunnerOutput">// Click [ TRY ] on any endpoint above to execute live query against current host...</pre>
+  </div>
+</div>
+
+<!-- VIEW PANEL 3: MCP AGENT BRIDGE -->
+<div class="view-panel" id="viewMcp">
+  <!-- MCP Server Connection Details -->
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">Model Context Protocol (MCP) Server</span>
+      <span class="tag" style="border-color:#22d3ee;color:#22d3ee">ACTIVE // IN-ROM</span>
+    </div>
+    <div class="d-list">
+      <div class="row"><span class="lbl">TRANSPORT_PROTOCOL</span><span class="dots"></span><span class="val">Streamed JSON-RPC 2.0 (POST) + SSE</span></div>
+      <div class="row"><span class="lbl">HTTP_RPC_ENDPOINT</span><span class="dots"></span><span class="val" id="mcpRpcUrl">/mcp (POST JSON-RPC 2.0)</span></div>
+      <div class="row"><span class="lbl">SSE_EVENT_STREAM</span><span class="dots"></span><span class="val" id="mcpSseUrl">/mcp/sse (Server-Sent Events)</span></div>
+      <div class="row"><span class="lbl">PROTOCOL_SPEC</span><span class="dots"></span><span class="val">MCP 2024-11-05 (Zero-Heap #![no_std])</span></div>
+    </div>
+  </div>
+
+  <!-- 1-Click AI Configuration Snippet -->
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">AI Assistant Configuration (Antigravity / Claude / Cursor)</span>
+      <button class="copy-pill" id="btnCopyMcp" onclick="copyMcpConfig()">Copy Config JSON</button>
+    </div>
+    <p style="color:var(--fg-dim);font-size:11px">Add this snippet to your agent's configuration file (e.g. <code>claude_desktop_config.json</code> or Antigravity MCP settings):</p>
+    <pre class="code-box" id="mcpConfigSnippet">{\n  "mcpServers": {\n    "agentla": {\n      "url": "&lt;auto-detecting host&gt;/mcp"\n    }\n  }\n}</pre>
+  </div>
+
+  <!-- Native On-Probe Tools -->
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">On-Probe Native Tools Reference</span>
+      <span class="tag">6 FIRMWARE TOOLS</span>
+    </div>
+    <div class="tool-grid" id="mcpToolGrid"></div>
+  </div>
+
+  <!-- Interactive JSON-RPC Test Runner -->
+  <div class="card full">
+    <div class="card-hdr">
+      <span class="title">Interactive JSON-RPC Sandbox</span>
+      <button class="primary" onclick="executeMcpRpc()">Execute JSON-RPC</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <textarea id="mcpRpcPayload" rows="3" style="width:100%;background:#08080a;border:1px solid var(--border-bright);color:var(--fg);font-family:var(--font);font-size:11px;padding:8px;resize:vertical">{ "jsonrpc": "2.0", "method": "tools/list", "id": 1 }</textarea>
+      <pre class="code-box" id="mcpRpcOutput">// JSON-RPC response will appear here...</pre>
+    </div>
   </div>
 </div>
 
@@ -250,6 +356,209 @@ let installedFwVer = 'v1.0.0';
 let installedWebVer = 'v1.0.0';
 
 function nav(p){ window.location.href = p; }
+
+function switchView(view){
+  const views = ['hardware', 'pins', 'api', 'mcp'];
+  views.forEach(v => {
+    const btn = $('tab' + v.charAt(0).toUpperCase() + v.slice(1));
+    const panel = $('view' + v.charAt(0).toUpperCase() + v.slice(1));
+    if(btn) btn.className = 'tab-btn' + (v === view ? ' active' : '');
+    if(panel) panel.className = 'view-panel' + (v === view ? ' active' : '');
+  });
+  if(history.replaceState){
+    history.replaceState(null, '', '#' + view);
+  }
+}
+
+function initView(){
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase().replace('#', '');
+  if(path.includes('/device/pins') || hash === 'pins'){
+    switchView('pins');
+  } else if(path.includes('/device/api') || hash === 'api'){
+    switchView('api');
+  } else if(path.includes('/device/mcp') || hash === 'mcp'){
+    switchView('mcp');
+  } else {
+    switchView('hardware');
+  }
+}
+window.addEventListener('popstate', initView);
+
+const API_ENDPOINTS = [
+  { m: 'GET', p: '/api/board/manifest', d: 'Board hardware manifest (MCU chip, clock, SRAM, flash, pinout)', s: 'manifest' },
+  { m: 'GET', p: '/api/v1/system/telemetry', d: 'Voltages (V_SYS, V_TARGET), mA draw, core temp, SRAM, and flash size', s: 'telemetry' },
+  { m: 'GET', p: '/api/v1/system/telemetry/stream', d: 'Live telemetry Server-Sent Events stream', s: 'telemetry_stream' },
+  { m: 'POST', p: '/api/v1/system/reboot', d: 'Trigger immediate hardware system reset', b: '{}', s: 'reboot' },
+  { m: 'POST', p: '/api/v1/system/bootsel', d: 'Enter RP2350 USB UF2 bootloader drive mode', b: '{}', s: 'bootsel' },
+  { m: 'GET', p: '/api/v1/pins', d: 'Full 30-pin Dynamic Pin Arbiter ownership matrix', s: 'pins' },
+  { m: 'POST', p: '/api/v1/pins/claim', d: 'Claim pin ownership from Pin Arbiter', b: '{"pin":14,"owner":"programmer"}', s: 'claim' },
+  { m: 'POST', p: '/api/v1/pins/release', d: 'Release claimed pin back to High-Z free state', b: '{"pin":14}', s: 'release' },
+  { m: 'POST', p: '/api/v1/system/pins/release_all', d: 'Emergency release all 30 GPIO allocations', b: '{}', s: 'release_all' },
+  { m: 'POST', p: '/api/v1/system/pins/toggle', d: 'Drive or tri-state pin directly', b: '{"pin":0,"state":"high"}', s: 'toggle' },
+  { m: 'GET', p: '/api/v1/profiles', d: 'List stored hardware pin profiles on USER_FS', s: 'profiles' },
+  { m: 'POST', p: '/api/v1/profiles/apply', d: 'Apply declarative pin profile', b: '{"profile":"uart_bridge"}', s: 'prof_apply' },
+  { m: 'GET', p: '/api/v1/system/firmware/status', d: 'Dual-slot A/B state, active/candidate slots, version', s: 'fw_status' },
+  { m: 'POST', p: '/api/v1/system/firmware/rollback', d: 'Roll back active firmware boot pointer to standby slot', b: '{}', s: 'rollback' },
+  { m: 'POST', p: '/api/v1/system/fs/format', d: 'Format partition (SYSTEM_FS or USER_FS)', b: '{"partition":"user","confirm":true}', s: 'format' },
+  { m: 'GET', p: '/api/v1/servo', d: 'List active servo attachments', s: 'servo' },
+  { m: 'POST', p: '/api/v1/servo/write', d: 'Set servo angle (0-180 deg)', b: '{"pin":2,"angle":90}', s: 'servo_write' },
+  { m: 'POST', p: '/api/v1/pwm/set', d: 'Configure hardware PWM frequency and duty', b: '{"pin":1,"frequency_hz":20000,"duty_pct":50}', s: 'pwm_set' },
+  { m: 'WS', p: '/api/v1/terminal/ws', d: 'Full-duplex UART serial WebSocket bridge', s: 'ws_term' },
+  { m: 'WS', p: '/api/v1/can/ws', d: 'CAN-FD transceiver packet stream', s: 'ws_can' },
+  { m: 'WS', p: '/api/v1/led/ws', d: 'Micro-RGB NeoPixel LED streaming endpoint', s: 'ws_led' },
+  { m: 'POST', p: '/mcp', d: 'Model Context Protocol JSON-RPC 2.0 tool execution endpoint', b: '{"jsonrpc":"2.0","method":"tools/list","id":1}', s: 'mcp_rpc' }
+];
+
+function renderApiTable(filter = ''){
+  const t = $('apiTable');
+  if(!t) return;
+  t.innerHTML = '';
+  const q = filter.toLowerCase().trim();
+  const list = q ? API_ENDPOINTS.filter(x => x.p.toLowerCase().includes(q) || x.d.toLowerCase().includes(q) || x.m.toLowerCase().includes(q)) : API_ENDPOINTS;
+  list.forEach(ep => {
+    const row = document.createElement('div');
+    row.className = 'api-row';
+    const bCls = 'badge-' + ep.m.toLowerCase();
+    const isWs = ep.m === 'WS';
+    row.innerHTML = `
+      <span class="${bCls}">${ep.m}</span>
+      <code>${ep.p}</code>
+      <span style="color:var(--fg-dim)">${ep.d}</span>
+      <div class="btn-group" style="justify-content:flex-end">
+        <button class="copy-pill" onclick="copyCurl('${ep.m}','${ep.p}','${encodeURIComponent(ep.b||'')}', this)">curl</button>
+        ${isWs ? '<button disabled style="opacity:0.5;font-size:10px">WS</button>' : `<button class="primary" style="font-size:10px;padding:3px 8px" onclick="tryApi('${ep.m}','${ep.p}','${encodeURIComponent(ep.b||'')}')">Try</button>`}
+      </div>
+    `;
+    t.appendChild(row);
+  });
+}
+
+function filterApi(val){ renderApiTable(val); }
+
+function copyCurl(method, path, encBody, btn){
+  const host = window.location.origin || (window.location.protocol + '//' + (window.location.host || '192.168.7.1'));
+  let cmd = `curl -s "${host}${path}"`;
+  if(method === 'POST'){
+    const body = encBody ? decodeURIComponent(encBody) : '{}';
+    cmd = `curl -s -X POST "${host}${path}" -H "Content-Type: application/json" -d '${body}'`;
+  } else if(method === 'DELETE'){
+    cmd = `curl -s -X DELETE "${host}${path}"`;
+  }
+  navigator.clipboard.writeText(cmd).then(() => {
+    if(btn){
+      const orig = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => btn.textContent = orig, 1500);
+    }
+  });
+}
+
+async function tryApi(method, path, encBody){
+  const card = $('apiRunnerCard');
+  const stat = $('apiRunnerStatus');
+  const out = $('apiRunnerOutput');
+  stat.textContent = `${method} ${path}...`;
+  stat.className = 'tag tag-warn';
+  const opts = { method };
+  if(method === 'POST'){
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = encBody ? decodeURIComponent(encBody) : '{}';
+  }
+  const t0 = performance.now();
+  try{
+    const r = await fetch(path, opts);
+    const ms = Math.round(performance.now() - t0);
+    const text = await r.text();
+    let formatted = text;
+    try { formatted = JSON.stringify(JSON.parse(text), null, 2); } catch(e){}
+    stat.textContent = `HTTP ${r.status} (${ms} ms)`;
+    stat.className = r.ok ? 'tag' : 'tag tag-alert';
+    out.textContent = `// Response from ${method} ${path} [HTTP ${r.status} in ${ms} ms]\n\n` + formatted;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }catch(e){
+    stat.textContent = 'FETCH ERROR';
+    stat.className = 'tag tag-alert';
+    out.textContent = `// Error calling ${path}: ` + e.message;
+  }
+}
+
+const MCP_TOOLS = [
+  { name: 'mcp_target_diagnose', desc: 'Auto-detect target MCU family (ARM Cortex-M, RISC-V), inspect CoreSight APs, dump PC/SP, and detect crash/halt state via SWD.', args: 'target?: string, reset?: boolean' },
+  { name: 'mcp_inspect_firmware', desc: 'Validate target vector table, verify initial MSP, sanity check Reset_Handler address against active Flash memory layout.', args: 'base_address?: number, slot?: "A" | "B"' },
+  { name: 'mcp_sniff_bus', desc: 'Capture raw hardware frames on CAN-FD (5 Mbps), UART, or I2C with hardware PIO capture and decode.', args: 'bus: "can" | "uart" | "i2c", duration_ms?: number, baud?: number' },
+  { name: 'mcp_pins_claim', desc: 'Acquire dedicated pin ownership from the Dynamic Pin Arbiter, configuring bidirectional transceivers safely.', args: 'pins: number[], owner: string, mode?: string' },
+  { name: 'mcp_telemetry_get', desc: 'Acquire precision V_sys rail voltage, target rail voltage, dynamic target current in mA, and core silicon temperature.', args: 'channels?: string[]' },
+  { name: 'mcp_profile_apply', desc: 'Switch hardware instrument configuration dynamically by applying a named hardware profile from USER_FS.', args: 'profile: string' }
+];
+
+function renderMcpTools(){
+  const g = $('mcpToolGrid');
+  if(!g) return;
+  g.innerHTML = '';
+  MCP_TOOLS.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'tool-card';
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="tool-name">${t.name}</span>
+        <button class="copy-pill" onclick="copyToolName('${t.name}', this)">Copy</button>
+      </div>
+      <div class="tool-desc">${t.desc}</div>
+      <div class="tool-args">params: ${t.args}</div>
+    `;
+    g.appendChild(card);
+  });
+}
+
+function copyToolName(name, btn){
+  navigator.clipboard.writeText(name).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'COPIED!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+function copyMcpConfig(){
+  const origin = window.location.origin || (window.location.protocol + '//' + (window.location.host || '192.168.7.1'));
+  const json = JSON.stringify({
+    mcpServers: {
+      agentla: {
+        url: origin + '/mcp'
+      }
+    }
+  }, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    const b = $('btnCopyMcp');
+    if(b){
+      const orig = b.textContent;
+      b.textContent = 'CONFIG COPIED!';
+      setTimeout(() => b.textContent = orig, 2000);
+    }
+  });
+}
+
+async function executeMcpRpc(){
+  const payloadEl = $('mcpRpcPayload');
+  const out = $('mcpRpcOutput');
+  if(!payloadEl || !out) return;
+  out.textContent = '// Sending JSON-RPC payload to POST /mcp...';
+  const t0 = performance.now();
+  try{
+    const r = await fetch('/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payloadEl.value.trim()
+    });
+    const ms = Math.round(performance.now() - t0);
+    const text = await r.text();
+    let formatted = text;
+    try { formatted = JSON.stringify(JSON.parse(text), null, 2); } catch(e){}
+    out.textContent = `// MCP Response [HTTP ${r.status} in ${ms} ms]\n\n` + formatted;
+  }catch(e){
+    out.textContent = '// JSON-RPC Execution Error: ' + e.message;
+  }
+}
 
 function showConfirm(title, msg, isDanger = true){
   return new Promise(resolve => {
@@ -593,6 +902,21 @@ async function init(){
       if(e.dataTransfer.files.length) uploadLocal('/api/v1/system/webui/update', e.dataTransfer.files[0], false);
     });
   }
+  const origin = window.location.origin || (window.location.protocol + '//' + (window.location.host || '192.168.7.1'));
+  if($('mcpRpcUrl')) $('mcpRpcUrl').textContent = origin + '/mcp';
+  if($('mcpSseUrl')) $('mcpSseUrl').textContent = origin + '/mcp/sse';
+  if($('mcpConfigSnippet')){
+    $('mcpConfigSnippet').textContent = JSON.stringify({
+      mcpServers: {
+        agentla: {
+          url: origin + '/mcp'
+        }
+      }
+    }, null, 2);
+  }
+  renderApiTable();
+  renderMcpTools();
+  initView();
   await loadManifest();
   await loadFirmwareStatus();
   await loadTelemetry();

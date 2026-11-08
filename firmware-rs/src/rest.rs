@@ -146,6 +146,9 @@ pub struct LogicAnalyzerStatus;
 pub struct LogicAnalyzerConfig;
 pub struct LogicAnalyzerData;
 pub struct LogicAnalyzerVcd;
+pub struct LogicAnalyzerDecodersConfigure;
+pub struct LogicAnalyzerTriggersConfigure;
+pub struct DecodedStreamWebSocket;
 pub struct ProgrammerTarget;
 pub struct ProgrammerReset;
 pub struct ProgrammerResetCatch;
@@ -648,6 +651,76 @@ impl LogicAnalyzerVcd {
         crate::analyzer::generate_vcd(&mut vcd);
         let finalizer = request.body_connection.finalize().await?;
         (StatusCode::OK, ("Content-Type", "text/plain"), vcd.as_str()).write_to(finalizer, response_writer).await
+    }
+}
+
+impl LogicAnalyzerDecodersConfigure {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let body = read_body_str(&mut request).await;
+        let s = body.as_str();
+        let bus = key_str(None, s, "bus").unwrap_or_default();
+        let pin_a = key_u32(None, s, "pin_a").unwrap_or(0) as u8;
+        let pin_b = key_u32(None, s, "pin_b").unwrap_or(0) as u8;
+        let baud = key_u32(None, s, "baud").unwrap_or(115_200);
+        let kind = match bus.as_str() {
+            "uart" => 0u8,
+            "i2c" => 1u8,
+            "spi" => 2u8,
+            "can" => 3u8,
+            _ => 0u8,
+        };
+        if let Ok(mut dec) = crate::analyzer::ACTIVE_DECODER.try_lock() {
+            dec.enabled = true;
+            dec.kind = kind;
+            dec.pin_a = pin_a;
+            dec.pin_b = pin_b;
+            dec.baud = baud;
+        }
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"configured","decoders_active":true}"#).await
+    }
+}
+
+impl LogicAnalyzerTriggersConfigure {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let body = read_body_str(&mut request).await;
+        let s = body.as_str();
+        let rule_id = key_u32(None, s, "rule_id").unwrap_or(0) as u8;
+        let bus_str = key_str(None, s, "bus").unwrap_or_default();
+        let bus = match bus_str.as_str() {
+            "uart" => agentla_analyzer::decoders::event::ProtocolKind::Uart,
+            "spi" => agentla_analyzer::decoders::event::ProtocolKind::Spi,
+            "can" => agentla_analyzer::decoders::event::ProtocolKind::Can,
+            _ => agentla_analyzer::decoders::event::ProtocolKind::I2c,
+        };
+        let match_addr = key_u32(None, s, "addr").unwrap_or(0) as u16;
+        let match_id = key_u32(None, s, "id").unwrap_or(0);
+        let match_ack = if s.contains(r#""ack":false"#) { Some(false) } else if s.contains(r#""ack":true"#) { Some(true) } else { None };
+        let freeze = !s.contains(r#""freeze":false"#);
+        let alert = !s.contains(r#""alert":false"#);
+
+        let rule = agentla_analyzer::decoders::matrix::HardwareTriggerRule {
+            rule_id,
+            enabled: true,
+            bus,
+            match_addr,
+            match_addr_mask: if match_addr != 0 { 0x7F } else { 0 },
+            match_ack,
+            match_id,
+            match_id_mask: if match_id != 0 { 0x7FF } else { 0 },
+            match_data_byte0: None,
+            match_error: s.contains(r#""error":true"#),
+            action_freeze_capture: freeze,
+            action_assert_pin: None,
+            action_halt_swd: s.contains(r#""halt_swd":true"#),
+            action_ws_alert: alert,
+        };
+
+        if let Ok(mut matrix) = crate::analyzer::TRIGGER_MATRIX.try_lock() {
+            let _ = matrix.install_rule(rule);
+        }
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"configured","rule_installed":true}"#).await
     }
 }
 
@@ -2428,6 +2501,47 @@ impl picoserve::routing::MethodHandlerService<()> for SystemTelemetry {
 
 pub struct SystemTelemetryStream;
 
+pub struct SystemClockBenchmark;
+
+impl picoserve::routing::MethodHandlerService<()> for SystemClockBenchmark {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        _method: &str,
+        request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let max_mhz = key_u32(request.parts.query(), "", "max").unwrap_or(700);
+        let single_mhz = key_u32(request.parts.query(), "", "mhz");
+
+        let mut buf = heapless::String::<2048>::new();
+        if let Some(target) = single_mhz {
+            if let Some(step) = crate::benchmark::STEPS.iter().find(|s| s.mhz == target) {
+                let pre_temp = crate::benchmark::read_temperature_c();
+                let stable = crate::benchmark::execute_step_in_ram(*step);
+                let post_temp = crate::benchmark::read_temperature_c();
+                let v_mv = crate::benchmark::vsel_to_mv(step.vsel);
+                let _ = core::fmt::Write::write_fmt(
+                    &mut buf,
+                    format_args!(
+                        r#"{{"mhz":{},"v_mv":{},"temp_before_c":{},"temp_after_c":{},"stable":{}}}"#,
+                        step.mhz, v_mv, pre_temp, post_temp, stable
+                    ),
+                );
+            } else {
+                let _ = core::fmt::Write::write_fmt(
+                    &mut buf,
+                    format_args!(r#"{{"error":"unsupported_frequency","supported":[150,200,250,300,350,400,450,500,540,600,650,700]}}"#),
+                );
+            }
+        } else {
+            crate::benchmark::run_overclock_sweep_async(&mut buf, max_mhz).await;
+        }
+        send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
+    }
+}
+
 impl picoserve::routing::MethodHandlerService<()> for SystemTelemetryStream {
     async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
@@ -2477,5 +2591,71 @@ impl picoserve::routing::MethodHandlerService<()> for AnalyzerStream {
             .await;
         crate::analyzer::stop_continuous_stream();
         res
+    }
+}
+
+struct DecodedStreamWsCallback;
+
+impl picoserve::response::ws::WebSocketCallback for DecodedStreamWsCallback {
+    async fn run<R: picoserve::io::Read, W: picoserve::io::Write<Error = R::Error>>(
+        self,
+        mut rx: picoserve::response::ws::SocketRx<R>,
+        mut tx: picoserve::response::ws::SocketTx<W>,
+    ) -> Result<(), W::Error> {
+        let mut msg_buf = [0u8; 128];
+        let mut event_buf = [0u8; 256];
+
+        loop {
+            match rx.next_message(&mut msg_buf, crate::analyzer::DECODED_SIGNAL.wait()).await {
+                Ok(picoserve::futures::Either::First(_)) => {}
+                Ok(picoserve::futures::Either::Second(())) => {
+                    let n = crate::analyzer::DECODED_RING.pop_bytes(&mut event_buf);
+                    if n > 0 {
+                        if let Ok(s) = core::str::from_utf8(&event_buf[..n]) {
+                            let _ = tx.send_text(s).await;
+                        }
+                    }
+                    let _ = tx.flush().await;
+                }
+                _ => break,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl picoserve::routing::MethodHandlerService<()> for DecodedStreamWebSocket {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+
+        use picoserve::extract::FromRequest;
+        let upgrade = match picoserve::response::ws::WebSocketUpgrade::from_request(
+            &(),
+            request.parts,
+            request.body_connection.body(),
+        )
+        .await
+        {
+            Ok(u) => u,
+            Err(e) => {
+                return e
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        upgrade
+            .on_upgrade(DecodedStreamWsCallback)
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
     }
 }

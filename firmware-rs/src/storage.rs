@@ -17,20 +17,20 @@ pub const FLASH_SIZE_BYTES: usize = 4 * 1024 * 1024;
 pub const BOOT_TABLE_OFFSET: u32 = 0x00000000;
 pub const BOOT_TABLE_SIZE_BYTES: usize = 16 * 1024;
 
-/// Dual Firmware Execution Slots: 1,200 KB each
+/// Dual Firmware Execution Slots: 1,024 KB each
 pub const SLOT_A_OFFSET: u32 = 0x00004000;
-pub const SLOT_SIZE_BYTES: usize = 1200 * 1024; // 1,228,800 bytes (0x0012C000)
-pub const SLOT_B_OFFSET: u32 = 0x00130000;
-pub const FIRMWARE_SLOTS_END: u32 = 0x00260000;
+pub const SLOT_SIZE_BYTES: usize = 1024 * 1024; // 1,048,576 bytes (0x00100000)
+pub const SLOT_B_OFFSET: u32 = 0x00104000;
+pub const FIRMWARE_SLOTS_END: u32 = 0x00204000;
 
 /// SYSTEM_FS partition: 512 KB (128 sectors of 4 KB). Fixed across all boards.
-pub const SYSTEM_FS_OFFSET: u32 = 0x00260000;
+pub const SYSTEM_FS_OFFSET: u32 = 0x00204000;
 pub const SYSTEM_FS_SIZE_BYTES: usize = 512 * 1024;
 pub const SYSTEM_BLOCK_COUNT: usize = SYSTEM_FS_SIZE_BYTES / BLOCK_SIZE; // 128 blocks
-pub const SYSTEM_FS_END: u32 = SYSTEM_FS_OFFSET + SYSTEM_FS_SIZE_BYTES as u32; // 0x002E0000
+pub const SYSTEM_FS_END: u32 = SYSTEM_FS_OFFSET + SYSTEM_FS_SIZE_BYTES as u32; // 0x00284000
 
 /// USER_FS partition: dynamically sized to `FLASH_END - 16KB`.
-pub const USER_FS_OFFSET: u32 = SYSTEM_FS_END; // 0x002E0000
+pub const USER_FS_OFFSET: u32 = SYSTEM_FS_END; // 0x00284000
 pub const FLASH_RESERVED_TRAIL_BYTES: usize = 16 * 1024; // 16 KB
 pub const USER_FS_END: u32 = (FLASH_SIZE_BYTES - FLASH_RESERVED_TRAIL_BYTES) as u32;
 pub const USER_FS_SIZE_BYTES: usize = (USER_FS_END - USER_FS_OFFSET) as usize;

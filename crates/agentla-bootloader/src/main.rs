@@ -78,7 +78,7 @@ fn main() -> ! {
 
     // Sanity check slot validity: SP must be in RAM, PC must be in slot flash
     let valid_sp = sp >= RAM_BASE && sp <= RAM_END;
-    let valid_pc = pc >= slot_addr && pc < (slot_addr + 1200 * 1024);
+    let valid_pc = pc >= slot_addr && pc < (slot_addr + 1024 * 1024);
 
     if !valid_sp || !valid_pc {
         // Target slot is unprogrammed or corrupted! Unconditionally fall back to the other slot
@@ -90,7 +90,7 @@ fn main() -> ! {
     }
 
     let final_valid_sp = sp >= RAM_BASE && sp <= RAM_END;
-    let final_valid_pc = pc >= slot_addr && pc < (slot_addr + 1200 * 1024);
+    let final_valid_pc = pc >= slot_addr && pc < (slot_addr + 1024 * 1024);
     if !final_valid_sp || !final_valid_pc {
         // Neither slot is valid! Loop safely
         loop {}

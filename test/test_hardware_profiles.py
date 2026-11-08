@@ -30,10 +30,10 @@ def test_flash_memory_geometry():
     """Verify 4MB RP2350 5-zone partition alignment without raw profile slice."""
     flash_size = 4096 * 1024       # 4 MB
     boot_size = 16 * 1024          # 16 KB (0x00000000..0x00004000)
-    slot_a_size = 1200 * 1024      # 1200 KB (0x00004000..0x00130000)
-    slot_b_size = 1216 * 1024      # 1216 KB (0x00130000..0x00260000 window)
-    system_fs_size = 512 * 1024    # 512 KB (0x00260000..0x002E0000)
-    user_fs_size = 1136 * 1024     # 1136 KB (0x002E0000..0x003FC000)
+    slot_a_size = 1024 * 1024      # 1024 KB (0x00004000..0x00104000)
+    slot_b_size = 1024 * 1024      # 1024 KB (0x00104000..0x00204000)
+    system_fs_size = 512 * 1024    # 512 KB (0x00204000..0x00284000)
+    user_fs_size = 1504 * 1024     # 1504 KB (0x00284000..0x003FC000)
     trail_size = 16 * 1024         # 16 KB (0x003FC000..0x00400000)
 
     assert boot_size + slot_a_size + slot_b_size + system_fs_size + user_fs_size + trail_size == flash_size
@@ -41,14 +41,14 @@ def test_flash_memory_geometry():
     # Verify sector alignment
     assert 0x00000000 % 4096 == 0
     assert 0x00004000 % 4096 == 0
-    assert 0x00130000 % 4096 == 0
-    assert 0x00260000 % 4096 == 0
-    assert 0x002E0000 % 4096 == 0
+    assert 0x00104000 % 4096 == 0
+    assert 0x00204000 % 4096 == 0
+    assert 0x00284000 % 4096 == 0
     assert 0x003FC000 % 4096 == 0
 
     # Ensure USER_FS starts immediately after SYSTEM_FS (no gap)
-    system_fs_end = 0x00260000 + system_fs_size
-    assert system_fs_end == 0x002E0000, "USER_FS must directly follow SYSTEM_FS"
+    system_fs_end = 0x00204000 + system_fs_size
+    assert system_fs_end == 0x00284000, "USER_FS must directly follow SYSTEM_FS"
 
 
 # --- Unit Tests: Declarative JSON Profile Schema & Safe State Contract ---

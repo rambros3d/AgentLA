@@ -52,7 +52,7 @@ impl SlotId {
     pub const fn flash_offset(self) -> u32 {
         match self {
             Self::SlotA => 0x0000_4000,
-            Self::SlotB => 0x0013_0000,
+            Self::SlotB => 0x0010_4000,
         }
     }
 

@@ -28,6 +28,46 @@ pub static STREAM_FORMAT: core::sync::atomic::AtomicU8 = core::sync::atomic::Ato
 pub static STREAM_RING: agentla_analyzer::SpscStreamBuffer<32768> = agentla_analyzer::SpscStreamBuffer::new();
 pub static STREAM_SIGNAL: embassy_sync::signal::Signal<CriticalSectionRawMutex, ()> = embassy_sync::signal::Signal::new();
 
+pub static TRIGGER_MATRIX: Mutex<CriticalSectionRawMutex, agentla_analyzer::decoders::matrix::HardwareTriggerMatrix> =
+    Mutex::new(agentla_analyzer::decoders::matrix::HardwareTriggerMatrix::new());
+pub static DECODED_RING: agentla_analyzer::SpscStreamBuffer<4096> = agentla_analyzer::SpscStreamBuffer::new();
+pub static DECODED_SIGNAL: embassy_sync::signal::Signal<CriticalSectionRawMutex, ()> = embassy_sync::signal::Signal::new();
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DecoderRuntimeConfig {
+    pub enabled: bool,
+    pub kind: u8,
+    pub pin_a: u8,
+    pub pin_b: u8,
+    pub baud: u32,
+}
+
+pub static ACTIVE_DECODER: Mutex<CriticalSectionRawMutex, DecoderRuntimeConfig> =
+    Mutex::new(DecoderRuntimeConfig {
+        enabled: false,
+        kind: 0,
+        pin_a: 0,
+        pin_b: 0,
+        baud: 115_200,
+    });
+
+pub fn emit_decoded_event(event: &agentla_analyzer::decoders::event::DecodedEvent) {
+    let mut json_buf = [0u8; 256];
+    let len = event.format_json(&mut json_buf);
+    if len > 0 {
+        let _ = DECODED_RING.push_raw(&json_buf[..len]);
+        // Evaluate hardware trigger matrix
+        if let Ok(matrix) = TRIGGER_MATRIX.try_lock() {
+            if let Some(act) = matrix.evaluate(event) {
+                if act.freeze_capture {
+                    STATE.store(State::Captured as u8, Ordering::Relaxed);
+                }
+            }
+        }
+        DECODED_SIGNAL.signal(());
+    }
+}
+
 static mut PING_PONG_A: [u32; 1024] = [0; 1024];
 static mut PING_PONG_B: [u32; 1024] = [0; 1024];
 static STREAM_CLAIM: Mutex<CriticalSectionRawMutex, Option<pin_owner::SlotId>> = Mutex::new(None);
