@@ -450,25 +450,14 @@ impl picoserve::routing::MethodHandlerService<(), (AppParams,)> for AppInstall {
 /// Tarball install endpoint handling query parameter style: POST /api/v1/apps/install?name={name}
 pub struct AppInstallQuery;
 
-impl picoserve::routing::MethodHandlerService<()> for AppInstallQuery {
-    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::RequestHandlerService<(), ()> for AppInstallQuery {
+    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
-        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        if method != "POST" {
-            return (
-                StatusCode::METHOD_NOT_ALLOWED,
-                ("Content-Type", "application/json"),
-                "{\"error\":\"method_not_allowed\"}",
-            )
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        }
-
         let query = request.parts.query();
         let name_str = match crate::rest::query_val(query, "name") {
             Some(n) => n,

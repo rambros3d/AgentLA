@@ -277,11 +277,6 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             ("/api/v1/apps/install", parse_path_segment::<crate::apps::AppParams>()),
             crate::fs_http::AppInstall,
         )
-        // POST /api/v1/apps/install?name={name}
-        .route_service(
-            "/api/v1/apps/install",
-            crate::fs_http::AppInstallQuery,
-        )
         // DELETE /api/v1/apps/{name}
         .route(
             ("/api/v1/apps", parse_path_segment::<crate::apps::AppParams>()),
@@ -307,6 +302,11 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 }
                 (code, ("Content-Type", "application/json"), body)
             }),
+        )
+        // POST /api/v1/apps/install?name={name} (registered after parametric /api/v1/apps/{name} to avoid shadowing)
+        .route(
+            "/api/v1/apps/install",
+            post_service(crate::fs_http::AppInstallQuery),
         )
         .route(
             "/api/v1/apps",
