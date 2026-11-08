@@ -1,1 +1,22 @@
-<!--#MCP-->
+{
+  "name": "AgentLA RP2350",
+  "version": "1.0.0",
+  "description": "Agentic Hardware Multi-Tool & Debug Workbench",
+  "transports": {
+    "http": {
+      "endpoint": "/mcp",
+      "methods": ["POST"]
+    },
+    "sse": {
+      "endpoint": "/mcp/sse"
+    }
+  },
+  "capabilities": {
+    "tools": {
+      "count": 29
+    },
+    "resources": {
+      "count": 2
+    }
+  }
+}

@@ -765,6 +765,475 @@
         }
     });
 
+    // =========================================================================
+    // Universal AgentLA JavaScript SDK
+    // =========================================================================
+    var activeSessionClaimedPins = new Set();
+
+    var AgentLA = {
+        version: "1.0.0",
+        isDemo: isDemo,
+
+        // 1. System & Device Info
+        system: {
+            specs: async function() {
+                if (isDemo) return { mcu: "RP2350A", clock_mhz: 150, flash: "4MB", sram: "520KB" };
+                const res = await fetch('/api/v1/system');
+                return res.json();
+            },
+            firmwareStatus: async function() {
+                if (isDemo) return { current_slot: "A", active_slot: "A", state: "Confirmed" };
+                const res = await fetch('/api/v1/system/firmware/status');
+                return res.json();
+            }
+        },
+
+        // 2. Telemetry & Power Rail
+        telemetry: {
+            get: async function() {
+                if (isDemo) return { vtarget_mv: 3310, itarget_ma: 14, power_mw: 46, temp_c: 29, overcurrent: false };
+                const res = await fetch('/api/v1/system/telemetry');
+                return res.json();
+            },
+            emergencySafeState: async function() {
+                activeSessionClaimedPins.clear();
+                if (isDemo) return { status: "safe" };
+                const res = await fetch('/api/v1/profiles/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slot: 0 })
+                });
+                return res.json();
+            }
+        },
+
+        // 3. Pin Crossbar & Arbiter
+        pins: {
+            status: async function() {
+                if (isDemo) {
+                    return { pins: Array.from({length: 30}, (_, i) => ({ pin: i, claimed: false, driver: "none" })) };
+                }
+                const res = await fetch('/api/v1/pins');
+                return res.json();
+            },
+            claim: async function(pin, driver) {
+                if (isDemo) {
+                    activeSessionClaimedPins.add(pin);
+                    return { status: "ok", pin: pin, driver: driver };
+                }
+                const res = await fetch('/api/v1/pins/claim', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: pin, driver: driver || "adapter" })
+                });
+                const data = await res.json();
+                if (res.ok && data.status !== 'error') {
+                    activeSessionClaimedPins.add(pin);
+                }
+                return data;
+            },
+            release: async function(pin) {
+                activeSessionClaimedPins.delete(pin);
+                if (isDemo) return { status: "ok", pin: pin, released: true };
+                const res = await fetch('/api/v1/pins/release', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: pin })
+                });
+                return res.json();
+            }
+        },
+
+        // 4. CAN Bus Subsystem
+        can: {
+            status: async function() {
+                if (isDemo) return { active: true, bitrate: 500000, termination: true, tx_frames: 42, rx_frames: 180 };
+                const res = await fetch('/api/v1/bridge/can');
+                return res.json();
+            },
+            setTermination: async function(enable) {
+                if (isDemo) return { status: "ok", termination: !!enable };
+                const res = await fetch('/api/v1/bridge/can/termination', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !!enable })
+                });
+                return res.json();
+            },
+            send: async function(frame) {
+                if (isDemo) {
+                    console.log("[Virtual CAN TX]", frame);
+                    return { status: "ok", transmitted: true, id: frame.id };
+                }
+                if (window.__agentla_can_ws && window.__agentla_can_ws.readyState === WebSocket.OPEN) {
+                    const payload = {
+                        id: frame.id,
+                        ext: !!frame.extended,
+                        rtr: !!frame.rtr,
+                        dlc: frame.dlc !== undefined ? frame.dlc : (frame.data ? frame.data.length / 2 : 0),
+                        data: typeof frame.data === 'string' ? frame.data : (Array.isArray(frame.data) ? frame.data.map(b => b.toString(16).padStart(2, '0')).join('') : '')
+                    };
+                    window.__agentla_can_ws.send(JSON.stringify(payload));
+                    return { status: "ok", transmitted: true, id: frame.id };
+                }
+                return AgentLA.mcp.call("can_send", {
+                    id: frame.id,
+                    data_hex: typeof frame.data === 'string' ? frame.data : (Array.isArray(frame.data) ? frame.data.map(b => b.toString(16).padStart(2, '0')).join('') : ''),
+                    extended: !!frame.extended,
+                    rtr: !!frame.rtr
+                });
+            },
+            openStream: function(callbacks) {
+                callbacks = callbacks || {};
+                var onFrame = callbacks.onFrame || function() {};
+                var onStatus = callbacks.onStatus || function() {};
+                var onError = callbacks.onError || function() {};
+
+                if (isDemo) {
+                    onStatus('connected');
+                    var demoTimer = setInterval(function() {
+                        var randId = [0x7E8, 0x18DAF110, 0x0C9, 0x320][Math.floor(Math.random() * 4)];
+                        var randData = Array.from({length: 8}, function() { return Math.floor(Math.random() * 256).toString(16).padStart(2, '0'); }).join('').toUpperCase();
+                        onFrame({
+                            id: randId,
+                            ext: randId > 0x7FF,
+                            rtr: false,
+                            dlc: 8,
+                            data: randData,
+                            ts: Date.now() * 1000
+                        });
+                    }, 400);
+                    return {
+                        close: function() { clearInterval(demoTimer); onStatus('disconnected'); }
+                    };
+                }
+
+                var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                var wsUrl = `${proto}//${window.location.host}/api/v1/can/ws`;
+                var ws = null;
+                var shouldReconnect = true;
+                var retryCount = 0;
+
+                function connect() {
+                    onStatus('connecting');
+                    try {
+                        ws = new WebSocket(wsUrl);
+                        window.__agentla_can_ws = ws;
+
+                        ws.onopen = function() {
+                            retryCount = 0;
+                            onStatus('connected');
+                        };
+                        ws.onmessage = function(e) {
+                            try {
+                                var frame = JSON.parse(e.data);
+                                onFrame(frame);
+                            } catch (_) {}
+                        };
+                        ws.onerror = function(err) {
+                            onError(err);
+                        };
+                        ws.onclose = function() {
+                            onStatus('disconnected');
+                            if (shouldReconnect) {
+                                var delay = Math.min(1000 * Math.pow(1.5, retryCount), 5000);
+                                retryCount++;
+                                setTimeout(connect, delay);
+                            }
+                        };
+                    } catch (e) {
+                        onError(e);
+                    }
+                }
+                connect();
+
+                return {
+                    send: function(frame) { return AgentLA.can.send(frame); },
+                    close: function() {
+                        shouldReconnect = false;
+                        if (ws) ws.close();
+                    }
+                };
+            }
+        },
+
+        // 5. Serial / UART Terminal
+        uart: {
+            openTerminal: function(callbacks) {
+                callbacks = callbacks || {};
+                var onData = callbacks.onData || function() {};
+                var onStatus = callbacks.onStatus || function() {};
+                var onError = callbacks.onError || function() {};
+
+                if (isDemo) {
+                    onStatus('connected');
+                    setTimeout(function() {
+                        onData("\r\n\x1b[32mAgentLA Virtual Shell (Demo Mode)\x1b[0m\r\nType 'help' for commands.\r\n> ");
+                    }, 200);
+                    return {
+                        write: function(text) {
+                            if (text.includes("help")) {
+                                onData("\r\nAvailable commands: status, pins, can, reboot\r\n> ");
+                            } else {
+                                onData("\r\nUnknown command: " + text.trim() + "\r\n> ");
+                            }
+                        },
+                        close: function() { onStatus('disconnected'); }
+                    };
+                }
+
+                var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                var baud = callbacks.baud || 115200;
+                var tx = callbacks.txPin !== undefined ? callbacks.txPin : 0;
+                var rx = callbacks.rxPin !== undefined ? callbacks.rxPin : 1;
+                var wsUrl = `${proto}//${window.location.host}/api/v1/terminal/ws?baud=${baud}&tx=${tx}&rx=${rx}`;
+                var ws = null;
+                var shouldReconnect = true;
+
+                function connect() {
+                    onStatus('connecting');
+                    try {
+                        ws = new WebSocket(wsUrl);
+                        ws.binaryType = 'arraybuffer';
+                        ws.onopen = function() { onStatus('connected'); };
+                        ws.onmessage = function(e) {
+                            if (typeof e.data === 'string') {
+                                onData(e.data);
+                            } else if (e.data instanceof ArrayBuffer) {
+                                var text = new TextDecoder('utf-8', { fatal: false }).decode(e.data);
+                                onData(text);
+                            }
+                        };
+                        ws.onerror = function(err) { onError(err); };
+                        ws.onclose = function() {
+                            onStatus('disconnected');
+                            if (shouldReconnect) setTimeout(connect, 1500);
+                        };
+                    } catch (e) {
+                        onError(e);
+                    }
+                }
+                connect();
+
+                return {
+                    write: function(text) {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(text);
+                        }
+                    },
+                    close: function() {
+                        shouldReconnect = false;
+                        if (ws) ws.close();
+                    }
+                };
+            }
+        },
+
+        // 6. I2C & SPI
+        i2c: {
+            scan: async function(sda, scl) {
+                if (isDemo) return [0x3C, 0x68];
+                const res = await AgentLA.mcp.call("i2c_scan", { sda_pin: sda || 16, scl_pin: scl || 17 });
+                try {
+                    const parsed = JSON.parse(res.content[0].text);
+                    return parsed.devices || [];
+                } catch (_) {
+                    return [];
+                }
+            },
+            read: async function(addr, len) {
+                if (isDemo) return new Uint8Array(len || 1);
+                const res = await fetch(`/api/v1/bridge/i2c/read?addr=${addr}&len=${len || 1}`);
+                return res.json();
+            },
+            write: async function(addr, bytes) {
+                if (isDemo) return { status: "ok" };
+                const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                const res = await fetch('/api/v1/bridge/i2c/write', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ addr: addr, data_hex: hex })
+                });
+                return res.json();
+            }
+        },
+        spi: {
+            transfer: async function(txBytes, speedKhz) {
+                if (isDemo) return new Uint8Array(txBytes ? txBytes.length : 1);
+                const hex = Array.from(txBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                const res = await AgentLA.mcp.call("spi_transfer", { mosi_hex: hex, speed_khz: speedKhz || 1000 });
+                try {
+                    const parsed = JSON.parse(res.content[0].text);
+                    const miso = parsed.miso_hex || "";
+                    const out = new Uint8Array(miso.length / 2);
+                    for (let i = 0; i < miso.length; i += 2) {
+                        out[i / 2] = parseInt(miso.substr(i, 2), 16);
+                    }
+                    return out;
+                } catch (_) {
+                    return new Uint8Array(0);
+                }
+            }
+        },
+
+        // 7. Servos & PWM
+        servo: {
+            attach: async function(pin, opts) {
+                opts = opts || {};
+                activeSessionClaimedPins.add(pin);
+                if (isDemo) return { status: "ok", pin: pin };
+                const url = `/api/v1/servo/attach?pin=${pin}&min_us=${opts.minUs || 500}&max_us=${opts.maxUs || 2500}&continuous=${opts.continuous ? 1 : 0}`;
+                const res = await fetch(url, { method: 'POST' });
+                return res.json();
+            },
+            writeAngle: async function(pin, angle) {
+                if (isDemo) return { status: "ok", pin: pin, angle: angle };
+                const url = `/api/v1/servo/write?pin=${pin}&angle=${Math.round(angle)}`;
+                const res = await fetch(url, { method: 'POST' });
+                return res.json();
+            },
+            writeMicroseconds: async function(pin, pulseUs) {
+                if (isDemo) return { status: "ok", pin: pin, pulse_us: pulseUs };
+                const url = `/api/v1/servo/write_us?pin=${pin}&pulse_us=${Math.round(pulseUs)}`;
+                const res = await fetch(url, { method: 'POST' });
+                return res.json();
+            },
+            detach: async function(pin) {
+                activeSessionClaimedPins.delete(pin);
+                if (isDemo) return { status: "ok", pin: pin };
+                const url = `/api/v1/servo/detach?pin=${pin}`;
+                const res = await fetch(url, { method: 'POST' });
+                return res.json();
+            },
+            list: async function() {
+                if (isDemo) return [{ pin: 16, angle: 90, pulse_us: 1500 }];
+                const res = await fetch('/api/v1/servo');
+                return res.json();
+            }
+        },
+
+        // 8. SWD / Target Programmer
+        programmer: {
+            detectTarget: async function(port) {
+                if (isDemo) return { detected: true, name: "STM32F103 Medium Density", flash_size: 131072 };
+                const res = await fetch(port ? `/api/v1/programmer/target?port=${port}` : '/api/v1/programmer/target');
+                return res.json();
+            },
+            readMemory: async function(addr, length) {
+                if (isDemo) return { status: "ok", bytes: [0x00, 0x50, 0x00, 0x20] };
+                const res = await AgentLA.mcp.call("programmer_read", { address: addr, length: length || 16 });
+                try {
+                    return JSON.parse(res.content[0].text);
+                } catch (_) {
+                    return { status: "error" };
+                }
+            },
+            flashMemory: async function(addr, hexData) {
+                if (isDemo) return { status: "ok", bytes_written: hexData.length / 2 };
+                const res = await AgentLA.mcp.call("programmer_flash", { address: addr, hex_data: hexData });
+                try {
+                    return JSON.parse(res.content[0].text);
+                } catch (_) {
+                    return { status: "error" };
+                }
+            },
+            resetTarget: async function() {
+                if (isDemo) return { status: "ok" };
+                const res = await fetch('/api/v1/programmer/reset', { method: 'POST' });
+                return res.json();
+            },
+            unbrick: async function(target) {
+                if (isDemo) return { status: "ok", target: target, mass_erased: true };
+                const res = await AgentLA.mcp.call("programmer_unbrick", { target: target || "stm32" });
+                try {
+                    return JSON.parse(res.content[0].text);
+                } catch (_) {
+                    return { status: "error" };
+                }
+            }
+        },
+
+        // 9. In-Browser MCP JSON-RPC 2.0 Dispatch
+        mcp: {
+            call: async function(toolName, args) {
+                if (isDemo) {
+                    return { content: [{ type: "text", text: JSON.stringify({ status: "simulated", tool: toolName }) }], isError: false };
+                }
+                const res = await fetch('/mcp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'tools/call',
+                        params: { name: toolName, arguments: args || {} },
+                        id: Date.now()
+                    })
+                });
+                const rpc = await res.json();
+                return rpc.result || { isError: true, content: [{ type: "text", text: rpc.error ? rpc.error.message : "RPC Error" }] };
+            },
+            listTools: async function() {
+                if (isDemo) return { tools: [{ name: "can_send" }, { name: "target_diagnose" }] };
+                const res = await fetch('/mcp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: Date.now() })
+                });
+                const rpc = await res.json();
+                return rpc.result || { tools: [] };
+            }
+        },
+
+        // 10. UI Helpers
+        ui: {
+            toast: function(message, type) {
+                type = type || 'info';
+                var container = document.getElementById('agentla-toast-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'agentla-toast-container';
+                    container.className = 'toast toast-top toast-end z-50';
+                    document.body.appendChild(container);
+                }
+                var alert = document.createElement('div');
+                var alertClass = type === 'error' ? 'alert alert-error' : (type === 'success' ? 'alert alert-success' : 'alert alert-info');
+                alert.className = alertClass + ' py-2 px-3 text-xs shadow-lg animate-fade-in flex items-center gap-2';
+                alert.innerHTML = `<span>${message}</span>`;
+                container.appendChild(alert);
+                setTimeout(function() {
+                    alert.style.opacity = '0';
+                    alert.style.transition = 'opacity 0.3s ease';
+                    setTimeout(function() { alert.remove(); }, 300);
+                }, 3000);
+            },
+            setTheme: function(theme) { syncTheme(theme); },
+            getTheme: function() { return { theme: document.documentElement.getAttribute('data-theme'), mode: themeState.mode }; }
+        }
+    };
+
+    // Automatic Safe-State on Unload Hook
+    function teardownSessionPins() {
+        if (activeSessionClaimedPins.size > 0) {
+            try {
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/api/v1/profiles/apply', JSON.stringify({ slot: 0 }));
+                } else {
+                    fetch('/api/v1/profiles/apply', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ slot: 0 }),
+                        keepalive: true
+                    });
+                }
+            } catch (_) {}
+            activeSessionClaimedPins.clear();
+        }
+    }
+    window.addEventListener('pagehide', teardownSessionPins);
+    window.addEventListener('beforeunload', teardownSessionPins);
+
+    window.AgentLA = AgentLA;
+
     function initBridge() {
         initTopBar();
         mountDock();

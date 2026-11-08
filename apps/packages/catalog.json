@@ -9,7 +9,7 @@
       "description": "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
       "requires": ["pwm", "gpio_flexible"],
       "tags": ["Robotics", "PWM", "Actuation"],
-      "size_bytes": 40960,
+      "size_bytes": 51200,
       "package_url": "/packages/servo-master.tar"
     },
     {

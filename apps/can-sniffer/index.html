@@ -383,7 +383,16 @@
       }
     }
 
+    let canStream = null;
+
     function connectWs() {
+      if (canStream) {
+        canStream.close();
+        canStream = null;
+        ws = null;
+        updateStatus('disconnected');
+        return;
+      }
       if (ws) {
         ws.close();
         ws = null;
@@ -391,48 +400,70 @@
         return;
       }
 
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${proto}//${location.host}/api/v1/can/ws`;
-
+      // Endpoint contract: connects to /api/v1/can/ws via AgentLA.can.openStream
       updateStatus('connecting');
 
-      try {
-        ws = new WebSocket(wsUrl);
+      if (window.AgentLA && AgentLA.can && AgentLA.can.openStream) {
+        canStream = AgentLA.can.openStream({
+          onFrame: (frame) => {
+            appendFrameRow(frame);
+          },
+          onStatus: (status) => {
+            updateStatus(status);
+          },
+          onError: (err) => {
+            console.error('CAN stream error', err);
+          }
+        });
+        ws = canStream.getWebSocket ? canStream.getWebSocket() : null;
+      } else {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${proto}//${location.host}/api/v1/can/ws`;
 
-        ws.onopen = () => {
-          updateStatus('connected');
-        };
+        try {
+          ws = new WebSocket(wsUrl);
 
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            appendFrameRow(data);
-          } catch (_) {}
-        };
+          ws.onopen = () => {
+            updateStatus('connected');
+          };
 
-        ws.onerror = () => {
+          ws.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              appendFrameRow(data);
+            } catch (_) {}
+          };
+
+          ws.onerror = () => {
+            updateStatus('disconnected');
+          };
+
+          ws.onclose = () => {
+            updateStatus('disconnected');
+            ws = null;
+          };
+        } catch (_) {
           updateStatus('disconnected');
-        };
-
-        ws.onclose = () => {
-          updateStatus('disconnected');
-          ws = null;
-        };
-      } catch (_) {
-        updateStatus('disconnected');
+        }
       }
     }
 
     async function toggleTermination() {
       terminationActive = !terminationActive;
       try {
-        const resp = await fetch('/api/v1/bridge/can/termination', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: terminationActive })
-        });
-        if (resp.ok) {
+        if (window.AgentLA && AgentLA.can && AgentLA.can.setTermination) {
+          await AgentLA.can.setTermination(terminationActive);
           updateTerminationUi(terminationActive);
+        } else {
+          // Endpoint fallback: /api/v1/bridge/can/termination
+          const resp = await fetch('/api/v1/bridge/can/termination', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: terminationActive })
+          });
+          if (resp.ok) {
+            updateTerminationUi(terminationActive);
+          }
         }
       } catch (_) {
         updateTerminationUi(terminationActive);
@@ -463,7 +494,7 @@
       return parseInt(str, 10) || 0;
     }
 
-    function sendTxFrame() {
+    async function sendTxFrame() {
       const idVal = parseNumericId(txIdInput.value);
       const isExt = txExtChk.checked;
       const isRtr = txRtrChk.checked;
@@ -472,13 +503,22 @@
 
       const payload = {
         id: idVal,
+        extended: isExt,
         ext: isExt,
         rtr: isRtr,
         dlc: dlcVal,
         data: hexCleaned
       };
 
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (window.AgentLA && AgentLA.can && AgentLA.can.send) {
+        try {
+          await AgentLA.can.send(payload);
+          txCount++;
+          statTxCount.textContent = txCount;
+        } catch (e) {
+          console.error("CAN send failed:", e);
+        }
+      } else if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
         txCount++;
         statTxCount.textContent = txCount;

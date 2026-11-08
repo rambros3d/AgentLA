@@ -240,6 +240,30 @@ pub fn extract_u32_arg(body: &str, arg: &str) -> Option<u32> {
     }
 }
 
+/// Extract bool argument from JSON body by key.
+pub fn extract_bool_arg(body: &str, arg: &str) -> Option<bool> {
+    let key = arg.trim_matches('"');
+    let mut cursor = body;
+    loop {
+        let idx = cursor.find(key)?;
+        let before = &cursor[..idx];
+        let after = &cursor[idx + key.len()..];
+
+        if before.ends_with('"') && after.starts_with('"') {
+            let tail = &after[1..].trim_start();
+            if tail.starts_with(':') {
+                let val_tail = tail[1..].trim_start();
+                if val_tail.starts_with("true") {
+                    return Some(true);
+                } else if val_tail.starts_with("false") {
+                    return Some(false);
+                }
+            }
+        }
+        cursor = after;
+    }
+}
+
 /// Extract raw slice of params object.
 fn extract_params_slice(body: &str) -> Option<&str> {
     let key = "params";

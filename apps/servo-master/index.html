@@ -509,13 +509,32 @@
       renderChannels();
     }
 
-    /* REST API Calls */
-    function sendAttach(ch) {
+    /* SDK & REST API Calls */
+    async function sendAttach(ch) {
+      if (window.AgentLA) {
+        if (AgentLA.pins && AgentLA.pins.claim) {
+          try { await AgentLA.pins.claim(ch.pin, "servo"); } catch (_) {}
+        }
+        if (AgentLA.servo && AgentLA.servo.attach) {
+          return AgentLA.servo.attach(ch.pin, ch.min_us, ch.max_us, ch.continuous).catch(() => {});
+        }
+      }
+      // Endpoint fallback: /api/v1/servo/attach
       fetch(`/api/v1/servo/attach?pin=${ch.pin}&min_us=${ch.min_us}&max_us=${ch.max_us}&continuous=${ch.continuous ? 1 : 0}`, { method: 'POST' })
         .catch(() => {});
     }
 
-    function sendDetach(pin) {
+    async function sendDetach(pin) {
+      if (window.AgentLA) {
+        if (AgentLA.servo && AgentLA.servo.detach) {
+          await AgentLA.servo.detach(pin).catch(() => {});
+        }
+        if (AgentLA.pins && AgentLA.pins.release) {
+          try { await AgentLA.pins.release(pin); } catch (_) {}
+        }
+        return;
+      }
+      // Endpoint fallback: /api/v1/servo/detach
       fetch(`/api/v1/servo/detach?pin=${pin}`, { method: 'POST' })
         .catch(() => {});
     }
@@ -538,8 +557,13 @@
       const horn = document.getElementById(`horn-group-${ch.id}`);
       if (horn) horn.setAttribute("transform", `rotate(${ch.angle - 90} 50 50)`);
 
-      fetch(`/api/v1/servo/write?pin=${ch.pin}&angle=${Math.round(ch.angle)}`, { method: 'POST' })
-        .catch(() => {});
+      if (window.AgentLA && AgentLA.servo && AgentLA.servo.writeAngle) {
+        AgentLA.servo.writeAngle(ch.pin, Math.round(ch.angle)).catch(() => {});
+      } else {
+        // Endpoint fallback: /api/v1/servo/write
+        fetch(`/api/v1/servo/write?pin=${ch.pin}&angle=${Math.round(ch.angle)}`, { method: 'POST' })
+          .catch(() => {});
+      }
     }
 
     /* Animation Frame Loop (Software Easing, Continuous Rotation & Gamepad) */

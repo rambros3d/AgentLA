@@ -343,7 +343,17 @@
       scrollTerminal();
     }
 
+    let uartTerminal = null;
+
     function connectWs() {
+      if (uartTerminal) {
+        uartTerminal.close();
+        uartTerminal = null;
+        ws = null;
+        updateStatus('disconnected');
+        appendSystemMsg('Session disconnected');
+        return;
+      }
       if (ws) {
         ws.close();
         ws = null;
@@ -351,51 +361,83 @@
         return;
       }
 
-      const baud = document.getElementById('sel-baud').value;
-      const tx = selTx.value;
-      const rx = selRx.value;
+      const baud = parseInt(document.getElementById('sel-baud').value, 10) || 115200;
+      const tx = parseInt(selTx.value, 10) || 0;
+      const rx = parseInt(selRx.value, 10) || 1;
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${proto}//${location.host}/api/v1/terminal/ws?baud=${baud}&tx=${tx}&rx=${rx}`;
 
       updateStatus('connecting');
       appendSystemMsg(`Connecting to ${wsUrl}...`);
 
-      try {
-        ws = new WebSocket(wsUrl);
-        ws.binaryType = 'arraybuffer';
-
-        ws.onopen = () => {
-          updateStatus('connected');
-          appendSystemMsg(`Session active (Baud: ${baud}, TX: GPIO ${tx}, RX: GPIO ${rx})`);
-        };
-
-        ws.onmessage = (event) => {
-          let text = '';
-          if (typeof event.data === 'string') {
-            text = event.data;
-          } else if (event.data instanceof ArrayBuffer) {
-            text = new TextDecoder('utf-8', { fatal: false }).decode(event.data);
+      if (window.AgentLA && AgentLA.uart && AgentLA.uart.openTerminal) {
+        uartTerminal = AgentLA.uart.openTerminal({
+          baud: baud,
+          txPin: tx,
+          rxPin: rx,
+          onData: (data) => {
+            appendOutput(data);
+          },
+          onStatus: (status) => {
+            updateStatus(status);
+            if (status === 'connected') {
+              appendSystemMsg(`Session active (Baud: ${baud}, TX: GPIO ${tx}, RX: GPIO ${rx})`);
+            } else if (status === 'disconnected') {
+              appendSystemMsg('Disconnected');
+              uartTerminal = null;
+            }
+          },
+          onError: (err) => {
+            appendSystemMsg('WebSocket error occurred');
+            console.error(err);
           }
-          appendOutput(text);
-        };
+        });
+        ws = uartTerminal.getWebSocket ? uartTerminal.getWebSocket() : null;
+      } else {
+        try {
+          ws = new WebSocket(wsUrl);
+          ws.binaryType = 'arraybuffer';
 
-        ws.onerror = (err) => {
-          appendSystemMsg(`WebSocket error occurred`);
-          console.error(err);
-        };
+          ws.onopen = () => {
+            updateStatus('connected');
+            appendSystemMsg(`Session active (Baud: ${baud}, TX: GPIO ${tx}, RX: GPIO ${rx})`);
+          };
 
-        ws.onclose = (event) => {
+          ws.onmessage = (event) => {
+            let text = '';
+            if (typeof event.data === 'string') {
+              text = event.data;
+            } else if (event.data instanceof ArrayBuffer) {
+              text = new TextDecoder('utf-8', { fatal: false }).decode(event.data);
+            }
+            appendOutput(text);
+          };
+
+          ws.onerror = (err) => {
+            appendSystemMsg(`WebSocket error occurred`);
+            console.error(err);
+          };
+
+          ws.onclose = (event) => {
+            updateStatus('disconnected');
+            appendSystemMsg(`Disconnected (code ${event.code})`);
+            ws = null;
+          };
+        } catch (e) {
           updateStatus('disconnected');
-          appendSystemMsg(`Disconnected (code ${event.code})`);
-          ws = null;
-        };
-      } catch (e) {
-        updateStatus('disconnected');
-        appendSystemMsg(`Connection failed: ${e}`);
+          appendSystemMsg(`Connection failed: ${e}`);
+        }
       }
     }
 
     function sendData(str) {
+      if (uartTerminal) {
+        if (chkEcho.checked) {
+          appendOutput(str);
+        }
+        uartTerminal.write(str);
+        return;
+      }
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         appendSystemMsg('Cannot send: not connected');
         return;
@@ -425,7 +467,7 @@
 
     // Direct keystroke capture on container
     termContainer.addEventListener('keydown', (e) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if ((!ws || ws.readyState !== WebSocket.OPEN) && !uartTerminal) return;
       if (e.target === cmdInput) return;
 
       if (e.ctrlKey) {
