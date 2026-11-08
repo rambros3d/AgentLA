@@ -755,14 +755,25 @@ fn serialize_dir_entries<S: littlefs2::driver::Storage>(
 /// GET /api/v1/fs/stat
 pub struct FsStat;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsStat {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsStat {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
+        if method != "GET" && method != "HEAD" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
         let (sys_used, sys_total) = crate::storage::system_fs_usage();
         let (usr_used, usr_total) = crate::storage::user_fs_usage();
 
@@ -790,15 +801,16 @@ impl picoserve::routing::RequestHandlerService<(), ()> for FsStat {
 /// GET /api/v1/fs/list?root={system|user}&path={path}
 pub struct FsList;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsList {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsList {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        if request.parts.method() != "GET" && request.parts.method() != "HEAD" {
+        if method != "GET" && method != "HEAD" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,
                 ("Content-Type", "application/json"),
@@ -858,15 +870,16 @@ impl picoserve::routing::RequestHandlerService<(), ()> for FsList {
 /// GET /api/v1/fs/read?root={system|user}&path={path}
 pub struct FsRead;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsRead {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsRead {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        if request.parts.method() != "GET" && request.parts.method() != "HEAD" {
+        if method != "GET" && method != "HEAD" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,
                 ("Content-Type", "application/json"),
@@ -967,15 +980,15 @@ impl picoserve::routing::RequestHandlerService<(), ()> for FsRead {
 /// If root=system, strictly rejects with 403 Forbidden.
 pub struct FsWrite;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsWrite {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsWrite {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        let method = request.parts.method();
         if method != "POST" && method != "PUT" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,
@@ -1135,15 +1148,15 @@ impl picoserve::routing::RequestHandlerService<(), ()> for FsWrite {
 /// Strictly rejects with 403 Forbidden if root=system.
 pub struct FsEntry;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsEntry {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsEntry {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        let method = request.parts.method();
         if method != "DELETE" && method != "POST" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,
@@ -1243,15 +1256,15 @@ impl picoserve::routing::RequestHandlerService<(), ()> for FsEntry {
 /// Strictly rejects with 403 Forbidden if root=system.
 pub struct FsMkdir;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsMkdir {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsMkdir {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        let method = request.parts.method();
         if method != "POST" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,
@@ -1344,15 +1357,15 @@ impl picoserve::routing::RequestHandlerService<(), ()> for FsMkdir {
 /// Strictly rejects with 403 Forbidden if root=system.
 pub struct FsRename;
 
-impl picoserve::routing::RequestHandlerService<(), ()> for FsRename {
-    async fn call_request_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+impl picoserve::routing::MethodHandlerService<()> for FsRename {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
         _state: &(),
         _path_parameters: (),
+        method: &str,
         mut request: Request<'_, R>,
         response_writer: W,
     ) -> Result<ResponseSent, W::Error> {
-        let method = request.parts.method();
         if method != "POST" {
             return (
                 StatusCode::METHOD_NOT_ALLOWED,

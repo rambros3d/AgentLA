@@ -120,12 +120,11 @@
     <!-- Master Controls & Status Badges -->
     <div class="flex items-center gap-2 flex-wrap">
       <div id="gamepad-badge" class="hidden badge badge-success badge-sm gap-1.5 font-medium">
-        <span>🎮</span>
         <span id="gamepad-name">Gamepad Connected</span>
       </div>
 
       <button id="btn-wiring-guide" class="btn btn-xs btn-outline gap-1">
-        <span>⚡</span> Wiring Guide
+        Wiring Guide
       </button>
 
       <button id="btn-center-all" class="btn btn-xs btn-primary">
@@ -133,7 +132,7 @@
       </button>
 
       <button id="btn-detach-all" class="btn btn-xs btn-error gap-1">
-        <span>🛡️</span> Detach All
+        Detach All
       </button>
     </div>
   </div>
@@ -181,7 +180,7 @@
       <div class="flex flex-wrap items-center justify-between gap-4 border-b border-base-300 pb-3">
         <div>
           <h2 class="text-sm font-bold text-base-content flex items-center gap-2">
-            <span>🎬</span> Pose Sequencer & Choreography
+            Pose Sequencer & Choreography
           </h2>
           <p class="text-xs text-base-content/60">Save multi-channel keyframes, adjust transition speeds, and loop automated motions.</p>
         </div>
@@ -193,7 +192,7 @@
             ▶ Play
           </button>
           <button id="btn-stop-seq" class="btn btn-xs btn-neutral join-item" disabled>
-            ⏹ Stop
+            Stop
           </button>
         </div>
       </div>
@@ -230,7 +229,7 @@
   <dialog id="modal-wiring" class="modal">
     <div class="modal-box bg-base-200 border border-base-300 text-base-content max-w-2xl">
       <h3 class="font-bold text-lg flex items-center gap-2">
-        <span>⚡</span> Recommended Servo Wiring & Safety Guide
+        Recommended Servo Wiring & Safety Guide
       </h3>
       <p class="py-2 text-sm text-base-content/70">
         Standard hobby servos draw 500mA to 2A peak current when under load or accelerating.
@@ -413,7 +412,7 @@
                      oninput="onThrottleSliderChange(${ch.id}, this.value)" />
             </div>
             <button class="btn btn-xs btn-error btn-outline w-full mt-1"
-                    onclick="brakeChannel(${ch.id})">⏹ Quick Brake (Stop)</button>
+                    onclick="brakeChannel(${ch.id})">Quick Brake (Stop)</button>
           `}
 
           <!-- Footer Actions & Detach Toggle -->
@@ -652,7 +651,7 @@
         const badge = document.createElement("div");
         badge.className = "badge badge-neutral gap-1.5 py-3 px-3 cursor-pointer hover:badge-primary transition-all";
         badge.innerHTML = `
-          <span onclick="recallPose(${idx})" class="font-medium">📌 ${p.name}</span>
+          <span onclick="recallPose(${idx})" class="font-medium">${p.name}</span>
           <button class="text-base-content/60 hover:text-primary font-bold ml-1" onclick="addToTimeline(${idx})" title="Add to timeline">+</button>
         `;
         list.appendChild(badge);
