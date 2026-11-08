@@ -83,6 +83,7 @@ impl Chunks for AppFileChunks {
 }
 
 /// Build the LittleFS path `/apps/{name}/{rest...}` from the URL-decoded segments.
+/// Defaults to `/apps/{name}/index.html` if no path or a trailing directory slash was supplied.
 fn app_fs_path(app: &AppParams, rest: &Path<'_>) -> Option<PathBuf> {
     let mut path = heapless::String::<255>::new();
     write!(path, "/apps/{}", app.as_str()).ok()?;
@@ -110,8 +111,11 @@ fn app_fs_path(app: &AppParams, rest: &Path<'_>) -> Option<PathBuf> {
         }
         any = true;
     }
-    if !any {
-        return None; // bare `/apps/{name}` → nothing to serve
+    if !any || path.ends_with('/') {
+        if !path.ends_with('/') {
+            path.push('/').ok()?;
+        }
+        path.push_str("index.html").ok()?;
     }
     PathBuf::try_from(path.as_str()).ok()
 }
@@ -143,6 +147,17 @@ impl PathRouterService<(), (AppParams,)> for AppFiles {
             None => {
                 return not_found(request, response_writer).await;
             }
+        };
+
+        // If the path points to a directory in LittleFS, try index.html inside it
+        let path_ = if with_fs(|fs| fs.metadata(&path_).map(|m| m.is_dir()).unwrap_or(false)).unwrap_or(false)
+            || with_system_fs(|fs| fs.metadata(&path_).map(|m| m.is_dir()).unwrap_or(false)).unwrap_or(false)
+        {
+            let mut s = heapless::String::<255>::new();
+            let _ = write!(s, "{}/index.html", path_.as_str().trim_end_matches('/'));
+            PathBuf::try_from(s.as_str()).unwrap_or(path_)
+        } else {
+            path_
         };
 
         let is_user_file = with_fs(|fs| fs.metadata(&path_).map(|m| m.is_file()).unwrap_or(false))
@@ -432,6 +447,99 @@ impl picoserve::routing::MethodHandlerService<(), (AppParams,)> for AppInstall {
     }
 }
 
+/// Tarball install endpoint handling query parameter style: POST /api/v1/apps/install?name={name}
+pub struct AppInstallQuery;
+
+impl picoserve::routing::MethodHandlerService<()> for AppInstallQuery {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<ResponseSent, W::Error> {
+        if method != "POST" {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        let query = request.parts.query();
+        let name_str = match crate::rest::query_val(query, "name") {
+            Some(n) => n,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"missing_name_param\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let name = match core::str::FromStr::from_str(name_str.as_str()) {
+            Ok(n) => n,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"invalid_app_name\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+
+        let report = apps::install_tarball(&name, request.body_connection.body()).await;
+
+        let mut body = heapless::String::<128>::new();
+        let mut code = StatusCode::OK;
+        match report {
+            Ok(r) => {
+                let _ = write!(
+                    body,
+                    r#"{{"status":"installed","app":"{}","files":{},"bytes":{}}}"#,
+                    r.app.as_str(),
+                    r.files,
+                    r.bytes
+                );
+            }
+            Err(e) => {
+                let _ = write!(
+                    body,
+                    "{}",
+                    match e {
+                        apps::InstallError::TooLarge => "{\"error\":\"payload_too_large\"}",
+                        apps::InstallError::NotMounted => "{\"error\":\"fs_not_mounted\"}",
+                        apps::InstallError::Incomplete => "{\"error\":\"incomplete_archive\"}",
+                        apps::InstallError::Io | apps::InstallError::Failed(_) => {
+                            "{\"error\":\"install_failed\"}"
+                        }
+                    }
+                );
+                code = match e {
+                    apps::InstallError::TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+                    apps::InstallError::NotMounted => StatusCode::SERVICE_UNAVAILABLE,
+                    apps::InstallError::Incomplete => StatusCode::BAD_REQUEST,
+                    apps::InstallError::Io | apps::InstallError::Failed(_) => {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    }
+                };
+            }
+        }
+
+        (code, ("Content-Type", "application/json"), body.as_str())
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
+}
+
 // ---------------------------------------------------------------------------
 // System WebUI Live Update endpoint: POST /api/v1/system/webui/update
 // ---------------------------------------------------------------------------
@@ -499,3 +607,4 @@ impl picoserve::routing::MethodHandlerService<()> for SystemWebUiUpdate {
             .await
     }
 }
+

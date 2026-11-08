@@ -192,6 +192,10 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/pinout.svg", get_service(File::from_content("image/svg+xml", crate::web_assets::PINOUT_SVG)))
         .route("/ok.json", get_service(crate::fs_http::SystemWebFile::new("ok.json", "application/json")))
         .route("/mcp.json", get_service(crate::fs_http::SystemWebFile::new("mcp.json", "application/json")))
+        .route("/packages/catalog.json", get_service(crate::fs_http::SystemWebFile::new("packages/catalog.json", "application/json")))
+        .route("/packages/servo-master.tar", get_service(crate::fs_http::SystemWebFile::new("packages/servo-master.tar", "application/x-tar")))
+        .route("/packages/can-sniffer.tar", get_service(crate::fs_http::SystemWebFile::new("packages/can-sniffer.tar", "application/x-tar")))
+        .route("/packages/terminal.tar", get_service(crate::fs_http::SystemWebFile::new("packages/terminal.tar", "application/x-tar")))
         .route_service("/api/v1/system/webui/update", crate::fs_http::SystemWebUiUpdate)
         .route(
             "/api/v1/system",
@@ -272,6 +276,11 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service(
             ("/api/v1/apps/install", parse_path_segment::<crate::apps::AppParams>()),
             crate::fs_http::AppInstall,
+        )
+        // POST /api/v1/apps/install?name={name}
+        .route_service(
+            "/api/v1/apps/install",
+            crate::fs_http::AppInstallQuery,
         )
         // DELETE /api/v1/apps/{name}
         .route(

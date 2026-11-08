@@ -8,55 +8,10 @@
   <link rel="stylesheet" href="../../themes.css">
   <script src="/agentla-bridge.js"></script>
   <style>
-    :root {
-      --bg-base: var(--bg-canvas, var(--color-base-100, #0f172a));
-      --card-bg: var(--bg-surface, var(--color-base-200, #1e293b));
-      --card-border: var(--border-color, var(--color-base-300, #334155));
-      --accent: var(--color-primary, #38bdf8);
-      --accent-hover: var(--color-primary, #0284c7);
-      --text-main: var(--color-base-content, #f8fafc);
-      --text-dim: var(--text-secondary, #94a3b8);
-    }
-    body {
-      background-color: var(--bg-base);
-      color: var(--text-main);
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    .servo-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 1rem;
-      padding: 1.25rem;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .servo-card:hover {
-      border-color: #475569;
-    }
     .servo-dial-svg {
       width: 140px;
       height: 140px;
       filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
-    }
-    .pulse-meter {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .btn-preset {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.75rem;
-      border-radius: 0.375rem;
-      background: #334155;
-      color: #f8fafc;
-      border: none;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .btn-preset:hover {
-      background: #475569;
-    }
-    .bipolar-slider::-webkit-slider-thumb {
-      background: #38bdf8;
     }
   </style>
 </head>
@@ -130,64 +85,64 @@
   </header>
 
   <!-- App Controls Sub-Header -->
-  <div class="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30">
+  <div class="border-b border-base-300 bg-base-200/80 backdrop-blur px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30">
     <div class="flex items-center gap-2">
-      <h1 class="text-base font-bold text-slate-100 flex items-center gap-2">
+      <h1 class="text-sm font-bold text-base-content flex items-center gap-2">
         Multi-Channel Servo Sequencer
-        <span class="text-xs bg-sky-950 text-sky-400 border border-sky-800/60 px-2 py-0.5 rounded-full font-mono">v1.0.0</span>
+        <span class="badge badge-primary badge-outline badge-xs font-mono">v1.0.0</span>
       </h1>
     </div>
 
     <!-- Master Controls & Status Badges -->
-    <div class="flex items-center gap-3 flex-wrap">
-      <div id="gamepad-badge" class="hidden text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 px-2.5 py-1 rounded-full items-center gap-1.5 font-medium">
+    <div class="flex items-center gap-2 flex-wrap">
+      <div id="gamepad-badge" class="hidden badge badge-success badge-sm gap-1.5 font-medium">
         <span>🎮</span>
         <span id="gamepad-name">Gamepad Connected</span>
       </div>
 
-      <button id="btn-wiring-guide" class="btn btn-sm btn-ghost border border-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5">
+      <button id="btn-wiring-guide" class="btn btn-xs btn-outline gap-1">
         <span>⚡</span> Wiring Guide
       </button>
 
-      <button id="btn-center-all" class="btn btn-sm btn-primary bg-sky-600 hover:bg-sky-500 border-none text-white">
+      <button id="btn-center-all" class="btn btn-xs btn-primary">
         Center All (90°)
       </button>
 
-      <button id="btn-detach-all" class="btn btn-sm btn-error bg-rose-600 hover:bg-rose-500 border-none text-white flex items-center gap-1">
+      <button id="btn-detach-all" class="btn btn-xs btn-error gap-1">
         <span>🛡️</span> Detach All
       </button>
     </div>
   </div>
 
   <!-- Main Content Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col gap-8">
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col gap-6">
 
     <!-- Global Toolbar / Tabs -->
-    <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+    <div class="flex flex-wrap items-center justify-between gap-4 bg-base-200/60 p-3.5 rounded-xl border border-base-300">
       <div class="flex items-center gap-3">
-        <button id="btn-add-channel" class="btn btn-sm bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center gap-1.5">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <button id="btn-add-channel" class="btn btn-xs btn-primary btn-outline gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           Add Channel
         </button>
 
-        <div class="h-4 w-px bg-slate-800"></div>
+        <div class="h-4 w-px bg-base-300"></div>
 
         <!-- Easing Toggle -->
-        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-          <input type="checkbox" id="chk-easing" class="checkbox checkbox-sm checkbox-primary" checked />
+        <label class="flex items-center gap-2 cursor-pointer text-xs text-base-content/80">
+          <input type="checkbox" id="chk-easing" class="checkbox checkbox-xs checkbox-primary" checked />
           <span>Motion Easing (S-Curve)</span>
         </label>
       </div>
 
       <!-- Sweep Mode Controls -->
-      <div class="flex items-center gap-3 bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
-        <span class="text-slate-400 font-medium">Auto-Sweep:</span>
-        <button id="btn-sweep-toggle" class="btn btn-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border-none">
+      <div class="flex items-center gap-2.5 bg-base-300/60 px-3 py-1 rounded-lg border border-base-300 text-xs">
+        <span class="text-base-content/70 font-medium">Auto-Sweep:</span>
+        <button id="btn-sweep-toggle" class="btn btn-xs btn-neutral">
           Start Sweep
         </button>
-        <span class="text-slate-500">Speed:</span>
+        <span class="text-base-content/60">Speed:</span>
         <input type="range" id="range-sweep-speed" min="1" max="10" value="4" class="range range-xs range-primary w-20" />
       </div>
     </div>
@@ -198,22 +153,22 @@
     </div>
 
     <!-- Pose Sequencer Section -->
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
-      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3">
+    <section class="bg-base-200 border border-base-300 rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-base-300 pb-3">
         <div>
-          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <h2 class="text-sm font-bold text-base-content flex items-center gap-2">
             <span>🎬</span> Pose Sequencer & Choreography
           </h2>
-          <p class="text-xs text-slate-400">Save multi-channel keyframes, adjust transition speeds, and loop automated motions.</p>
+          <p class="text-xs text-base-content/60">Save multi-channel keyframes, adjust transition speeds, and loop automated motions.</p>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="btn-save-pose" class="btn btn-xs btn-outline border-slate-700 text-slate-300 hover:text-white">
-            + Save Current Pose
+        <div class="join">
+          <button id="btn-save-pose" class="btn btn-xs btn-outline join-item">
+            + Save Pose
           </button>
-          <button id="btn-play-seq" class="btn btn-xs btn-primary bg-emerald-600 hover:bg-emerald-500 border-none text-white">
-            ▶ Play Sequence
+          <button id="btn-play-seq" class="btn btn-xs btn-success join-item">
+            ▶ Play
           </button>
-          <button id="btn-stop-seq" class="btn btn-xs btn-ghost text-slate-400 hover:text-white" disabled>
+          <button id="btn-stop-seq" class="btn btn-xs btn-neutral join-item" disabled>
             ⏹ Stop
           </button>
         </div>
@@ -223,7 +178,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Poses Chips -->
         <div class="flex flex-col gap-2">
-          <span class="text-xs font-semibold text-slate-400">Stored Poses:</span>
+          <span class="text-xs font-semibold text-base-content/70">Stored Poses:</span>
           <div id="poses-list" class="flex flex-wrap gap-2">
             <!-- Dynamic pose badges -->
           </div>
@@ -232,14 +187,14 @@
         <!-- Sequence Steps Timeline -->
         <div class="lg:col-span-2 flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-400">Execution Timeline:</span>
-            <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+            <span class="text-xs font-semibold text-base-content/70">Execution Timeline:</span>
+            <label class="flex items-center gap-1.5 text-xs text-base-content/70 cursor-pointer">
               <input type="checkbox" id="chk-seq-loop" class="checkbox checkbox-xs checkbox-primary" checked />
               <span>Loop Continuously</span>
             </label>
           </div>
-          <div id="sequence-timeline" class="flex items-center gap-2 overflow-x-auto p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 min-h-[70px]">
-            <span class="text-xs text-slate-500 italic">Timeline empty. Click '+ Save Current Pose' then add to timeline.</span>
+          <div id="sequence-timeline" class="flex items-center gap-2 overflow-x-auto p-3 bg-base-300/50 rounded-xl border border-base-300 min-h-[70px]">
+            <span class="text-xs text-base-content/50 italic">Timeline empty. Click '+ Save Current Pose' then add to timeline.</span>
           </div>
         </div>
       </div>
@@ -249,15 +204,15 @@
 
   <!-- Wiring & Safety Guide Modal -->
   <dialog id="modal-wiring" class="modal">
-    <div class="modal-box bg-slate-900 border border-slate-800 text-slate-200 max-w-2xl">
-      <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+    <div class="modal-box bg-base-200 border border-base-300 text-base-content max-w-2xl">
+      <h3 class="font-bold text-lg flex items-center gap-2">
         <span>⚡</span> Recommended Servo Wiring & Safety Guide
       </h3>
-      <p class="py-2 text-sm text-slate-400">
+      <p class="py-2 text-sm text-base-content/70">
         Standard hobby servos draw 500mA to 2A peak current when under load or accelerating.
       </p>
 
-      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 my-3 flex flex-col items-center">
+      <div class="bg-base-300 p-4 rounded-xl border border-base-300 my-3 flex flex-col items-center">
         <!-- Wiring SVG Diagram -->
         <svg viewBox="0 0 540 220" class="w-full max-w-lg">
           <!-- AgentLA Box -->
@@ -297,14 +252,14 @@
         </svg>
       </div>
 
-      <div class="alert alert-warning text-xs border border-amber-500/30 bg-amber-950/40 text-amber-200 mt-2">
+      <div class="alert alert-warning text-xs mt-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         <span><strong>CAUTION:</strong> Do not power high-torque servos directly from AgentLA's 3.3V power rails. Rapid current draw will trigger USB brownout resets. Always share a common ground between the external power supply and AgentLA.</span>
       </div>
 
       <div class="modal-action">
         <form method="dialog">
-          <button class="btn btn-sm btn-primary bg-sky-600 hover:bg-sky-500 border-none text-white">Understood</button>
+          <button class="btn btn-sm btn-primary">Understood</button>
         </form>
       </div>
     </div>
@@ -343,7 +298,7 @@
       channelsGrid.innerHTML = "";
       channels.forEach(ch => {
         const card = document.createElement("div");
-        card.className = "servo-card flex flex-col gap-4";
+        card.className = "card bg-base-200 border border-base-300 shadow-sm p-4 flex flex-col gap-4";
         card.dataset.id = ch.id;
 
         const pinOptions = AVAILABLE_PINS.map(p => 
@@ -351,22 +306,22 @@
         ).join("");
 
         card.innerHTML = `
-          <div class="flex items-center justify-between gap-2 border-b border-slate-700/60 pb-2">
-            <input type="text" class="input input-xs bg-transparent border-none text-slate-100 font-bold p-0 text-sm focus:bg-slate-800 focus:p-1 rounded w-28" 
+          <div class="flex items-center justify-between gap-2 border-b border-base-300 pb-2">
+            <input type="text" class="input input-bordered input-xs font-bold text-base-content w-32 bg-base-100" 
                    value="${ch.name}" onchange="updateChannelName(${ch.id}, this.value)" />
             <div class="flex items-center gap-1.5">
-              <select class="select select-xs bg-slate-800 text-slate-200 border-slate-700 font-mono" onchange="updateChannelPin(${ch.id}, this.value)">
+              <select class="select select-bordered select-xs font-mono bg-base-100 text-base-content" onchange="updateChannelPin(${ch.id}, this.value)">
                 ${pinOptions}
               </select>
-              <button class="btn btn-xs btn-circle btn-ghost text-slate-500 hover:text-rose-400" onclick="removeChannel(${ch.id})">✕</button>
+              <button class="btn btn-xs btn-circle btn-ghost text-base-content/60 hover:text-error" onclick="removeChannel(${ch.id})">✕</button>
             </div>
           </div>
 
           <!-- Mode Selector Pill -->
-          <div class="flex items-center justify-between text-xs bg-slate-900/80 p-1 rounded-lg border border-slate-800">
-            <button class="flex-1 py-1 rounded text-center font-medium transition-colors ${!ch.continuous ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}" 
+          <div class="join w-full">
+            <button class="join-item btn btn-xs flex-1 ${!ch.continuous ? 'btn-primary' : 'btn-neutral btn-outline'}" 
                     onclick="setChannelMode(${ch.id}, false)">0°–180° Pos</button>
-            <button class="flex-1 py-1 rounded text-center font-medium transition-colors ${ch.continuous ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}" 
+            <button class="join-item btn btn-xs flex-1 ${ch.continuous ? 'btn-primary' : 'btn-neutral btn-outline'}" 
                     onclick="setChannelMode(${ch.id}, true)">360° Continuous</button>
           </div>
 
@@ -375,26 +330,26 @@
             ${!ch.continuous ? `
               <!-- Positional Rotating Horn -->
               <svg viewBox="0 0 100 100" class="servo-dial-svg">
-                <circle cx="50" cy="50" r="42" fill="#0f172a" stroke="#334155" stroke-width="4"/>
+                <circle cx="50" cy="50" r="42" fill="var(--color-base-300, #1e293b)" stroke="var(--color-base-100, #0f172a)" stroke-width="4"/>
                 <!-- Angle Arc Scale -->
-                <path d="M 18 50 A 32 32 0 0 1 82 50" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="2 4"/>
+                <path d="M 18 50 A 32 32 0 0 1 82 50" fill="none" stroke="var(--color-base-content, #64748b)" stroke-width="2" stroke-opacity="0.3" stroke-dasharray="2 4"/>
                 <g id="horn-group-${ch.id}" transform="rotate(${ch.angle - 90} 50 50)" style="transition: transform 0.05s linear;">
                   <!-- Horn Arm -->
-                  <polygon points="50,44 88,48 88,52 50,56" fill="#38bdf8"/>
-                  <circle cx="82" cy="50" r="3" fill="#0f172a"/>
-                  <circle cx="50" cy="50" r="10" fill="#0284c7" stroke="#38bdf8" stroke-width="2"/>
+                  <polygon points="50,44 88,48 88,52 50,56" fill="var(--color-primary, #38bdf8)"/>
+                  <circle cx="82" cy="50" r="3" fill="var(--color-base-100, #0f172a)"/>
+                  <circle cx="50" cy="50" r="10" fill="var(--color-primary, #0284c7)" stroke="var(--color-primary, #38bdf8)" stroke-width="2"/>
                 </g>
-                <text x="50" y="80" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="bold">${Math.round(ch.angle)}°</text>
+                <text x="50" y="80" text-anchor="middle" fill="currentColor" class="text-base-content" font-size="12" font-weight="bold">${Math.round(ch.angle)}°</text>
               </svg>
             ` : `
               <!-- Continuous Rotation Spinning Gear -->
               <svg viewBox="0 0 100 100" class="servo-dial-svg">
-                <circle cx="50" cy="50" r="42" fill="#0f172a" stroke="#334155" stroke-width="4"/>
+                <circle cx="50" cy="50" r="42" fill="var(--color-base-300, #1e293b)" stroke="var(--color-base-100, #0f172a)" stroke-width="4"/>
                 <g id="gear-group-${ch.id}" transform="rotate(0 50 50)">
-                  <circle cx="50" cy="50" r="28" fill="#1e293b" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 3"/>
-                  <circle cx="50" cy="50" r="6" fill="#0284c7"/>
+                  <circle cx="50" cy="50" r="28" fill="var(--color-base-200, #1e293b)" stroke="var(--color-primary, #38bdf8)" stroke-width="2" stroke-dasharray="6 3"/>
+                  <circle cx="50" cy="50" r="6" fill="var(--color-primary, #0284c7)"/>
                 </g>
-                <text x="50" y="82" text-anchor="middle" fill="${ch.angle === 0 ? '#94a3b8' : '#38bdf8'}" font-size="11" font-weight="bold">
+                <text x="50" y="82" text-anchor="middle" fill="${ch.angle === 0 ? 'var(--color-base-content, #94a3b8)' : 'var(--color-primary, #38bdf8)'}" font-size="11" font-weight="bold">
                   ${ch.angle === 0 ? 'STOPPED' : (ch.angle > 0 ? '+' + ch.angle + '% FWD' : ch.angle + '% REV')}
                 </text>
               </svg>
@@ -405,9 +360,9 @@
           ${!ch.continuous ? `
             <!-- Slider -->
             <div class="flex flex-col gap-1.5">
-              <div class="flex justify-between text-xs text-slate-400">
+              <div class="flex justify-between text-xs text-base-content/70">
                 <span>0°</span>
-                <span class="text-sky-400 font-mono font-bold">${ch.pulse_us} µs</span>
+                <span class="text-primary font-mono font-bold">${ch.pulse_us} µs</span>
                 <span>180°</span>
               </div>
               <input type="range" min="0" max="180" value="${ch.angle}" class="range range-xs range-primary" 
@@ -415,34 +370,34 @@
             </div>
 
             <!-- Preset Buttons -->
-            <div class="flex items-center justify-between gap-1 mt-1">
-              <button class="btn-preset flex-1" onclick="setChannelAngle(${ch.id}, 0)">0°</button>
-              <button class="btn-preset flex-1" onclick="setChannelAngle(${ch.id}, 45)">45°</button>
-              <button class="btn-preset flex-1" onclick="setChannelAngle(${ch.id}, 90)">90°</button>
-              <button class="btn-preset flex-1" onclick="setChannelAngle(${ch.id}, 135)">135°</button>
-              <button class="btn-preset flex-1" onclick="setChannelAngle(${ch.id}, 180)">180°</button>
+            <div class="grid grid-cols-5 gap-1 mt-1">
+              <button class="btn btn-xs btn-neutral" onclick="setChannelAngle(${ch.id}, 0)">0°</button>
+              <button class="btn btn-xs btn-neutral" onclick="setChannelAngle(${ch.id}, 45)">45°</button>
+              <button class="btn btn-xs btn-neutral" onclick="setChannelAngle(${ch.id}, 90)">90°</button>
+              <button class="btn btn-xs btn-neutral" onclick="setChannelAngle(${ch.id}, 135)">135°</button>
+              <button class="btn btn-xs btn-neutral" onclick="setChannelAngle(${ch.id}, 180)">180°</button>
             </div>
           ` : `
             <!-- Continuous Rotation Throttle Slider -->
             <div class="flex flex-col gap-1.5">
-              <div class="flex justify-between text-xs text-slate-400">
+              <div class="flex justify-between text-xs text-base-content/70">
                 <span>-100% (Rev)</span>
-                <span class="text-sky-400 font-mono font-bold">${ch.pulse_us} µs</span>
+                <span class="text-primary font-mono font-bold">${ch.pulse_us} µs</span>
                 <span>+100% (Fwd)</span>
               </div>
               <input type="range" min="-100" max="100" value="${ch.angle}" class="range range-xs range-accent bipolar-slider" 
                      oninput="onThrottleSliderChange(${ch.id}, this.value)" />
             </div>
-            <button class="btn btn-xs btn-error bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30 w-full mt-1"
+            <button class="btn btn-xs btn-error btn-outline w-full mt-1"
                     onclick="brakeChannel(${ch.id})">⏹ Quick Brake (Stop)</button>
           `}
 
           <!-- Footer Actions & Detach Toggle -->
-          <div class="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs text-slate-400">
-            <span class="pulse-meter text-[11px]">${ch.min_us}–${ch.max_us}µs</span>
-            <button class="text-xs ${ch.active ? 'text-emerald-400' : 'text-slate-500'} hover:underline font-medium" 
+          <div class="flex items-center justify-between pt-2 border-t border-base-300 text-xs text-base-content/70">
+            <span class="badge badge-sm badge-neutral font-mono text-[11px]">${ch.min_us}–${ch.max_us}µs</span>
+            <button class="badge badge-sm ${ch.active ? 'badge-success gap-1' : 'badge-ghost gap-1'} font-medium cursor-pointer" 
                     onclick="toggleChannelActive(${ch.id})">
-              ${ch.active ? '● Active' : '○ Detached'}
+              ${ch.active ? '<span class="status-dot"></span> Active' : 'Detached'}
             </button>
           </div>
         `;
@@ -647,10 +602,10 @@
       list.innerHTML = "";
       poses.forEach((p, idx) => {
         const badge = document.createElement("div");
-        badge.className = "bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 cursor-pointer";
+        badge.className = "badge badge-neutral gap-1.5 py-3 px-3 cursor-pointer hover:badge-primary transition-all";
         badge.innerHTML = `
-          <span onclick="recallPose(${idx})">📌 ${p.name}</span>
-          <button class="text-slate-400 hover:text-sky-400 font-bold ml-1" onclick="addToTimeline(${idx})">+</button>
+          <span onclick="recallPose(${idx})" class="font-medium">📌 ${p.name}</span>
+          <button class="text-base-content/60 hover:text-primary font-bold ml-1" onclick="addToTimeline(${idx})" title="Add to timeline">+</button>
         `;
         list.appendChild(badge);
       });
@@ -659,15 +614,15 @@
     function renderTimeline() {
       const tl = document.getElementById("sequence-timeline");
       if (sequence.length === 0) {
-        tl.innerHTML = `<span class="text-xs text-slate-500 italic">Timeline empty.</span>`;
+        tl.innerHTML = `<span class="text-xs text-base-content/50 italic">Timeline empty. Click '+ Save Current Pose' then add to timeline.</span>`;
         return;
       }
       tl.innerHTML = sequence.map((step, sIdx) => {
         const pose = poses[step.poseIndex] || { name: 'Pose' };
         return `
-          <div class="bg-sky-950 border border-sky-800/80 px-3 py-1.5 rounded-lg text-xs text-sky-200 flex items-center gap-2 shrink-0">
+          <div class="badge badge-primary badge-outline gap-2 py-3 px-3 shrink-0 font-medium">
             <span>#${sIdx + 1}: ${pose.name}</span>
-            <button class="text-sky-400 hover:text-rose-400" onclick="removeFromTimeline(${sIdx})">✕</button>
+            <button class="text-error hover:font-bold" onclick="removeFromTimeline(${sIdx})">✕</button>
           </div>
         `;
       }).join("");

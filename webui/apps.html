@@ -179,6 +179,17 @@
                         </a>
                     </div>
 
+                    <!-- Spotlight Search for Launchpad -->
+                    <div class="launcher-spotlight" style="margin-bottom: 12px;">
+                        <div class="launcher-spotlight-wrapper">
+                            <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                            <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search instruments &amp; apps (Press '/' to focus)..." autocomplete="off">
+                        </div>
+                    </div>
+
                     <!-- Section 1: Core Apps & Instruments -->
                     <section class="launcher-section" id="section-core-instruments">
                         <div class="launcher-section-header">
@@ -931,8 +942,9 @@
                 description: "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
                 requires: ["pwm", "gpio_flexible"],
                 tags: ["Robotics", "PWM", "Actuation"],
-                size_bytes: 32600,
-                icon: "icon.svg"
+                size_bytes: 40960,
+                icon: "icon.svg",
+                package_url: "/packages/servo-master.tar"
             },
             {
                 id: "terminal",
@@ -942,8 +954,9 @@
                 description: "Full-duplex in-browser Web Serial Terminal with WebSocket streaming, ANSI colors, hybrid UART routing, and 1-click target reset.",
                 requires: ["uart", "gpio_flexible"],
                 tags: ["Communication", "UART", "Serial"],
-                size_bytes: 20400,
-                icon: "icon.svg"
+                size_bytes: 30720,
+                icon: "icon.svg",
+                package_url: "/packages/terminal.tar"
             },
             {
                 id: "can-sniffer",
@@ -953,8 +966,9 @@
                 description: "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, frame transmission, and 120Ω termination control.",
                 requires: ["has_hardware_can"],
                 tags: ["Automotive", "CAN"],
-                size_bytes: 68400,
-                icon: "icon.svg"
+                size_bytes: 30720,
+                icon: "icon.svg",
+                package_url: "/packages/can-sniffer.tar"
             }
         ];
 
@@ -1780,6 +1794,18 @@
             if (!grid) return;
             grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 40px;">Loading Community Catalog...</div>`;
 
+            // 1. Try local on-device catalog first (offline-first)
+            try {
+                const localRes = await fetch('/packages/catalog.json', { cache: 'no-cache' });
+                if (localRes.ok) {
+                    const data = await localRes.json();
+                    catalogApps = data.apps || data;
+                    renderCatalog();
+                    return;
+                }
+            } catch (_) {}
+
+            // 2. Try remote repository if configured
             try {
                 const res = await fetch(catalogUrl, { cache: 'no-cache' });
                 if (res.ok) {
@@ -1939,6 +1965,60 @@
             return { appJson, iconSvg, totalSize: totalUncompressedSize };
         }
 
+        // Client-Side Single-File HTML to USTAR Tarball Packaging
+        function buildSingleFileTar(name, htmlContent, meta) {
+            const encoder = new TextEncoder();
+            const htmlBytes = encoder.encode(htmlContent);
+            const manifestJson = JSON.stringify(meta || {
+                id: name,
+                name: name,
+                version: "1.0.0",
+                description: "User dashboard application"
+            }, null, 2);
+            const jsonBytes = encoder.encode(manifestJson);
+
+            function createTarHeader(filename, size) {
+                const header = new Uint8Array(512);
+                const nameBytes = encoder.encode(filename);
+                header.set(nameBytes.subarray(0, 100), 0);
+                header.set(encoder.encode("0000644\0"), 100);
+                header.set(encoder.encode("0000000\0"), 108);
+                header.set(encoder.encode("0000000\0"), 116);
+                const sizeStr = size.toString(8).padStart(11, '0') + ' ';
+                header.set(encoder.encode(sizeStr), 124);
+                header.set(encoder.encode("00000000000 "), 136);
+                header[156] = 48; // '0' for normal file
+                header.set(encoder.encode("ustar\0"), 257);
+                header.set(encoder.encode("00"), 263);
+
+                for (let i = 148; i < 156; i++) header[i] = 32;
+                let sum = 0;
+                for (let i = 0; i < 512; i++) sum += header[i];
+                const chkStr = sum.toString(8).padStart(6, '0') + '\0 ';
+                header.set(encoder.encode(chkStr), 148);
+                return header;
+            }
+
+            const hIndex = createTarHeader("index.html", htmlBytes.length);
+            const padIndex = (512 - (htmlBytes.length % 512)) % 512;
+            const hJson = createTarHeader("app.json", jsonBytes.length);
+            const padJson = (512 - (jsonBytes.length % 512)) % 512;
+
+            const totalLen = 512 + htmlBytes.length + padIndex + 512 + jsonBytes.length + padJson + 1024;
+            const tar = new Uint8Array(totalLen);
+            let offset = 0;
+
+            tar.set(hIndex, offset); offset += 512;
+            tar.set(htmlBytes, offset); offset += htmlBytes.length;
+            offset += padIndex;
+
+            tar.set(hJson, offset); offset += 512;
+            tar.set(jsonBytes, offset); offset += jsonBytes.length;
+            offset += padJson;
+
+            return tar.buffer;
+        }
+
         let activeSheetApp = null;
 
         function openAppDetail(appId, origin, customPayload) {
@@ -2069,35 +2149,49 @@
                 if (progressLabel && msg) progressLabel.innerText = msg;
             }
 
-            setProgress(25, 'Allocating LittleFS flash space...');
+            setProgress(20, 'Preparing LittleFS flash allocation...');
 
             const appName = activeSheetApp.id;
-            const url = `/api/v1/apps/install?name=${encodeURIComponent(appName)}`;
 
             try {
                 if (!isDemo && activeSheetApp.customPayload?.data) {
-                    setProgress(55, 'Writing package files to LittleFS...');
-                    let res;
-                    if (activeSheetApp.customPayload.type === 'tar') {
-                        res = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-tar' },
-                            body: activeSheetApp.customPayload.data
-                        });
-                    } else {
-                        res = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/html' },
-                            body: activeSheetApp.customPayload.data
-                        });
+                    setProgress(45, 'Packaging application files...');
+                    let payloadData = activeSheetApp.customPayload.data;
+
+                    if (activeSheetApp.customPayload.type === 'html') {
+                        payloadData = buildSingleFileTar(appName, activeSheetApp.customPayload.data, activeSheetApp.customPayload.appJson);
                     }
-                    if (!res.ok) throw new Error('Flash write failed: HTTP ' + res.status);
-                } else if (!isDemo && activeSheetApp.origin === 'catalog') {
-                    // Catalog remote package install
-                    setProgress(50, 'Fetching package bundle from community repository...');
-                    await new Promise(r => setTimeout(r, 400));
-                    setProgress(80, 'Writing LittleFS partition...');
-                    await new Promise(r => setTimeout(r, 400));
+
+                    setProgress(70, 'Writing package to LittleFS flash...');
+                    const res = await fetch(`/api/v1/apps/install/${encodeURIComponent(appName)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-tar' },
+                        body: payloadData
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(`Flash write failed: HTTP ${res.status} (${err.error || 'write_error'})`);
+                    }
+                } else if (!isDemo && (activeSheetApp.origin === 'catalog' || !activeSheetApp.customPayload)) {
+                    // Catalog remote or built-in package install
+                    const pkgUrl = activeSheetApp.package_url || `/packages/${encodeURIComponent(appName)}.tar`;
+                    setProgress(35, `Fetching ${activeSheetApp.name || appName} package bundle...`);
+                    const pkgRes = await fetch(pkgUrl);
+                    if (!pkgRes.ok) {
+                        throw new Error(`Failed to download app bundle from ${pkgUrl} (HTTP ${pkgRes.status})`);
+                    }
+                    const packageBuffer = await pkgRes.arrayBuffer();
+
+                    setProgress(65, 'Writing package files to LittleFS...');
+                    const installRes = await fetch(`/api/v1/apps/install/${encodeURIComponent(appName)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-tar' },
+                        body: packageBuffer
+                    });
+                    if (!installRes.ok) {
+                        const err = await installRes.json().catch(() => ({}));
+                        throw new Error(`Flash write failed: HTTP ${installRes.status} (${err.error || 'install_error'})`);
+                    }
                 } else {
                     // Demo mode simulation
                     await new Promise(r => setTimeout(r, 350));

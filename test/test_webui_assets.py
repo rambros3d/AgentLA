@@ -201,7 +201,10 @@ def test_cross_page_theme_synchronization():
     app_js = (HTML_DIR / "app.js").read_text(encoding="utf-8")
     apps_html = (HTML_DIR / "apps.html").read_text(encoding="utf-8")
     bridge_js = (HTML_DIR / "agentla-bridge.js").read_text(encoding="utf-8")
-    servo_index = (HTML_DIR / "apps" / "servo-master" / "index.html").read_text(encoding="utf-8")
+    servo_path = HTML_DIR.parent / "apps" / "servo-master" / "index.html"
+    if not servo_path.exists():
+        servo_path = HTML_DIR / "apps" / "servo-master" / "index.html"
+    servo_index = servo_path.read_text(encoding="utf-8")
 
     # 1. All layers listen to storage events
     assert "window.addEventListener('storage'" in app_js, "app.js must listen to storage events"

@@ -9,247 +9,35 @@
   <link rel="stylesheet" href="../../themes.css">
   <script src="/agentla-bridge.js"></script>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg-base: var(--bg-canvas, var(--color-base-100, #090d16));
-      --card-bg: var(--bg-surface, var(--color-base-200, #131b2e));
-      --card-border: var(--border-color, var(--color-base-300, #22304e));
-      --accent: var(--color-primary, #38bdf8);
-      --accent-hover: #0284c7;
-      --text-main: var(--color-base-content, #f8fafc);
-      --text-dim: var(--text-secondary, #94a3b8);
-      --term-bg: #050811;
-      --term-fg: #f1f5f9;
-      scrollbar-color: #334155 #0f172a;
-    }
-    body {
-      background-color: var(--bg-base);
-      color: var(--text-main);
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-    header {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--card-border);
-      padding: 0.75rem 1.25rem;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      z-index: 30;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
-      padding: 0.25rem 0.625rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.025em;
-    }
-    .badge-disconnected {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-    .badge-connecting {
-      background: rgba(234, 179, 8, 0.15);
-      color: #facc15;
-      border: 1px solid rgba(234, 179, 8, 0.3);
-    }
-    .badge-connected {
-      background: rgba(34, 197, 94, 0.15);
-      color: #4ade80;
-      border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    .controls-bar {
-      background: var(--card-bg);
-      border-bottom: 1px solid var(--card-border);
-      padding: 0.5rem 1.25rem;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      font-size: 0.8125rem;
-    }
-    .control-group {
-      display: flex;
-      align-items: center;
-      gap: 0.375rem;
-    }
-    select, input[type="text"], input[type="number"] {
-      background: #0b1120;
-      border: 1px solid var(--card-border);
-      color: var(--text-main);
-      padding: 0.3125rem 0.625rem;
-      border-radius: 0.375rem;
-      font-size: 0.8125rem;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    select:focus, input[type="text"]:focus, input[type="number"]:focus {
-      border-color: var(--accent);
-    }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
-      padding: 0.3125rem 0.75rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      border-radius: 0.375rem;
-      border: 1px solid var(--card-border);
-      background: #1e293b;
-      color: var(--text-main);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn:hover {
-      background: #334155;
-    }
-    .btn-primary {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #ffffff;
-    }
-    .btn-primary:hover {
-      background: #0369a1;
-    }
-    .btn-accent {
-      background: rgba(56, 189, 248, 0.15);
-      border-color: rgba(56, 189, 248, 0.4);
-      color: #38bdf8;
-    }
-    .btn-accent:hover {
-      background: rgba(56, 189, 248, 0.25);
-    }
-    .btn-active-term {
-      background: rgba(34, 197, 94, 0.2);
-      border-color: rgba(34, 197, 94, 0.6);
-      color: #4ade80;
-    }
-    /* Main Layout */
-    .analyzer-workspace {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-    }
-    .table-container {
-      flex: 1;
-      overflow-y: auto;
-      background: var(--term-bg);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.8125rem;
-    }
-    table.can-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-    }
-    table.can-table th {
-      position: sticky;
-      top: 0;
-      background: #0f172a;
-      color: #94a3b8;
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid var(--card-border);
-      font-size: 0.75rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      z-index: 10;
-    }
-    table.can-table td {
-      padding: 0.375rem 0.75rem;
-      border-bottom: 1px solid rgba(51, 65, 85, 0.4);
-      white-space: nowrap;
-    }
-    table.can-table tr:hover {
-      background: rgba(56, 189, 248, 0.05);
-    }
+    /* Monospace formatting for CAN frame hex & payload */
     .id-cell {
-      color: #38bdf8;
+      color: var(--color-primary, #38bdf8);
       font-weight: 600;
     }
     .id-ext {
-      color: #c084fc;
+      color: var(--color-secondary, #c084fc);
     }
     .bytes-cell {
-      color: #f1f5f9;
       letter-spacing: 0.08em;
     }
     .ascii-cell {
-      color: #64748b;
-    }
-    /* TX Injector Panel */
-    .injector-panel {
-      background: var(--card-bg);
-      border-top: 1px solid var(--card-border);
-      padding: 0.75rem 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.625rem;
-    }
-    .injector-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .preset-chip {
-      padding: 0.2rem 0.5rem;
-      font-size: 0.75rem;
-      border-radius: 9999px;
-      background: rgba(51, 65, 85, 0.6);
-      border: 1px solid var(--card-border);
-      color: #94a3b8;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .preset-chip:hover {
-      color: #f8fafc;
-      border-color: #64748b;
-    }
-    .footer-bar {
-      background: #090d16;
-      border-top: 1px solid var(--card-border);
-      padding: 0.375rem 1.25rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.75rem;
-      color: var(--text-dim);
+      color: var(--text-secondary, #94a3b8);
     }
   </style>
 </head>
-<body>
+<body class="min-h-screen flex flex-col bg-base-100 text-base-content overflow-hidden select-none">
 
-  <!-- Clean OS Top Bar (Matching Launcher and Terminal) -->
-  <header id="top-bar" class="app-header navbar bg-base-100 border-b border-base-300">
-    <div class="bar-left navbar-start" style="display: flex; align-items: center; gap: 8px;">
-      <a href="/apps" class="brand-item" id="brand-logo" title="AgentLA App Launcher" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+  <!-- Unified Clean OS Top Bar -->
+  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-1.5 min-h-0 flex justify-between items-center z-30">
+    <div class="navbar-start flex items-center gap-2">
+      <a href="/apps" class="brand-item flex items-center gap-2 text-inherit no-underline" title="AgentLA App Launcher">
         <span class="start-menu-icon" aria-hidden="true"></span>
-        <span class="brand-title" style="font-weight:700; letter-spacing: -0.02em;">AgentLA</span>
+        <span class="font-bold tracking-tight text-sm">AgentLA</span>
         <span class="status status-success status-xs" title="Hardware Engine Online"></span>
       </a>
-      <span style="color: var(--card-border); margin: 0 4px;">/</span>
-      <span style="font-weight: 600; font-size: 0.875rem; color: var(--text-main); display: inline-flex; align-items: center; gap: 6px;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <span class="text-base-content/30 mx-1">/</span>
+      <span class="font-semibold text-xs flex items-center gap-1.5 text-base-content">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-primary" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M17 15h2c.6 0 1-.4 1-1v-2c0-.7-.5-1.3-1.2-1.4L15 10l-2-2H8l-1.5 2.2A2 2 0 0 0 6 11v3c0 .6.4 1 1 1h1"/>
           <circle cx="9" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/>
         </svg>
@@ -257,11 +45,12 @@
       </span>
     </div>
 
-    <div class="bar-right navbar-end" style="display: flex; align-items: center; gap: 8px;">
-      <span id="ws-badge" class="badge badge-disconnected">
-        <span class="status-dot"></span>
+    <div class="navbar-end flex items-center gap-2">
+      <!-- WebSocket Status Badge -->
+      <div id="ws-badge" class="badge badge-error badge-sm gap-1.5 font-medium transition-all">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-current"></span>
         <span id="ws-status-text">Disconnected</span>
-      </span>
+      </div>
 
       <!-- Target Power Rail Toggle Pill -->
       <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
@@ -283,19 +72,20 @@
 
       <!-- Tri-State Theme Toggle -->
       <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)">
-        <svg class="solar-icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <svg class="solar-icon icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="12" cy="12" r="5"/>
         </svg>
       </button>
     </div>
   </header>
 
-  <!-- Filter & Configuration Controls Bar -->
-  <div class="controls-bar">
-    <div style="display: flex; align-items: center; gap: 0.875rem; flex-wrap: wrap;">
-      <div class="control-group">
-        <label for="sel-baud" style="color: var(--text-dim);">Bitrate:</label>
-        <select id="sel-baud">
+  <!-- Controls & Filtering Bar -->
+  <div class="bg-base-200/80 border-b border-base-300 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- Bitrate Selector -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-base-content/70 font-medium">Bitrate:</span>
+        <select id="sel-baud" class="select select-bordered select-xs bg-base-100 font-mono w-28">
           <option value="10000">10 kbps</option>
           <option value="20000">20 kbps</option>
           <option value="50000">50 kbps</option>
@@ -309,84 +99,93 @@
       </div>
 
       <!-- 120 Ohm Termination Toggle -->
-      <button id="btn-term-toggle" class="btn" title="Toggle software-controlled 120Ω bus termination on GPIO 22">
+      <button id="btn-term-toggle" class="btn btn-xs btn-outline" title="Toggle software-controlled 120Ω bus termination on GPIO 22">
         <span id="term-icon">⚡</span>
         <span id="term-label">120Ω Term: OFF</span>
       </button>
 
-      <div class="control-group">
-        <label for="input-filter-id" style="color: var(--text-dim);">ID Filter:</label>
-        <input type="text" id="input-filter-id" placeholder="e.g. 0x7DF or 123" style="width: 130px;">
+      <!-- ID Filter Input -->
+      <div class="join">
+        <span class="join-item btn btn-xs btn-neutral pointer-events-none text-base-content/60 font-sans">Filter</span>
+        <input type="text" id="input-filter-id" placeholder="0x7DF or ID" class="input input-bordered input-xs join-item font-mono w-28 bg-base-100">
       </div>
 
-      <label class="control-group" style="cursor: pointer; user-select: none;">
-        <input type="checkbox" id="chk-autoscroll" checked>
-        <span>Auto-scroll</span>
+      <!-- Auto-scroll checkbox -->
+      <label class="label cursor-pointer gap-1.5 py-0">
+        <input type="checkbox" id="chk-autoscroll" class="checkbox checkbox-xs checkbox-primary" checked>
+        <span class="label-text text-xs">Auto-scroll</span>
       </label>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 0.5rem;">
-      <button id="btn-connect" class="btn btn-primary">Connect</button>
-      <button id="btn-clear" class="btn" title="Clear packet log">Clear</button>
-      <button id="btn-export-csv" class="btn" title="Export captured frames to CSV">Export CSV</button>
+    <!-- Right Action Buttons -->
+    <div class="join">
+      <button id="btn-connect" class="btn btn-xs btn-primary join-item">Connect</button>
+      <button id="btn-clear" class="btn btn-xs btn-ghost join-item" title="Clear packet log">Clear</button>
+      <button id="btn-export-csv" class="btn btn-xs btn-neutral join-item" title="Export captured frames to CSV">Export CSV</button>
     </div>
   </div>
 
-  <!-- Main Packet Inspector Workspace -->
-  <div class="analyzer-workspace">
-    <div class="table-container" id="table-container">
-      <table class="can-table" id="can-table">
+  <!-- Live Packet Inspector Table -->
+  <main class="flex-1 flex flex-col overflow-hidden bg-base-100">
+    <div class="flex-1 overflow-y-auto" id="table-container">
+      <table class="table table-pin-rows table-xs w-full font-mono" id="can-table">
         <thead>
-          <tr>
-            <th style="width: 70px;">#</th>
-            <th style="width: 110px;">Time (s)</th>
-            <th style="width: 100px;">ID</th>
-            <th style="width: 70px;">Type</th>
-            <th style="width: 50px;">RTR</th>
-            <th style="width: 50px;">DLC</th>
+          <tr class="bg-base-200 text-base-content/70">
+            <th class="w-16">#</th>
+            <th class="w-28">Time (s)</th>
+            <th class="w-24">ID</th>
+            <th class="w-16">Type</th>
+            <th class="w-14">RTR</th>
+            <th class="w-14">DLC</th>
             <th>Data (Hex)</th>
-            <th style="width: 120px;">ASCII</th>
+            <th class="w-32">ASCII</th>
           </tr>
         </thead>
-        <tbody id="can-tbody">
+        <tbody id="can-tbody" class="divide-y divide-base-300">
           <!-- Rows dynamically appended here -->
         </tbody>
       </table>
     </div>
 
-    <!-- Packet Injector Panel -->
-    <div class="injector-panel">
-      <div class="injector-row" style="justify-content: space-between;">
-        <span style="font-weight: 600; font-size: 0.8125rem; color: var(--accent); display: flex; align-items: center; gap: 6px;">
+    <!-- Frame Injector (TX) Panel -->
+    <section class="bg-base-200 border-t border-base-300 p-3 flex flex-col gap-2 shadow-inner">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <span class="font-bold text-xs text-primary flex items-center gap-1.5">
           <span>📤</span> Frame Injector (TX)
         </span>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="color: var(--text-dim); font-size: 0.75rem;">Presets:</span>
-          <span class="preset-chip" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0D 00 00 00 00 00')">OBD-II Speed</span>
-          <span class="preset-chip" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0C 00 00 00 00 00')">OBD-II RPM</span>
-          <span class="preset-chip" onclick="applyPreset('0x100', false, false, 4, 'DE AD BE EF')">Heartbeat</span>
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs text-base-content/60">Presets:</span>
+          <div class="flex gap-1">
+            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary transition-colors" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0D 00 00 00 00 00')">OBD-II Speed</span>
+            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary transition-colors" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0C 00 00 00 00 00')">OBD-II RPM</span>
+            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary transition-colors" onclick="applyPreset('0x100', false, false, 4, 'DE AD BE EF')">Heartbeat</span>
+          </div>
         </div>
       </div>
 
-      <div class="injector-row">
-        <div class="control-group">
-          <label for="tx-id" style="color: var(--text-dim);">ID:</label>
-          <input type="text" id="tx-id" value="0x7DF" style="width: 90px;">
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Frame ID -->
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-base-content/70">ID:</span>
+          <input type="text" id="tx-id" value="0x7DF" class="input input-bordered input-xs font-mono w-20 bg-base-100">
         </div>
 
-        <label class="control-group" style="cursor: pointer;">
-          <input type="checkbox" id="tx-ext">
-          <span>Extended</span>
+        <!-- Extended ID toggle -->
+        <label class="label cursor-pointer gap-1.5 py-0">
+          <input type="checkbox" id="tx-ext" class="checkbox checkbox-xs checkbox-secondary">
+          <span class="label-text text-xs">Extended</span>
         </label>
 
-        <label class="control-group" style="cursor: pointer;">
-          <input type="checkbox" id="tx-rtr">
-          <span>RTR</span>
+        <!-- RTR toggle -->
+        <label class="label cursor-pointer gap-1.5 py-0">
+          <input type="checkbox" id="tx-rtr" class="checkbox checkbox-xs checkbox-warning">
+          <span class="label-text text-xs">RTR</span>
         </label>
 
-        <div class="control-group">
-          <label for="tx-dlc" style="color: var(--text-dim);">DLC:</label>
-          <select id="tx-dlc">
+        <!-- DLC -->
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-base-content/70">DLC:</span>
+          <select id="tx-dlc" class="select select-bordered select-xs font-mono w-14 bg-base-100">
             <option value="0">0</option>
             <option value="1">1</option>
             <option value="2">2</option>
@@ -399,19 +198,22 @@
           </select>
         </div>
 
-        <div class="control-group" style="flex: 1;">
-          <label for="tx-data" style="color: var(--text-dim);">Data:</label>
-          <input type="text" id="tx-data" value="02 01 0D 00 00 00 00 00" style="flex: 1; font-family: monospace;" placeholder="Hex bytes space or continuous">
+        <!-- Hex Data -->
+        <div class="flex-1 flex items-center gap-1 min-w-[200px]">
+          <span class="text-xs text-base-content/70">Data:</span>
+          <input type="text" id="tx-data" value="02 01 0D 00 00 00 00 00" placeholder="Hex bytes space separated" class="input input-bordered input-xs font-mono flex-1 bg-base-100">
         </div>
 
-        <button id="btn-send-tx" class="btn btn-accent" style="font-weight: 600;">Send Frame</button>
+        <!-- Send Button -->
+        <button id="btn-send-tx" class="btn btn-xs btn-accent font-semibold">Send Frame</button>
 
-        <div class="control-group">
-          <label class="control-group" style="cursor: pointer;">
-            <input type="checkbox" id="chk-periodic">
-            <span>Every</span>
+        <!-- Periodic Transmit Loop -->
+        <div class="join items-center">
+          <label class="join-item label cursor-pointer gap-1 bg-base-300 px-2 py-0.5 border border-base-content/20 rounded-l-btn">
+            <input type="checkbox" id="chk-periodic" class="checkbox checkbox-xs checkbox-info">
+            <span class="label-text text-xs">Every</span>
           </label>
-          <select id="sel-period">
+          <select id="sel-period" class="join-item select select-bordered select-xs font-mono bg-base-100">
             <option value="50">50 ms</option>
             <option value="100" selected>100 ms</option>
             <option value="250">250 ms</option>
@@ -420,22 +222,22 @@
           </select>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Live Status Footer -->
-    <div class="footer-bar">
-      <div>
-        <span>RX: <strong id="stat-rx-count">0</strong> frames</span>
-        <span style="margin: 0 8px;">·</span>
-        <span>TX: <strong id="stat-tx-count">0</strong> frames</span>
+    <!-- Status Bar Footer -->
+    <footer class="bg-base-300 px-4 py-1.5 text-xs text-base-content/70 flex justify-between items-center border-t border-base-content/10">
+      <div class="flex items-center gap-3">
+        <span>RX: <strong id="stat-rx-count" class="text-base-content">0</strong> frames</span>
+        <span class="text-base-content/30">·</span>
+        <span>TX: <strong id="stat-tx-count" class="text-base-content">0</strong> frames</span>
       </div>
-      <div>
-        <span>Bus: <span id="stat-bus-state" style="color: #4ade80;">READY</span></span>
-        <span style="margin: 0 8px;">·</span>
+      <div class="flex items-center gap-3">
+        <span>Bus: <span id="stat-bus-state" class="text-success font-semibold">READY</span></span>
+        <span class="text-base-content/30">·</span>
         <span>Termination: <strong id="stat-term-state">OFF</strong></span>
       </div>
-    </div>
-  </div>
+    </footer>
+  </main>
 
   <script>
     let ws = null;
@@ -472,21 +274,23 @@
     const selPeriod = document.getElementById('sel-period');
 
     function updateStatus(state) {
-      wsBadge.className = 'badge';
+      wsBadge.classList.remove('badge-error', 'badge-warning', 'badge-success');
       if (state === 'connected') {
-        wsBadge.classList.add('badge-connected');
+        wsBadge.classList.add('badge-success');
         wsStatusText.textContent = 'Connected';
         btnConnect.textContent = 'Disconnect';
         btnConnect.classList.remove('btn-primary');
+        btnConnect.classList.add('btn-neutral');
       } else if (state === 'connecting') {
-        wsBadge.classList.add('badge-connecting');
-        wsStatusText.textContent = 'Connecting';
+        wsBadge.classList.add('badge-warning');
+        wsStatusText.textContent = 'Connecting...';
         btnConnect.textContent = 'Connecting...';
       } else {
-        wsBadge.classList.add('badge-disconnected');
+        wsBadge.classList.add('badge-error');
         wsStatusText.textContent = 'Disconnected';
         btnConnect.textContent = 'Connect';
         btnConnect.classList.add('btn-primary');
+        btnConnect.classList.remove('btn-neutral');
       }
     }
 
@@ -547,21 +351,22 @@
       const match = !filter || hexId.includes(filter) || String(frame.id).includes(filter);
 
       const tr = document.createElement('tr');
+      tr.className = 'hover:bg-base-200/50 transition-colors';
       if (!match) tr.style.display = 'none';
 
       tr.innerHTML = `
-        <td style="color: #64748b;">${frameCount}</td>
-        <td style="color: #94a3b8;">+${relTime}</td>
+        <td class="text-base-content/50">${frameCount}</td>
+        <td class="text-base-content/70">+${relTime}</td>
         <td class="id-cell ${frame.ext ? 'id-ext' : ''}">${hexId}</td>
-        <td style="color: ${frame.ext ? '#c084fc' : '#38bdf8'};">${extStr}</td>
-        <td style="color: ${frame.rtr ? '#facc15' : '#94a3b8'};">${rtrStr}</td>
+        <td><span class="badge badge-xs ${frame.ext ? 'badge-secondary' : 'badge-primary'}">${extStr}</span></td>
+        <td><span class="badge badge-xs ${frame.rtr ? 'badge-warning' : 'badge-ghost'}">${rtrStr}</span></td>
         <td>${frame.dlc || 0}</td>
-        <td class="bytes-cell">${formattedBytes}</td>
+        <td class="bytes-cell font-bold">${formattedBytes}</td>
         <td class="ascii-cell">${ascii}</td>
       `;
       canTbody.appendChild(tr);
 
-      // Limit in-memory DOM table size to 1000 rows
+      // Limit DOM table size to 1000 rows
       if (canTbody.children.length > 1000) {
         canTbody.removeChild(canTbody.firstChild);
       }
@@ -629,15 +434,17 @@
 
     function updateTerminationUi(active) {
       if (active) {
-        btnTermToggle.classList.add('btn-active-term');
+        btnTermToggle.classList.remove('btn-outline');
+        btnTermToggle.classList.add('btn-success');
         termLabel.textContent = '120Ω Term: ON';
         statTermState.textContent = 'ON';
-        statTermState.style.color = '#4ade80';
+        statTermState.className = 'text-success font-bold';
       } else {
-        btnTermToggle.classList.remove('btn-active-term');
+        btnTermToggle.classList.remove('btn-success');
+        btnTermToggle.classList.add('btn-outline');
         termLabel.textContent = '120Ω Term: OFF';
         statTermState.textContent = 'OFF';
-        statTermState.style.color = 'inherit';
+        statTermState.className = '';
       }
     }
 
