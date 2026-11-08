@@ -375,7 +375,20 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/mcp/health", crate::rest::McpHealth)
         .route_service("/api/v1/mcp", crate::rest::McpHealth)
         .route("/mcp/sse", get(|| async move { picoserve::response::sse::EventStream(crate::mcp::McpSseEvents) }))
-        // GET /apps/{name}/{path} — static files from LittleFS
+        // GET /apps/{name} -> redirect to /apps/{name}/
+        .route(
+            ("/apps", parse_path_segment::<crate::apps::AppParams>()),
+            get(|name: crate::apps::AppParams| async move {
+                let mut loc = heapless::String::<64>::new();
+                let _ = write!(loc, "/apps/{}/", name.as_str());
+                (
+                    StatusCode::MOVED_PERMANENTLY,
+                    ("Location", loc),
+                    ("Content-Type", "text/plain"),
+                    "Redirecting...",
+                )
+            }),
+        )
         // GET /apps/{name}/{path} — static files from LittleFS
         .nest_service(
             ("/apps", parse_path_segment::<crate::apps::AppParams>()),
