@@ -2,10 +2,11 @@
  * AgentLA OS Bridge Script
  * Injected or included into custom LittleFS web apps under /apps/{app-name}/
  * Provides:
- * 1. Unified Clean OS Top Bar (Matching Workbench & Launcher)
- * 2. Floating macOS-Style Glass Dock with live Pinned Apps
+ * 1. Universal Clean OS Top Bar (Matching Workbench & Launcher)
+ * 2. Floating macOS-Style Glass Dock with live Pinned Apps, Telemetry HUD & Storage Info
  * 3. Universal Real-Time Theme Synchronization Engine
  * 4. Target Power Rail & Emergency Safe State Controls with SSE Telemetry
+ * 5. Hardware Profile Switcher & Global Device Specs
  */
 (function() {
     'use strict';
@@ -111,6 +112,70 @@
     }
 
     // -------------------------------------------------------------------------
+    // Hardware Profiles Support
+    // -------------------------------------------------------------------------
+    var cachedProfileSlots = [
+        { id: 0, name: "Safe State", is_boot: true, active: true },
+        { id: 1, name: "Logic Analyzer", is_boot: false, active: false },
+        { id: 2, name: "CAN-FD Sniffer", is_boot: false, active: false },
+        { id: 3, name: "I2C / SPI Master", is_boot: false, active: false }
+    ];
+    var activeProfileSlot = 0;
+
+    function toggleProfileMenu(forceState) {
+        var menu = document.getElementById('profile-dropdown-menu');
+        if (!menu) return;
+        var shouldShow = forceState !== undefined ? forceState : (menu.style.display === 'none');
+        menu.style.display = shouldShow ? 'block' : 'none';
+    }
+
+    function renderProfileMenu(activeName) {
+        var nameEl = document.getElementById('active-profile-name');
+        if (nameEl && activeName) nameEl.textContent = activeName;
+        var slotsContainer = document.getElementById('profile-menu-slots');
+        if (!slotsContainer) return;
+        slotsContainer.innerHTML = '';
+
+        cachedProfileSlots.forEach(function(slot) {
+            var item = document.createElement('div');
+            item.className = 'profile-slot-item' + (slot.id === activeProfileSlot ? ' active-slot' : '');
+            item.innerHTML = '<span class="profile-slot-title">' + (slot.name || 'Profile ' + slot.id) + '</span>' +
+                (slot.is_boot ? '<span class="profile-boot-badge">BOOT</span>' : '');
+            item.addEventListener('click', function() {
+                applyHardwareProfile(slot.id);
+            });
+            slotsContainer.appendChild(item);
+        });
+    }
+
+    async function fetchProfiles() {
+        try {
+            var res = await fetch('/api/profiles');
+            if (res.ok) {
+                var data = await res.json();
+                var list = Array.isArray(data) ? data : (data.slots || []);
+                if (list.length > 0) cachedProfileSlots = list;
+                if (data && data.active_slot !== undefined) activeProfileSlot = data.active_slot;
+            }
+        } catch (_) {}
+        renderProfileMenu();
+    }
+
+    async function applyHardwareProfile(slotId) {
+        try {
+            await fetch('/api/profiles/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slot: slotId })
+            });
+        } catch (_) {}
+        activeProfileSlot = slotId;
+        var target = cachedProfileSlots.find(function(s) { return s.id === slotId; });
+        renderProfileMenu(target ? target.name : 'Profile ' + slotId);
+        toggleProfileMenu(false);
+    }
+
+    // -------------------------------------------------------------------------
     // Unified Top Bar Wiring & Mounting
     // -------------------------------------------------------------------------
     function initTopBar() {
@@ -143,15 +208,71 @@
                         </svg>
                         SAFE STATE
                     </button>
+                    <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+                        <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                            <span class="profile-name-text" id="active-profile-name">Safe State</span>
+                            <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+                            <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+                            <div class="profile-menu-slots" id="profile-menu-slots"></div>
+                        </div>
+                    </div>
                     <button class="theme-toggle-btn mode-${themeState.mode}" id="btn-theme-toggle" data-mode="${themeState.mode}" title="Theme Mode" aria-label="Toggle Theme Mode">
                         <svg class="solar-icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M18 12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12Z" fill="currentColor"/>
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C12.4142 1.25 12.75 1.58579 12.75 2V3C12.75 3.41421 12.4142 3.75 12 3.75C11.5858 3.75 11.25 3.41421 11.25 3V2C11.25 1.58579 11.5858 1.25 12 1.25ZM1.25 12C1.25 11.5858 1.58579 11.25 2 11.25H3C3.41421 11.25 3.75 11.5858 3.75 12C3.75 12.4142 3.41421 12.75 3 12.75H2C1.58579 12.75 1.25 12.4142 1.25 12ZM20.25 12C20.25 11.5858 20.5858 11.25 21 11.25H22C22.4142 11.25 22.75 11.5858 22.75 12C22.75 12.4142 22.4142 12.75 22 12.75H21C20.5858 12.75 20.25 12.4142 20.25 12ZM12 20.25C12.4142 20.25 12.75 20.5858 12.75 21V22C12.75 22.4142 12.4142 22.75 12 22.75C11.5858 22.75 11.25 22.4142 11.25 22V21C11.25 20.5858 11.5858 20.25 12 20.25Z" fill="currentColor"/>
                         </svg>
                     </button>
+                    <button class="action-btn icon-btn header-btn" id="btn-header-settings" title="System Settings">
+                        <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M14.2788 2.15224C13.9085 2 13.439 2 12.5 2C11.561 2 11.0915 2 10.7212 2.15224C10.2274 2.35523 9.83509 2.74458 9.63056 3.23463C9.53719 3.45834 9.50065 3.7185 9.48635 4.09799C9.46534 4.65568 9.17716 5.17189 8.69017 5.45093C8.20318 5.72996 7.60864 5.71954 7.11149 5.45876C6.77318 5.2813 6.52789 5.18262 6.28599 5.15102C5.75609 5.08178 5.22018 5.22429 4.79616 5.5472C4.47814 5.78938 4.24339 6.1929 3.7739 6.99993C3.30441 7.80697 3.06967 8.21048 3.01735 8.60491C2.94758 9.1308 3.09118 9.66266 3.41655 10.0835C3.56506 10.2756 3.77377 10.437 4.0977 10.639C4.57391 10.936 4.88032 11.4419 4.88029 12C4.88026 12.5581 4.57386 13.0639 4.0977 13.3608C3.77372 13.5629 3.56497 13.7244 3.41645 13.9165C3.09108 14.3373 2.94749 14.8691 3.01725 15.395C3.06957 15.7894 3.30432 16.193 3.7738 17C4.24329 17.807 4.47804 18.2106 4.79606 18.4527C5.22008 18.7756 5.75599 18.9181 6.28589 18.8489C6.52778 18.8173 6.77305 18.7186 7.11133 18.5412C7.60852 18.2804 8.2031 18.27 8.69012 18.549C9.17714 18.8281 9.46533 19.3443 9.48635 19.9021C9.50065 20.2815 9.53719 20.5417 9.63056 20.7654C9.83509 21.2554 10.2274 21.6448 10.7212 21.8478C11.0915 22 11.561 22 12.5 22C13.439 22 13.9085 22 14.2788 21.8478C14.7726 21.6448 15.1649 21.2554 15.3694 20.7654C15.4628 20.5417 15.4994 20.2815 15.5137 19.902C15.5347 19.3443 15.8228 18.8281 16.3098 18.549C16.7968 18.2699 17.3914 18.2804 17.8886 18.5412C18.2269 18.7186 18.4721 18.8172 18.714 18.8488C19.2439 18.9181 19.7798 18.7756 20.2038 18.4527C20.5219 18.2105 20.7566 17.807 21.2261 16.9999C21.6956 16.1929 21.9303 15.7894 21.9827 15.395C22.0524 14.8691 21.9088 14.3372 21.5835 13.9164C21.4349 13.7243 21.2262 13.5628 20.9022 13.3608C20.4261 13.0639 20.1197 12.558 20.1197 11.9999C20.1197 11.4418 20.4261 10.9361 20.9022 10.6392C21.2263 10.4371 21.435 10.2757 21.5836 10.0835C21.9089 9.66273 22.0525 9.13087 21.9828 8.60497C21.9304 8.21055 21.6957 7.80703 21.2262 7C20.7567 6.19297 20.522 5.78945 20.2039 5.54727C19.7799 5.22436 19.244 5.08185 18.7141 5.15109C18.4722 5.18269 18.2269 5.28136 17.8887 5.4588C17.3915 5.71959 16.7969 5.73002 16.3099 5.45096C15.8229 5.17191 15.5347 4.65566 15.5136 4.09794C15.4993 3.71848 15.4628 3.45833 15.3694 3.23463C15.1649 2.74458 14.7726 2.35523 14.2788 2.15224Z" fill="currentColor"/>
+                            <path d="M15.5227 12C15.5227 13.6569 14.1694 15 12.4999 15C10.8304 15 9.47705 13.6569 9.47705 12C9.47705 10.3431 10.8304 9 12.4999 9C14.1694 9 15.5227 10.3431 15.5227 12Z" fill="currentColor"/>
+                        </svg>
+                    </button>
                 </div>
             `;
             document.body.prepend(topBar);
+        } else {
+            // Ensure bar-right contains profile selector and settings button
+            var barRight = topBar.querySelector('.bar-right');
+            if (barRight) {
+                if (!document.getElementById('profile-dropdown-wrapper')) {
+                    var profileWrapper = document.createElement('div');
+                    profileWrapper.className = 'profile-dropdown-wrapper';
+                    profileWrapper.id = 'profile-dropdown-wrapper';
+                    profileWrapper.innerHTML = `
+                        <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                            <span class="profile-name-text" id="active-profile-name">Safe State</span>
+                            <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+                            <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+                            <div class="profile-menu-slots" id="profile-menu-slots"></div>
+                        </div>
+                    `;
+                    var themeBtnEl = document.getElementById('btn-theme-toggle');
+                    if (themeBtnEl) {
+                        barRight.insertBefore(profileWrapper, themeBtnEl);
+                    } else {
+                        barRight.appendChild(profileWrapper);
+                    }
+                }
+
+                if (!document.getElementById('btn-header-settings')) {
+                    var settingsBtn = document.createElement('button');
+                    settingsBtn.className = 'action-btn icon-btn header-btn';
+                    settingsBtn.id = 'btn-header-settings';
+                    settingsBtn.title = 'System Settings';
+                    settingsBtn.innerHTML = `
+                        <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M14.2788 2.15224C13.9085 2 13.439 2 12.5 2C11.561 2 11.0915 2 10.7212 2.15224C10.2274 2.35523 9.83509 2.74458 9.63056 3.23463C9.53719 3.45834 9.50065 3.7185 9.48635 4.09799C9.46534 4.65568 9.17716 5.17189 8.69017 5.45093C8.20318 5.72996 7.60864 5.71954 7.11149 5.45876C6.77318 5.2813 6.52789 5.18262 6.28599 5.15102C5.75609 5.08178 5.22018 5.22429 4.79616 5.5472C4.47814 5.78938 4.24339 6.1929 3.7739 6.99993C3.30441 7.80697 3.06967 8.21048 3.01735 8.60491C2.94758 9.1308 3.09118 9.66266 3.41655 10.0835C3.56506 10.2756 3.77377 10.437 4.0977 10.639C4.57391 10.936 4.88032 11.4419 4.88029 12C4.88026 12.5581 4.57386 13.0639 4.0977 13.3608C3.77372 13.5629 3.56497 13.7244 3.41645 13.9165C3.09108 14.3373 2.94749 14.8691 3.01725 15.395C3.06957 15.7894 3.30432 16.193 3.7738 17C4.24329 17.807 4.47804 18.2106 4.79606 18.4527C5.22008 18.7756 5.75599 18.9181 6.28589 18.8489C6.52778 18.8173 6.77305 18.7186 7.11133 18.5412C7.60852 18.2804 8.2031 18.27 8.69012 18.549C9.17714 18.8281 9.46533 19.3443 9.48635 19.9021C9.50065 20.2815 9.53719 20.5417 9.63056 20.7654C9.83509 21.2554 10.2274 21.6448 10.7212 21.8478C11.0915 22 11.561 22 12.5 22C13.439 22 13.9085 22 14.2788 21.8478C14.7726 21.6448 15.1649 21.2554 15.3694 20.7654C15.4628 20.5417 15.4994 20.2815 15.5137 19.902C15.5347 19.3443 15.8228 18.8281 16.3098 18.549C16.7968 18.2699 17.3914 18.2804 17.8886 18.5412C18.2269 18.7186 18.4721 18.8172 18.714 18.8488C19.2439 18.9181 19.7798 18.7756 20.2038 18.4527C20.5219 18.2105 20.7566 17.807 21.2261 16.9999C21.6956 16.1929 21.9303 15.7894 21.9827 15.395C22.0524 14.8691 21.9088 14.3372 21.5835 13.9164C21.4349 13.7243 21.2262 13.5628 20.9022 13.3608C20.4261 13.0639 20.1197 12.558 20.1197 11.9999C20.1197 11.4418 20.4261 10.9361 20.9022 10.6392C21.2263 10.4371 21.435 10.2757 21.5836 10.0835C21.9089 9.66273 22.0525 9.13087 21.9828 8.60497C21.9304 8.21055 21.6957 7.80703 21.2262 7C20.7567 6.19297 20.522 5.78945 20.2039 5.54727C19.7799 5.22436 19.244 5.08185 18.7141 5.15109C18.4722 5.18269 18.2269 5.28136 17.8887 5.4588C17.3915 5.71959 16.7969 5.73002 16.3099 5.45096C15.8229 5.17191 15.5347 4.65566 15.5136 4.09794C15.4993 3.71848 15.4628 3.45833 15.3694 3.23463C15.1649 2.74458 14.7726 2.35523 14.2788 2.15224Z" fill="currentColor"/>
+                            <path d="M15.5227 12C15.5227 13.6569 14.1694 15 12.4999 15C10.8304 15 9.47705 13.6569 9.47705 12C9.47705 10.3431 10.8304 9 12.4999 9C14.1694 9 15.5227 10.3431 15.5227 12Z" fill="currentColor"/>
+                        </svg>
+                    `;
+                    barRight.appendChild(settingsBtn);
+                }
+            }
         }
 
         // Brand logo
@@ -198,7 +319,31 @@
             });
         }
 
-        // Telemetry Stream SSE for power pill
+        // Hardware Profile Toggle Button
+        var profileToggle = document.getElementById('btn-profile-toggle');
+        if (profileToggle && !profileToggle._wired) {
+            profileToggle._wired = true;
+            profileToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                toggleProfileMenu();
+            });
+        }
+        fetchProfiles();
+
+        // Settings Button
+        var settingsBtnEl = document.getElementById('btn-header-settings');
+        if (settingsBtnEl && !settingsBtnEl._wired) {
+            settingsBtnEl._wired = true;
+            settingsBtnEl.addEventListener('click', function() {
+                if (typeof window.openSettingsModal === 'function') {
+                    window.openSettingsModal();
+                } else {
+                    window.location.href = homeUrl + '#settings';
+                }
+            });
+        }
+
+        // Telemetry Stream SSE for power pill & telemetry popover
         try {
             var sse = new EventSource('/api/v1/system/telemetry/stream');
             sse.addEventListener('telemetry', function(e) {
@@ -208,10 +353,168 @@
                     var iEl = document.getElementById('top-bar-current-val');
                     if (vEl && data.v_target_v !== undefined) vEl.textContent = data.v_target_v.toFixed(2) + 'V';
                     if (iEl && data.i_target_ma !== undefined) iEl.textContent = Math.round(data.i_target_ma) + 'mA';
+
+                    var hudV = document.getElementById('hud-vtarget');
+                    var hudI = document.getElementById('hud-itarget');
+                    var hudP = document.getElementById('hud-ptarget');
+                    var hudT = document.getElementById('hud-temp');
+                    if (hudV && data.v_target_v !== undefined) hudV.textContent = data.v_target_v.toFixed(2) + ' V';
+                    if (hudI && data.i_target_ma !== undefined) hudI.textContent = Math.round(data.i_target_ma) + ' mA';
+                    if (hudP && data.v_target_v !== undefined && data.i_target_ma !== undefined) {
+                        hudP.textContent = Math.round(data.v_target_v * data.i_target_ma) + ' mW';
+                    }
+                    if (hudT && data.core_temp_c !== undefined) hudT.textContent = Math.round(data.core_temp_c) + ' °C';
+
+                    if (data.pin_ownership && Array.isArray(data.pin_ownership)) {
+                        renderPinOwnershipMatrix(data.pin_ownership);
+                    }
                 } catch (_) {}
             });
         } catch (_) {}
     }
+
+    function renderPinOwnershipMatrix(ownership) {
+        var matrix = document.getElementById('hud-pin-matrix');
+        if (!matrix) return;
+        var html = '';
+        for (var i = 0; i < 30; i++) {
+            var owner = ownership[i] || 'FREE';
+            var isClaimed = owner !== 'FREE' && owner !== 'safe' && owner !== 'Safe';
+            var cls = isClaimed ? 'hud-pin-claimed' : 'hud-pin-free';
+            html += '<div class="hud-pin-dot ' + cls + '" title="GP' + i + ': ' + owner + '">GP' + i + '</div>';
+        }
+        matrix.innerHTML = html;
+    }
+
+    // -------------------------------------------------------------------------
+    // Device Info & Flash Storage Fetcher
+    // -------------------------------------------------------------------------
+    var deviceStorage = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
+    var deviceSystem = { chip: "RP2350B", clock_mhz: 150, board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0" };
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        var k = 1024;
+        var sizes = ['B', 'KB', 'MB', 'GB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    async function fetchSystemSpecs() {
+        try {
+            var res = await fetch('/api/v1/system/info');
+            if (res.ok) {
+                var data = await res.json();
+                deviceSystem = Object.assign(deviceSystem, data);
+            }
+        } catch (_) {}
+
+        var elChip = document.getElementById('popover-info-chip');
+        var elClock = document.getElementById('popover-info-clock');
+        var elBoard = document.getElementById('popover-info-board');
+        var elFw = document.getElementById('popover-info-fw');
+        if (elChip) elChip.innerText = deviceSystem.chip || "RP2350B Cortex-M33";
+        if (elClock) elClock.innerText = (deviceSystem.clock_mhz ? deviceSystem.clock_mhz + "MHz" : "150MHz") + " · 520KB";
+        if (elBoard) elBoard.innerText = deviceSystem.board_name || "BakuProbe / Pico 2";
+        if (elFw) elFw.innerText = deviceSystem.firmware_version || "v2.0";
+    }
+
+    async function fetchStorage() {
+        try {
+            var res = await fetch('/api/v1/apps/storage');
+            if (res.ok) {
+                deviceStorage = await res.json();
+            }
+        } catch (_) {}
+        updateStorageDisplay();
+    }
+
+    function updateStorageDisplay() {
+        var romBytes = 1638400; // ~1.56 MB System ROM
+        var totalFlash = deviceSystem.flash_bytes || (8 * 1024 * 1024);
+        var lfsTotal = deviceStorage.total_bytes || (totalFlash - romBytes);
+        var lfsUsed = deviceStorage.used_bytes || 1468006;
+        var lfsFree = (lfsTotal > lfsUsed) ? (lfsTotal - lfsUsed) : (deviceStorage.free_bytes || 6920602);
+
+        var romPct = ((romBytes / totalFlash) * 100).toFixed(1);
+        var appsPct = ((lfsUsed / totalFlash) * 100).toFixed(1);
+        var freePct = (100 - parseFloat(romPct) - parseFloat(appsPct)).toFixed(1);
+
+        var segRom = document.getElementById('seg-rom');
+        var segApps = document.getElementById('seg-apps');
+        var segFree = document.getElementById('seg-free');
+        if (segRom) segRom.style.width = romPct + '%';
+        if (segApps) segApps.style.width = appsPct + '%';
+        if (segFree) segFree.style.width = freePct + '%';
+
+        var lblRom = document.getElementById('label-rom');
+        var lblApps = document.getElementById('label-apps');
+        var lblFree = document.getElementById('label-free');
+        if (lblRom) lblRom.innerText = formatBytes(romBytes);
+        if (lblApps) lblApps.innerText = formatBytes(lfsUsed) + ' (' + appsPct + '%)';
+        if (lblFree) lblFree.innerText = formatBytes(lfsFree) + ' (' + freePct + '%)';
+
+        var totFlashEl = document.getElementById('popover-total-flash');
+        if (totFlashEl) totFlashEl.innerText = formatBytes(totalFlash);
+    }
+
+    function toggleStoragePopover(e, forceState) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        var popover = document.getElementById('storage-glass-popover');
+        var btn = document.getElementById('dock-btn-storage');
+        if (!popover) return;
+        var isVisible = popover.style.display !== 'none';
+        var show = (typeof forceState === 'boolean') ? forceState : !isVisible;
+        popover.style.display = show ? 'flex' : 'none';
+        if (btn) {
+            if (show) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+        if (show) {
+            fetchSystemSpecs();
+            fetchStorage();
+        }
+    }
+
+    function toggleTelemetryHUD(e, forceState) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        var hud = document.getElementById('telemetry-hud');
+        var btn = document.getElementById('dock-btn-telemetry');
+        if (!hud) return;
+        var isVisible = hud.style.display !== 'none';
+        var show = (typeof forceState === 'boolean') ? forceState : !isVisible;
+        hud.style.display = show ? 'block' : 'none';
+        if (btn) {
+            if (show) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    }
+
+    // Close popovers and menus when clicking anywhere outside
+    document.addEventListener('click', function(e) {
+        var popover = document.getElementById('storage-glass-popover');
+        var storageBtn = document.getElementById('dock-btn-storage');
+        if (popover && popover.style.display !== 'none') {
+            if (!storageBtn || (!storageBtn.contains(e.target) && !popover.contains(e.target))) {
+                popover.style.display = 'none';
+                if (storageBtn) storageBtn.classList.remove('active');
+            }
+        }
+
+        var hud = document.getElementById('telemetry-hud');
+        var telemetryBtn = document.getElementById('dock-btn-telemetry');
+        if (hud && hud.style.display !== 'none') {
+            if (!telemetryBtn || (!telemetryBtn.contains(e.target) && !hud.contains(e.target))) {
+                hud.style.display = 'none';
+                if (telemetryBtn) telemetryBtn.classList.remove('active');
+            }
+        }
+
+        var wrapper = document.getElementById('profile-dropdown-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            toggleProfileMenu(false);
+        }
+    });
 
     // -------------------------------------------------------------------------
     // Floating macOS Glass Dock Mounting & Synchronization
@@ -248,6 +551,7 @@
 
         pinned.forEach(function(appId) {
             if (['scope', 'adapters', 'target', 'pins', 'console'].indexOf(appId) !== -1) return;
+
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
 
@@ -299,7 +603,7 @@
                 <a href="${labUrl}#scope" class="dock-icon-btn" id="dock-app-scope" data-dock-tooltip="Scope (100 MS/s)">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-                        <path d="M17.5762 10.4802C17.8414 10.1619 17.7984 9.68903 17.4802 9.42385C17.1619 9.15868 16.689 9.20167 16.4239 9.51988L14.627 11.6761C14.2562 12.1211 14.0285 12.3915 13.8409 12.5609C13.7539 12.6395 13.7023 12.6708 13.6776 12.6827C13.6725 12.6852 13.6689 12.6866 13.6667 12.6875C13.6667 12.6875 13.6624 12.6858 13.659 12.6843L13.6558 12.6827C13.6311 12.6708 13.5795 12.6395 13.4925 12.5609C13.3049 12.3915 13.0772 12.1211 12.7064 11.6761L12.414 11.3253C12.0855 10.931 11.7894 10.5756 11.5128 10.3259C11.2119 10.0541 10.8328 9.81207 10.3334 9.81207C9.83386 9.81207 9.4548 10.0541 9.15386 10.3259C8.87727 10.5756 8.58115 10.931 8.25269 11.3253L6.42385 13.5199C6.15868 13.8381 6.20167 14.311 6.51988 14.5762C6.83809 14.8414 7.31101 14.7984 7.57619 14.4802L9.37308 12.3239C9.74387 11.8789 9.97157 11.6085 10.1592 11.4391C10.2461 11.3606 10.2978 11.3293 10.3225 11.3173L10.3292 11.3142L10.3334 11.3126C10.3356 11.3134 10.3392 11.3149 10.3442 11.3173C10.369 11.3293 10.4206 11.3606 10.5076 11.4391C10.6951 11.6085 10.9228 11.8789 11.2936 12.3239L11.586 12.6748L11.586 12.6748C11.9145 13.069 12.2106 13.4244 12.4872 13.6742C12.7881 13.9459 13.1672 14.188 13.6667 14.188C14.1662 14.188 14.5452 13.9459 14.8462 13.6742C15.1228 13.4244 15.4189 13.069 15.7473 12.6748L17.5762 10.4802Z" fill="currentColor"/>
+                        <path d="M17.5762 10.4802C17.8414 10.1619 17.7984 9.68903 17.4802 9.42385C17.1619 9.15868 16.689 9.20167 16.4239 9.51988L14.627 11.6761C14.2562 12.1211 14.0285 12.3915 13.8409 12.5609C13.7539 12.6395 13.7023 12.6708 13.6776 12.6827C13.6725 12.6852 13.6689 12.6866 13.6667 12.6875C13.6667 12.6875 13.6624 12.6858 13.659 12.6843L13.6558 12.6827C13.6311 12.6708 13.5795 12.6395 13.4925 12.5609C13.3049 12.3915 13.0772 12.1211 12.7064 11.6761L12.414 11.3253C12.0855 10.931 11.7894 10.5756 11.5128 10.3259C11.2119 10.0541 10.8328 9.81207 10.3334 9.81207C9.83386 9.81207 9.4548 10.0541 9.15386 10.3259C8.87727 10.5756 8.58115 10.931 8.25269 11.3253L6.42385 13.5199C6.15868 13.8381 6.20167 14.311 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
                     </svg>
                 </a>
 
@@ -332,7 +636,7 @@
                 <!-- Console -->
                 <a href="${labUrl}#console" class="dock-icon-btn" id="dock-app-console" data-dock-tooltip="Firmware Console">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
+                        <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355Z" fill="currentColor"/>
                         <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
                         <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
                     </svg>
@@ -340,8 +644,106 @@
 
                 <!-- Pinned LittleFS Applications in Dock -->
                 <div id="dock-pinned-apps" style="display: contents;"></div>
+
+                <div class="dock-separator"></div>
+
+                <!-- Dedicated Hardware Telemetry HUD -->
+                <div class="dock-item-wrapper">
+                    <button class="dock-icon-btn" id="dock-btn-telemetry" data-dock-tooltip="Hardware Telemetry">
+                        <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
+                            <path fill="currentColor" d="M2.00781 14.25C2.0443 17.5057 2.25442 19.3254 3.46461 20.5356C4.92908 22 7.2861 22 12.0001 22C16.7142 22 19.0712 22 20.5357 20.5356C21.7459 19.3254 21.956 17.5057 21.9925 14.25H19.0757C18.3381 14.25 18.1984 14.2344 18.0852 14.183C17.972 14.1316 17.8682 14.0368 17.3824 13.4817L15.5786 11.4202C15.4115 11.229 15.2372 11.0297 15.07 10.8863C14.8788 10.7223 14.5884 10.5346 14.1939 10.5527C13.7994 10.5709 13.5274 10.7844 13.352 10.9653C13.1987 11.1234 13.0434 11.3379 12.8945 11.5435L9.24075 16.5868C9.14847 16.7141 8.96574 16.7264 8.85727 16.6125L7.71566 15.4138L7.64145 15.3357C7.27927 14.9542 6.95775 14.6156 6.52932 14.4319C6.1009 14.2483 5.63391 14.2491 5.10787 14.2499L5.00015 14.25H2.00781Z"/>
+                        </svg>
+                    </button>
+                    <!-- Floating Glass Popover -->
+                    <div class="storage-glass-popover telemetry-glass-popover" id="telemetry-hud" style="display: none;" onclick="event.stopPropagation()">
+                        <div class="popover-header">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path opacity="0.5" fill="currentColor" d="M3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 12.8185 2 13.5659 2.00767 14.25H5L5.10773 14.2499C5.63376 14.2491 6.10075 14.2483 6.52918 14.4319C6.9576 14.6155 7.27913 14.9542 7.64131 15.3357L7.71552 15.4138L8.85712 16.6125C8.9656 16.7264 9.14832 16.7141 9.24061 16.5867L12.8944 11.5435C13.0432 11.3379 13.1985 11.1233 13.3518 10.9653C13.5272 10.7844 13.7992 10.5708 14.1937 10.5527C14.5882 10.5346 14.8787 10.7223 15.0699 10.8863C15.2371 11.0297 15.4114 11.229 15.5785 11.4201L17.3823 13.4816C17.868 14.0368 17.9718 14.1316 18.085 14.183C18.1982 14.2343 18.3379 14.25 19.0756 14.25H21.9923C22 13.5659 22 12.8185 22 12C22 7.28595 22 4.92893 20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447Z"/>
+                                    <path fill="currentColor" d="M2.00781 14.25C2.0443 17.5057 2.25442 19.3254 3.46461 20.5356C4.92908 22 7.2861 22 12.0001 22C16.7142 22 19.0712 22 20.5357 20.5356C21.7459 19.3254 21.956 17.5057 21.9925 14.25H19.0757C18.3381 14.25 18.1984 14.2344 18.0852 14.183C17.972 14.1316 17.8682 14.0368 17.3824 13.4817L15.5786 11.4202C15.4115 11.229 15.2372 11.0297 15.07 10.8863C14.8788 10.7223 14.5884 10.5346 14.1939 10.5527C13.7994 10.5709 13.5274 10.7844 13.352 10.9653C13.1987 11.1234 13.0434 11.3379 12.8945 11.5435L9.24075 16.5868C9.14847 16.7141 8.96574 16.7264 8.85727 16.6125L7.71566 15.4138L7.64145 15.3357C7.27927 14.9542 6.95775 14.6156 6.52932 14.4319C6.1009 14.2483 5.63391 14.2491 5.10787 14.2499L5.00015 14.25H2.00781Z"/>
+                                </svg>
+                                <span class="popover-title">Hardware Telemetry</span>
+                            </div>
+                            <span id="hud-alarm-badge" class="badge-alarm" style="display: none;">OVERCURRENT</span>
+                        </div>
+                        <div class="popover-info-grid">
+                            <div class="info-pill"><span class="info-label">V_TARGET</span><span class="info-val" id="hud-vtarget">-- V</span></div>
+                            <div class="info-pill"><span class="info-label">I_TARGET</span><span class="info-val" id="hud-itarget">-- mA</span></div>
+                            <div class="info-pill"><span class="info-label">POWER</span><span class="info-val" id="hud-ptarget">-- mW</span></div>
+                            <div class="info-pill"><span class="info-label">CORE TEMP</span><span class="info-val" id="hud-temp">-- °C</span></div>
+                        </div>
+                        <div class="popover-storage-section">
+                            <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                                GPIO Pin Claims (GP0–GP29)
+                            </div>
+                            <div class="hud-pin-matrix" id="hud-pin-matrix"></div>
+                        </div>
+                        <div id="hud-overcurrent-banner" class="hud-alert-banner" style="display: none; margin-top: 6px;">
+                            <div>⚠️ Overcurrent trip! Pins in High-Z.</div>
+                            <button style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.6875rem; cursor: pointer;" onclick="fetch('/api/v1/system/telemetry')">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Device & Storage Info Icon -->
+                <div class="dock-item-wrapper">
+                    <button class="dock-icon-btn" id="dock-btn-storage" data-dock-tooltip="Device info">
+                        <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22Z" fill="currentColor"/>
+                            <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="currentColor"/>
+                            <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <!-- Floating Glass Popover -->
+                    <div class="storage-glass-popover" id="storage-glass-popover" style="display: none;" onclick="event.stopPropagation()">
+                        <div class="popover-header">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path opacity="0.5" d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22Z" fill="currentColor"/>
+                                    <path d="M12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75Z" fill="currentColor"/>
+                                    <path d="M12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z" fill="currentColor"/>
+                                </svg>
+                                <span class="popover-title">Device info</span>
+                            </div>
+                        </div>
+                        <div class="popover-info-grid">
+                            <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="popover-info-chip">RP2350B Cortex-M33</span></div>
+                            <div class="info-pill"><span class="info-label">CORES / CLOCK</span><span class="info-val" id="popover-info-clock">150MHz · 520KB</span></div>
+                            <div class="info-pill"><span class="info-label">SRAM MEMORY</span><span class="info-val" id="popover-info-board">BakuProbe / Pico 2</span></div>
+                            <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="popover-info-fw">v2.0</span></div>
+                        </div>
+                        <div class="popover-storage-section">
+                            <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                                Flash Partitioning (<span id="popover-total-flash">8.0 MB</span> Total)
+                            </div>
+                            <div class="storage-segmented-bar" id="storage-bar">
+                                <div class="segment-rom" id="seg-rom" style="width: 19.5%;" title="System ROM Firmware"></div>
+                                <div class="segment-apps" id="seg-apps" style="width: 17.5%;" title="Installed Apps (LittleFS)"></div>
+                                <div class="segment-free" id="seg-free" style="width: 63.0%;" title="Free LittleFS Flash Space"></div>
+                            </div>
+                            <div class="storage-dock-legend" style="margin-top: 6px;">
+                                <span class="legend-item"><span class="legend-dot seg-dot-rom"></span> ROM: <span id="label-rom">1.56 MB</span></span>
+                                <span class="legend-item"><span class="legend-dot seg-dot-apps"></span> Apps: <span id="label-apps">1.4 MB</span></span>
+                                <span class="legend-item"><span class="legend-dot seg-dot-free"></span> Free: <span id="label-free">5.0 MB</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             `;
             document.body.appendChild(dock);
+        }
+
+        // Wire popover triggers
+        var teleBtn = document.getElementById('dock-btn-telemetry');
+        if (teleBtn && !teleBtn._wired) {
+            teleBtn._wired = true;
+            teleBtn.addEventListener('click', toggleTelemetryHUD);
+        }
+        var storBtn = document.getElementById('dock-btn-storage');
+        if (storBtn && !storBtn._wired) {
+            storBtn._wired = true;
+            storBtn.addEventListener('click', toggleStoragePopover);
         }
 
         renderDockPinnedApps();
