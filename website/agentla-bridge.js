@@ -1,1 +1,1 @@
-../web-ui/agentla-bridge.js
+../webui/agentla-bridge.js

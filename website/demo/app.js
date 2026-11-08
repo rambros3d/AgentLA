@@ -1,1 +1,1 @@
-../../firmware/html/app.js
+../../webui/app.js
