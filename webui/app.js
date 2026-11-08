@@ -4829,16 +4829,33 @@ function getPinnedApps() {
         const stored = localStorage.getItem(PINNED_DOCK_STORAGE_KEY);
         if (stored) {
             const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed)) return parsed;
+            if (Array.isArray(parsed)) {
+                const hasSystem = parsed.some(id => ['scope', 'adapters', 'target', 'pins', 'console'].includes(id));
+                const migrated = localStorage.getItem('agentla_dock_migrated_v2');
+                if (!hasSystem && !migrated) {
+                    const combined = ['scope', 'adapters', 'target', 'pins', 'console', ...parsed];
+                    localStorage.setItem(PINNED_DOCK_STORAGE_KEY, JSON.stringify(combined));
+                    localStorage.setItem('agentla_dock_migrated_v2', '1');
+                    return combined;
+                }
+                return parsed;
+            }
         }
     } catch (_) {}
-    return ['terminal']; // Default pinned app
+    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
 }
 
 function renderDockPinnedApps() {
     const container = document.getElementById('dock-pinned-apps');
-    if (!container) return;
     const pinned = getPinnedApps();
+
+    // Toggle visibility of system instruments in dock
+    ['scope', 'adapters', 'target', 'pins', 'console'].forEach(sysId => {
+        const el = document.getElementById(`dock-app-${sysId}`);
+        if (el) {
+            el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
+        }
+    });
     const isDemo = window.location.protocol === 'https:' || 
                    window.location.hostname.includes('github.io') ||
                    window.location.search.includes('demo=1') ||
@@ -4941,7 +4958,9 @@ function updateStorageDisplay() {
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        const val = bytes / Math.pow(k, i);
+        const decimals = (i >= 2 && val < 10) ? 2 : 1;
+        return val.toFixed(decimals) + ' ' + sizes[i];
     };
 
     const lblRom = document.getElementById('label-rom');
