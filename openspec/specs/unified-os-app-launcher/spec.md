@@ -64,3 +64,25 @@ The App Launcher SHALL share the exact same top bar layout and `#modal-settings`
 #### Scenario: Top bar brand logo behavior
 - **WHEN** the user views the launcher top bar
 - **THEN** the `#brand-logo` renders with the online status indicator as a non-navigating branding item, and launching the Lab is performed via the "Core Apps" flagship tile.
+
+### Requirement: Industrial Presentation for App Launcher Tiles
+Under `data-style="industrial"`, the App Launcher SHALL render system instrument and installed application tiles as crisp technical boxes with dot-matrix labels, monospaced category tags, and Nothing Signal Red accent dots.
+
+#### Scenario: Launcher grid in industrial mode
+- **WHEN** user views `/` under `data-style="industrial"`
+- **THEN** app tiles render with 0.5rem corner radiuses, 1px subtle outlines, dot-matrix titles (`font-family: 'NDot57'`), and signal red indicator lights.
+
+#### Scenario: Launcher grid in bento mode
+- **WHEN** user switches to `data-style="bento"`
+- **THEN** app tiles restore their consumer rounded squircle geometry (`1.25rem` radius) and soft sans-serif typography.
+
+### Requirement: File Manager Launch Tile
+The App Launcher (`/` or `/apps`) SHALL render a core instrument squircle tile for "Files" (Bento Storage Explorer) in the System Instruments grid with Solar Icon graphics, linking to `files.html` or `/files`, and supporting bottom dock pinning.
+
+#### Scenario: Clicking Files tile from launcher
+- **WHEN** user clicks the "Files" tile in the launcher grid
+- **THEN** the browser navigates to `/files` (or `files.html` in demo mode).
+
+#### Scenario: Pinning Files to dock
+- **WHEN** user pins the Files application to the OS bottom dock
+- **THEN** a quick-launch squircle icon appears in the bottom dock and persists across browser sessions.
