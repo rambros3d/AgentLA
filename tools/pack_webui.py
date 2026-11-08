@@ -82,6 +82,7 @@ def pack_webui(
     output_tar: Path,
     flash_offset: int = DEFAULT_FLASH_OFFSET,
     include_user_apps: bool = True,
+    packages_dir: Path | None = None,
 ) -> dict:
     web_dir = web_dir.resolve()
     if not web_dir.is_dir():
@@ -100,6 +101,17 @@ def pack_webui(
             if not include_user_apps and (rel_path.startswith("apps/") or rel_path == "apps"):
                 continue
             asset_files.append((rel_path, full_path))
+
+    # Also include packages from packages_dir or apps/packages if available
+    pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
+    if pkg_dir.is_dir():
+        for root, _, files in os.walk(pkg_dir):
+            for f in sorted(files):
+                if f.startswith(".") or f.endswith(".tmp") or f.endswith(".bak"):
+                    continue
+                full_path = Path(root) / f
+                rel_path = f"packages/{full_path.relative_to(pkg_dir).as_posix()}"
+                asset_files.append((rel_path, full_path))
 
     if not asset_files:
         raise ValueError(f"No asset files found in {web_dir}")
@@ -192,11 +204,13 @@ def main() -> int:
     parser.add_argument("--output-uf2", default="build/webui.uf2", help="Output path for UF2 file")
     parser.add_argument("--output-tar", default="build/webui.tar", help="Output path for update tarball")
     parser.add_argument("--offset", default=f"0x{DEFAULT_FLASH_OFFSET:08x}", help="Target flash offset for UF2")
+    parser.add_argument("--packages-dir", default=None, help="Path to app packages directory (default: auto-detected at apps/packages)")
     parser.add_argument("--include-user-apps", action="store_true", default=True, help="Include apps directory in LittleFS image (default: true)")
     parser.add_argument("--no-user-apps", action="store_false", dest="include_user_apps", help="Exclude apps directory from LittleFS image")
     args = parser.parse_args()
 
     offset = int(args.offset, 0)
+    packages_dir = Path(args.packages_dir) if args.packages_dir else None
     try:
         pack_webui(
             Path(args.web_dir),
@@ -205,6 +219,7 @@ def main() -> int:
             Path(args.output_tar),
             flash_offset=offset,
             include_user_apps=args.include_user_apps,
+            packages_dir=packages_dir,
         )
         return 0
     except Exception as e:

@@ -78,3 +78,22 @@ def test_firmware_can_seeding_and_websocket():
     rest_code = rest_rs.read_text(encoding="utf-8")
     assert "CanWebSocket" in rest_code
     assert "CanWsCallback" in rest_code
+
+
+def test_official_app_packages():
+    pkg_dir = Path("apps/packages")
+    assert pkg_dir.exists() and pkg_dir.is_dir(), "apps/packages must exist"
+
+    catalog_file = pkg_dir / "catalog.json"
+    assert catalog_file.exists(), "apps/packages/catalog.json must exist"
+
+    catalog = json.loads(catalog_file.read_text(encoding="utf-8"))
+    app_ids = [a["id"] for a in catalog.get("apps", [])]
+    assert "servo-master" in app_ids
+    assert "can-sniffer" in app_ids
+    assert "terminal" in app_ids
+
+    for app_id in ["servo-master", "can-sniffer", "terminal"]:
+        tar_file = pkg_dir / f"{app_id}.tar"
+        assert tar_file.exists(), f"apps/packages/{app_id}.tar must exist"
+        assert tar_file.stat().st_size > 0
