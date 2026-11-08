@@ -72,7 +72,7 @@ def stage_portal(
     # 3. Stage board profile assets (boards/demo/) into demo/
     board_dir = boards_dir / board
     if board_dir.is_dir():
-        for f in ["board.json", "favicon.svg", "logo.svg", "pinout.svg"]:
+        for f in ["board.json", "logo.svg", "pinout.svg"]:
             src = board_dir / f
             if src.is_file():
                 shutil.copy2(src, demo_dir / f)

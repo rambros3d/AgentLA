@@ -3,7 +3,7 @@
   "name": "AgentLA Official Catalog",
   "apps": [
     {
-      "id": "can-sniffer",
+      "id": "canbus",
       "name": "CAN Bus Analyzer",
       "version": "1.2.0",
       "author": "AgentLA Team",
@@ -18,12 +18,12 @@
         "has_hardware_can"
       ],
       "size_bytes": 30720,
-      "icon_url": "can-sniffer/icon.svg",
-      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/can-sniffer",
-      "package_url": "/packages/can-sniffer.tar"
+      "icon_url": "canbus/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/canbus",
+      "package_url": "/packages/canbus.tar"
     },
     {
-      "id": "neopixel-control",
+      "id": "neopixel",
       "name": "Neopixel Control",
       "version": "1.0.0",
       "author": "AgentLA Team",
@@ -41,13 +41,13 @@
         "ws2812",
         "gpio_flexible"
       ],
-      "size_bytes": 61440,
-      "icon_url": "neopixel-control/icon.svg",
-      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/neopixel-control",
-      "package_url": "/packages/neopixel-control.tar"
+      "size_bytes": 71680,
+      "icon_url": "neopixel/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/neopixel",
+      "package_url": "/packages/neopixel.tar"
     },
     {
-      "id": "servo-master",
+      "id": "servo",
       "name": "Servo Master",
       "version": "1.0.0",
       "author": "AgentLA Team",
@@ -63,9 +63,9 @@
         "gpio_flexible"
       ],
       "size_bytes": 51200,
-      "icon_url": "servo-master/icon.svg",
-      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo-master",
-      "package_url": "/packages/servo-master.tar"
+      "icon_url": "servo/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo",
+      "package_url": "/packages/servo.tar"
     }
   ]
 }

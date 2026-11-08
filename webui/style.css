@@ -387,11 +387,11 @@ body.no-transparency {
 }
 
 .start-menu-icon {
-    width: 14px;
-    height: 14px;
-    background: linear-gradient(135deg, var(--color-primary), var(--accent-blue));
-    border-radius: 3px;
+    width: 18px;
+    height: 18px;
+    background: url("logo.svg") no-repeat center / contain;
     display: inline-block;
+    flex-shrink: 0;
 }
 
 .brand-title {

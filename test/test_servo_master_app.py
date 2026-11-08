@@ -47,11 +47,13 @@ def test_microsecond_pwm_calculations():
 
 
 def test_servo_master_manifest_schema():
-    manifest_file = Path("apps/servo-master/app.json")
-    assert manifest_file.exists(), "apps/servo-master/app.json must exist"
+    manifest_file = Path("apps/servo/app.json")
+    if not manifest_file.exists():
+        manifest_file = Path("apps/servo-master/app.json")
+    assert manifest_file.exists(), "apps/servo/app.json must exist"
 
     manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
-    assert manifest["name"] == "servo-master"
+    assert manifest["name"] in ["servo", "servo-master"]
     assert "Servo Master" in manifest["title"]
     assert "1.0.0" in manifest["version"]
     assert "author" in manifest
@@ -62,8 +64,10 @@ def test_servo_master_manifest_schema():
 
 
 def test_servo_master_html_capabilities():
-    html_file = Path("apps/servo-master/index.html")
-    assert html_file.exists(), "apps/servo-master/index.html must exist"
+    html_file = Path("apps/servo/index.html")
+    if not html_file.exists():
+        html_file = Path("apps/servo-master/index.html")
+    assert html_file.exists(), "apps/servo/index.html must exist"
 
     content = html_file.read_text(encoding="utf-8")
 

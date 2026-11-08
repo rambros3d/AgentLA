@@ -90,8 +90,9 @@ def test_index_html_unified_os_launcher():
     assert "Console" in content
     assert 'onclick="openLab(\'scope\')"' in content
 
-    # 3. Spotlight search bar
-    assert 'id="spotlight-search"' in content
+    # 3. Search bar (only in App Store tab)
+    assert 'id="store-search"' in content
+    assert 'id="spotlight-search"' not in content
     assert "spotlight-input" in content
 
     # 4. Segmented storage bar
@@ -176,8 +177,12 @@ def test_daisyui_bundle_distribution_and_linking():
     assert '"/daisyui.css"' in web_content, "web.rs must route /daisyui.css"
 
     # Check user apps link daisyui.css
-    for app in ["servo-master", "can-sniffer"]:
+    for app in ["servo", "canbus"]:
         app_html = REPO_ROOT / "apps" / app / "index.html"
+        if not app_html.exists():
+            # fallback to legacy names if present
+            legacy_map = {"servo": "servo-master", "canbus": "can-sniffer"}
+            app_html = REPO_ROOT / "apps" / legacy_map[app] / "index.html"
         assert app_html.exists()
         assert 'href="/daisyui.css"' in app_html.read_text(encoding="utf-8"), f"{app} must link /daisyui.css"
 
@@ -241,7 +246,11 @@ def test_cross_page_theme_synchronization():
     app_js = (HTML_DIR / "app.js").read_text(encoding="utf-8")
     launcher_html = (HTML_DIR / "index.html").read_text(encoding="utf-8")
     bridge_js = (HTML_DIR / "agentla-bridge.js").read_text(encoding="utf-8")
-    servo_path = HTML_DIR.parent / "apps" / "servo-master" / "index.html"
+    servo_path = HTML_DIR.parent / "apps" / "servo" / "index.html"
+    if not servo_path.exists():
+        servo_path = HTML_DIR.parent / "apps" / "servo-master" / "index.html"
+    if not servo_path.exists():
+        servo_path = HTML_DIR / "apps" / "servo" / "index.html"
     if not servo_path.exists():
         servo_path = HTML_DIR / "apps" / "servo-master" / "index.html"
     servo_index = servo_path.read_text(encoding="utf-8")

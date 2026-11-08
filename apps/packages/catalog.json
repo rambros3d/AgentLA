@@ -1,1 +1,71 @@
-../catalog.json
+{
+  "version": "1.0.0",
+  "name": "AgentLA Official Catalog",
+  "apps": [
+    {
+      "id": "canbus",
+      "name": "CAN Bus Analyzer",
+      "version": "1.2.0",
+      "author": "AgentLA Team",
+      "description": "Real-time CAN 2.0B / CAN-FD packet inspector, live ID filtering, frame transmission, and 120\u03a9 termination control.",
+      "category": "Automotive",
+      "tags": [
+        "Automotive",
+        "CAN",
+        "Analyzer"
+      ],
+      "requires": [
+        "has_hardware_can"
+      ],
+      "size_bytes": 30720,
+      "icon_url": "canbus/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/canbus",
+      "package_url": "/packages/canbus.tar"
+    },
+    {
+      "id": "neopixel",
+      "name": "Neopixel Control",
+      "version": "1.0.0",
+      "author": "AgentLA Team",
+      "description": "Multi-protocol addressable LED controller supporting WS2812, SK6812 RGBW, APA102, WS2811/13/15, with 1D/2D visualizers, 60 FPS shaders, and power telemetry.",
+      "category": "Lighting",
+      "tags": [
+        "Lighting",
+        "FastLED",
+        "Addressable LED",
+        "Neopixel",
+        "SPI",
+        "WS2812"
+      ],
+      "requires": [
+        "ws2812",
+        "gpio_flexible"
+      ],
+      "size_bytes": 71680,
+      "icon_url": "neopixel/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/neopixel",
+      "package_url": "/packages/neopixel.tar"
+    },
+    {
+      "id": "servo",
+      "name": "Servo Master",
+      "version": "1.0.0",
+      "author": "AgentLA Team",
+      "description": "Multi-channel hobby servo controller, continuous rotation throttle, and keyframe pose sequencer with USB gamepad support.",
+      "category": "Robotics",
+      "tags": [
+        "Robotics",
+        "PWM",
+        "Actuation"
+      ],
+      "requires": [
+        "pwm",
+        "gpio_flexible"
+      ],
+      "size_bytes": 51200,
+      "icon_url": "servo/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo",
+      "package_url": "/packages/servo.tar"
+    }
+  ]
+}

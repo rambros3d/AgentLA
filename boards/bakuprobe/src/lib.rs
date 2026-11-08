@@ -9,7 +9,6 @@ use agentla_bsp::{
 
 pub const MANIFEST_JSON: &str = include_str!("../board.json");
 pub const LOGO_SVG: &[u8] = include_bytes!("../logo.svg");
-pub const FAVICON_SVG: &[u8] = include_bytes!("../favicon.svg");
 pub const PINOUT_SVG: &[u8] = include_bytes!("../pinout.svg");
 
 /// BakuProbe instrument board profile.
@@ -91,10 +90,6 @@ impl BoardProfile for BakuProbeBoard {
 
     fn logo_svg() -> &'static [u8] {
         LOGO_SVG
-    }
-
-    fn favicon_svg() -> &'static [u8] {
-        FAVICON_SVG
     }
 
     fn pinout_svg() -> &'static [u8] {

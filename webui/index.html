@@ -62,7 +62,8 @@
             } catch (_) {}
         })();
     </script>
-    <link rel="icon" href="data:,">
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="alternate icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="daisyui.css?v=2.0.0">
     <link rel="stylesheet" href="style.css?v=2.0.0">
     <link rel="stylesheet" href="themes.css?v=2.0.0">
@@ -256,16 +257,6 @@
 
                     <!-- Pinned Workspace Canvas Widgets (Telemetry HUD & Flash Storage) -->
                     <div id="pinned-widgets-area" style="display: none; margin-bottom: 24px;"></div>
-
-                    <div class="launcher-spotlight">
-                        <div class="launcher-spotlight-wrapper">
-                            <svg class="launcher-spotlight-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"/>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                            </svg>
-                            <input type="text" class="spotlight-input launcher-spotlight-input input input-sm" id="spotlight-search" placeholder="Search instruments &amp; apps (Press '/' to focus)..." autocomplete="off">
-                        </div>
-                    </div>
 
                     <!-- Section 1: Core Apps & Instruments -->
                     <section class="launcher-section" id="section-core-instruments">
@@ -1066,9 +1057,9 @@
                 const installed = installedApps.find(a => (a.id || a.name) === appId);
                 appTitle = installed ? (installed.title || installed.name || appId) : appId;
                 if (isDemo) {
-                    if (appId === 'servo-master') targetUrl = 'apps/servo-master/index.html';
-                    else if (appId === 'can-sniffer') targetUrl = 'apps/can-sniffer/index.html';
-                    else if (appId === 'neopixel-control') targetUrl = 'apps/neopixel-control/index.html';
+                    if (appId === 'servo' || appId === 'servo-master') targetUrl = 'apps/servo/index.html';
+                    else if (appId === 'canbus' || appId === 'can-sniffer') targetUrl = 'apps/canbus/index.html';
+                    else if (appId === 'neopixel' || appId === 'neopixel-control') targetUrl = 'apps/neopixel/index.html';
                     else targetUrl = `apps/${encodeURIComponent(appId)}/index.html`;
                 } else {
                     targetUrl = `/app/${encodeURIComponent(appId)}/`;
@@ -1351,7 +1342,7 @@
 
         const fallbackCatalog = [
             {
-                id: "servo-master",
+                id: "servo",
                 name: "Servo Master",
                 version: "1.0.0",
                 author: "AgentLA Team",
@@ -1360,10 +1351,10 @@
                 tags: ["Robotics", "PWM", "Actuation"],
                 size_bytes: 40960,
                 icon: "icon.svg",
-                package_url: "/packages/servo-master.tar"
+                package_url: "/packages/servo.tar"
             },
             {
-                id: "can-sniffer",
+                id: "canbus",
                 name: "CAN Bus Analyzer",
                 version: "1.2.0",
                 author: "AgentLA Team",
@@ -1372,7 +1363,7 @@
                 tags: ["Automotive", "CAN"],
                 size_bytes: 30720,
                 icon: "icon.svg",
-                package_url: "/packages/can-sniffer.tar"
+                package_url: "/packages/canbus.tar"
             }
         ];
 
@@ -1885,7 +1876,7 @@
                 let clickAction = `navigateToRoute('#/app/${encodeURIComponent(appId)}')`;
 
                 let iconSvg = '';
-                if (appId === 'servo-master') {
+                if (appId === 'servo' || appId === 'servo-master') {
                     iconSvg = `<svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor"/>
                         <path d="M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" fill="currentColor"/>
@@ -2118,13 +2109,13 @@
 
                 let accentClass = 'accent-app';
                 let subText = `v${app.version || '1.0'}`;
-                if (appId === 'servo-master') {
+                if (appId === 'servo' || appId === 'servo-master') {
                     accentClass = 'accent-servo';
                     subText = 'PWM Motion';
-                } else if (appId === 'can-sniffer') {
+                } else if (appId === 'canbus' || appId === 'can-sniffer') {
                     accentClass = 'accent-adapter';
                     subText = 'CAN-FD';
-                } else if (appId === 'neopixel-control') {
+                } else if (appId === 'neopixel' || appId === 'neopixel-control') {
                     accentClass = 'accent-scope';
                     subText = 'WS2812';
                 }
@@ -2168,26 +2159,6 @@
             `;
 
             grid.innerHTML = html + addAppTile;
-            filterAppGrid();
-        }
-
-        function filterAppGrid() {
-            const term = (document.getElementById('spotlight-search')?.value || '').toLowerCase().trim();
-            const tiles = document.querySelectorAll('#view-launchpad .os-squircle-tile:not(.is-add-tile)');
-            tiles.forEach(tile => {
-                if (!term) {
-                    tile.style.display = 'flex';
-                    return;
-                }
-                const name = (tile.getAttribute('data-name') || '').toLowerCase();
-                const tags = (tile.getAttribute('data-tags') || '').toLowerCase();
-                const desc = (tile.getAttribute('data-desc') || '').toLowerCase();
-                if (name.includes(term) || tags.includes(term) || desc.includes(term)) {
-                    tile.style.display = 'flex';
-                } else {
-                    tile.style.display = 'none';
-                }
-            });
         }
 
         function updateRepoDisplay() {
@@ -2309,9 +2280,9 @@
                 let getBtnClass = installed ? 'store-get-btn installed' : 'store-get-btn';
                 let getBtnAction = installed ? `window.location.href='/app/${encodeURIComponent(app.id)}/'` : `openAppDetail('${escapeHtml(app.id)}', 'catalog')`;
                 if (isDemo && installed) {
-                    if (app.id === 'servo-master') getBtnAction = `window.location.href='apps/servo-master/index.html'`;
-                    else if (app.id === 'can-sniffer') getBtnAction = `window.location.href='apps/can-sniffer/index.html'`;
-                    else if (app.id === 'neopixel-control') getBtnAction = `window.location.href='apps/neopixel-control/index.html'`;
+                    if (app.id === 'servo' || app.id === 'servo-master') getBtnAction = `window.location.href='apps/servo/index.html'`;
+                    else if (app.id === 'canbus' || app.id === 'can-sniffer') getBtnAction = `window.location.href='apps/canbus/index.html'`;
+                    else if (app.id === 'neopixel' || app.id === 'neopixel-control') getBtnAction = `window.location.href='apps/neopixel/index.html'`;
                 }
 
                 let iconMarkup = solarFallbackSvg;
@@ -2676,9 +2647,9 @@
                 // Open App directly
                 let appPath = activeSheetApp.path || `/app/${encodeURIComponent(activeSheetApp.id)}/`;
                 if (isDemo) {
-                    if (activeSheetApp.id === 'servo-master') appPath = 'apps/servo-master/index.html';
-                    else if (activeSheetApp.id === 'can-sniffer') appPath = 'apps/can-sniffer/index.html';
-                    else if (activeSheetApp.id === 'neopixel-control') appPath = 'apps/neopixel-control/index.html';
+                    if (activeSheetApp.id === 'servo' || activeSheetApp.id === 'servo-master') appPath = 'apps/servo/index.html';
+                    else if (activeSheetApp.id === 'canbus' || activeSheetApp.id === 'can-sniffer') appPath = 'apps/canbus/index.html';
+                    else if (activeSheetApp.id === 'neopixel' || activeSheetApp.id === 'neopixel-control') appPath = 'apps/neopixel/index.html';
                 }
                 window.location.href = appPath;
                 return;
@@ -3133,12 +3104,6 @@
 
         function closeAppStoreModal() {
             switchLauncherView('launchpad');
-        }
-
-        // Spotlight live search filtering
-        const spotlightSearch = document.getElementById('spotlight-search');
-        if (spotlightSearch) {
-            spotlightSearch.addEventListener('input', filterAppGrid);
         }
 
         const storeSearch = document.getElementById('store-search');

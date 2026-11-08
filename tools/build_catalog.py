@@ -31,6 +31,7 @@ def generate_catalog(apps_dir: Path = None, output_file: Path = None) -> dict:
         output_file = apps_dir / "catalog.json"
 
     packages_dir = apps_dir / "packages"
+    packages_dir.mkdir(parents=True, exist_ok=True)
     catalog_entries = []
 
     # Enumerate subdirectories with app.json
@@ -68,14 +69,17 @@ def generate_catalog(apps_dir: Path = None, output_file: Path = None) -> dict:
         # App source URL on GitHub
         app_url = data.get("homepage") or f"{DEFAULT_GITHUB_REPO_URL}/{item.name}"
 
-        # Package URL & Size
+        # Automatically build/update tarball package in apps/packages/
         tar_path = packages_dir / f"{item.name}.tar"
-        if tar_path.is_file():
-            size_bytes = tar_path.stat().st_size
-            package_url = f"/packages/{item.name}.tar"
-        else:
-            size_bytes = calculate_dir_size(item)
-            package_url = None
+        import tarfile
+        with tarfile.open(tar_path, "w", format=tarfile.USTAR_FORMAT) as tar:
+            for fname in ["app.json", "icon.svg", "index.html"]:
+                fpath = item / fname
+                if fpath.is_file():
+                    tar.add(fpath, arcname=fname)
+
+        size_bytes = tar_path.stat().st_size
+        package_url = f"/packages/{item.name}.tar"
 
         entry = {
             "id": app_id,
@@ -102,6 +106,12 @@ def generate_catalog(apps_dir: Path = None, output_file: Path = None) -> dict:
     }
 
     with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(catalog, f, indent=2)
+        f.write("\n")
+
+    # Mirror catalog to apps/packages/catalog.json
+    packages_catalog = packages_dir / "catalog.json"
+    with open(packages_catalog, "w", encoding="utf-8") as f:
         json.dump(catalog, f, indent=2)
         f.write("\n")
 

@@ -1,5 +1,5 @@
 {
-  "name": "servo-master",
+  "name": "servo",
   "title": "Servo Master",
   "version": "1.0.0",
   "author": "AgentLA Team",
@@ -9,7 +9,7 @@
   "icon": "icon.svg",
   "requires": ["pwm", "gpio_flexible"],
   "min_firmware_version": "1.0.0",
-  "homepage": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo-master",
+  "homepage": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo",
   "files": [
     "index.html",
     "icon.svg"

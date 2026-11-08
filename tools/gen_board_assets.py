@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 REQUIRED_ROOT_KEYS = ["board_id", "name", "version", "assets", "mcu", "features", "zones"]
-REQUIRED_ASSET_KEYS = ["logo", "favicon", "pinout"]
+REQUIRED_ASSET_KEYS = ["logo", "pinout"]
 REQUIRED_MCU_KEYS = ["chip", "cores", "sram_bytes", "flash_bytes"]
 
 
@@ -142,10 +142,16 @@ def stage_web_assets(data: dict, board_dir: Path, output_web_dir: Path, base_htm
 
     if base_html_dir and base_html_dir.is_dir():
         for src_file in base_html_dir.glob("*"):
-            if src_file.is_file() and src_file.name not in ["board.json", "logo.svg", "pinout.svg", "favicon.svg"]:
+            if src_file.is_file() and src_file.name not in ["board.json", "logo.svg", "pinout.svg"]:
                 dst_file = output_web_dir / src_file.name
                 shutil.copyfile(src_file, dst_file)
                 print(f"[gen_board_assets] Staged base web file: {src_file.name}")
+
+    # Copy master favicon from webui if not already copied
+    master_favicon = (Path(__file__).parent.parent / "webui" / "favicon.svg").resolve()
+    if master_favicon.is_file() and not (output_web_dir / "favicon.svg").exists():
+        shutil.copyfile(master_favicon, output_web_dir / "favicon.svg")
+        print(f"[gen_board_assets] Staged master favicon: {master_favicon} -> {output_web_dir / 'favicon.svg'}")
 
     # Minify board.json
     minified_json = json.dumps(data, separators=(",", ":"))

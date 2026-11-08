@@ -1,5 +1,5 @@
 {
-  "name": "neopixel-control",
+  "name": "neopixel",
   "title": "Neopixel Control",
   "version": "1.0.0",
   "author": "AgentLA Team",
@@ -19,7 +19,7 @@
     "gpio_flexible"
   ],
   "min_firmware_version": "1.0.0",
-  "homepage": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/neopixel-control",
+  "homepage": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/neopixel",
   "files": [
     "index.html",
     "icon.svg"

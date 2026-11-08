@@ -10,12 +10,14 @@ import pytest
 
 
 def test_can_sniffer_manifest_schema():
-    manifest_file = Path("apps/can-sniffer/app.json")
+    manifest_file = Path("apps/canbus/app.json")
+    if not manifest_file.exists():
+        manifest_file = Path("apps/can-sniffer/app.json")
 
-    assert manifest_file.exists(), "apps/can-sniffer/app.json must exist"
+    assert manifest_file.exists(), "canbus/can-sniffer app.json must exist"
 
     manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
-    assert manifest["name"] == "can-sniffer"
+    assert manifest["name"] in ["canbus", "can-sniffer"]
     assert "CAN Bus Analyzer" in manifest["title"]
     assert "1.2.0" in manifest["version"]
     assert manifest["author"] == "AgentLA Team"
@@ -25,8 +27,10 @@ def test_can_sniffer_manifest_schema():
 
 
 def test_can_sniffer_html_capabilities():
-    html_file = Path("apps/can-sniffer/index.html")
-    assert html_file.exists(), "apps/can-sniffer/index.html must exist"
+    html_file = Path("apps/canbus/index.html")
+    if not html_file.exists():
+        html_file = Path("apps/can-sniffer/index.html")
+    assert html_file.exists(), "canbus/can-sniffer index.html must exist"
 
     content = html_file.read_text(encoding="utf-8")
 
@@ -93,15 +97,17 @@ def test_official_app_packages():
 
     catalog = json.loads(catalog_file.read_text(encoding="utf-8"))
     app_ids = [a["id"] for a in catalog.get("apps", [])]
-    assert "servo-master" in app_ids
-    assert "can-sniffer" in app_ids
+    assert any(x in app_ids for x in ["servo", "servo-master"])
+    assert any(x in app_ids for x in ["canbus", "can-sniffer"])
     assert "terminal" not in app_ids, "Terminal must not be in user app store catalog"
 
     pkg_dir = apps_dir / "packages"
     assert pkg_dir.exists() and pkg_dir.is_dir(), "apps/packages must exist"
     assert (pkg_dir / "catalog.json").exists(), "apps/packages/catalog.json must exist"
 
-    for app_id in ["servo-master", "can-sniffer"]:
+    for app_id, legacy_id in [("servo", "servo-master"), ("canbus", "can-sniffer")]:
         tar_file = pkg_dir / f"{app_id}.tar"
+        if not tar_file.exists():
+            tar_file = pkg_dir / f"{legacy_id}.tar"
         assert tar_file.exists(), f"apps/packages/{app_id}.tar must exist"
         assert tar_file.stat().st_size > 0

@@ -347,7 +347,8 @@ def test_launcher_and_workbench_html_assets_and_integration():
     assert "parseTarMetadata" in launcher_html
     assert "/api/v1/apps/storage" in launcher_html
     assert "/api/v1/apps/install" in launcher_html
-    assert "spotlight-search" in launcher_html
+    assert "store-search" in launcher_html
+    assert "spotlight-search" not in launcher_html
     assert "modal-settings" in launcher_html
     assert "Scope" in launcher_html
     assert "Debugger" in launcher_html

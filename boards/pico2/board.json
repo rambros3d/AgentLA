@@ -6,7 +6,6 @@
   "version": "1.0.0",
   "assets": {
     "logo": "logo.svg",
-    "favicon": "favicon.svg",
     "pinout": "pinout.svg"
   },
   "network": {

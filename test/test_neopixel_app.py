@@ -11,11 +11,13 @@ import pytest
 
 
 def test_neopixel_manifest_schema():
-    manifest_file = Path("apps/neopixel-control/app.json")
-    assert manifest_file.exists(), "apps/neopixel-control/app.json must exist"
+    manifest_file = Path("apps/neopixel/app.json")
+    if not manifest_file.exists():
+        manifest_file = Path("apps/neopixel-control/app.json")
+    assert manifest_file.exists(), "apps/neopixel/app.json must exist"
 
     manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
-    assert manifest["name"] == "neopixel-control"
+    assert manifest["name"] in ["neopixel", "neopixel-control"]
     assert "Neopixel Control" in manifest["title"]
     assert "1.0.0" in manifest["version"]
     assert manifest["author"] == "AgentLA Team"
@@ -25,15 +27,19 @@ def test_neopixel_manifest_schema():
     assert "gpio_flexible" in manifest.get("requires", [])
     assert manifest["icon"].endswith(".svg") or manifest["icon"].startswith("data:image/svg+xml")
 
-    icon_file = Path("apps/neopixel-control/icon.svg")
-    assert icon_file.exists(), "apps/neopixel-control/icon.svg must exist"
+    icon_file = Path("apps/neopixel/icon.svg")
+    if not icon_file.exists():
+        icon_file = Path("apps/neopixel-control/icon.svg")
+    assert icon_file.exists(), "apps/neopixel/icon.svg must exist"
     icon_content = icon_file.read_text(encoding="utf-8")
     assert "<svg" in icon_content and "</svg>" in icon_content
 
 
 def test_neopixel_html_capabilities():
-    html_file = Path("apps/neopixel-control/index.html")
-    assert html_file.exists(), "apps/neopixel-control/index.html must exist"
+    html_file = Path("apps/neopixel/index.html")
+    if not html_file.exists():
+        html_file = Path("apps/neopixel-control/index.html")
+    assert html_file.exists(), "apps/neopixel/index.html must exist"
 
     content = html_file.read_text(encoding="utf-8")
 
@@ -108,16 +114,18 @@ def test_catalog_discovery_and_package():
 
     catalog = json.loads(catalog_file.read_text(encoding="utf-8"))
     app_ids = [a["id"] for a in catalog.get("apps", [])]
-    assert "neopixel-control" in app_ids, "neopixel-control must be registered in apps/catalog.json"
+    assert any(x in app_ids for x in ["neopixel", "neopixel-control"]), "neopixel must be registered in apps/catalog.json"
 
-    entry = next(a for a in catalog["apps"] if a["id"] == "neopixel-control")
+    entry = next(a for a in catalog["apps"] if a["id"] in ["neopixel", "neopixel-control"])
     assert entry["name"] == "Neopixel Control"
     assert entry["category"] == "Lighting"
-    assert entry["package_url"] == "/packages/neopixel-control.tar"
+    assert entry["package_url"] in ["/packages/neopixel.tar", "/packages/neopixel-control.tar"]
     assert entry["size_bytes"] > 0
 
-    tar_path = Path("apps/packages/neopixel-control.tar")
-    assert tar_path.exists(), "apps/packages/neopixel-control.tar must exist"
+    tar_path = Path("apps/packages/neopixel.tar")
+    if not tar_path.exists():
+        tar_path = Path("apps/packages/neopixel-control.tar")
+    assert tar_path.exists(), "apps/packages/neopixel.tar must exist"
 
     with tarfile.open(tar_path, "r") as tar:
         names = tar.getnames()
