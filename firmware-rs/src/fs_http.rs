@@ -17,7 +17,7 @@ use crate::apps::{self, AppParams};
 use crate::storage::{with_fs, with_system_fs};
 
 /// Size of a single LittleFS read/write chunk served or stored per lock hold.
-pub const FS_CHUNK: usize = 512;
+pub const FS_CHUNK: usize = 2048;
 
 // ---------------------------------------------------------------------------
 // MIME handling
@@ -275,6 +275,13 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
         let _ = write!(raw_name, "/{}", self.file_name);
         let raw_path_opt = PathBuf::try_from(raw_name.as_str()).ok();
 
+        let is_html = self.file_name.ends_with(".html") || self.mime.contains("html");
+        let cache_ctrl = if is_html {
+            "no-cache, must-revalidate"
+        } else {
+            "public, max-age=604800, stale-while-revalidate=86400"
+        };
+
         if client_accepts_gzip {
             if let Some(ref gz_path) = gz_path_opt {
                 let exists = with_system_fs(|fs| {
@@ -289,7 +296,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
                     };
                     let resp = ChunkedResponse::new(chunks).into_response();
                     let resp = resp.with_header("Content-Encoding", "gzip");
-                    let resp = resp.with_header("Cache-Control", "no-cache, must-revalidate");
+                    let resp = resp.with_header("Cache-Control", cache_ctrl);
                     return resp
                         .write_to(request.body_connection.finalize().await?, response_writer)
                         .await;
@@ -310,7 +317,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
                     mime: self.mime,
                 };
                 let resp = ChunkedResponse::new(chunks).into_response();
-                let resp = resp.with_header("Cache-Control", "no-cache, must-revalidate");
+                let resp = resp.with_header("Cache-Control", cache_ctrl);
                 return resp
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
@@ -331,7 +338,7 @@ impl picoserve::routing::RequestHandlerService<(), ()> for SystemWebFile {
                 };
                 let resp = ChunkedResponse::new(chunks).into_response();
                 let resp = resp.with_header("Content-Encoding", "gzip");
-                let resp = resp.with_header("Cache-Control", "no-cache, must-revalidate");
+                let resp = resp.with_header("Cache-Control", cache_ctrl);
                 return resp
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;

@@ -10,17 +10,20 @@
         (function() {
             var params = new URLSearchParams(window.location.search);
             var isEmbed = params.get('embed') === '1';
-            var isDemo = window.location.protocol === 'https:' || 
+            var isDemo = window.location.protocol === 'file:' ||
+                         window.location.protocol === 'https:' || 
                          window.location.hostname.includes('github.io') ||
                          window.location.search.includes('demo=1') ||
-                         window.location.pathname.endsWith('.html') ||
                          isEmbed ||
                          (window.location.hostname === 'localhost' && window.location.port !== '80');
             if (!isDemo) {
                 document.write('<base href="/">');
             }
+            var savedStyle = localStorage.getItem('agentla-ui-style') || 'industrial';
+            document.documentElement.setAttribute('data-style', savedStyle);
             var savedMode = localStorage.getItem('agentla-theme-mode');
             var saved = localStorage.getItem('agentla-theme');
+            var defaultDark = (savedStyle === 'bento') ? 'forest' : 'nothing';
             if (saved) {
                 document.documentElement.setAttribute('data-theme', saved);
                 var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
@@ -29,15 +32,37 @@
                 document.documentElement.setAttribute('data-theme', 'emerald');
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
             } else if (savedMode === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme', defaultDark);
                 document.documentElement.setAttribute('data-theme-scheme', 'dark');
             } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
                 document.documentElement.setAttribute('data-theme', 'emerald');
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
             } else {
-                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme', defaultDark);
                 document.documentElement.setAttribute('data-theme-scheme', 'dark');
             }
+
+            // Synchronous Dock Pin FOUC Guard
+            try {
+                var stored = localStorage.getItem('agentla_pinned_dock_apps');
+                var pinned = stored ? JSON.parse(stored) : null;
+                if (!Array.isArray(pinned)) {
+                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+                }
+                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+                var css = '';
+                for (var i = 0; i < allSys.length; i++) {
+                    if (pinned.indexOf(allSys[i]) === -1) {
+                        css += '#dock-app-' + allSys[i] + ' { display: none !important; }\n';
+                    }
+                }
+                if (css) {
+                    var s = document.createElement('style');
+                    s.id = 'dock-pin-guard';
+                    s.textContent = css;
+                    document.head.appendChild(s);
+                }
+            } catch (_) {}
         })();
     </script>
     <style>
@@ -56,9 +81,9 @@
         }
     </style>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="daisyui.css">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="themes.css">
+    <link rel="stylesheet" href="daisyui.css?v=2.0.0">
+    <link rel="stylesheet" href="style.css?v=2.0.0">
+    <link rel="stylesheet" href="themes.css?v=2.0.0">
 </head>
 <body>
 
@@ -1589,8 +1614,8 @@
     </div>
 
     <!-- Centered System Settings Modal -->
-    <div id="modal-settings" class="modal-backdrop" aria-hidden="true">
-        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div id="modal-settings" class="modal-backdrop settings-modal modal" aria-hidden="true" style="display: none;">
+        <div class="modal-card modal-box" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
             <div class="modal-header">
                 <div class="modal-title-group">
                     <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1609,6 +1634,18 @@
             <div class="modal-body">
                 <div class="settings-section">
                     <div class="settings-section-title">Theme &amp; Appearance</div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">Interface Persona</div>
+                            <div class="settings-subtext">Choose between Nothing OS Minimalist Industrial and Consumer Bento</div>
+                        </div>
+                        <div class="settings-control-group">
+                            <select class="compact-select" id="settings-ui-style-select">
+                                <option value="industrial">Industrial (Nothing OS Default)</option>
+                                <option value="bento">Bento (Consumer Squircle)</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="settings-row">
                         <div>
                             <div class="settings-label">Theme Mode</div>
@@ -1641,7 +1678,8 @@
                         </div>
                         <div class="settings-control-group">
                             <select class="compact-select" id="select-default-dark-theme">
-                                <option value="forest">Forest (Default Dark)</option>
+                                <option value="nothing">Nothing (OLED Black &amp; Red Default)</option>
+                                <option value="forest">Forest (Slate &amp; Emerald)</option>
                             </select>
                         </div>
                     </div>
@@ -1674,27 +1712,19 @@
                 </div>
 
                 <div class="settings-section">
-                    <div class="settings-section-title">Device Hardware Actions</div>
+                    <div class="settings-section-title">Hardware Diagnostics &amp; Tools</div>
                     <div class="settings-row">
                         <div>
-                            <div class="settings-label">Reboot AgentLA Device</div>
-                            <div class="settings-subtext">Restart RP2350 microcontroller and USB peripheral stack</div>
+                            <div class="settings-label">Device Diagnostics &amp; Recovery</div>
+                            <div class="settings-subtext">ROM hardware monitor, partition table, firmware OTA, and emergency recovery</div>
                         </div>
-                        <button class="action-btn outline btn-sm" id="btn-reboot">
+                        <a href="/device.html" class="action-btn outline btn-sm" id="btn-open-device-html" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                             <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M6.87348 7.87338C9.01606 5.7308 12.1674 5.20902 14.8007 6.31041L15.9309 5.18019C12.6515 3.53111 8.55119 4.07435 5.81282 6.81272C2.39573 10.2298 2.39573 15.77 5.81282 19.1871C9.2299 22.6042 14.7701 22.6042 18.1872 19.1871C20.1746 17.1997 21.0057 14.4933 20.6819 11.9072C20.6304 11.4962 20.2555 11.2048 19.8445 11.2562C19.4335 11.3077 19.142 11.6826 19.1935 12.0936C19.4622 14.24 18.7727 16.4802 17.1265 18.1264C14.2952 20.9577 9.70478 20.9577 6.87348 18.1264C4.04217 15.2951 4.04217 10.7047 6.87348 7.87338Z" fill="currentColor"/>
-<path d="M18.7212 4.20119C18.7212 3.89785 18.5384 3.62437 18.2582 3.50828C17.9779 3.3922 17.6553 3.45637 17.4408 3.67086L15.9314 5.18028L14.8012 6.3105L13.1982 7.9135C12.9837 8.128 12.9195 8.45059 13.0356 8.73085C13.1517 9.0111 13.4252 9.19383 13.7285 9.19383H17.9712C18.3854 9.19383 18.7212 8.85805 18.7212 8.44383V4.20119Z" fill="currentColor"/>
-</svg> Reboot Device
-                        </button>
-                    </div>
-                    <div class="settings-row">
-                        <div>
-                            <div class="settings-label text-red">Reboot into USB BOOTSEL Mode</div>
-                            <div class="settings-subtext">Drop into RP2350 ROM bootloader for UF2 drag-and-drop firmware upgrades</div>
-                        </div>
-                        <button class="btn btn-outline btn-error btn-sm" id="btn-bootsel-mode">
-                            Enter BOOTSEL
-                        </button>
+                                <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 22 2 12 2Z" fill="currentColor"/>
+                                <path d="M10 8L14 12L10 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Open Device Dashboard
+                        </a>
                     </div>
                 </div>
             </div>

@@ -64,10 +64,6 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 .rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:4px}
 .rec-box{border:1px solid var(--border-bright);background:#0d0d10;padding:12px;display:flex;flex-direction:column;gap:8px}
 .rec-box .rec-title{font-size:11px;font-weight:700;color:var(--warn);letter-spacing:1px}
-.drop-zone{border:2px dashed var(--border-bright);background:#08080a;padding:16px 12px;text-align:center;cursor:pointer;transition:border-color .15s}
-.drop-zone:hover,.drop-zone.dragover{border-color:var(--fg);background:#111115}
-.drop-zone strong{font-size:11px;color:var(--fg);display:block}
-.drop-zone span{font-size:10px;color:var(--fg-dim);display:block;margin-top:4px}
 .tab-bar{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--border-bright);padding-bottom:8px;flex-wrap:wrap}
 .tab-btn{background:#111114;border:1px solid var(--border-bright);color:var(--fg-dim);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer}
 .tab-btn:hover{background:#1c1c22;color:var(--fg);border-color:var(--fg)}
@@ -145,16 +141,6 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
       <button class="primary" id="btnUpdateAll" onclick="runFullSystemUpdate()" disabled>⚡ Auto Update All (WebUI + Firmware)</button>
       <button id="btnWebOnline" onclick="onlineUpdate('web')" disabled>Update WebUI Only</button>
       <button id="btnFwOnline" onclick="onlineUpdate('fw')" disabled>Update Firmware Only</button>
-      <button onclick="$('fileFw').click()">Flash .bin</button>
-      <button onclick="$('fileWeb').click()">Flash .tar</button>
-      <button onclick="rollbackFw()">Rollback Slot</button>
-      <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
-      <input type="file" id="fileWeb" accept=".tar" onchange="uploadLocal('/api/v1/system/webui/update', this.files[0], false)">
-    </div>
-    <div class="drop-zone" id="updateDropZone" style="margin-top:4px" onclick="$('fileSmart').click()">
-      <strong>DRAG &amp; DROP .TAR (WEBUI) OR .BIN (FIRMWARE) HERE</strong>
-      <span>or click to browse local archive</span>
-      <input type="file" id="fileSmart" accept=".tar,.bin" onchange="handleSmartUpload(this.files[0])">
     </div>
     <div class="progress" id="updateProgress"><div class="progress-bar" id="updateBar"></div></div>
     <div class="status-msg" id="updateStatus">Ready.</div>
@@ -209,8 +195,10 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
     <div class="status-msg" id="fwStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
+      <button onclick="$('fileFw').click()">Upload .bin</button>
       <button onclick="rollbackFw()">Rollback Slot</button>
       <button class="danger" onclick="triggerBootsel()">Force BOOTSEL</button>
+      <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
     </div>
   </div>
 </div>
@@ -230,7 +218,9 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
     <div class="status-msg" id="webStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
+      <button onclick="$('fileWeb').click()">Upload .tar</button>
       <button class="danger" onclick="formatFs('system')">Format SYSTEM_FS</button>
+      <input type="file" id="fileWeb" accept=".tar" onchange="uploadLocal('/api/v1/system/webui/update', this.files[0], false)">
     </div>
   </div>
 
@@ -810,14 +800,19 @@ async function uploadFile(url, data, isFw, noReload = false){
   const p = $('updateProgress');
   const b = $('updateBar');
   const s = $('updateStatus');
+  const cardStatus = isFw ? $('fwStatus') : $('webStatus');
   if(p) p.style.display = 'block';
   if(b) b.style.width = '30%';
-  if(s) s.textContent = isFw ? 'TRANSMITTING FIRMWARE PAYLOAD...' : 'TRANSMITTING WEBUI PAYLOAD...';
+  const msg = isFw ? 'TRANSMITTING FIRMWARE PAYLOAD...' : 'TRANSMITTING WEBUI PAYLOAD...';
+  if(s) s.textContent = msg;
+  if(cardStatus) cardStatus.textContent = msg;
   try{
     const res = await fetch(url, { method: 'POST', body: data });
     if(b) b.style.width = '100%';
     if(res.ok){
-      if(s) s.textContent = isFw ? 'FIRMWARE STAGED SUCCESSFULLY.' : 'WEBUI RESTORED SUCCESSFULLY.';
+      const okMsg = isFw ? 'FIRMWARE STAGED SUCCESSFULLY.' : 'WEBUI RESTORED SUCCESSFULLY.';
+      if(s) s.textContent = okMsg;
+      if(cardStatus) cardStatus.textContent = okMsg;
       setTimeout(() => {
         if(p) p.style.display = 'none';
         if(b) b.style.width = '0%';
@@ -831,24 +826,16 @@ async function uploadFile(url, data, isFw, noReload = false){
       }
       return true;
     } else {
-      if(s) s.textContent = 'TRANSMISSION ERROR: HTTP ' + res.status;
+      const errMsg = 'TRANSMISSION ERROR: HTTP ' + res.status;
+      if(s) s.textContent = errMsg;
+      if(cardStatus) cardStatus.textContent = errMsg;
       return false;
     }
   }catch(e){
-    if(s) s.textContent = 'IO ERROR: ' + e.message;
+    const ioMsg = 'IO ERROR: ' + e.message;
+    if(s) s.textContent = ioMsg;
+    if(cardStatus) cardStatus.textContent = ioMsg;
     return false;
-  }
-}
-
-function handleSmartUpload(file){
-  if(!file) return;
-  const name = file.name.toLowerCase();
-  if(name.endsWith('.bin')){
-    uploadLocal('/api/v1/system/firmware/ota', file, true);
-  } else if(name.endsWith('.tar')){
-    uploadLocal('/api/v1/system/webui/update', file, false);
-  } else {
-    alert('Please select a .tar (WebUI) or .bin (Firmware) package file.');
   }
 }
 
@@ -1046,16 +1033,6 @@ async function formatFs(part){
 }
 
 async function init(){
-  const updateDz = $('updateDropZone');
-  if(updateDz){
-    updateDz.addEventListener('dragover', e => { e.preventDefault(); updateDz.classList.add('dragover'); });
-    updateDz.addEventListener('dragleave', () => updateDz.classList.remove('dragover'));
-    updateDz.addEventListener('drop', e => {
-      e.preventDefault();
-      updateDz.classList.remove('dragover');
-      if(e.dataTransfer.files.length) handleSmartUpload(e.dataTransfer.files[0]);
-    });
-  }
   const origin = window.location.origin || (window.location.protocol + '//' + (window.location.host || '192.168.7.1'));
   if($('mcpRpcUrl')) $('mcpRpcUrl').textContent = origin + '/mcp';
   if($('mcpSseUrl')) $('mcpSseUrl').textContent = origin + '/mcp/sse';

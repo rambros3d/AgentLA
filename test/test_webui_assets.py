@@ -66,8 +66,8 @@ def test_lab_html_clean_header_and_landing_setting():
     assert 'value="/apps"' not in content, "Legacy /apps route must be removed"
 
     # 4. Uses relative asset links compatible with both firmware and GitHub Pages
-    assert 'href="style.css"' in content
-    assert 'href="themes.css"' in content
+    assert ('href="style.css"' in content or 'href="style.css?' in content)
+    assert ('href="themes.css"' in content or 'href="themes.css?' in content)
     assert 'src="app.js"' in content
 
 
@@ -79,8 +79,8 @@ def test_index_html_unified_os_launcher():
 
     # 1. No legacy #0d1117 block
     assert "background-color: var(--bg-canvas" in content
-    assert 'href="style.css"' in content
-    assert 'href="themes.css"' in content
+    assert ('href="style.css"' in content or 'href="style.css?' in content)
+    assert ('href="themes.css"' in content or 'href="themes.css?' in content)
 
     # 2. Core Apps in launcher
     assert "Scope" in content

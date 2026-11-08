@@ -7,8 +7,11 @@
   <script>
     // Restore system theme immediately before render to avoid flash
     (function() {
+      var savedStyle = localStorage.getItem('agentla-ui-style') || 'industrial';
+      document.documentElement.setAttribute('data-style', savedStyle);
       var savedMode = localStorage.getItem('agentla-theme-mode');
       var saved = localStorage.getItem('agentla-theme');
+      var defaultDark = (savedStyle === 'bento') ? 'forest' : 'nothing';
       if (saved) {
         document.documentElement.setAttribute('data-theme', saved);
         var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
@@ -17,13 +20,13 @@
         document.documentElement.setAttribute('data-theme', 'emerald');
         document.documentElement.setAttribute('data-theme-scheme', 'light');
       } else if (savedMode === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'forest');
+        document.documentElement.setAttribute('data-theme', defaultDark);
         document.documentElement.setAttribute('data-theme-scheme', 'dark');
       } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
         document.documentElement.setAttribute('data-theme', 'emerald');
         document.documentElement.setAttribute('data-theme-scheme', 'light');
       } else {
-        document.documentElement.setAttribute('data-theme', 'forest');
+        document.documentElement.setAttribute('data-theme', defaultDark);
         document.documentElement.setAttribute('data-theme-scheme', 'dark');
       }
     })();

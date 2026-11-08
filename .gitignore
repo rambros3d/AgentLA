@@ -40,4 +40,6 @@ references/
 .*/
 !.github/
 !.github/**
+!.cargo/
+!.cargo/**
 skills-lock.json

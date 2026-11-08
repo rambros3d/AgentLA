@@ -101,10 +101,11 @@ function applyUiSettings() {
 const themeState = {
     mode: 'system', // 'system' | 'light' | 'dark'
     defaultLightTheme: 'emerald',
-    defaultDarkTheme: 'forest',
+    defaultDarkTheme: 'nothing',
     defaultHomeRoute: '/home',
     availableThemes: [
-        { name: 'forest', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: true, custom: false },
+        { name: 'nothing', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: true, custom: false },
+        { name: 'forest', color_scheme: 'dark', colorScheme: 'dark', prefersdark: true, prefersDark: true, isDefault: false, custom: false },
         { name: 'emerald', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: true, custom: false },
         { name: 'caramellatte', color_scheme: 'light', colorScheme: 'light', prefersdark: false, prefersDark: false, isDefault: false, custom: false }
     ]
@@ -320,6 +321,9 @@ function applyTheme() {
     const selDark = document.getElementById('select-default-dark-theme');
     if (selDark) selDark.value = themeState.defaultDarkTheme;
 
+    const selStyle = document.getElementById('settings-ui-style-select');
+    if (selStyle) selStyle.value = localStorage.getItem('agentla-ui-style') || 'industrial';
+
     // Redraw scopes and canvases
     window.activeLogicController?.forceRedraw();
     if (window.redrawScope) window.redrawScope();
@@ -449,6 +453,7 @@ async function populateLandingPageDropdown() {
         <option value="/pins">Pin Crossbar Matrix (/pins)</option>
         <option value="/agent">MCP Agent Console (/agent)</option>
         <option value="/terminal">Serial Terminal (/terminal)</option>
+        <option value="/device">Device Diagnostics (/device)</option>
     `;
 
     try {
@@ -536,6 +541,25 @@ async function initThemeEngine() {
         selMode.addEventListener('change', async () => {
             themeState.mode = selMode.value;
             applyTheme();
+            await saveSettings();
+        });
+    }
+
+    const selUiStyle = document.getElementById('settings-ui-style-select');
+    if (selUiStyle) {
+        selUiStyle.addEventListener('change', async () => {
+            const val = selUiStyle.value;
+            document.documentElement.setAttribute('data-style', val);
+            try {
+                localStorage.setItem('agentla-ui-style', val);
+            } catch (_) {}
+            if (val === 'industrial' && themeState.defaultDarkTheme === 'forest') {
+                themeState.defaultDarkTheme = 'nothing';
+                applyTheme();
+            } else if (val === 'bento' && themeState.defaultDarkTheme === 'nothing') {
+                themeState.defaultDarkTheme = 'forest';
+                applyTheme();
+            }
             await saveSettings();
         });
     }
@@ -798,6 +822,8 @@ function openSettingsModal() {
     const modal = document.getElementById('modal-settings');
     if (modal) {
         modal.classList.add('open');
+        modal.classList.add('modal-open');
+        modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
         populateLandingPageDropdown();
         const selTheme = document.getElementById('settings-theme-select');
@@ -809,7 +835,12 @@ function closeSettingsModal() {
     const modal = document.getElementById('modal-settings');
     if (modal) {
         modal.classList.remove('open');
+        modal.classList.remove('modal-open');
+        modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
+        if (window.location.hash.toLowerCase() === '#settings') {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
     }
 }
 
@@ -4876,7 +4907,10 @@ function applyHashMode() {
     const rawHash = (window.location.hash || '').replace(/^#\/?/, '').toLowerCase().trim();
     if (!rawHash) return;
     const cleanHash = rawHash.split('?')[0].split('&')[0];
-    if (cleanHash === 'scope' || cleanHash === 'bench') {
+    if (cleanHash === 'settings') {
+        openSettingsModal();
+        return;
+    } else if (cleanHash === 'scope' || cleanHash === 'bench') {
         switchMode('scope', false);
     } else if (cleanHash === 'adapters' || cleanHash === 'adapter') {
         switchMode('adapters', false);

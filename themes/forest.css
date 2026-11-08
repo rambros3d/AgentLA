@@ -1,6 +1,6 @@
 @plugin "daisyui/theme" {
   name: "forest";
-  default: true;
+  default: false;
   prefersdark: true;
   color-scheme: "dark";
   --color-base-100: oklch(20.84% 0.008 17.911);

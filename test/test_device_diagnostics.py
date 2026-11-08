@@ -115,9 +115,13 @@ def test_device_html_contains_required_sections_and_hooks():
     # Unified System Update Hero Card on [ HARDWARE ]
     assert "cardSystemUpdate" in content
     assert "btnUpdateAll" in content
-    assert "updateDropZone" in content
     assert "runFullSystemUpdate" in content
-    assert "handleSmartUpload" in content
+    assert "updateDropZone" not in content
+
+    # Local Flash & Slot controls placed in relevant cards
+    assert "fileFw" in content
+    assert "fileWeb" in content
+    assert "rollbackFw" in content
 
     # Redundant recovery banner eliminated
     assert "recoveryBanner" not in content

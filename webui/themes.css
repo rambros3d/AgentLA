@@ -3,37 +3,37 @@
    Generated automatically by tools/compile_themes.py - DO NOT EDIT DIRECTLY
    ========================================================================== */
 
-/* Fallback Root Variables (Default Dark Theme: forest) */
+/* Fallback Root Variables (Default Dark Theme: nothing) */
 :root {
     color-scheme: dark;
-    --color-base-100: oklch(20.84% 0.008 17.911);
-    --color-base-200: oklch(18.42% 0.007 17.911);
-    --color-base-300: oklch(16% 0.006 17.911);
-    --color-base-content: oklch(98% 0.022 95.277);
-    --color-primary: oklch(68.628% 0.185 148.958);
-    --color-primary-content: oklch(0% 0 0);
-    --color-secondary: oklch(69.776% 0.135 168.327);
-    --color-secondary-content: oklch(13.955% 0.027 168.327);
-    --color-accent: oklch(70.628% 0.119 185.713);
-    --color-accent-content: oklch(14.125% 0.023 185.713);
-    --color-neutral: oklch(30.698% 0.039 171.364);
-    --color-neutral-content: oklch(96% 0.059 95.617);
-    --color-info: oklch(70% 0.165 254.624);
-    --color-info-content: oklch(0% 0 0);
-    --color-success: oklch(64.8% 0.15 160);
-    --color-success-content: oklch(0% 0 0);
-    --color-warning: oklch(84.71% 0.199 83.87);
-    --color-warning-content: oklch(0% 0 0);
-    --color-error: oklch(71.76% 0.221 22.18);
-    --color-error-content: oklch(0% 0 0);
-    --radius-selector: 1rem;
-    --radius-field: 0.5rem;
-    --radius-box: 1rem;
+    --color-base-100: #000000;
+    --color-base-200: #0a0a0a;
+    --color-base-300: #1a1a1a;
+    --color-base-content: #f4f4f4;
+    --color-primary: #D71921;
+    --color-primary-content: #ffffff;
+    --color-secondary: #737373;
+    --color-secondary-content: #ffffff;
+    --color-accent: #D71921;
+    --color-accent-content: #ffffff;
+    --color-neutral: #141414;
+    --color-neutral-content: #a3a3a3;
+    --color-info: #00bfff;
+    --color-info-content: #000000;
+    --color-success: #00e676;
+    --color-success-content: #000000;
+    --color-warning: #ff9100;
+    --color-warning-content: #000000;
+    --color-error: #D71921;
+    --color-error-content: #ffffff;
+    --radius-selector: 0.25rem;
+    --radius-field: 0.25rem;
+    --radius-box: 0.5rem;
     --size-selector: 0.25rem;
     --size-field: 0.25rem;
     --border: 1px;
-    --depth: 1;
-    --noise: 1;
+    --depth: 0;
+    --noise: 0;
 }
 
 /* Theme: caramellatte (scheme: light, default: False) */
@@ -102,8 +102,8 @@
     --noise: 1;
 }
 
-/* Theme: forest (scheme: dark, default: True) */
-[data-theme="dark"], [data-theme="forest"] {
+/* Theme: forest (scheme: dark, default: False) */
+[data-theme="forest"] {
     color-scheme: dark;
     --color-base-100: oklch(20.84% 0.008 17.911);
     --color-base-200: oklch(18.42% 0.007 17.911);
@@ -133,4 +133,37 @@
     --border: 1px;
     --depth: 1;
     --noise: 1;
+}
+
+/* Theme: nothing (scheme: dark, default: True) */
+[data-theme="dark"], [data-theme="nothing"] {
+    color-scheme: dark;
+    --color-base-100: #000000;
+    --color-base-200: #0a0a0a;
+    --color-base-300: #1a1a1a;
+    --color-base-content: #f4f4f4;
+    --color-primary: #D71921;
+    --color-primary-content: #ffffff;
+    --color-secondary: #737373;
+    --color-secondary-content: #ffffff;
+    --color-accent: #D71921;
+    --color-accent-content: #ffffff;
+    --color-neutral: #141414;
+    --color-neutral-content: #a3a3a3;
+    --color-info: #00bfff;
+    --color-info-content: #000000;
+    --color-success: #00e676;
+    --color-success-content: #000000;
+    --color-warning: #ff9100;
+    --color-warning-content: #000000;
+    --color-error: #D71921;
+    --color-error-content: #ffffff;
+    --radius-selector: 0.25rem;
+    --radius-field: 0.25rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
 }

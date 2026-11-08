@@ -53,11 +53,11 @@ jobs:
 
       - name: Build Bootloader (RP2350 A/B Invariant)
         run: |
-          cargo build --release --bin agentla-bootloader
+          cargo build --release --target thumbv8m.main-none-eabihf --bin agentla-bootloader
 
       - name: Build Application Firmware (Embassy Async + Diagnostics)
         run: |
-          cargo build --release --bin firmware-rs
+          cargo build --release --target thumbv8m.main-none-eabihf --bin firmware-rs
 
       - name: Extract Release Version
         id: get_version

@@ -19,6 +19,15 @@
   },
   {
     "name": "forest",
+    "default": false,
+    "isDefault": false,
+    "prefersdark": true,
+    "prefersDark": true,
+    "color-scheme": "dark",
+    "colorScheme": "dark"
+  },
+  {
+    "name": "nothing",
     "default": true,
     "isDefault": true,
     "prefersdark": true,

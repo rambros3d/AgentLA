@@ -262,6 +262,52 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/terminal.html", get_service(crate::fs_http::SystemWebFile::new("terminal.html", "text/html")))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/lab.html", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
+        // Legacy /apps and /lab aliases -> redirect to canonical routes
+        .route("/apps", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/home"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/apps/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/home"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/apps.html", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/home"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/lab", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/scope"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/lab/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/scope"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         // In-ROM Device Diagnostics & Developer Console (Zero LittleFS dependency)
         .route("/device", get_service(File::html(crate::device_html::DEVICE_HTML)))
         .route("/device.html", get_service(File::html(crate::device_html::DEVICE_HTML)))

@@ -8,15 +8,19 @@
     <script>
         // Restore theme immediately before render to avoid flash
         (function() {
-            var isDemo = window.location.protocol === 'https:' || 
+            var isDemo = window.location.protocol === 'file:' ||
+                         window.location.protocol === 'https:' || 
                          window.location.hostname.includes('github.io') ||
                          window.location.search.includes('demo=1') ||
-                         window.location.pathname.endsWith('.html');
+                         (window.location.hostname === 'localhost' && window.location.port !== '80');
             if (!isDemo) {
                 document.write('<base href="/">');
             }
+            var savedStyle = localStorage.getItem('agentla-ui-style') || 'industrial';
+            document.documentElement.setAttribute('data-style', savedStyle);
             var savedMode = localStorage.getItem('agentla-theme-mode');
             var saved = localStorage.getItem('agentla-theme');
+            var defaultDark = (savedStyle === 'bento') ? 'forest' : 'nothing';
             if (saved) {
                 document.documentElement.setAttribute('data-theme', saved);
                 var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
@@ -25,21 +29,45 @@
                 document.documentElement.setAttribute('data-theme', 'emerald');
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
             } else if (savedMode === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme', defaultDark);
                 document.documentElement.setAttribute('data-theme-scheme', 'dark');
             } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
                 document.documentElement.setAttribute('data-theme', 'emerald');
                 document.documentElement.setAttribute('data-theme-scheme', 'light');
             } else {
-                document.documentElement.setAttribute('data-theme', 'forest');
+                document.documentElement.setAttribute('data-theme', defaultDark);
                 document.documentElement.setAttribute('data-theme-scheme', 'dark');
             }
+
+            // Synchronous Dock Pin FOUC Guard
+            try {
+                var stored = localStorage.getItem('agentla_pinned_dock_apps');
+                var pinned = stored ? JSON.parse(stored) : null;
+                if (!Array.isArray(pinned)) {
+                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+                }
+                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+                var css = '';
+                for (var i = 0; i < allSys.length; i++) {
+                    if (pinned.indexOf(allSys[i]) === -1) {
+                        css += '#dock-app-' + allSys[i] + ' { display: none !important; }\n';
+                    }
+                }
+                if (css) {
+                    var s = document.createElement('style');
+                    s.id = 'dock-pin-guard';
+                    s.textContent = css;
+                    document.head.appendChild(s);
+                }
+            } catch (_) {}
         })();
     </script>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="daisyui.css">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="themes.css">
+    <link rel="stylesheet" href="daisyui.css?v=2.0.0">
+    <link rel="stylesheet" href="style.css?v=2.0.0">
+    <link rel="stylesheet" href="themes.css?v=2.0.0">
+    <link rel="prefetch" href="app.js">
+    <link rel="prefetch" href="lab.html">
     <style>
         /* Launcher Canvas Theme Binding */
         body {
@@ -419,7 +447,7 @@
     <!-- Floating macOS-Style Glass Dock -->
     <div class="floating-glass-dock" id="floating-glass-dock">
         <!-- Launcher (Active on apps page) -->
-        <a href="index.html" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="const ws = document.getElementById('main-workspace'); if(ws) ws.scrollTo({top: 0, behavior: 'smooth'}); else window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
+        <a href="/home" class="dock-icon-btn active" data-dock-tooltip="Apps Launcher" onclick="const ws = document.getElementById('main-workspace'); if(ws) ws.scrollTo({top: 0, behavior: 'smooth'}); else window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
             <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g fill="currentColor" opacity="0.5">
                     <path d="M17.5 13C19.6213 13 20.6818 13.0002 21.3408 13.6592C21.9998 14.3182 22 15.3787 22 17.5C22 19.6213 21.9998 20.6818 21.3408 21.3408C20.6818 21.9998 19.6213 22 17.5 22C15.3787 22 14.3182 21.9998 13.6592 21.3408C13.0002 20.6818 13 19.6213 13 17.5C13 15.3787 13.0002 14.3182 13.6592 13.6592C14.3182 13.0002 15.3787 13 17.5 13Z"/>
@@ -706,6 +734,18 @@
                     <div class="settings-section-title">Theme &amp; Appearance</div>
                     <div class="settings-row">
                         <div>
+                            <div class="settings-label">Interface Persona</div>
+                            <div class="settings-subtext">Choose between Nothing OS Minimalist Industrial and Consumer Bento</div>
+                        </div>
+                        <div class="settings-control-group">
+                            <select class="compact-select" id="settings-ui-style-select">
+                                <option value="industrial">Industrial (Nothing OS Default)</option>
+                                <option value="bento">Bento (Consumer Squircle)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div>
                             <div class="settings-label">Theme Mode</div>
                             <div class="settings-subtext">Cycle between automatic OS synchronization, forced light, or forced dark</div>
                         </div>
@@ -736,7 +776,8 @@
                         </div>
                         <div class="settings-control-group">
                             <select class="compact-select" id="select-default-dark-theme">
-                                <option value="forest">Forest (Default Dark)</option>
+                                <option value="nothing">Nothing (OLED Black &amp; Red Default)</option>
+                                <option value="forest">Forest (Slate &amp; Emerald)</option>
                             </select>
                         </div>
                     </div>
@@ -760,27 +801,19 @@
                 </div>
 
                 <div class="settings-section">
-                    <div class="settings-section-title">Device Hardware Actions</div>
+                    <div class="settings-section-title">Hardware Diagnostics &amp; Tools</div>
                     <div class="settings-row">
                         <div>
-                            <div class="settings-label">Reboot AgentLA Device</div>
-                            <div class="settings-subtext">Restart RP2350 microcontroller and USB peripheral stack</div>
+                            <div class="settings-label">Device Diagnostics &amp; Recovery</div>
+                            <div class="settings-subtext">ROM hardware monitor, partition table, firmware OTA, and emergency recovery</div>
                         </div>
-                        <button class="action-btn outline btn-sm" id="btn-reboot">
+                        <a href="/device.html" class="action-btn outline btn-sm" id="btn-open-device-html" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                             <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M6.87348 7.87338C9.01606 5.7308 12.1674 5.20902 14.8007 6.31041L15.9309 5.18019C12.6515 3.53111 8.55119 4.07435 5.81282 6.81272C2.39573 10.2298 2.39573 15.77 5.81282 19.1871C9.2299 22.6042 14.7701 22.6042 18.1872 19.1871C20.1746 17.1997 21.0057 14.4933 20.6819 11.9072C20.6304 11.4962 20.2555 11.2048 19.8445 11.2562C19.4335 11.3077 19.142 11.6826 19.1935 12.0936C19.4622 14.24 18.7727 16.4802 17.1265 18.1264C14.2952 20.9577 9.70478 20.9577 6.87348 18.1264C4.04217 15.2951 4.04217 10.7047 6.87348 7.87338Z" fill="currentColor"/>
-                                <path d="M18.7212 4.20119C18.7212 3.89785 18.5384 3.62437 18.2582 3.50828C17.9779 3.3922 17.6553 3.45637 17.4408 3.67086L15.9314 5.18028L14.8012 6.3105L13.1982 7.9135C12.9837 8.128 12.9195 8.45059 13.0356 8.73085C13.1517 9.0111 13.4252 9.19383 13.7285 9.19383H17.9712C18.3854 9.19383 18.7212 8.85805 18.7212 8.44383V4.20119Z" fill="currentColor"/>
-                            </svg> Reboot Device
-                        </button>
-                    </div>
-                    <div class="settings-row">
-                        <div>
-                            <div class="settings-label text-red">Reboot into USB BOOTSEL Mode</div>
-                            <div class="settings-subtext">Drop into RP2350 ROM bootloader for UF2 drag-and-drop firmware upgrades</div>
-                        </div>
-                        <button class="btn btn-outline btn-error btn-sm" id="btn-bootsel-mode">
-                            Enter BOOTSEL
-                        </button>
+                                <path opacity="0.5" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 22 2 12 2Z" fill="currentColor"/>
+                                <path d="M10 8L14 12L10 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Open Device Dashboard
+                        </a>
                     </div>
                 </div>
             </div>
@@ -887,10 +920,10 @@
     <!-- Application Script Logic -->
     <script>
         // Check if running in static demo environment (e.g. GitHub Pages)
-        const isDemo = window.location.protocol === 'https:' || 
+        const isDemo = window.location.protocol === 'file:' ||
+                       window.location.protocol === 'https:' || 
                        window.location.hostname.includes('github.io') || 
                        window.location.search.includes('demo=1') ||
-                       window.location.pathname.endsWith('.html') ||
                        (window.location.hostname === 'localhost' && window.location.port !== '80');
 
         function openLab(view) {
@@ -1089,7 +1122,7 @@
         const themeState = {
             mode: 'system',
             defaultLightTheme: 'emerald',
-            defaultDarkTheme: 'forest',
+            defaultDarkTheme: 'nothing',
             defaultHomeRoute: '/home'
         };
 
@@ -1294,6 +1327,9 @@
 
             const selDark = document.getElementById('select-default-dark-theme');
             if (selDark) selDark.value = themeState.defaultDarkTheme;
+
+            const selStyle = document.getElementById('settings-ui-style-select');
+            if (selStyle) selStyle.value = localStorage.getItem('agentla-ui-style') || 'industrial';
         }
 
         function cycleThemeMode() {
@@ -1363,6 +1399,7 @@
                 <option value="/pins">Pin Crossbar Matrix (/pins)</option>
                 <option value="/agent">MCP Agent Console (/agent)</option>
                 <option value="/terminal">Serial Terminal (/terminal)</option>
+                <option value="/device">Device Diagnostics (/device)</option>
             `;
 
             try {
@@ -1388,6 +1425,7 @@
             const modal = document.getElementById('modal-settings');
             if (modal) {
                 modal.classList.add('open');
+                modal.classList.add('modal-open');
                 modal.style.display = 'flex';
                 modal.setAttribute('aria-hidden', 'false');
                 populateLandingPageDropdown();
@@ -1398,8 +1436,12 @@
             const modal = document.getElementById('modal-settings');
             if (modal) {
                 modal.classList.remove('open');
+                modal.classList.remove('modal-open');
                 modal.style.display = 'none';
                 modal.setAttribute('aria-hidden', 'true');
+                if (window.location.hash.toLowerCase() === '#settings') {
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
+                }
             }
         }
 
@@ -1602,6 +1644,9 @@
         }
 
         function renderDockPinnedApps() {
+            const guard = document.getElementById('dock-pin-guard');
+            if (guard) guard.remove();
+
             const container = document.getElementById('dock-pinned-apps');
             const pinned = getPinnedApps();
 
@@ -2078,7 +2123,7 @@
                 const installed = installedApps.find(a => a.id === app.id);
                 let getBtnText = installed ? 'OPEN' : 'GET';
                 let getBtnClass = installed ? 'store-get-btn installed' : 'store-get-btn';
-                let getBtnAction = installed ? `window.location.href='/apps/${encodeURIComponent(app.id)}/'` : `openAppDetail('${escapeHtml(app.id)}', 'catalog')`;
+                let getBtnAction = installed ? `window.location.href='/app/${encodeURIComponent(app.id)}/'` : `openAppDetail('${escapeHtml(app.id)}', 'catalog')`;
                 if (isDemo && installed) {
                     if (app.id === 'servo-master') getBtnAction = `window.location.href='apps/servo-master/index.html'`;
                     else if (app.id === 'can-sniffer') getBtnAction = `window.location.href='apps/can-sniffer/index.html'`;
@@ -2811,6 +2856,31 @@
         document.getElementById('btn-header-settings').addEventListener('click', openSettingsModal);
         document.getElementById('btn-close-settings-modal').addEventListener('click', closeSettingsModal);
 
+        const modalSettingsEl = document.getElementById('modal-settings');
+        if (modalSettingsEl) {
+            modalSettingsEl.addEventListener('click', (e) => {
+                if (e.target === modalSettingsEl) closeSettingsModal();
+            });
+        }
+
+        const selUiStyle = document.getElementById('settings-ui-style-select');
+        if (selUiStyle) {
+            selUiStyle.addEventListener('change', (e) => {
+                const val = e.target.value;
+                document.documentElement.setAttribute('data-style', val);
+                try {
+                    localStorage.setItem('agentla-ui-style', val);
+                } catch (_) {}
+                if (val === 'industrial' && themeState.defaultDarkTheme === 'forest') {
+                    themeState.defaultDarkTheme = 'nothing';
+                    applyTheme();
+                } else if (val === 'bento' && themeState.defaultDarkTheme === 'nothing') {
+                    themeState.defaultDarkTheme = 'forest';
+                    applyTheme();
+                }
+            });
+        }
+
         document.getElementById('settings-theme-mode-select').addEventListener('change', (e) => {
             themeState.mode = e.target.value;
             applyTheme();
@@ -2834,29 +2904,35 @@
             saveSettings();
         });
 
-        document.getElementById('btn-reboot').addEventListener('click', async () => {
-            if (!confirm('Reboot AgentLA microcontroller?')) return;
-            try {
-                await fetch('/mcp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'system_reboot', arguments: {} } })
-                });
-            } catch (_) {}
-            alert('Reboot signal dispatched.');
-        });
+        const btnReboot = document.getElementById('btn-reboot');
+        if (btnReboot) {
+            btnReboot.addEventListener('click', async () => {
+                if (!confirm('Reboot AgentLA microcontroller?')) return;
+                try {
+                    await fetch('/mcp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'system_reboot', arguments: {} } })
+                    });
+                } catch (_) {}
+                alert('Reboot signal dispatched.');
+            });
+        }
 
-        document.getElementById('btn-bootsel-mode').addEventListener('click', async () => {
-            if (!confirm('Reboot RP2350 into USB BOOTSEL ROM bootloader?')) return;
-            try {
-                await fetch('/mcp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'system_bootsel', arguments: {} } })
-                });
-            } catch (_) {}
-            alert('BOOTSEL signal dispatched.');
-        });
+        const btnBootsel = document.getElementById('btn-bootsel-mode');
+        if (btnBootsel) {
+            btnBootsel.addEventListener('click', async () => {
+                if (!confirm('Reboot RP2350 into USB BOOTSEL ROM bootloader?')) return;
+                try {
+                    await fetch('/mcp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'system_bootsel', arguments: {} } })
+                    });
+                } catch (_) {}
+                alert('BOOTSEL signal dispatched.');
+            });
+        }
 
         document.getElementById('btn-emergency-safe').addEventListener('click', async () => {
             if (!confirm('Activate Emergency Safe State? All GPIO pins will be quiesced to High-Z.')) return;
@@ -3006,24 +3082,35 @@
             } catch (_) {}
         }
 
+        // Render dock pinned apps immediately from localStorage cache
+        renderDockPinnedApps();
+
         // Initialize on DOM load
         (async function init() {
+            renderDockPinnedApps();
             await initSettings();
             await fetchSystemInfo();
             await fetchStorage();
             await fetchInstalledApps();
             renderManageApps();
-            initTelemetryHUD();
-
             renderDockPinnedApps();
+            initTelemetryHUD();
 
             const manageSearch = document.getElementById('manage-search');
             if (manageSearch) {
                 manageSearch.addEventListener('input', () => renderManageApps());
             }
 
+            window.addEventListener('hashchange', () => {
+                if (window.location.hash.toLowerCase() === '#settings') {
+                    openSettingsModal();
+                }
+            });
+
             const initialHash = window.location.hash.toLowerCase();
-            if (initialHash === '#store' || window.location.search.includes('view=store')) {
+            if (initialHash === '#settings') {
+                openSettingsModal();
+            } else if (initialHash === '#store' || window.location.search.includes('view=store')) {
                 switchLauncherView('store');
             } else if (initialHash === '#manage' || window.location.search.includes('view=manage')) {
                 switchLauncherView('manage');

@@ -4,6 +4,27 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
+   0. Typography: NDot57 Circular Dot-Matrix & Technical Monospace
+   -------------------------------------------------------------------------- */
+@font-face {
+    font-family: 'NDot57';
+    src: url('/fonts/ndot57.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --font-display: 'NDot57', ui-monospace, monospace;
+    --font-mono-tech: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+[data-style="bento"] {
+    --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* --------------------------------------------------------------------------
    1. Theme Variables & Color Tokens (DaisyUI v5 "black" & "emerald" Palettes)
    -------------------------------------------------------------------------- */
 :root, [data-theme="dark"], [data-theme="forest"] {
@@ -183,6 +204,110 @@
     --term-accent-color: var(--color-info);
     --term-text-tx: var(--color-success); 
     --term-text-rx: oklch(15% 0 0);
+}
+
+/* --------------------------------------------------------------------------
+   1.1 Industrial (Nothing OS) Persona & Typography Rules
+   -------------------------------------------------------------------------- */
+:root, [data-style="industrial"], [data-theme="nothing"] {
+    --nothing-red: #D71921;
+}
+
+/* Default / Industrial Background Canvas: 16px Technical Dot-Grid */
+body, [data-style="industrial"] body {
+    background-color: var(--color-base-100, #000000);
+    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+    background-size: 16px 16px;
+    background-attachment: fixed;
+}
+
+[data-style="bento"] body {
+    background-image: none !important;
+}
+
+/* Display Titles & Hero Headings in Circular Dot-Matrix */
+[data-style="industrial"] .launcher-section-title,
+[data-style="industrial"] .os-squircle-label,
+[data-style="industrial"] .stat-title,
+[data-style="industrial"] .brand-title,
+[data-style="industrial"] .font-display {
+    font-family: var(--font-display) !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+}
+
+/* Technical Monospace Hierarchy for Metadata */
+.font-mono-tech,
+[data-style="industrial"] .os-squircle-sublabel,
+[data-style="industrial"] .stat-desc,
+[data-style="industrial"] .decoder-bar-label,
+[data-style="industrial"] .scope-pin-badge,
+[data-style="industrial"] .hud-row {
+    font-family: var(--font-mono-tech) !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+}
+
+/* Industrial Card & Tile Geometry: Crisp 1px Outline, 0.5rem Radius, Zero Blur */
+[data-style="industrial"] .card,
+[data-style="industrial"] .stat,
+[data-style="industrial"] .modal-box {
+    border-radius: 0.5rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: none !important;
+}
+
+[data-style="industrial"] .os-squircle-icon {
+    border-radius: 0.5rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: none !important;
+}
+
+[data-style="industrial"] .os-squircle-tile:hover .os-squircle-icon {
+    box-shadow: 0 0 0 1px #D71921, 0 8px 24px -4px rgba(215, 25, 33, 0.35) !important;
+    border-color: #D71921 !important;
+}
+
+/* Discrete / Blocky Progress Indicators */
+[data-style="industrial"] progress.progress {
+    border-radius: 2px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background-color: #141414 !important;
+}
+
+[data-style="industrial"] progress.progress::-webkit-progress-value {
+    background-color: var(--color-primary, #D71921) !important;
+}
+
+[data-style="industrial"] progress.progress::-moz-progress-bar {
+    background-color: var(--color-primary, #D71921) !important;
+}
+
+/* Badges in Industrial Mode */
+[data-style="industrial"] .badge {
+    border-radius: 0.25rem !important;
+    font-family: var(--font-mono-tech) !important;
+    font-size: 0.65rem !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    border-width: 1px !important;
+}
+
+[data-style="industrial"] .badge-primary {
+    background-color: #D71921 !important;
+    color: #ffffff !important;
+    border-color: #D71921 !important;
+}
+
+/* Red Indicator Dots */
+.nothing-dot-red {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #D71921;
+    margin-right: 6px;
+    box-shadow: 0 0 8px rgba(215, 25, 33, 0.8);
 }
 
 /* --------------------------------------------------------------------------
@@ -4031,7 +4156,8 @@ body.no-transparency {
 /* --------------------------------------------------------------------------
    Centered System Settings Modal (#modal-settings)
    -------------------------------------------------------------------------- */
-.modal-backdrop {
+.modal-backdrop,
+#modal-settings {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.78);
@@ -4043,11 +4169,20 @@ body.no-transparency {
     box-sizing: border-box;
 }
 
-.modal-backdrop.open {
-    display: flex;
+.modal-backdrop.open,
+.modal-backdrop.modal-open,
+#modal-settings.open,
+#modal-settings.modal-open,
+.modal.modal-open {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
-.modal-card {
+.modal-card,
+#modal-settings .modal-box,
+#modal-settings .modal-card {
     background: var(--bg-surface);
     border: var(--border) solid var(--border-color);
     border-radius: var(--radius-box);
@@ -4058,6 +4193,10 @@ body.no-transparency {
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.8);
     display: flex;
     flex-direction: column;
+    opacity: 1 !important;
+    scale: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
 }
 
 .modal-header {
