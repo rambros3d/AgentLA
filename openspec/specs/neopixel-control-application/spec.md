@@ -2,9 +2,7 @@
 
 ## Purpose
 Web desktop application providing multi-protocol addressable LED control, 1D and 2D visualizers, coordinate mapping, 60 FPS FastLED-compatible procedural shaders, and power consumption telemetry.
-
 ## Requirements
-
 ### Requirement: Neopixel Control Multi-Protocol Configuration
 The Neopixel Control application SHALL allow users to select from supported addressable LED protocol chipsets (WS2812, WS2812B, SK6812 RGBW, WS2811, WS2813, WS2815, APA106, APA102, SK9822, WS2801, LPD8806), specify color channel order (RGB, GRB, BGR, RGBW, GRBW), and dynamically configure Data and optional Clock GPIO pins.
 
@@ -28,11 +26,15 @@ The application SHALL provide an interactive visual canvas that renders current 
 - **THEN** odd rows are mapped in reverse direction so coordinate `(x, y)` corresponds correctly to the physical zigzag LED index
 
 ### Requirement: 60 FPS Procedural Shader Engine
-The application SHALL provide a client-side procedural animation engine capable of generating dynamic visual patterns (Rainbow Cycle, Cylon Eye, Fire Flicker, Meteor Trail, Breathing, Plasma) and streaming real-time frames at up to 60 FPS.
+The application SHALL provide a client-side procedural animation engine capable of generating dynamic visual patterns (Rainbow Cycle, Cylon Eye, Fire Flicker, Meteor Trail, Breathing, Plasma) and streaming real-time frames at up to 60 FPS. All shader animation controls, Blackout, FPS counter, and power telemetry badges SHALL reside inside a dedicated in-app sub-toolbar located beneath `#top-bar`, preserving full control functionality when `#top-bar` is suppressed in embedded iframe mode.
 
 #### Scenario: Running Rainbow animation
 - **WHEN** user selects the Rainbow effect and clicks Start
-- **THEN** the browser continuously updates LED hues using `requestAnimationFrame` and streams binary frame updates over the WebSocket connection
+- **THEN** the browser continuously updates LED hues using `requestAnimationFrame` and streams binary frame updates over the WebSocket connection.
+
+#### Scenario: Shader controls accessible in embedded iframe mode
+- **WHEN** the Neopixel application is embedded inside the AgentLA OS launcher iframe
+- **THEN** the shader triggers, Blackout button, and telemetry indicators remain visible and interactive within the in-app sub-toolbar.
 
 ### Requirement: Real-Time Power and Current Advisory
 The application SHALL compute estimated current draw ($mA$) based on active LED counts, color brightness levels, and supply voltage, displaying a color-coded status badge with safety warnings.
@@ -44,3 +46,11 @@ The application SHALL compute estimated current draw ($mA$) based on active LED 
 #### Scenario: Exceeding high current threshold
 - **WHEN** estimated current draw exceeds 1500 mA
 - **THEN** the power badge displays red with a warning advising external 5V power injection
+
+### Requirement: Neopixel Industrial Styling and Embedded Viewport
+The Neopixel application SHALL apply the Industrial Design System (`data-style="industrial"`, `data-theme="nothing"` / `industrial-light`, NDot57 typography, dot-grid canvas, and zero emojis), and SHALL provide at least 72px bottom clearance padding to avoid occlusion by the host system dock when embedded.
+
+#### Scenario: Visualizer canvas dock clearance
+- **WHEN** user scrolls through matrix configuration or animation parameters
+- **THEN** the main workspace displays with at least 72px bottom clearance above the dock.
+

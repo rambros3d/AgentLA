@@ -17,7 +17,7 @@
       "requires": [
         "has_hardware_can"
       ],
-      "size_bytes": 30720,
+      "size_bytes": 40960,
       "icon_url": "canbus/icon.svg",
       "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/canbus",
       "package_url": "/packages/canbus.tar"
@@ -62,7 +62,7 @@
         "pwm",
         "gpio_flexible"
       ],
-      "size_bytes": 51200,
+      "size_bytes": 40960,
       "icon_url": "servo/icon.svg",
       "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/servo",
       "package_url": "/packages/servo.tar"

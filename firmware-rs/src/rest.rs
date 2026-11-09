@@ -2590,8 +2590,54 @@ impl picoserve::routing::MethodHandlerService<()> for SystemInfoHandler {
         let _ = core::fmt::Write::write_fmt(
             &mut buf,
             format_args!(
-                r#"{{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":{},"cores":2,"flash_bytes":4194304,"sram_bytes":532480,"littlefs_offset":"0x00270000","firmware":"AgentLA v1.0.0-rust","status":"healthy"}}"#,
-                cur_mhz
+                r#"{{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":{},"cores":2,"flash_bytes":{},"sram_bytes":532480,"littlefs_offset":"0x{:08x}","firmware":"AgentLA v1.0.0-rust","status":"healthy"}}"#,
+                cur_mhz,
+                crate::storage::FLASH_SIZE_BYTES,
+                crate::storage::SYSTEM_FS_OFFSET,
+            ),
+        );
+        send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
+    }
+}
+
+pub struct SystemPartitionsHandler;
+
+impl picoserve::routing::MethodHandlerService<()> for SystemPartitionsHandler {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        _method: &str,
+        request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let current_slot = crate::boot::current_executing_slot();
+        let is_a = current_slot == agentla_boot_proto::SlotId::SlotA;
+        let slot_a_role = if is_a { "Active Firmware [Running]" } else { "Alternate Firmware [Standby]" };
+        let slot_b_role = if !is_a { "Active Firmware [Running]" } else { "Alternate Firmware [Standby]" };
+
+        let mut buf = heapless::String::<1024>::new();
+        let _ = core::fmt::Write::write_fmt(
+            &mut buf,
+            format_args!(
+                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"BOOT_TABLE","label":"BOOT","offset":{},"size":{},"type":"ROM","role":"Bootloader Switcher","active":false}},{{"name":"FW_SLOT_A","label":"SLOT_A","offset":{},"size":{},"type":"XIP_FLASH","role":"{}","active":{}}},{{"name":"FW_SLOT_B","label":"SLOT_B","offset":{},"size":{},"type":"XIP_FLASH","role":"{}","active":{}}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}},{{"name":"RESERVED_END","label":"END","offset":{},"size":{},"type":"ROM","role":"Reserved Trail","active":false}}]}}"#,
+                crate::storage::FLASH_SIZE_BYTES,
+                crate::storage::BOOT_TABLE_OFFSET,
+                crate::storage::BOOT_TABLE_SIZE_BYTES,
+                crate::storage::SLOT_A_OFFSET,
+                crate::storage::SLOT_SIZE_BYTES,
+                slot_a_role,
+                is_a,
+                crate::storage::SLOT_B_OFFSET,
+                crate::storage::SLOT_SIZE_BYTES,
+                slot_b_role,
+                !is_a,
+                crate::storage::SYSTEM_FS_OFFSET,
+                crate::storage::SYSTEM_FS_SIZE_BYTES,
+                crate::storage::USER_FS_OFFSET,
+                crate::storage::USER_FS_SIZE_BYTES,
+                crate::storage::USER_FS_END,
+                crate::storage::FLASH_RESERVED_TRAIL_BYTES,
             ),
         );
         send_json(request, response_writer, StatusCode::OK, buf.as_str()).await

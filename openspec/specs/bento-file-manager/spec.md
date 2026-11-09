@@ -2,11 +2,9 @@
 
 ## Purpose
 Provides a dedicated standalone Bento Storage Explorer WebUI (`files.html`) styled using DaisyUI 5 and Tailwind CSS, featuring partition storage metrics, directory traversal, breadcrumbs navigation, inline modal file viewer/editor, and file uploader/manager for `user_fs` and read-only `system_fs`.
-
 ## Requirements
-
 ### Requirement: Standalone Bento File Manager Page
-The system SHALL provide a dedicated standalone WebUI page at `files.html` (accessible via `/files` and `/files.html`) styled using the unified Industrial design language that renders an Industrial Storage Console for both `system_fs` and `user_fs`.
+The system SHALL provide a dedicated standalone WebUI page at `files.html` (accessible via `/files` and `/files.html`) styled using the unified Industrial design language that renders an Industrial Storage Console for both `system_fs` and `user_fs`. The top header element SHALL bear `id="top-bar"` so it is cleanly suppressed in embedded iframe mode (`html.is-embedded #top-bar { display: none !important; }`), the partition selector (`user:/` vs `sys:/`) SHALL be integrated directly into the explorer sub-toolbar beneath the top header, and the file listing canvas SHALL maintain at least 72px bottom clearance padding to avoid dock occlusion.
 
 #### Scenario: Navigating to files.html
 - **WHEN** a user navigates to `/files` or `/files.html`
@@ -15,6 +13,10 @@ The system SHALL provide a dedicated standalone WebUI page at `files.html` (acce
 #### Scenario: Theme synchronization
 - **WHEN** `files.html` loads
 - **THEN** it reads `localStorage` for `agentla-theme` and `agentla-theme-mode` and applies the theme attributes before DOM render without visual flicker.
+
+#### Scenario: Embedded iframe top bar suppression
+- **WHEN** `files.html` is embedded inside the AgentLA OS launcher iframe
+- **THEN** `#top-bar` is hidden without duplicate navigation headers, and the partition switcher remains functional within the in-app explorer sub-toolbar.
 
 ### Requirement: Partition Metrics Display
 The File Manager SHALL display real-time storage metrics for both `system_fs` and `user_fs` using DaisyUI `.stats` and `.progress` components, visibly distinguishing the 512 KB read-only system partition from the dynamic user storage.
@@ -66,3 +68,4 @@ The File Manager SHALL include an embedded DaisyUI `.modal` dialog capable of pr
 #### Scenario: Opening text file in system_fs
 - **WHEN** the user clicks a text file in `system_fs`
 - **THEN** the editor modal opens in read-only mode with the "Save Changes" button disabled and an informational banner indicating that system ROM assets cannot be modified.
+

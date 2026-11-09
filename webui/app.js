@@ -3326,6 +3326,10 @@ function updateTargetPowerUI(isOn, voltage, current) {
     if (pill) {
         pill.classList.toggle('active-on', isOn);
     }
+    const pwrSwitch = document.getElementById('target-power-switch');
+    if (pwrSwitch) {
+        pwrSwitch.checked = isOn;
+    }
     if (text) {
         if (isOn) {
             text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${targetVoltage}</span> / <span id="top-bar-current-val">${targetCurrent}</span>`;

@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>AgentLA - App Store &amp; Launcher</title>
+    <title>APP_LAUNCHER // AgentLA</title>
     <script>
         // Restore theme immediately before render to avoid flash
         (function() {
             var isDemo = window.location.protocol === 'file:' ||
-                         window.location.protocol === 'https:' || 
+                         window.location.protocol === 'https:' ||
                          window.location.hostname.includes('github.io') ||
                          window.location.search.includes('demo=1') ||
                          (window.location.hostname === 'localhost' && window.location.port !== '80');
@@ -125,43 +125,36 @@
         <div class="bar-left navbar-start" style="display: flex; align-items: center;">
             <a href="#/" class="brand-item" id="brand-logo" title="AgentLA Launcher (Home)" onclick="navigateToRoute('#/'); return false;" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
-                <span class="brand-title">AgentLA</span>
-                <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
+                <span class="font-bold tracking-tight text-sm brand-title" id="top-bar-title-container">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> <span id="top-bar-context-title">BakuProbe</span></span>
             </a>
-            <div id="top-bar-active-app" style="display: none; align-items: center; gap: 6px; margin-left: 8px;">
-                <span class="text-base-content/30" style="font-size: 13px;">/</span>
-                <span class="badge badge-sm badge-neutral gap-1.5 font-semibold text-xs py-1" id="top-bar-active-app-badge" style="display: inline-flex; align-items: center;">
-                    <span id="top-bar-active-app-name">App</span>
-                    <button type="button" class="btn btn-ghost btn-xs p-0 w-3.5 h-3.5 min-h-0 text-base-content/60 hover:text-base-content" onclick="closeActiveApp(event)" title="Close Application and return to Launcher" style="font-size: 14px; line-height: 1; margin-left: 2px;">×</button>
-                </span>
-            </div>
         </div>
 
         <div class="bar-right navbar-end">
-            <!-- Target Power Rail Toggle Pill -->
-            <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
-                <svg class="solar-icon power-bolt-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <!-- Target Power Rail Toggle Switch -->
+            <label class="power-toggle-widget cursor-pointer flex items-center gap-2 bg-base-200/90 hover:bg-base-300 border border-base-300 rounded-full px-3 py-1 transition-all select-none" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+                <svg class="solar-icon power-bolt-icon text-warning shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
-                <span class="power-pill-label" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
-            </button>
+                <span class="power-pill-label font-mono-tech text-xs font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
+                <input type="checkbox" class="toggle toggle-xs toggle-success" id="target-power-switch" checked />
+            </label>
 
-            <!-- Emergency Safe State Button -->
-            <button class="preset-pill emergency-safe-btn" id="btn-emergency-safe" title="Emergency Safe State: High-Z all GPIO pins">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                SAFE STATE
-            </button>
-
-            <!-- Hardware Profile Selector -->
+            <!-- Combined Emergency Safe State & Hardware Profile Split Button -->
             <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
-                <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
-                    <span class="profile-name-text" id="active-profile-name">Safe State</span>
-                    <span class="dropdown-arrow">▾</span>
-                </button>
+                <div class="join">
+                    <button class="join-item btn btn-sm btn-error gap-1.5 font-bold text-xs uppercase tracking-wider text-error-content shadow-none border-r border-error-content/20" id="btn-emergency-safe" title="Emergency Safe State: High-Z all GPIO pins (Slot 0)">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <span>SAFE STATE</span>
+                    </button>
+                    <button class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                        <span class="profile-name-text" id="active-profile-name">Safe State</span>
+                        <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
+                    </button>
+                </div>
                 <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
                     <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
                     <div class="profile-menu-slots" id="profile-menu-slots">
@@ -191,14 +184,6 @@
                     <path opacity="0.4" d="M12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18V6Z" fill="currentColor"/>
                     <path opacity="0.5" d="M12 2V4M12 20V22M4 12H2M7.05 7.05L5.636 5.636M7.05 16.95L5.636 18.364" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                     <path opacity="0.4" d="M12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 3"/>
-                </svg>
-            </button>
-
-            <!-- Settings Trigger -->
-            <button class="action-btn icon-btn header-btn" id="btn-header-settings" title="System Settings">
-                <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M14.2788 2.15224C13.9085 2 13.439 2 12.5 2C11.561 2 11.0915 2 10.7212 2.15224C10.2274 2.35523 9.83509 2.74458 9.63056 3.23463C9.53719 3.45834 9.50065 3.7185 9.48635 4.09799C9.46534 4.65568 9.17716 5.17189 8.69017 5.45093C8.20318 5.72996 7.60864 5.71954 7.11149 5.45876C6.77318 5.2813 6.52789 5.18262 6.28599 5.15102C5.75609 5.08178 5.22018 5.22429 4.79616 5.5472C4.47814 5.78938 4.24339 6.1929 3.7739 6.99993C3.30441 7.80697 3.06967 8.21048 3.01735 8.60491C2.94758 9.1308 3.09118 9.66266 3.41655 10.0835C3.56506 10.2756 3.77377 10.437 4.0977 10.639C4.57391 10.936 4.88032 11.4419 4.88029 12C4.88026 12.5581 4.57386 13.0639 4.0977 13.3608C3.77372 13.5629 3.56497 13.7244 3.41645 13.9165C3.09108 14.3373 2.94749 14.8691 3.01725 15.395C3.06957 15.7894 3.30432 16.193 3.7738 17C4.24329 17.807 4.47804 18.2106 4.79606 18.4527C5.22008 18.7756 5.75599 18.9181 6.28589 18.8489C6.52778 18.8173 6.77305 18.7186 7.11133 18.5412C7.60852 18.2804 8.2031 18.27 8.69012 18.549C9.17714 18.8281 9.46533 19.3443 9.48635 19.9021C9.50065 20.2815 9.53719 20.5417 9.63056 20.7654C9.83509 21.2554 10.2274 21.6448 10.7212 21.8478C11.0915 22 11.561 22 12.5 22C13.439 22 13.9085 22 14.2788 21.8478C14.7726 21.6448 15.1649 21.2554 15.3694 20.7654C15.4628 20.5417 15.4994 20.2815 15.5137 19.902C15.5347 19.3443 15.8228 18.8281 16.3098 18.549C16.7968 18.2699 17.3914 18.2804 17.8886 18.5412C18.2269 18.7186 18.4721 18.8172 18.714 18.8488C19.2439 18.9181 19.7798 18.7756 20.2038 18.4527C20.5219 18.2105 20.7566 17.807 21.2261 16.9999C21.6956 16.1929 21.9303 15.7894 21.9827 15.395C22.0524 14.8691 21.9088 14.3372 21.5835 13.9164C21.4349 13.7243 21.2262 13.5628 20.9022 13.3608C20.4261 13.0639 20.1197 12.558 20.1197 11.9999C20.1197 11.4418 20.4261 10.9361 20.9022 10.6392C21.2263 10.4371 21.435 10.2757 21.5836 10.0835C21.9089 9.66273 22.0525 9.13087 21.9828 8.60497C21.9304 8.21055 21.6957 7.80703 21.2262 7C20.7567 6.19297 20.522 5.78945 20.2039 5.54727C19.7799 5.22436 19.244 5.08185 18.7141 5.15109C18.4722 5.18269 18.2269 5.28136 17.8887 5.4588C17.3915 5.71959 16.7969 5.73002 16.3099 5.45096C15.8229 5.17191 15.5347 4.65566 15.5136 4.09794C15.4993 3.71848 15.4628 3.45833 15.3694 3.23463C15.1649 2.74458 14.7726 2.35523 14.2788 2.15224Z" fill="currentColor"/>
-                    <path d="M15.5227 12C15.5227 13.6569 14.1694 15 12.4999 15C10.8304 15 9.47705 13.6569 9.47705 12C9.47705 10.3431 10.8304 9 12.4999 9C14.1694 9 15.5227 10.3431 15.5227 12Z" fill="currentColor"/>
                 </svg>
             </button>
         </div>
@@ -242,19 +227,6 @@
 
                 <!-- VIEW 1: Launchpad Desktop View -->
                 <div id="view-launchpad">
-                    <!-- Simple Non-intrusive Platform Description -->
-                    <div class="launchpad-subtitle-bar">
-                        <span class="launchpad-desc-text">Open hardware analysis &amp; mixed-signal automation platform.</span>
-                        <a href="https://rambros3d.github.io/AgentLA" target="_blank" rel="noopener noreferrer" class="launchpad-project-link">
-                            <span>Project Page</span>
-                            <svg class="solar-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                                <polyline points="15 3 21 3 21 9"/>
-                                <line x1="10" y1="14" x2="21" y2="3"/>
-                            </svg>
-                        </a>
-                    </div>
-
                     <!-- Pinned Workspace Canvas Widgets (Telemetry HUD & Flash Storage) -->
                     <div id="pinned-widgets-area" style="display: none; margin-bottom: 24px;"></div>
 
@@ -662,6 +634,14 @@
                 </div>
             </div>
         </div>
+
+        <!-- Settings Trigger Button in Dock (Moved from Top Bar) -->
+        <button class="dock-icon-btn" id="btn-header-settings" data-dock-tooltip="Settings" onclick="openSettingsModal()" title="System Settings">
+            <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M14.2788 2.15224C13.9085 2 13.439 2 12.5 2C11.561 2 11.0915 2 10.7212 2.15224C10.2274 2.35523 9.83509 2.74458 9.63056 3.23463C9.53719 3.45834 9.50065 3.7185 9.48635 4.09799C9.46534 4.65568 9.17716 5.17189 8.69017 5.45093C8.20318 5.72996 7.60864 5.71954 7.11149 5.45876C6.77318 5.2813 6.52789 5.18262 6.28599 5.15102C5.75609 5.08178 5.22018 5.22429 4.79616 5.5472C4.47814 5.78938 4.24339 6.1929 3.7739 6.99993C3.30441 7.80697 3.06967 8.21048 3.01735 8.60491C2.94758 9.1308 3.09118 9.66266 3.41655 10.0835C3.56506 10.2756 3.77377 10.437 4.0977 10.639C4.57391 10.936 4.88032 11.4419 4.88029 12C4.88026 12.5581 4.57386 13.0639 4.0977 13.3608C3.77372 13.5629 3.56497 13.7244 3.41645 13.9165C3.09108 14.3373 2.94749 14.8691 3.01725 15.395C3.06957 15.7894 3.30432 16.193 3.7738 17C4.24329 17.807 4.47804 18.2106 4.79606 18.4527C5.22008 18.7756 5.75599 18.9181 6.28589 18.8489C6.52778 18.8173 6.77305 18.7186 7.11133 18.5412C7.60852 18.2804 8.2031 18.27 8.69012 18.549C9.17714 18.8281 9.46533 19.3443 9.48635 19.9021C9.50065 20.2815 9.53719 20.5417 9.63056 20.7654C9.83509 21.2554 10.2274 21.6448 10.7212 21.8478C11.0915 22 11.561 22 12.5 22C13.439 22 13.9085 22 14.2788 21.8478C14.7726 21.6448 15.1649 21.2554 15.3694 20.7654C15.4628 20.5417 15.4994 20.2815 15.5137 19.902C15.5347 19.3443 15.8228 18.8281 16.3098 18.549C16.7968 18.2699 17.3914 18.2804 17.8886 18.5412C18.2269 18.7186 18.4721 18.8172 18.714 18.8488C19.2439 18.9181 19.7798 18.7756 20.2038 18.4527C20.5219 18.2105 20.7566 17.807 21.2261 16.9999C21.6956 16.1929 21.9303 15.7894 21.9827 15.395C22.0524 14.8691 21.9088 14.3372 21.5835 13.9164C21.4349 13.7243 21.2262 13.5628 20.9022 13.3608C20.4261 13.0639 20.1197 12.558 20.1197 11.9999C20.1197 11.4418 20.4261 10.9361 20.9022 10.6392C21.2263 10.4371 21.435 10.2757 21.5836 10.0835C21.9089 9.66273 22.0525 9.13087 21.9828 8.60497C21.9304 8.21055 21.6957 7.80703 21.2262 7C20.7567 6.19297 20.522 5.78945 20.2039 5.54727C19.7799 5.22436 19.244 5.08185 18.7141 5.15109C18.4722 5.18269 18.2269 5.28136 17.8887 5.4588C17.3915 5.71959 16.7969 5.73002 16.3099 5.45096C15.8229 5.17191 15.5347 4.65566 15.5136 4.09794C15.4993 3.71848 15.4628 3.45833 15.3694 3.23463C15.1649 2.74458 14.7726 2.35523 14.2788 2.15224Z" fill="currentColor"/>
+                <path d="M15.5227 12C15.5227 13.6569 14.1694 15 12.4999 15C10.8304 15 9.47705 13.6569 9.47705 12C9.47705 10.3431 10.8304 9 12.4999 9C14.1694 9 15.5227 10.3431 15.5227 12Z" fill="currentColor"/>
+            </svg>
+        </button>
     </div>
 
     <!-- Hidden File Picker for Local App Packages (.tar or .html) -->
@@ -970,8 +950,8 @@
     <script>
         // Check if running in static demo environment (e.g. GitHub Pages)
         const isDemo = window.location.protocol === 'file:' ||
-                       window.location.protocol === 'https:' || 
-                       window.location.hostname.includes('github.io') || 
+                       window.location.protocol === 'https:' ||
+                       window.location.hostname.includes('github.io') ||
                        window.location.search.includes('demo=1') ||
                        (window.location.hostname === 'localhost' && window.location.port !== '80');
 
@@ -1008,7 +988,9 @@
                 // Show Launchpad Workspace
                 if (mainWorkspace) mainWorkspace.style.display = 'flex';
                 if (viewportContainer) viewportContainer.style.display = 'none';
-                if (topBarActiveApp) topBarActiveApp.style.display = 'none';
+                const ctxTitle = document.getElementById('top-bar-context-title');
+                if (ctxTitle) ctxTitle.textContent = currentBoardName;
+                document.title = `AgentLA // ${currentBoardName}`;
                 if (launcherDockBtn) launcherDockBtn.classList.add('active');
                 activeAppInfo = null;
                 return;
@@ -1067,10 +1049,9 @@
                 dockId = `dock-app-${appId}`;
             }
 
-            if (topBarActiveApp) {
-                topBarActiveApp.style.display = 'inline-flex';
-                if (topBarActiveAppName) topBarActiveAppName.textContent = appTitle;
-            }
+            const ctxTitle = document.getElementById('top-bar-context-title');
+            if (ctxTitle) ctxTitle.textContent = appTitle;
+            document.title = `AgentLA // ${appTitle}`;
 
             if (dockId) {
                 const dockBtn = document.getElementById(dockId);
@@ -1105,7 +1086,8 @@
 
         // State
         let deviceStorage = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
-        let deviceSystem = { chip: "RP2350B", board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0" };
+        let deviceSystem = { chip: "RP2350B", board_name: "BakuProbe", flash_bytes: 8388608, firmware_version: "v2.0" };
+        let currentBoardName = "BakuProbe";
         let installedApps = [];
 
         const SYSTEM_APPS = [
@@ -1614,9 +1596,18 @@
         // Hardware Telemetry & Storage
         async function fetchSystemInfo() {
             try {
-                const res = await fetch('/api/v1/system');
-                if (res.ok) {
-                    deviceSystem = await res.json();
+                const [sysRes, boardRes] = await Promise.allSettled([
+                    fetch('/api/v1/system'),
+                    fetch('/board.json')
+                ]);
+                if (sysRes.status === 'fulfilled' && sysRes.value.ok) {
+                    deviceSystem = await sysRes.value.json();
+                }
+                if (boardRes.status === 'fulfilled' && boardRes.value.ok) {
+                    const boardManifest = await boardRes.value.json();
+                    if (boardManifest && boardManifest.name) {
+                        deviceSystem.board_name = boardManifest.name;
+                    }
                 }
             } catch (e) {
                 // Use default deviceSystem
@@ -1631,7 +1622,8 @@
             const pFw = document.getElementById('pinned-info-fw');
             const chipTxt = deviceSystem.chip || "RP2350B Cortex-M33";
             const clockTxt = (deviceSystem.clock_mhz ? `${deviceSystem.clock_mhz}MHz` : "150MHz") + " · 520KB";
-            const boardTxt = deviceSystem.board_name || "BakuProbe / Pico 2";
+            const boardTxt = deviceSystem.board_name || "BakuProbe";
+            currentBoardName = boardTxt;
             const fwTxt = deviceSystem.firmware_version || "v2.0";
             if (elChip) elChip.innerText = chipTxt;
             if (elClock) elClock.innerText = clockTxt;
@@ -1641,6 +1633,12 @@
             if (pClock) pClock.innerText = clockTxt;
             if (pBoard) pBoard.innerText = boardTxt;
             if (pFw) pFw.innerText = fwTxt;
+
+            if (!activeAppInfo && (!currentRoute || currentRoute === '#/' || currentRoute === '#/launcher' || currentRoute === '#/home' || currentRoute === '')) {
+                const ctxTitle = document.getElementById('top-bar-context-title');
+                if (ctxTitle) ctxTitle.textContent = currentBoardName;
+                document.title = `AgentLA // ${currentBoardName}`;
+            }
         }
 
         async function fetchStorage() {
@@ -1872,7 +1870,7 @@
                 const installed = installedApps.find(a => (a.id || a.name) === appId);
                 if (!installed) return;
                 const appName = installed.title || installed.name || appId;
-                
+
                 let clickAction = `navigateToRoute('#/app/${encodeURIComponent(appId)}')`;
 
                 let iconSvg = '';
@@ -2502,8 +2500,8 @@
             manifest.id = appName;
 
             // Determine files to download
-            const fileNames = Array.isArray(manifest.files) && manifest.files.length > 0 
-                ? manifest.files 
+            const fileNames = Array.isArray(manifest.files) && manifest.files.length > 0
+                ? manifest.files
                 : ['index.html', 'icon.svg'];
 
             updateProgress(45, `Fetching app assets (${fileNames.join(', ')})...`);
@@ -3182,6 +3180,15 @@
                 const tVal = data.temp_c + ' °C';
                 if (temp) temp.textContent = tVal;
                 if (pTemp) pTemp.textContent = tVal;
+
+                const tbVolt = document.getElementById('top-bar-voltage-val');
+                const tbCurr = document.getElementById('top-bar-current-val');
+                if (tbVolt && data.v_target_mv !== undefined) tbVolt.textContent = (data.v_target_mv / 1000).toFixed(2) + 'V';
+                if (tbCurr && data.i_target_ma !== undefined) tbCurr.textContent = data.i_target_ma + 'mA';
+                const pwrSwitch = document.getElementById('target-power-switch');
+                if (pwrSwitch && data.v_target_mv !== undefined) {
+                    pwrSwitch.checked = (data.v_target_mv > 1000);
+                }
 
                 const alarmBadge = document.getElementById('hud-alarm-badge');
                 const pAlarmBadge = document.getElementById('pinned-hud-alarm-badge');

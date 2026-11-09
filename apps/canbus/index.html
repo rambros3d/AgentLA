@@ -1,39 +1,46 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="nothing" data-style="industrial">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CAN Bus Analyzer — AgentLA</title>
+  <title>CAN_BUS_ANALYZER // AgentLA</title>
   <script>
     // Restore system theme immediately before render to avoid flash
     (function() {
+      document.documentElement.setAttribute('data-style', 'industrial');
       var savedMode = localStorage.getItem('agentla-theme-mode');
       var saved = localStorage.getItem('agentla-theme');
+      var defaultDark = 'nothing';
+      var defaultLight = 'industrial-light';
       if (saved) {
         document.documentElement.setAttribute('data-theme', saved);
-        var isLight = (saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+        var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
         document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
       } else if (savedMode === 'light') {
-        document.documentElement.setAttribute('data-theme', 'emerald');
+        document.documentElement.setAttribute('data-theme', defaultLight);
         document.documentElement.setAttribute('data-theme-scheme', 'light');
       } else if (savedMode === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'forest');
+        document.documentElement.setAttribute('data-theme', defaultDark);
         document.documentElement.setAttribute('data-theme-scheme', 'dark');
       } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        document.documentElement.setAttribute('data-theme', 'emerald');
+        document.documentElement.setAttribute('data-theme', defaultLight);
         document.documentElement.setAttribute('data-theme-scheme', 'light');
       } else {
-        document.documentElement.setAttribute('data-theme', 'forest');
+        document.documentElement.setAttribute('data-theme', defaultDark);
         document.documentElement.setAttribute('data-theme-scheme', 'dark');
       }
     })();
   </script>
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="alternate icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="/daisyui.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <script src="/agentla-bridge.js"></script>
   <style>
-    html.is-embedded #top-bar {
+    html.is-embedded #top-bar,
+    html.is-embedded .floating-glass-dock,
+    html.is-embedded #floating-glass-dock {
       display: none !important;
     }
   </style>
@@ -43,19 +50,10 @@
   <!-- Unified Clean OS Top Bar -->
   <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-1.5 min-h-0 flex justify-between items-center z-30">
     <div class="navbar-start flex items-center gap-2">
-      <a href="/home/" class="brand-item flex items-center gap-2 text-inherit no-underline" title="AgentLA App Launcher">
+      <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="AgentLA App Launcher (Return to Home)">
         <span class="start-menu-icon" aria-hidden="true"></span>
-        <span class="font-bold tracking-tight text-sm">AgentLA</span>
-        <span class="status status-success status-xs" title="Hardware Engine Online"></span>
+        <span class="font-bold tracking-tight text-sm font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> CAN Bus Analyzer</span>
       </a>
-      <span class="text-base-content/30 mx-1">/</span>
-      <span class="font-semibold text-xs flex items-center gap-1.5 text-base-content">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-primary" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 15h2c.6 0 1-.4 1-1v-2c0-.7-.5-1.3-1.2-1.4L15 10l-2-2H8l-1.5 2.2A2 2 0 0 0 6 11v3c0 .6.4 1 1 1h1"/>
-          <circle cx="9" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/>
-        </svg>
-        CAN Bus Analyzer
-      </span>
     </div>
 
     <div class="navbar-end flex items-center gap-2">
@@ -65,23 +63,36 @@
         <span id="ws-status-text">Disconnected</span>
       </div>
 
-      <!-- Target Power Rail Toggle Pill -->
-      <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
-        <svg class="solar-icon power-bolt-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+      <!-- Target Power Rail Toggle Switch -->
+      <label class="power-toggle-widget cursor-pointer flex items-center gap-2 bg-base-200/90 hover:bg-base-300 border border-base-300 rounded-full px-3 py-1 transition-all select-none" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+        <svg class="solar-icon power-bolt-icon text-warning shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
-        <span class="power-pill-label" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
-      </button>
+        <span class="power-pill-label font-mono-tech text-xs font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
+        <input type="checkbox" class="toggle toggle-xs toggle-success" id="target-power-switch" checked />
+      </label>
 
-      <!-- Emergency Safe State Button -->
-      <button class="preset-pill emergency-safe-btn" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        SAFE STATE
-      </button>
+      <!-- Combined Emergency Safe State & Hardware Profile Split Button -->
+      <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+        <div class="join">
+          <button class="join-item btn btn-sm btn-error gap-1.5 font-bold text-xs uppercase tracking-wider text-error-content shadow-none border-r border-error-content/20" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>SAFE STATE</span>
+          </button>
+          <button class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+            <span class="profile-name-text" id="active-profile-name">Safe State</span>
+            <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
+          </button>
+        </div>
+        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+          <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+          <div class="profile-menu-slots" id="profile-menu-slots"></div>
+        </div>
+      </div>
 
       <!-- Tri-State Theme Toggle -->
       <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)">
@@ -92,12 +103,18 @@
     </div>
   </header>
 
-  <!-- Controls & Filtering Bar -->
-  <div class="bg-base-200/80 border-b border-base-300 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+  <!-- Controls & Filtering Sub-Toolbar (Active in both Standalone and Embedded Modes) -->
+  <div class="bg-base-200/95 border-b border-base-300 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs z-20">
     <div class="flex items-center gap-3 flex-wrap">
+      <!-- Sub-Toolbar WS Status Badge (Visible when embedded) -->
+      <div id="sub-ws-badge" class="badge badge-error badge-xs gap-1.5 font-mono uppercase tracking-wider font-semibold py-2">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-current"></span>
+        <span id="sub-ws-status-text">Disconnected</span>
+      </div>
+
       <!-- Bitrate Selector -->
       <div class="flex items-center gap-1.5">
-        <span class="text-base-content/70 font-medium">Bitrate:</span>
+        <span class="text-base-content/70 font-semibold uppercase tracking-wider text-[11px]">Bitrate:</span>
         <select id="sel-baud" class="select select-bordered select-xs bg-base-100 font-mono w-28">
           <option value="10000">10 kbps</option>
           <option value="20000">20 kbps</option>
@@ -112,34 +129,123 @@
       </div>
 
       <!-- 120 Ohm Termination Toggle -->
-      <button id="btn-term-toggle" class="btn btn-xs btn-outline" title="Toggle software-controlled 120Ω bus termination on GPIO 22">
+      <button id="btn-term-toggle" class="btn btn-xs btn-outline uppercase tracking-wider font-semibold" title="Toggle software-controlled 120 ohm bus termination on GPIO 22">
         <span id="term-label">120Ω Term: OFF</span>
       </button>
 
       <!-- ID Filter Input -->
       <div class="join">
-        <span class="join-item btn btn-xs btn-neutral pointer-events-none text-base-content/60 font-sans">Filter</span>
+        <span class="join-item btn btn-xs btn-neutral pointer-events-none text-base-content/70 font-mono uppercase text-[10px]">Filter</span>
         <input type="text" id="input-filter-id" placeholder="0x7DF or ID" class="input input-bordered input-xs join-item font-mono w-28 bg-base-100">
       </div>
 
       <!-- Auto-scroll checkbox -->
       <label class="label cursor-pointer gap-1.5 py-0">
         <input type="checkbox" id="chk-autoscroll" class="checkbox checkbox-xs checkbox-primary" checked>
-        <span class="label-text text-xs">Auto-scroll</span>
+        <span class="label-text text-xs uppercase tracking-wider font-semibold">Auto-scroll</span>
       </label>
     </div>
 
     <!-- Right Action Buttons -->
     <div class="join">
-      <button id="btn-connect" class="btn btn-xs btn-primary join-item">Connect</button>
-      <button id="btn-clear" class="btn btn-xs btn-ghost join-item" title="Clear packet log">Clear</button>
-      <button id="btn-export-csv" class="btn btn-xs btn-neutral join-item" title="Export captured frames to CSV">Export CSV</button>
+      <button id="btn-connect" class="btn btn-xs btn-primary join-item uppercase tracking-wider font-semibold">Connect</button>
+      <button id="btn-clear" class="btn btn-xs btn-ghost join-item uppercase tracking-wider font-semibold" title="Clear packet log">Clear</button>
+      <button id="btn-export-csv" class="btn btn-xs btn-neutral join-item uppercase tracking-wider font-semibold" title="Export captured frames to CSV">Export CSV</button>
     </div>
   </div>
 
-  <!-- Live Packet Inspector Table -->
+  <!-- Top Fixed Bento Card: Frame Injector (TX) -->
+  <section id="tx-frame-card" class="bg-base-200/90 border-b border-base-300 p-3 flex flex-col gap-2 shadow-sm z-10 shrink-0">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-xs text-primary uppercase tracking-wider font-dot flex items-center gap-1.5">
+          Frame Injector (TX)
+        </span>
+        <div class="flex items-center gap-1.5 ml-2">
+          <span class="text-[11px] text-base-content/60 uppercase tracking-wider font-semibold">Presets:</span>
+          <div class="flex gap-1">
+            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary font-mono text-[10px] transition-colors" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0D 00 00 00 00 00')">OBD-II Speed</span>
+            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary font-mono text-[10px] transition-colors" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0C 00 00 00 00 00')">OBD-II RPM</span>
+            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary font-mono text-[10px] transition-colors" onclick="applyPreset('0x100', false, false, 4, 'DE AD BE EF')">Heartbeat</span>
+          </div>
+        </div>
+      </div>
+      <!-- Live Metrics Strip in Card Header -->
+      <div class="flex items-center gap-2 text-xs font-mono text-base-content/70">
+        <span>RX: <strong id="stat-rx-count" class="text-base-content font-bold">0</strong></span>
+        <span>·</span>
+        <span>TX: <strong id="stat-tx-count" class="text-base-content font-bold">0</strong></span>
+        <span>·</span>
+        <span>Bus: <span id="stat-bus-state" class="text-success font-semibold">READY</span></span>
+        <span>·</span>
+        <span>Term: <strong id="stat-term-state">OFF</strong></span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- Frame ID -->
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-base-content/70 font-semibold uppercase text-[11px]">ID:</span>
+        <input type="text" id="tx-id" value="0x7DF" class="input input-bordered input-xs font-mono w-20 bg-base-100">
+      </div>
+
+      <!-- Extended ID toggle -->
+      <label class="label cursor-pointer gap-1.5 py-0">
+        <input type="checkbox" id="tx-ext" class="checkbox checkbox-xs checkbox-secondary">
+        <span class="label-text text-xs uppercase font-semibold">Extended</span>
+      </label>
+
+      <!-- RTR toggle -->
+      <label class="label cursor-pointer gap-1.5 py-0">
+        <input type="checkbox" id="tx-rtr" class="checkbox checkbox-xs checkbox-warning">
+        <span class="label-text text-xs uppercase font-semibold">RTR</span>
+      </label>
+
+      <!-- DLC -->
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-base-content/70 font-semibold uppercase text-[11px]">DLC:</span>
+        <select id="tx-dlc" class="select select-bordered select-xs font-mono w-14 bg-base-100">
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8" selected>8</option>
+        </select>
+      </div>
+
+      <!-- Hex Data -->
+      <div class="flex-1 flex items-center gap-1 min-w-[200px]">
+        <span class="text-xs text-base-content/70 font-semibold uppercase text-[11px]">Data:</span>
+        <input type="text" id="tx-data" value="02 01 0D 00 00 00 00 00" placeholder="Hex bytes space separated" class="input input-bordered input-xs font-mono flex-1 bg-base-100">
+      </div>
+
+      <!-- Send Button -->
+      <button id="btn-send-tx" class="btn btn-xs btn-primary font-semibold uppercase tracking-wider text-xs">Send Frame</button>
+
+      <!-- Periodic Transmit Loop -->
+      <div class="join items-center">
+        <label class="join-item label cursor-pointer gap-1 bg-base-300 px-2 py-0.5 border border-base-content/20 rounded-l-btn">
+          <input type="checkbox" id="chk-periodic" class="checkbox checkbox-xs checkbox-info">
+          <span class="label-text text-xs font-semibold uppercase text-[10px]">Every</span>
+        </label>
+        <select id="sel-period" class="join-item select select-bordered select-xs font-mono bg-base-100">
+          <option value="50">50 ms</option>
+          <option value="100" selected>100 ms</option>
+          <option value="250">250 ms</option>
+          <option value="500">500 ms</option>
+          <option value="1000">1000 ms</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Packet Inspector Table (Filling remainder with 72px dock clearance) -->
   <main class="flex-1 flex flex-col overflow-hidden bg-base-100">
-    <div class="flex-1 overflow-y-auto" id="table-container">
+    <div class="flex-1 overflow-y-auto pb-[72px]" id="table-container">
       <table class="table table-pin-rows table-xs w-full font-mono" id="can-table">
         <thead>
           <tr class="bg-base-200 text-base-content/70">
@@ -158,97 +264,6 @@
         </tbody>
       </table>
     </div>
-
-    <!-- Frame Injector (TX) Panel -->
-    <section class="bg-base-200 border-t border-base-300 p-3 flex flex-col gap-2 shadow-inner">
-      <div class="flex items-center justify-between gap-2 flex-wrap">
-        <span class="font-bold text-xs text-primary flex items-center gap-1.5">
-          Frame Injector (TX)
-        </span>
-        <div class="flex items-center gap-1.5">
-          <span class="text-xs text-base-content/60">Presets:</span>
-          <div class="flex gap-1">
-            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary transition-colors" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0D 00 00 00 00 00')">OBD-II Speed</span>
-            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary transition-colors" onclick="applyPreset('0x7DF', false, false, 8, '02 01 0C 00 00 00 00 00')">OBD-II RPM</span>
-            <span class="badge badge-sm badge-outline cursor-pointer hover:badge-primary transition-colors" onclick="applyPreset('0x100', false, false, 4, 'DE AD BE EF')">Heartbeat</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 flex-wrap">
-        <!-- Frame ID -->
-        <div class="flex items-center gap-1">
-          <span class="text-xs text-base-content/70">ID:</span>
-          <input type="text" id="tx-id" value="0x7DF" class="input input-bordered input-xs font-mono w-20 bg-base-100">
-        </div>
-
-        <!-- Extended ID toggle -->
-        <label class="label cursor-pointer gap-1.5 py-0">
-          <input type="checkbox" id="tx-ext" class="checkbox checkbox-xs checkbox-secondary">
-          <span class="label-text text-xs">Extended</span>
-        </label>
-
-        <!-- RTR toggle -->
-        <label class="label cursor-pointer gap-1.5 py-0">
-          <input type="checkbox" id="tx-rtr" class="checkbox checkbox-xs checkbox-warning">
-          <span class="label-text text-xs">RTR</span>
-        </label>
-
-        <!-- DLC -->
-        <div class="flex items-center gap-1">
-          <span class="text-xs text-base-content/70">DLC:</span>
-          <select id="tx-dlc" class="select select-bordered select-xs font-mono w-14 bg-base-100">
-            <option value="0">0</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8" selected>8</option>
-          </select>
-        </div>
-
-        <!-- Hex Data -->
-        <div class="flex-1 flex items-center gap-1 min-w-[200px]">
-          <span class="text-xs text-base-content/70">Data:</span>
-          <input type="text" id="tx-data" value="02 01 0D 00 00 00 00 00" placeholder="Hex bytes space separated" class="input input-bordered input-xs font-mono flex-1 bg-base-100">
-        </div>
-
-        <!-- Send Button -->
-        <button id="btn-send-tx" class="btn btn-xs btn-accent font-semibold">Send Frame</button>
-
-        <!-- Periodic Transmit Loop -->
-        <div class="join items-center">
-          <label class="join-item label cursor-pointer gap-1 bg-base-300 px-2 py-0.5 border border-base-content/20 rounded-l-btn">
-            <input type="checkbox" id="chk-periodic" class="checkbox checkbox-xs checkbox-info">
-            <span class="label-text text-xs">Every</span>
-          </label>
-          <select id="sel-period" class="join-item select select-bordered select-xs font-mono bg-base-100">
-            <option value="50">50 ms</option>
-            <option value="100" selected>100 ms</option>
-            <option value="250">250 ms</option>
-            <option value="500">500 ms</option>
-            <option value="1000">1000 ms</option>
-          </select>
-        </div>
-      </div>
-    </section>
-
-    <!-- Status Bar Footer -->
-    <footer class="bg-base-300 px-4 py-1.5 text-xs text-base-content/70 flex justify-between items-center border-t border-base-content/10">
-      <div class="flex items-center gap-3">
-        <span>RX: <strong id="stat-rx-count" class="text-base-content">0</strong> frames</span>
-        <span class="text-base-content/30">·</span>
-        <span>TX: <strong id="stat-tx-count" class="text-base-content">0</strong> frames</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <span>Bus: <span id="stat-bus-state" class="text-success font-semibold">READY</span></span>
-        <span class="text-base-content/30">·</span>
-        <span>Termination: <strong id="stat-term-state">OFF</strong></span>
-      </div>
-    </footer>
   </main>
 
   <script>
@@ -263,6 +278,8 @@
 
     const wsBadge = document.getElementById('ws-badge');
     const wsStatusText = document.getElementById('ws-status-text');
+    const subWsBadge = document.getElementById('sub-ws-badge');
+    const subWsStatusText = document.getElementById('sub-ws-status-text');
     const btnConnect = document.getElementById('btn-connect');
     const btnClear = document.getElementById('btn-clear');
     const btnExportCsv = document.getElementById('btn-export-csv');
@@ -272,6 +289,7 @@
     const inputFilterId = document.getElementById('input-filter-id');
     const btnTermToggle = document.getElementById('btn-term-toggle');
     const termLabel = document.getElementById('term-label');
+    const statBusState = document.getElementById('stat-bus-state');
     const statTermState = document.getElementById('stat-term-state');
     const statRxCount = document.getElementById('stat-rx-count');
     const statTxCount = document.getElementById('stat-tx-count');
@@ -286,21 +304,29 @@
     const selPeriod = document.getElementById('sel-period');
 
     function updateStatus(state) {
-      wsBadge.classList.remove('badge-error', 'badge-warning', 'badge-success');
+      const badges = [wsBadge, subWsBadge].filter(Boolean);
+      badges.forEach(b => b.classList.remove('badge-error', 'badge-warning', 'badge-success'));
       if (state === 'connected') {
-        wsBadge.classList.add('badge-success');
-        wsStatusText.textContent = 'Connected';
+        badges.forEach(b => b.classList.add('badge-success'));
+        if (wsStatusText) wsStatusText.textContent = 'Connected';
+        if (subWsStatusText) subWsStatusText.textContent = 'Connected';
         btnConnect.textContent = 'Disconnect';
         btnConnect.classList.remove('btn-primary');
         btnConnect.classList.add('btn-neutral');
       } else if (state === 'connecting') {
-        wsBadge.classList.add('badge-warning');
-        wsStatusText.textContent = 'Connecting...';
+        badges.forEach(b => b.classList.add('badge-warning'));
+        if (wsStatusText) wsStatusText.textContent = 'Connecting...';
+        if (subWsStatusText) subWsStatusText.textContent = 'Connecting...';
         btnConnect.textContent = 'Connecting...';
       } else {
-        wsBadge.classList.add('badge-error');
-        wsStatusText.textContent = 'Disconnected';
+        badges.forEach(b => b.classList.add('badge-error'));
+        if (wsStatusText) wsStatusText.textContent = 'Disconnected';
+        if (subWsStatusText) subWsStatusText.textContent = 'Disconnected';
         btnConnect.textContent = 'Connect';
+        btnConnect.classList.add('btn-primary');
+        btnConnect.classList.remove('btn-neutral');
+      }
+    }
         btnConnect.classList.add('btn-primary');
         btnConnect.classList.remove('btn-neutral');
       }

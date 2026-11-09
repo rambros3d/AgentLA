@@ -72,21 +72,12 @@
 <body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
 
   <!-- Top Navigation Header -->
-  <header class="navbar bg-base-200 border-b border-base-300 px-4 py-2 min-h-0 flex justify-between items-center z-30 sticky top-0">
+  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-2 min-h-0 flex justify-between items-center z-30 sticky top-0">
     <div class="navbar-start flex items-center gap-2">
       <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="Return to Launcher (Home)">
         <span class="start-menu-icon" aria-hidden="true"></span>
-        <span class="font-bold tracking-tight text-sm font-dot">[00] AgentLA</span>
-        <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
+        <span class="font-bold tracking-tight text-sm font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> Storage Files</span>
       </a>
-      <span class="text-base-content/30 mx-1">/</span>
-      <span class="font-semibold text-xs flex items-center gap-1.5 text-base-content font-dot">
-        <svg class="solar-icon text-primary" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-          <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
-        </svg>
-        [01] STORAGE.CONSOLE
-      </span>
     </div>
 
     <div class="navbar-center hidden md:flex items-center gap-2">
@@ -121,7 +112,7 @@
   <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
     
     <!-- Left Navigation & Bento Partition Storage Card -->
-    <aside class="w-full md:w-64 bg-base-200/50 border-r border-base-300 p-3 flex flex-col gap-3 shrink-0 overflow-y-auto">
+    <aside class="w-full md:w-64 bg-base-200/50 border-r border-base-300 p-3 pb-[72px] flex flex-col gap-3 shrink-0 overflow-y-auto">
       
       <!-- Mobile Partition Selector -->
       <div class="join md:hidden w-full border border-base-300 rounded-lg p-0.5 bg-base-300/40">
@@ -235,13 +226,27 @@
     <main class="flex-1 flex flex-col bg-base-100 overflow-hidden">
       
       <!-- Toolbar & Action Strip -->
-      <div class="bg-base-200/30 border-b border-base-300 p-2.5 flex flex-wrap items-center justify-between gap-2">
+      <div class="bg-base-200/50 border-b border-base-300 p-2.5 flex flex-wrap items-center justify-between gap-2 z-10">
         
-        <!-- Breadcrumbs Navigation -->
-        <div class="breadcrumbs text-xs font-tech py-0 overflow-x-auto max-w-full">
-          <ul id="breadcrumb-list">
-            <!-- Dynamically populated -->
-          </ul>
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- In-App Partition Switcher (Always accessible in Standalone & Embedded modes) -->
+          <div class="join border border-base-300 rounded p-0.5 bg-base-300/40">
+            <button id="btn-part-user-tb" class="join-item btn btn-xs btn-primary font-dot" onclick="switchPartition('user')">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-success mr-1"></span>
+              user:/ [RW]
+            </button>
+            <button id="btn-part-system-tb" class="join-item btn btn-xs btn-ghost font-dot" onclick="switchPartition('system')">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1"></span>
+              sys:/ [RO]
+            </button>
+          </div>
+
+          <!-- Breadcrumbs Navigation -->
+          <div class="breadcrumbs text-xs font-tech py-0 overflow-x-auto max-w-full">
+            <ul id="breadcrumb-list">
+              <!-- Dynamically populated -->
+            </ul>
+          </div>
         </div>
 
         <!-- Action Buttons -->
@@ -302,8 +307,8 @@
         <span class="badge badge-xs badge-warning uppercase font-dot">READ-ONLY</span>
       </div>
 
-      <!-- File Canvas (Grid & Table Views) -->
-      <div id="file-canvas" class="flex-1 p-4 overflow-y-auto relative" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+      <!-- File Canvas (Grid & Table Views with 72px Dock Clearance) -->
+      <div id="file-canvas" class="flex-1 p-4 pb-[72px] overflow-y-auto relative" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
         
         <!-- Loading Spinner -->
         <div id="canvas-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-base-100/70 z-10 hidden">
@@ -644,6 +649,8 @@
       const btnSys = document.getElementById('btn-part-system');
       const btnUserM = document.getElementById('btn-part-user-m');
       const btnSysM = document.getElementById('btn-part-system-m');
+      const btnUserTb = document.getElementById('btn-part-user-tb');
+      const btnSysTb = document.getElementById('btn-part-system-tb');
 
       if (btnUser && btnSys) {
         btnUser.className = `join-item btn btn-xs font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
@@ -652,6 +659,10 @@
       if (btnUserM && btnSysM) {
         btnUserM.className = `join-item btn btn-xs flex-1 font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
         btnSysM.className = `join-item btn btn-xs flex-1 font-dot ${!isUser ? 'btn-primary' : 'btn-ghost'}`;
+      }
+      if (btnUserTb && btnSysTb) {
+        btnUserTb.className = `join-item btn btn-xs font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
+        btnSysTb.className = `join-item btn btn-xs font-dot ${!isUser ? 'btn-primary' : 'btn-ghost'}`;
       }
 
       // Permissions guards for System partition

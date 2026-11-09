@@ -210,10 +210,10 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 <div class="grid">
   <!-- Card 1: WebUI Storage (SYSTEM_FS) -->
   <div class="card">
-    <div class="card-hdr"><span class="title">WebUI Storage (SYSTEM_FS)</span><span class="tag" id="fsTag">512 KB</span></div>
+    <div class="card-hdr"><span class="title">WebUI Storage (SYSTEM_FS)</span><span class="tag" id="fsTag">--</span></div>
     <div class="d-list">
-      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="fsSize">-- / 512 KB</span></div>
-      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00204000</span></div>
+      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="fsSize">--</span></div>
+      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val" id="fsOffset">--</span></div>
       <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
       <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="webVersion">v1.0.0</span></div>
       <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="webUpdate">CHECK or NETWORK ERROR</span></div>
@@ -228,10 +228,10 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
 
   <!-- Card 2: User Storage (USER_FS) -->
   <div class="card">
-    <div class="card-hdr"><span class="title">User Storage (USER_FS)</span><span class="tag" id="userFsTag">1504 KB</span></div>
+    <div class="card-hdr"><span class="title">User Storage (USER_FS)</span><span class="tag" id="userFsTag">--</span></div>
     <div class="d-list">
-      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="userFsSize">-- / 1504 KB</span></div>
-      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val">0x00284000</span></div>
+      <div class="row"><span class="lbl">PARTITION_SIZE</span><span class="dots"></span><span class="val" id="userFsSize">--</span></div>
+      <div class="row"><span class="lbl">PARTITION_OFFSET</span><span class="dots"></span><span class="val" id="userFsOffset">--</span></div>
       <div class="row"><span class="lbl">FILESYSTEM</span><span class="dots"></span><span class="val">LittleFS2</span></div>
     </div>
     <div class="status-msg" id="userFsMsg">Ready.</div>
@@ -244,23 +244,14 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
   <div class="card full">
     <div class="card-hdr">
       <span class="title">Flash Partitions</span>
-      <span class="tag" id="flashGeoTag">RP2350 4096 KB</span>
+      <span class="tag" id="flashGeoTag">--</span>
     </div>
-    <div class="part-bar">
-      <div class="part-seg" style="flex:16" title="Boot Switcher &amp; Metadata (16 KB) [0x00000000]">BOOT<br><span class="seg-sub">16K</span></div>
-      <div class="part-seg active" id="segSlotA" style="flex:1024" title="Firmware Slot A (1024 KB) [0x00004000]">SLOT_A<br><span class="seg-sub" id="lblSlotA">1.0M [RUN]</span></div>
-      <div class="part-seg" id="segSlotB" style="flex:1024" title="Firmware Slot B (1024 KB) [0x00104000]">SLOT_B<br><span class="seg-sub" id="lblSlotB">1.0M [OTA]</span></div>
-      <div class="part-seg" style="flex:512" title="SYSTEM_FS LittleFS (512 KB) [0x00204000]">SYSTEM_FS<br><span class="seg-sub">512K (LFS)</span></div>
-      <div class="part-seg" style="flex:1504" title="USER_FS LittleFS (1504 KB) [0x00284000]">USER_FS<br><span class="seg-sub">1.5M (LFS)</span></div>
-      <div class="part-seg" style="flex:16" title="Reserved Trail (16 KB) [0x003FC000]">END<br><span class="seg-sub">16K</span></div>
+    <div class="part-bar" id="partBar">
+      <div style="padding:6px;color:var(--fg-dim);font-size:10px;text-align:center;width:100%">Loading partition map...</div>
     </div>
     <div class="part-table">
       <div class="pt-row header"><span>PARTITION</span><span>START</span><span>END</span><span>SIZE</span><span>TYPE</span><span>ROLE / STATUS</span></div>
-      <div class="pt-row"><span>BOOT_TABLE</span><span>0x00000000</span><span>0x00004000</span><span>16 KB</span><span>ROM</span><span>Bootloader Switcher</span></div>
-      <div class="pt-row" id="rowSlotA"><span>FW_SLOT_A</span><span>0x00004000</span><span>0x00104000</span><span>1024 KB</span><span>XIP_FLASH</span><span id="roleSlotA">Active Firmware [Running]</span></div>
-      <div class="pt-row" id="rowSlotB"><span>FW_SLOT_B</span><span>0x00104000</span><span>0x00204000</span><span>1024 KB</span><span>XIP_FLASH</span><span id="roleSlotB">Alternate Firmware [Standby]</span></div>
-      <div class="pt-row"><span>SYSTEM_FS</span><span>0x00204000</span><span>0x00284000</span><span>512 KB</span><span>LITTLEFS2</span><span>WebUI &amp; System Bundle</span></div>
-      <div class="pt-row"><span>USER_FS</span><span>0x00284000</span><span>0x003FC000</span><span>1504 KB</span><span>LITTLEFS2</span><span>User Apps, Profiles &amp; Data</span></div>
+      <div id="partTableRows" style="display:contents"></div>
     </div>
   </div>
 </div>
@@ -405,6 +396,8 @@ window.addEventListener('popstate', initView);
 
 const API_ENDPOINTS = [
   { m: 'GET', p: '/api/board/manifest', d: 'Board hardware manifest (MCU chip, clock, SRAM, flash, pinout)', s: 'manifest' },
+  { m: 'GET', p: '/api/v1/system', d: 'MCU chip, core architecture, clock MHz, SRAM, and flash size', s: 'system_info' },
+  { m: 'GET', p: '/api/v1/system/partitions', d: 'Dual-slot firmware and LittleFS flash partition geometry and status', s: 'partitions' },
   { m: 'GET', p: '/api/v1/system/telemetry', d: 'Voltages (V_SYS, V_TARGET), mA draw, core temp, SRAM, and flash size', s: 'telemetry' },
   { m: 'GET', p: '/api/v1/system/telemetry/stream', d: 'Live telemetry Server-Sent Events stream', s: 'telemetry_stream' },
   { m: 'POST', p: '/api/v1/system/reboot', d: 'Trigger immediate hardware system reset', b: '{}', s: 'reboot' },
@@ -603,6 +596,76 @@ async function fetchJSON(u, o={}){
   catch(e){ return null; }
 }
 
+function fmtBytes(bytes){
+  if(bytes >= 1048576){
+    const mb = bytes / 1048576;
+    return (mb % 1 === 0 ? mb.toFixed(0) : mb.toFixed(1)) + ' MB';
+  }
+  return Math.round(bytes / 1024) + ' KB';
+}
+
+function fmtBarSub(p){
+  const shortSize = p.size >= 1048576
+    ? (p.size / 1048576).toFixed(1).replace(/\.0$/, '') + 'M'
+    : Math.round(p.size / 1024) + 'K';
+  if(p.name === 'FW_SLOT_A' || p.name === 'FW_SLOT_B'){
+    return shortSize + ' ' + (p.active ? '[RUN]' : '[STANDBY]');
+  }
+  if(p.type === 'LITTLEFS2'){
+    return shortSize + ' (LFS)';
+  }
+  return shortSize;
+}
+
+let cachedPartitions = null;
+
+async function loadPartitions(){
+  const data = await fetchJSON('/api/v1/system/partitions');
+  if(!data || !data.partitions) return;
+  cachedPartitions = data.partitions;
+
+  const bar = $('partBar');
+  const tbl = $('partTableRows');
+  if(bar) bar.innerHTML = '';
+  if(tbl) tbl.innerHTML = '';
+
+  for(const p of data.partitions){
+    const kb = Math.round(p.size / 1024);
+    const startHex = '0x' + p.offset.toString(16).padStart(8, '0').toUpperCase();
+    const endHex = '0x' + (p.offset + p.size).toString(16).padStart(8, '0').toUpperCase();
+    const sizeStr = fmtBytes(p.size);
+
+    if(bar){
+      const seg = document.createElement('div');
+      seg.className = 'part-seg' + (p.active ? ' active' : '');
+      seg.style.flex = String(Math.max(16, kb));
+      seg.title = `${p.name} (${sizeStr}) [${startHex}]`;
+      seg.innerHTML = `${p.label}<br><span class="seg-sub">${fmtBarSub(p)}</span>`;
+      bar.appendChild(seg);
+    }
+
+    if(tbl){
+      const row = document.createElement('div');
+      row.className = 'pt-row';
+      row.innerHTML = `<span>${p.name}</span><span>${startHex}</span><span>${endHex}</span><span>${sizeStr}</span><span>${p.type}</span><span>${p.role}</span>`;
+      tbl.appendChild(row);
+    }
+
+    if(p.name === 'SYSTEM_FS'){
+      if($('fsOffset')) $('fsOffset').textContent = startHex;
+      if($('fsTag')) $('fsTag').textContent = sizeStr;
+    } else if(p.name === 'USER_FS'){
+      if($('userFsOffset')) $('userFsOffset').textContent = startHex;
+      if($('userFsTag')) $('userFsTag').textContent = sizeStr;
+    }
+  }
+
+  if(data.flash_total_bytes && $('flashGeoTag')){
+    const chip = ($('coreChip') && $('coreChip').textContent !== '--') ? $('coreChip').textContent : 'RP2350';
+    $('flashGeoTag').textContent = chip + ' ' + Math.round(data.flash_total_bytes / 1024) + ' KB';
+  }
+}
+
 async function loadTelemetry(){
   const t = await fetchJSON('/api/v1/system/telemetry');
   const lfsEmpty = !t || !t.lfs_used_bytes || t.lfs_used_bytes === 0;
@@ -627,8 +690,9 @@ async function loadTelemetry(){
     const uu = Math.round((t.user_lfs_used_bytes || 0)/1024), utot = Math.round(t.user_lfs_total_bytes/1024);
     if($('userFsSize')) $('userFsSize').textContent = uu + ' / ' + utot + ' KB';
     if($('userFsTag')) $('userFsTag').textContent = utot + ' KB';
-  } else {
-    if($('userFsSize')) $('userFsSize').textContent = '-- / 1504 KB';
+  } else if($('userFsSize') && cachedPartitions){
+    const userFs = cachedPartitions.find(p => p.name === 'USER_FS');
+    if(userFs) $('userFsSize').textContent = '-- / ' + fmtBytes(userFs.size);
   }
   const al = $('sysAlarm'), ts = $('telemetryStatus');
   if(t.alarm && t.alarm !== 'none'){
@@ -687,7 +751,6 @@ async function loadFirmwareStatus(){
   const fw = await fetchJSON('/api/v1/system/firmware/status');
   if(!fw) return;
   const curSlot = fw.current_slot || 'SlotA';
-  const isA = curSlot === 'SlotA';
   $('fwSlots').textContent = (fw.active_slot || 'SlotA') + ' / ' + curSlot;
   $('fwSlotTag').textContent = curSlot.toUpperCase();
   const rawFw = fw.firmware || 'AgentLA v1.0.0-rust';
@@ -695,14 +758,7 @@ async function loadFirmwareStatus(){
   $('fwVersion').textContent = installedFwVer;
   if($('fwVerInstalled')) $('fwVerInstalled').textContent = installedFwVer;
   $('fwCandidate').textContent = fw.candidate_slot ? fw.candidate_slot : 'None';
-
-  // Update Visual Flash Partition Map segment states
-  $('segSlotA').className = 'part-seg ' + (isA ? 'active' : '');
-  $('segSlotB').className = 'part-seg ' + (!isA ? 'active' : '');
-  $('lblSlotA').textContent = '1.2M ' + (isA ? '[RUN]' : '[STANDBY]');
-  $('lblSlotB').textContent = '1.2M ' + (!isA ? '[RUN]' : '[STANDBY]');
-  $('roleSlotA').textContent = isA ? 'Active Firmware [Running]' : 'Alternate Firmware [Standby]';
-  $('roleSlotB').textContent = !isA ? 'Active Firmware [Running]' : 'Alternate Firmware [Standby]';
+  await loadPartitions();
 }
 
 const PODS = [
@@ -1120,6 +1176,7 @@ async function init(){
   renderApiTable();
   renderMcpTools();
   initView();
+  await loadPartitions();
   await loadManifest();
   await loadFirmwareStatus();
   await loadTelemetry();

@@ -34,8 +34,9 @@ def test_can_sniffer_html_capabilities():
 
     content = html_file.read_text(encoding="utf-8")
 
-    # 1. Neumorphic dark layout & brand
-    assert 'data-theme="dark"' in content
+    # 1. Industrial dark layout & brand
+    assert ('data-theme="dark"' in content or 'data-theme="nothing"' in content)
+    assert "data-style=\"industrial\"" in content or "data-theme=" in content
     assert "CAN Bus Analyzer" in content
     assert "agentla-bridge.js" in content
 

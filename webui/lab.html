@@ -98,36 +98,36 @@
         <div class="bar-left navbar-start">
             <a href="/home" class="brand-item" id="brand-logo" title="AgentLA App Launcher (Return to Home)" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
-                <span class="brand-title">AgentLA</span>
-                <span class="status status-success status-xs" title="Hardware Engine Online" aria-label="Online"></span>
+                <span class="font-bold tracking-tight text-sm brand-title">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> <span id="top-bar-context-title">Workbench</span></span>
             </a>
         </div>
 
         <div class="bar-right navbar-end">
-            <!-- Target Power Rail Toggle Pill -->
-            <button class="preset-pill target-power-pill active-on" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
-                <svg class="solar-icon power-bolt-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <!-- Target Power Rail Toggle Switch -->
+            <label class="power-toggle-widget cursor-pointer flex items-center gap-2 bg-base-200/90 hover:bg-base-300 border border-base-300 rounded-full px-3 py-1 transition-all select-none" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+                <svg class="solar-icon power-bolt-icon text-warning shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
-                <span class="power-pill-label" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
-            </button>
+                <span class="power-pill-label font-mono-tech text-xs font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
+                <input type="checkbox" class="toggle toggle-xs toggle-success" id="target-power-switch" checked />
+            </label>
 
-            <!-- Emergency Safe State Button -->
-            <button class="preset-pill emergency-safe-btn" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                SAFE STATE
-            </button>
-
-            <!-- Hardware Profile Selector -->
+            <!-- Combined Emergency Safe State & Hardware Profile Split Button -->
             <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
-                <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
-                    <span class="profile-name-text" id="active-profile-name">Safe State</span>
-                    <span class="dropdown-arrow">▾</span>
-                </button>
+                <div class="join">
+                    <button class="join-item btn btn-sm btn-error gap-1.5 font-bold text-xs uppercase tracking-wider text-error-content shadow-none border-r border-error-content/20" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <span>SAFE STATE</span>
+                    </button>
+                    <button class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                        <span class="profile-name-text" id="active-profile-name">Safe State</span>
+                        <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
+                    </button>
+                </div>
                 <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
                     <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
                     <div class="profile-menu-slots" id="profile-menu-slots">

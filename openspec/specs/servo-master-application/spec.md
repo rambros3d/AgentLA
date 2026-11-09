@@ -2,9 +2,7 @@
 
 ## Purpose
 Interactive multi-channel servo control web application supporting positional and continuous rotation modes, keyframe sequencing, and gamepad input.
-
 ## Requirements
-
 ### Requirement: Dynamic Multi-Channel Servo Management
 The Servo Master application SHALL support dynamic addition, removal, and independent configuration of 1 to 8 servo channels mapped to flexible GPIO pins.
 
@@ -49,8 +47,13 @@ The application SHALL interface with connected USB gamepads via the browser Game
 - **THEN** a modal displays proper connections (external 5V supply, shared ground, and signal line) with high inrush current cautions.
 
 ### Requirement: DaisyUI and Responsive Layout Integration
-The Servo Master application HTML template SHALL link `/daisyui.css` before `/style.css` and use native daisyUI component classes (`navbar`, `card`, `join`, `badge`, `range`, `modal`) arranged inside responsive grid containers (`grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`).
+The Servo Master application HTML template SHALL link `/daisyui.css` before `/style.css` and use native DaisyUI component classes arranged inside responsive grid containers styled according to the Industrial Design System (`data-style="industrial"`, `data-theme="nothing"` / `industrial-light`, NDot57 typography, dot-grid canvas, and zero emojis). The application SHALL feature a dedicated in-app sub-toolbar beneath `#top-bar` housing Gamepad status, Calibration Zero, and Emergency Disarm controls, and SHALL provide at least 72px bottom clearance padding to avoid occlusion by the host system dock when embedded.
 
 #### Scenario: Rendering servo channels on desktop viewport
 - **WHEN** the Servo Master application is displayed on a screen wider than 1024px
-- **THEN** servo channel cards display side-by-side in 3 or 4 columns within a responsive CSS grid and inherit active system theme tokens
+- **THEN** servo channel cards display side-by-side in responsive columns within a CSS grid and inherit active industrial system theme tokens.
+
+#### Scenario: Embedded iframe sub-toolbar access
+- **WHEN** the Servo Master application is embedded inside the AgentLA OS launcher iframe
+- **THEN** Gamepad connection, Zero All, and Emergency Disarm buttons remain accessible in the sub-toolbar while `#top-bar` is suppressed.
+

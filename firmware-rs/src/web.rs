@@ -419,6 +419,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/pins/release_all", crate::rest::SystemPinsReleaseAll)
         .route_service("/api/v1/system/pins/toggle", crate::rest::SystemPinsToggle)
         .route_service("/api/v1/system/fs/format", crate::rest::SystemFsFormat)
+        .route_service("/api/v1/system/partitions", crate::rest::SystemPartitionsHandler)
         .route_service("/api/v1/system", crate::rest::SystemInfoHandler)
         .route_service("/api/v1/system/clock", crate::rest::SystemClockHandler)
         .route_service("/api/v1/system/firmware/status", crate::rest::FirmwareStatus)
