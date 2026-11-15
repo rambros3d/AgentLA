@@ -431,6 +431,12 @@
                             </svg>
                             App Store
                         </button>
+                        <button class="os-switch-btn" id="tab-btn-skills" onclick="switchLauncherView('skills')">
+                            <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                            </svg>
+                            Agent Skills
+                        </button>
                     </div>
                 </div>
 
@@ -648,6 +654,196 @@
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
                         </svg>
                         <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px;">Install Local Package</div>
+
+                <!-- VIEW 4: Agent Skills & Playbooks Console -->
+                <div id="view-skills" style="display: none;">
+                    <!-- Skills Header Banner -->
+                    <div class="bg-base-200 border border-base-300 rounded-box p-5 mb-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="badge badge-primary font-bold text-xs uppercase tracking-wider">ON-PROBE PLAYBOOKS</span>
+                                <span class="badge badge-outline text-xs">MCP 2025-03-26</span>
+                                <span class="badge badge-outline text-xs">Static LittleFS</span>
+                            </div>
+                            <h2 class="text-xl font-bold text-base-content m-0">Agent Skills &amp; Autonomous Playbooks</h2>
+                            <p class="text-xs text-base-content/70 mt-1 mb-0 max-w-2xl leading-relaxed">
+                                Standardized domain playbooks providing closed-loop guidance, wiring specifications, and post-mortem triage for external AI agents (Antigravity, Claude Code, Cursor, Cline) via Model Context Protocol (MCP) and static HTTP.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button class="btn btn-sm btn-outline gap-1.5" onclick="openAgentSkillsMcpModal()" title="View Universal MCP configuration snippet">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                                <span>MCP Config</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Skills Cards Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <!-- Card 1: agentla-dev -->
+                        <div class="card bg-base-200 border border-base-300 shadow-sm overflow-hidden flex flex-col justify-between">
+                            <div class="card-body p-5">
+                                <div class="flex items-start justify-between gap-2 mb-2">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="badge badge-success badge-sm font-semibold text-[10px]">CLOSED-LOOP</span>
+                                            <code class="text-xs font-mono text-primary font-bold">agentla-dev</code>
+                                        </div>
+                                        <h3 class="card-title text-base font-bold text-base-content m-0">Autonomous Firmware Developer</h3>
+                                    </div>
+                                    <span class="badge badge-neutral text-[10px]">v1.0.0</span>
+                                </div>
+                                <p class="text-xs text-base-content/70 mb-3 leading-relaxed">
+                                    Synthesizes target firmware, guides user pin wiring, flashes silicon, claims probe pins via Pin Arbiter, and physically verifies signal behavior using the logic analyzer.
+                                </p>
+                                <div class="bg-base-300/60 rounded-md p-3 mb-3 border border-base-300 font-mono text-[11px]">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Wiring Guidance Contract</div>
+                                    <div class="text-base-content/90 font-medium leading-tight">SWD: SWCLK, SWDIO, GND | SENSE: VTGT (3.3V)</div>
+                                    <div class="text-base-content/70 text-[10px] mt-0.5">Probe channels D0..D7 connected to target GPIO test outputs</div>
+                                </div>
+                                <div class="bg-base-300/40 rounded-md p-3 mb-3 border border-base-300/60">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">8-Phase Closed-Loop Execution</div>
+                                    <div class="text-xs text-base-content/80 leading-snug">
+                                        1. catalog_lookup &rarr; 2. Wiring Prompt &rarr; 3. target_diagnose &rarr; 4. Compile &rarr; 5. programmer_flash &rarr; 6. pins_claim &rarr; 7. Signal Verification &rarr; 8. pins_release
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-actions bg-base-300/30 px-5 py-3 border-t border-base-300 flex items-center justify-between">
+                                <a href="/skills/agentla-dev/SKILL.md" target="_blank" class="btn btn-xs btn-ghost gap-1 text-base-content/80">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    <span>SKILL.md</span>
+                                </a>
+                                <button class="btn btn-xs btn-primary gap-1" onclick="copySkillPrompt(this, 'dev_workflow')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    <span>Copy Prompt</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: agentla-debug -->
+                        <div class="card bg-base-200 border border-base-300 shadow-sm overflow-hidden flex flex-col justify-between">
+                            <div class="card-body p-5">
+                                <div class="flex items-start justify-between gap-2 mb-2">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="badge badge-warning badge-sm font-semibold text-[10px]">DIAGNOSTICS</span>
+                                            <code class="text-xs font-mono text-warning font-bold">agentla-debug</code>
+                                        </div>
+                                        <h3 class="card-title text-base font-bold text-base-content m-0">Hardware Triage &amp; Debug</h3>
+                                    </div>
+                                    <span class="badge badge-neutral text-[10px]">v1.0.0</span>
+                                </div>
+                                <p class="text-xs text-base-content/70 mb-3 leading-relaxed">
+                                    Electrical safety audit, target rail verification, CoreSight DPIDR/CPUID discovery, AP scanning, and Cortex-M HardFault (CFSR/HFSR/MMFAR) register triage.
+                                </p>
+                                <div class="bg-base-300/60 rounded-md p-3 mb-3 border border-base-300 font-mono text-[11px]">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Electrical Health Invariant</div>
+                                    <div class="text-base-content/90 font-medium leading-tight">1.65V &le; Vtarget &le; 3.6V | ADC0 Rail Monitor</div>
+                                    <div class="text-base-content/70 text-[10px] mt-0.5">Automated halt if power rail undervoltage or short detected</div>
+                                </div>
+                                <div class="bg-base-300/40 rounded-md p-3 mb-3 border border-base-300/60">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Fault Analysis Pipeline</div>
+                                    <div class="text-xs text-base-content/80 leading-snug">
+                                        1. status rail check &rarr; 2. target_diagnose &rarr; 3. CoreSight DPIDR/CPUID &rarr; 4. CFSR/HFSR/MMFAR decode &rarr; 5. Stacked frame walk
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-actions bg-base-300/30 px-5 py-3 border-t border-base-300 flex items-center justify-between">
+                                <a href="/skills/agentla-debug/SKILL.md" target="_blank" class="btn btn-xs btn-ghost gap-1 text-base-content/80">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    <span>SKILL.md</span>
+                                </a>
+                                <button class="btn btn-xs btn-primary gap-1" onclick="copySkillPrompt(this, 'debug_target')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    <span>Copy Prompt</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Card 3: agentla-programmer -->
+                        <div class="card bg-base-200 border border-base-300 shadow-sm overflow-hidden flex flex-col justify-between">
+                            <div class="card-body p-5">
+                                <div class="flex items-start justify-between gap-2 mb-2">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="badge badge-info badge-sm font-semibold text-[10px]">PROGRAMMING</span>
+                                            <code class="text-xs font-mono text-info font-bold">agentla-programmer</code>
+                                        </div>
+                                        <h3 class="card-title text-base font-bold text-base-content m-0">Target Flash &amp; Unbrick Specialist</h3>
+                                    </div>
+                                    <span class="badge badge-neutral text-[10px]">v1.0.0</span>
+                                </div>
+                                <p class="text-xs text-base-content/70 mb-3 leading-relaxed">
+                                    Universal target programmer for ARM Cortex-M, RISC-V, and RP2040/RP2350 microcontrollers. Features memory catalog lookup, sector-aligned flashing, and silicon unbrick rescue.
+                                </p>
+                                <div class="bg-base-300/60 rounded-md p-3 mb-3 border border-base-300 font-mono text-[11px]">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Target Catalog &amp; Memory Layout</div>
+                                    <div class="text-base-content/90 font-medium leading-tight">STM32, RP2040/RP2350, CH32V, nRF52, SAMD, ESP32</div>
+                                    <div class="text-base-content/70 text-[10px] mt-0.5">Chunked sector flash programming with CRC-32 verification</div>
+                                </div>
+                                <div class="bg-base-300/40 rounded-md p-3 mb-3 border border-base-300/60">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Unbrick Rescue Pipeline</div>
+                                    <div class="text-xs text-base-content/80 leading-snug">
+                                        1. catalog_lookup &rarr; 2. probe_target &rarr; 3. Security check &rarr; 4. programmer_flash &rarr; 5. Readback verify &rarr; 6. CTRL-AP unbrick
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-actions bg-base-300/30 px-5 py-3 border-t border-base-300 flex items-center justify-between">
+                                <a href="/skills/agentla-programmer/SKILL.md" target="_blank" class="btn btn-xs btn-ghost gap-1 text-base-content/80">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    <span>SKILL.md</span>
+                                </a>
+                                <button class="btn btn-xs btn-primary gap-1" onclick="copySkillPrompt(this, 'program_target')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    <span>Copy Prompt</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Card 4: agentla-analyzer -->
+                        <div class="card bg-base-200 border border-base-300 shadow-sm overflow-hidden flex flex-col justify-between">
+                            <div class="card-body p-5">
+                                <div class="flex items-start justify-between gap-2 mb-2">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="badge badge-secondary badge-sm font-semibold text-[10px]">INSTRUMENT</span>
+                                            <code class="text-xs font-mono text-secondary font-bold">agentla-analyzer</code>
+                                        </div>
+                                        <h3 class="card-title text-base font-bold text-base-content m-0">Bus Protocol &amp; Logic Analyzer</h3>
+                                    </div>
+                                    <span class="badge badge-neutral text-[10px]">v1.0.0</span>
+                                </div>
+                                <p class="text-xs text-base-content/70 mb-3 leading-relaxed">
+                                    High-speed digital logic analyzer, bus protocol sniffer, and packet stimulus. Enforces Pin Arbiter reservation contracts, decodes buses, and controls the 120-ohm CAN termination relay.
+                                </p>
+                                <div class="bg-base-300/60 rounded-md p-3 mb-3 border border-base-300 font-mono text-[11px]">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Supported Protocols &amp; Relays</div>
+                                    <div class="text-base-content/90 font-medium leading-tight">I2C, SPI, UART, CAN-2.0B / CAN-FD, 1-Wire, WS2812</div>
+                                    <div class="text-base-content/70 text-[10px] mt-0.5">Software-controlled 120-ohm CAN termination relay &amp; Pin Arbiter D0..D7</div>
+                                </div>
+                                <div class="bg-base-300/40 rounded-md p-3 mb-3 border border-base-300/60">
+                                    <div class="text-[10px] uppercase font-bold text-base-content/50 mb-1 tracking-wider">Analyzer Execution Flow</div>
+                                    <div class="text-xs text-base-content/80 leading-snug">
+                                        1. pins_claim &rarr; 2. 120-ohm relay check &rarr; 3. Trigger / sample rate &rarr; 4. sniff_bus decode &rarr; 5. Timing validation &rarr; 6. pins_release
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-actions bg-base-300/30 px-5 py-3 border-t border-base-300 flex items-center justify-between">
+                                <a href="/skills/agentla-analyzer/SKILL.md" target="_blank" class="btn btn-xs btn-ghost gap-1 text-base-content/80">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    <span>SKILL.md</span>
+                                </a>
+                                <button class="btn btn-xs btn-primary gap-1" onclick="copySkillPrompt(this, 'analyze_bus')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    <span>Copy Prompt</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Drop .tar package or single-file .html dashboard here, or click to browse</div>
                     </div>
                 </div>
@@ -768,6 +964,39 @@
             </div>
         </div>
     </aside>
+
+    <!-- Universal MCP Configuration Modal for Skills Console -->
+    <dialog id="modal-agent-skills-mcp" class="modal">
+        <div class="modal-box max-w-lg bg-base-200 border border-base-300 p-0 overflow-hidden" role="dialog" aria-modal="true">
+            <div class="modal-header flex items-center justify-between px-5 py-3.5 border-b border-base-300">
+                <div class="modal-title-group flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <h3 class="font-bold text-sm">Universal MCP Configuration</h3>
+                </div>
+                <button class="btn btn-sm btn-circle btn-ghost" onclick="closeAgentSkillsMcpModal()" title="Close (Esc)">X</button>
+            </div>
+            <div class="modal-body p-5">
+                <p class="text-xs text-base-content/70 mb-3">
+                    Add this endpoint to your autonomous assistant configuration (Google Antigravity, Claude Desktop / Code, Cursor, Cline):
+                </p>
+                <pre class="bg-base-300 border border-base-content/10 p-3 rounded text-xs font-mono text-base-content overflow-x-auto select-all mb-4"><code>{
+  "mcpServers": {
+    "agentla": {
+      "url": "http://10.10.10.10/mcp"
+    }
+  }
+}</code></pre>
+                <div class="modal-action mt-2 flex justify-end gap-2">
+                    <button class="btn btn-sm btn-ghost" onclick="closeAgentSkillsMcpModal()">Close</button>
+                    <button class="btn btn-sm btn-primary" onclick="copyMcpConfigSnippet(this)">Copy JSON</button>
+                </div>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button onclick="closeAgentSkillsMcpModal()">close</button></form>
+    </dialog>
 
     <!-- Centered System Settings Modal (#modal-settings) Shared with Workbench -->
     <dialog id="modal-settings" class="modal">
@@ -1065,6 +1294,18 @@
                 return;
             }
 
+            if (hash === '#/skills') {
+                if (mainWorkspace) mainWorkspace.style.display = 'flex';
+                if (viewportContainer) viewportContainer.style.display = 'none';
+                switchLauncherView('skills');
+                const ctxTitle = document.getElementById('top-bar-context-title');
+                if (ctxTitle) ctxTitle.textContent = 'Agent Skills';
+                document.title = 'AgentLA // Agent Skills';
+                if (launcherDockBtn) launcherDockBtn.classList.add('active');
+                activeAppInfo = null;
+                return;
+            }
+
             // Hide Launchpad Workspace, Show App Viewport
             if (mainWorkspace) mainWorkspace.style.display = 'none';
             if (viewportContainer) viewportContainer.style.display = 'flex';
@@ -1173,6 +1414,89 @@
 
         function openLab(view) {
             navigateToRoute('#/' + view);
+        }
+
+
+        // Agent Skills Prompt Templates & Clipboard Handler
+        const SKILL_PROMPT_TEMPLATES = {
+            'dev_workflow': "You are an autonomous embedded firmware engineer paired with AgentLA.\nExecute closed-loop development for target MCU.\nFollow 8-phase closed-loop playbook: (1) catalog_lookup, (2) user wiring guidance (SWCLK, SWDIO, GND, VTGT, D0..D7), (3) target_diagnose rail safety (1.65V-3.6V), (4) compile target firmware, (5) programmer_flash with sector alignment, (6) pins_claim for logic analyzer channels, (7) physical signal verification via logic analyzer pulse/timing inspection, (8) pins_release.\nFull playbook: http://10.10.10.10/skills/agentla-dev/SKILL.md",
+            'debug_target': "You are a hardware triage and post-mortem debugging specialist paired with AgentLA.\nTriage connected target.\nFollow debug playbook: (1) status electrical rail check (1.65V-3.6V), (2) target_diagnose CoreSight DPIDR and CPUID discovery, (3) Access Port (AP) scan, (4) CFSR/HFSR/MMFAR/BFAR fault register decode if halted in HardFault, (5) stacked return frame analysis to pinpoint offending instruction.\nFull playbook: http://10.10.10.10/skills/agentla-debug/SKILL.md",
+            'program_target': "You are a universal target flashing and unbrick specialist paired with AgentLA.\nProgram target MCU.\nFollow programming playbook: (1) catalog_lookup for flash base and sector boundaries, (2) probe_target connection test, (3) silicon protection check / programmer_unbrick if locked (CTRL-AP mass erase / reset glitch), (4) sector-aligned programmer_flash, (5) CRC readback verification.\nFull playbook: http://10.10.10.10/skills/agentla-programmer/SKILL.md",
+            'analyze_bus': "You are a bus protocol and logic analyzer specialist paired with AgentLA.\nAnalyze target bus protocol.\nFollow analyzer playbook: (1) pins_claim probe channels D0..D7 via Pin Arbiter, (2) set 120-ohm CAN termination relay if analyzing CAN, (3) configure trigger & sample rate, (4) sniff_bus protocol decode (I2C/SPI/UART/CAN), (5) timing, ACK/NACK, and checksum validation, (6) pins_release when finished.\nFull playbook: http://10.10.10.10/skills/agentla-analyzer/SKILL.md"
+        };
+
+        function copySkillPrompt(btn, promptKey) {
+            const promptText = SKILL_PROMPT_TEMPLATES[promptKey] || promptKey;
+            const originalHtml = btn.innerHTML;
+            const restore = () => {
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }, 2000);
+            };
+
+            const markSuccess = () => {
+                btn.innerHTML = '<span>Copied!</span>';
+                btn.disabled = true;
+                restore();
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(promptText).then(markSuccess).catch(() => {
+                    fallbackCopyPrompt(btn, promptText, originalHtml);
+                });
+            } else {
+                fallbackCopyPrompt(btn, promptText, originalHtml);
+            }
+        }
+
+        function fallbackCopyPrompt(btn, text, originalHtml) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.innerHTML = '<span>Copied!</span>';
+                btn.disabled = true;
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }, 2000);
+            } catch (_) {
+                btn.innerHTML = '<span>Failed</span>';
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+
+        function openAgentSkillsMcpModal() {
+            const modal = document.getElementById('modal-agent-skills-mcp');
+            if (modal) {
+                modal.style.display = '';
+                modal.classList.add('open', 'modal-open');
+                modal.setAttribute('aria-hidden', 'false');
+                if (typeof modal.showModal === 'function' && !modal.open) modal.showModal();
+            }
+        }
+
+        function closeAgentSkillsMcpModal() {
+            const modal = document.getElementById('modal-agent-skills-mcp');
+            if (modal) {
+                modal.classList.remove('open', 'modal-open');
+                modal.setAttribute('aria-hidden', 'true');
+                if (typeof modal.close === 'function' && modal.open) modal.close();
+            }
+        }
+
+        function copyMcpConfigSnippet(btn) {
+            const snippet = '{\n  "mcpServers": {\n    "agentla": {\n      "url": "http://10.10.10.10/mcp"\n    }\n  }\n}';
+            copySkillPrompt(btn, snippet);
         }
 
         // State
@@ -2117,18 +2441,22 @@
             const btnLaunchpad = document.getElementById('tab-btn-launchpad');
             const btnManage = document.getElementById('tab-btn-manage');
             const btnAppStore = document.getElementById('tab-btn-appstore');
+            const btnSkills = document.getElementById('tab-btn-skills');
 
             const viewLaunchpad = document.getElementById('view-launchpad');
             const viewManage = document.getElementById('view-manage');
             const viewAppStore = document.getElementById('view-appstore');
+            const viewSkills = document.getElementById('view-skills');
 
             if (btnLaunchpad) btnLaunchpad.classList.toggle('active', view === 'launchpad');
             if (btnManage) btnManage.classList.toggle('active', view === 'manage');
             if (btnAppStore) btnAppStore.classList.toggle('active', view === 'store');
+            if (btnSkills) btnSkills.classList.toggle('active', view === 'skills');
 
             if (viewLaunchpad) viewLaunchpad.style.display = (view === 'launchpad') ? 'block' : 'none';
             if (viewManage) viewManage.style.display = (view === 'manage') ? 'block' : 'none';
             if (viewAppStore) viewAppStore.style.display = (view === 'store') ? 'block' : 'none';
+            if (viewSkills) viewSkills.style.display = (view === 'skills') ? 'block' : 'none';
 
             try { history.replaceState(null, '', '#' + view); } catch (_) {}
 

@@ -107,6 +107,8 @@ pub fn extract_method(body: &str) -> &'static str {
             "tools/call" => return "tools/call",
             "resources/list" => return "resources/list",
             "resources/read" => return "resources/read",
+            "prompts/list" => return "prompts/list",
+            "prompts/get" => return "prompts/get",
             _ => return "unknown",
         }
     }
@@ -119,6 +121,8 @@ pub fn extract_method(body: &str) -> &'static str {
         "tools/call",
         "resources/list",
         "resources/read",
+        "prompts/list",
+        "prompts/get",
     ];
     for c in candidates.iter() {
         if body.contains(c) {

@@ -5456,3 +5456,62 @@ function initTelemetryHUD() {
 }
 
 
+
+
+// Global Agent Skills Prompts & Copy Handler
+const SKILL_PROMPT_TEMPLATES_LAB = {
+    'dev_workflow': "You are an autonomous embedded firmware engineer paired with AgentLA.\nExecute closed-loop development for target MCU.\nFollow 8-phase closed-loop playbook: (1) catalog_lookup, (2) user wiring guidance (SWCLK, SWDIO, GND, VTGT, D0..D7), (3) target_diagnose rail safety (1.65V-3.6V), (4) compile target firmware, (5) programmer_flash with sector alignment, (6) pins_claim for logic analyzer channels, (7) physical signal verification via logic analyzer pulse/timing inspection, (8) pins_release.\nFull playbook: http://10.10.10.10/skills/agentla-dev/SKILL.md",
+    'debug_target': "You are a hardware triage and post-mortem debugging specialist paired with AgentLA.\nTriage connected target.\nFollow debug playbook: (1) status electrical rail check (1.65V-3.6V), (2) target_diagnose CoreSight DPIDR and CPUID discovery, (3) Access Port (AP) scan, (4) CFSR/HFSR/MMFAR/BFAR fault register decode if halted in HardFault, (5) stacked return frame analysis to pinpoint offending instruction.\nFull playbook: http://10.10.10.10/skills/agentla-debug/SKILL.md",
+    'program_target': "You are a universal target flashing and unbrick specialist paired with AgentLA.\nProgram target MCU.\nFollow programming playbook: (1) catalog_lookup for flash base and sector boundaries, (2) probe_target connection test, (3) silicon protection check / programmer_unbrick if locked (CTRL-AP mass erase / reset glitch), (4) sector-aligned programmer_flash, (5) CRC readback verification.\nFull playbook: http://10.10.10.10/skills/agentla-programmer/SKILL.md",
+    'analyze_bus': "You are a bus protocol and logic analyzer specialist paired with AgentLA.\nAnalyze target bus protocol.\nFollow analyzer playbook: (1) pins_claim probe channels D0..D7 via Pin Arbiter, (2) set 120-ohm CAN termination relay if analyzing CAN, (3) configure trigger & sample rate, (4) sniff_bus protocol decode (I2C/SPI/UART/CAN), (5) timing, ACK/NACK, and checksum validation, (6) pins_release when finished.\nFull playbook: http://10.10.10.10/skills/agentla-analyzer/SKILL.md"
+};
+
+window.copySkillPrompt = function(btn, promptKey) {
+    const promptText = SKILL_PROMPT_TEMPLATES_LAB[promptKey] || promptKey;
+    const originalHtml = btn.innerHTML;
+    const restore = () => {
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }, 2000);
+    };
+
+    const markSuccess = () => {
+        btn.innerHTML = '<span>Copied!</span>';
+        btn.disabled = true;
+        restore();
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(promptText).then(markSuccess).catch(() => {
+            fallbackCopySkillPrompt(btn, promptText, originalHtml);
+        });
+    } else {
+        fallbackCopySkillPrompt(btn, promptText, originalHtml);
+    }
+};
+
+function fallbackCopySkillPrompt(btn, text, originalHtml) {
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.innerHTML = '<span>Copied!</span>';
+        btn.disabled = true;
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }, 2000);
+    } catch (_) {
+        btn.innerHTML = '<span>Failed</span>';
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }, 2000);
+    }
+}

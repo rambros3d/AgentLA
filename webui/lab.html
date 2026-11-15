@@ -1778,7 +1778,7 @@
 
     <!-- Centered System Settings Modal -->
     <dialog id="modal-settings" class="modal">
-        <div class="modal-box max-w-2xl bg-base-200 border border-base-300 p-0 overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <div class="modal-box max-w-3xl bg-base-200 border border-base-300 p-0 overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
             <div class="modal-header flex items-center justify-between px-5 py-3.5 border-b border-base-300">
                 <div class="modal-title-group flex items-center gap-2">
                     <svg class="solar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2063,6 +2063,96 @@
                         </div>
                         <div class="agent-step-item">
                             <strong>OpenCode / Cline / Cursor</strong>: Add to MCP tools configuration file (e.g. <code>cline_mcp_settings.json</code>).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- On-Probe Agent Skills & Playbooks -->
+                <div class="agent-guide-section">
+                    <div class="settings-section-title">On-Probe Agent Skills &amp; Playbooks</div>
+                    <div class="skills-cards-grid grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Skill 1: agentla-dev -->
+                        <div class="card bg-base-100 border border-base-300 p-3 flex flex-col justify-between rounded-lg">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="badge badge-success badge-xs font-semibold text-[9px]">CLOSED-LOOP</span>
+                                    <code class="text-[11px] font-mono text-primary font-bold">agentla-dev</code>
+                                </div>
+                                <div class="font-bold text-xs text-base-content mb-1">Autonomous Firmware Developer</div>
+                                <p class="text-[11px] text-base-content/70 mb-2 leading-tight">
+                                    Closed-loop firmware synthesis, wiring guidance, programming, and physical logic analyzer verification.
+                                </p>
+                                <div class="bg-base-200 rounded p-2 mb-2 font-mono text-[10px] text-base-content/80">
+                                    SWD: SWCLK, SWDIO, GND | VTGT (3.3V) | D0..D7 test pins
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-base-300">
+                                <a href="/skills/agentla-dev/SKILL.md" target="_blank" class="btn btn-xs btn-ghost text-[10px] gap-1">SKILL.md</a>
+                                <button class="btn btn-xs btn-primary text-[10px] gap-1" onclick="copySkillPrompt(this, 'dev_workflow')">Copy Prompt</button>
+                            </div>
+                        </div>
+
+                        <!-- Skill 2: agentla-debug -->
+                        <div class="card bg-base-100 border border-base-300 p-3 flex flex-col justify-between rounded-lg">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="badge badge-warning badge-xs font-semibold text-[9px]">DIAGNOSTICS</span>
+                                    <code class="text-[11px] font-mono text-warning font-bold">agentla-debug</code>
+                                </div>
+                                <div class="font-bold text-xs text-base-content mb-1">Hardware Triage &amp; Debug</div>
+                                <p class="text-[11px] text-base-content/70 mb-2 leading-tight">
+                                    Electrical safety audit, target rail verification (1.65V-3.6V), CoreSight discovery, and HardFault triage.
+                                </p>
+                                <div class="bg-base-200 rounded p-2 mb-2 font-mono text-[10px] text-base-content/80">
+                                    SCB fault registers: CFSR, HFSR, MMFAR, BFAR &amp; stack walk
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-base-300">
+                                <a href="/skills/agentla-debug/SKILL.md" target="_blank" class="btn btn-xs btn-ghost text-[10px] gap-1">SKILL.md</a>
+                                <button class="btn btn-xs btn-primary text-[10px] gap-1" onclick="copySkillPrompt(this, 'debug_target')">Copy Prompt</button>
+                            </div>
+                        </div>
+
+                        <!-- Skill 3: agentla-programmer -->
+                        <div class="card bg-base-100 border border-base-300 p-3 flex flex-col justify-between rounded-lg">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="badge badge-info badge-xs font-semibold text-[9px]">PROGRAMMING</span>
+                                    <code class="text-[11px] font-mono text-info font-bold">agentla-programmer</code>
+                                </div>
+                                <div class="font-bold text-xs text-base-content mb-1">Target Flash &amp; Unbrick</div>
+                                <p class="text-[11px] text-base-content/70 mb-2 leading-tight">
+                                    Universal target programmer: catalog lookup, sector-aligned flashing, CRC verification, and unbrick rescue.
+                                </p>
+                                <div class="bg-base-200 rounded p-2 mb-2 font-mono text-[10px] text-base-content/80">
+                                    ARM / RISC-V / RP2350 | Sector-aligned chunked flashing
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-base-300">
+                                <a href="/skills/agentla-programmer/SKILL.md" target="_blank" class="btn btn-xs btn-ghost text-[10px] gap-1">SKILL.md</a>
+                                <button class="btn btn-xs btn-primary text-[10px] gap-1" onclick="copySkillPrompt(this, 'program_target')">Copy Prompt</button>
+                            </div>
+                        </div>
+
+                        <!-- Skill 4: agentla-analyzer -->
+                        <div class="card bg-base-100 border border-base-300 p-3 flex flex-col justify-between rounded-lg">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="badge badge-secondary badge-xs font-semibold text-[9px]">INSTRUMENT</span>
+                                    <code class="text-[11px] font-mono text-secondary font-bold">agentla-analyzer</code>
+                                </div>
+                                <div class="font-bold text-xs text-base-content mb-1">Bus Protocol &amp; Logic Analyzer</div>
+                                <p class="text-[11px] text-base-content/70 mb-2 leading-tight">
+                                    High-speed logic capture, Pin Arbiter reservation, I2C/SPI/UART/CAN decoding, and 120-ohm relay.
+                                </p>
+                                <div class="bg-base-200 rounded p-2 mb-2 font-mono text-[10px] text-base-content/80">
+                                    Pin Arbiter D0..D7 | 120-ohm CAN termination relay control
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-base-300">
+                                <a href="/skills/agentla-analyzer/SKILL.md" target="_blank" class="btn btn-xs btn-ghost text-[10px] gap-1">SKILL.md</a>
+                                <button class="btn btn-xs btn-primary text-[10px] gap-1" onclick="copySkillPrompt(this, 'analyze_bus')">Copy Prompt</button>
+                            </div>
                         </div>
                     </div>
                 </div>
