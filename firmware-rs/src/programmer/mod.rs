@@ -169,6 +169,7 @@ pub fn halt_target_port_global(port: TargetPort) -> Result<(), TargetError> {
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x23000012;
+                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
                 }
                 let res = cortex.halt().map_err(|_| TargetError::Timeout);
                 *pins = swd_session.release();
@@ -237,14 +238,13 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
             let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
             let mut cortex = CortexM::new(&mut swd_session.transport);
             if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+                cortex.csw = 0xE3000012;
                 let _ = cortex.select_ap(1);
-                cortex.csw = 0x23000012;
+                let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
             }
-            let _ = cortex.halt();
             let res = cortex
                 .mem_read_block(addr, buf)
                 .map_err(|_| TargetError::ProtocolError);
-            let _ = cortex.resume();
             *pins = swd_session.release();
             res
         }
@@ -334,6 +334,7 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
                 if is_h5 {
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x23000012;
+                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
                 }
                 let _ = cortex.halt();
 
@@ -476,6 +477,7 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                 if is_h5 {
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x23000012;
+                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
                 }
                 let _ = cortex.halt();
 

@@ -31,6 +31,7 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x23000012;
+                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
                 }
 
                 let mut dbgmcu_id = 0u32;

@@ -172,6 +172,50 @@ fn test_cortex_m_memory_and_core_regs() {
 }
 
 #[test]
+fn test_cortex_m_dual_ap_selection_and_memory_access() {
+    let mock = MockSwd::new();
+    let mut adiv5 = Adiv5Engine::new(mock);
+    let mut cortex = CortexM::new(&mut adiv5);
+
+    // Initial state: AP 0, default CSW
+    assert_eq!(cortex.apsel, 0);
+    assert_eq!(cortex.csw, ADIV5_AP_CSW_DEFAULT);
+
+    // 1. Configure for ARMv8-M / Cortex-M33 (STM32H5 DPIDR 0x6BA02477)
+    assert!(cortex.auto_configure_for_dpidr(0x6BA02477).is_ok());
+    assert_eq!(cortex.apsel, 1);
+    assert_eq!(cortex.csw, 0x23000012);
+
+    // 2. Perform memory write targeting AP 1
+    assert!(cortex.mem_write32(0x08000000, 0x12345678).is_ok());
+
+    // Verify AP 1 registers were written with correct values and AP 0 was untouched
+    let ap1_tar_key = ((1u32) << 8) | (AP_TAR as u32);
+    let ap1_drw_key = ((1u32) << 8) | (AP_DRW as u32);
+    let ap1_csw_key = ((1u32) << 8) | (AP_CSW as u32);
+    let ap0_tar_key = ((0u32) << 8) | (AP_TAR as u32);
+
+    assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_tar_key).copied(), Some(0x08000000));
+    assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_drw_key).copied(), Some(0x12345678));
+    assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_csw_key).copied(), Some(0x23000012));
+    assert_eq!(cortex.swd.transport.ap_regs.get(&ap0_tar_key), None);
+
+    // 3. Perform memory read from AP 1
+    let val = cortex.mem_read32(0x08000000).unwrap();
+    assert_eq!(val, 0x12345678);
+
+    // 4. Configure for legacy ARMv7-M (STM32F1 DPIDR 0x1BA01477)
+    assert!(cortex.auto_configure_for_dpidr(0x1BA01477).is_ok());
+    assert_eq!(cortex.apsel, 0);
+    assert_eq!(cortex.csw, ADIV5_AP_CSW_DEFAULT);
+
+    // 5. Memory write now targets AP 0
+    assert!(cortex.mem_write32(0x20000000, 0xAABBCCDD).is_ok());
+    assert_eq!(cortex.swd.transport.ap_regs.get(&ap0_tar_key).copied(), Some(0x20000000));
+}
+
+
+#[test]
 fn test_target_identification() {
     // STM32F103 Medium Density
     let info = identify_cortex_target(0x1BA01477, 0x00000410, 0);

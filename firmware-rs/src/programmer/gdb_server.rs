@@ -1,4 +1,5 @@
 pub use agentla_debug_server::gdb::*;
+use agentla_bsp::BoardProfile;
 
 use embassy_net::tcp::TcpSocket;
 use embassy_net::Stack;
@@ -28,20 +29,35 @@ pub async fn gdb_server_task(stack: Stack<'static>) {
 
         defmt::info!("GDB client connected on 10.10.10.10:3333");
 
+        crate::programmer::pins::tristate_pins();
         let mut swd = SwdTransport::new();
-        swd.init(4000);
-        swd.jtag_to_swd();
-        let mut dpidr = 0u32;
-        let _ = swd.read_dpidr_retry(&mut dpidr);
+        if let Some(topo) = crate::board::ActiveBoard::ADAPTERS.probe {
+            swd.init_topology(topo, crate::programmer::pins::PIN_RESET, 1000);
+        } else {
+            swd.init_pins(
+                crate::programmer::pins::PIN_SWCLK,
+                crate::programmer::pins::PIN_SWDIO,
+                crate::programmer::pins::PIN_RESET,
+                1000,
+            );
+        }
+        let dpidr = swd.try_attach().unwrap_or(0);
         let _ = swd.power_up_debug();
 
         let mut cortex = CortexM::new(&mut swd);
+        if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+            cortex.csw = 0x23000012;
+            let _ = cortex.select_ap(1);
+            let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+        }
         let mut target = CortexTarget(&mut cortex);
 
         let _ = agentla_debug_server::gdb::run_gdb_session(&mut socket, &mut target).await;
 
-        // On client disconnect, safely resume target core
+        // On client disconnect, safely resume target core and release pins
         let _ = cortex.resume();
+        swd.deinit();
+        crate::programmer::pins::tristate_pins();
         defmt::info!("GDB client disconnected from :3333");
     }
 }

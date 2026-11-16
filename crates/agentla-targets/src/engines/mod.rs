@@ -12,6 +12,8 @@ pub mod silabs;
 pub mod stm32;
 pub mod ti;
 
+pub use stm32::stm32h5_configure_dbgmcu;
+
 use crate::traits::TargetMemAccess;
 use crate::types::{DirectEngineKind, TargetDescriptor, TargetError};
 

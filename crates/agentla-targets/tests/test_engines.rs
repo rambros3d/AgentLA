@@ -158,3 +158,53 @@ fn test_3tier_cascade_direct_engine() {
     assert_eq!(res.tier, ExecutionTier::Tier1DirectEngine);
     assert_eq!(res.bytes_written, 4);
 }
+
+#[test]
+fn test_stm32h5_configure_dbgmcu() {
+    use agentla_targets::engines::stm32::{
+        stm32h5_configure_dbgmcu, DBGMCU_APB1LFREEZE, DBGMCU_CONFIG, DBG_IWDG_STOP, DBG_STANDBY,
+        DBG_STOP, DBG_WWDG_STOP,
+    };
+    use std::collections::HashMap;
+
+    struct DbgmcuMem(HashMap<u32, u32>);
+    impl TargetMemAccess for DbgmcuMem {
+        type Error = TargetError;
+        fn read32(&mut self, addr: u32) -> Result<u32, Self::Error> {
+            Ok(self.0.get(&addr).copied().unwrap_or(0))
+        }
+        fn write32(&mut self, addr: u32, val: u32) -> Result<(), Self::Error> {
+            self.0.insert(addr, val);
+            Ok(())
+        }
+        fn read_block(&mut self, _addr: u32, _buf: &mut [u8]) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn write_block(&mut self, _addr: u32, _data: &[u8]) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn assert_reset(&mut self, _assert: bool) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn halt(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn resume(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    let mut mem = DbgmcuMem(HashMap::new());
+    // Pre-populate with existing flag to ensure bitwise OR preserves prior state
+    mem.0.insert(DBGMCU_CONFIG, 0x1);
+    mem.0.insert(DBGMCU_APB1LFREEZE, 0x2);
+
+    assert!(stm32h5_configure_dbgmcu(&mut mem).is_ok());
+
+    let config = mem.0.get(&DBGMCU_CONFIG).copied().unwrap();
+    let apb1 = mem.0.get(&DBGMCU_APB1LFREEZE).copied().unwrap();
+
+    assert_eq!(config, 0x1 | DBG_STOP | DBG_STANDBY);
+    assert_eq!(apb1, 0x2 | DBG_WWDG_STOP | DBG_IWDG_STOP);
+}
+

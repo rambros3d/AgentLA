@@ -678,11 +678,11 @@ impl SwdTransport {
                 }
                 return res;
             } else if ack == SWD_ACK_WAIT {
-                delay_cycles(150);
+                delay_cycles(1500);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 let _ = self.write_dp(DP_ABORT, 0x0000001E);
-                delay_cycles(150);
+                delay_cycles(1500);
                 continue;
             } else {
                 let _ = self.write_dp(DP_ABORT, 0x0000001E);
@@ -709,11 +709,11 @@ impl SwdTransport {
                 ok = true;
                 break;
             } else if ack == SWD_ACK_WAIT {
-                delay_cycles(150);
+                delay_cycles(1500);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 let _ = self.write_dp(DP_ABORT, 0x0000001E);
-                delay_cycles(150);
+                delay_cycles(1500);
                 continue;
             } else {
                 let _ = self.write_dp(DP_ABORT, 0x0000001E);
@@ -735,11 +735,11 @@ impl SwdTransport {
                     word_ok = true;
                     break;
                 } else if ack == SWD_ACK_WAIT {
-                    delay_cycles(150);
+                    delay_cycles(1500);
                     continue;
                 } else if ack == SWD_ACK_FAULT {
                     let _ = self.write_dp(DP_ABORT, 0x0000001E);
-                    delay_cycles(150);
+                    delay_cycles(1500);
                     continue;
                 } else {
                     let _ = self.write_dp(DP_ABORT, 0x0000001E);
@@ -903,11 +903,11 @@ impl SwdTransport {
         self.assert_reset(true);
         delay_cycles(300_000); // 2ms in reset
         let res_rst = self.read_dpidr_retry(&mut dpidr);
-        self.assert_reset(false);
-        delay_cycles(300_000);
         if res_rst.is_ok() && dpidr != 0 && dpidr != 0xFFFFFFFF {
             return Ok(dpidr);
         }
+        self.assert_reset(false);
+        delay_cycles(300_000);
 
         // Pass 3: Swapped pin configuration (GP5=CLK, GP4=DIO) in case wiring is reversed
         self.init_pins(orig_dio, orig_clk, rst, 100);
@@ -920,11 +920,11 @@ impl SwdTransport {
         self.assert_reset(true);
         delay_cycles(300_000);
         let res_swapped_rst = self.read_dpidr_retry(&mut dpidr);
-        self.assert_reset(false);
-        delay_cycles(300_000);
         if res_swapped_rst.is_ok() && dpidr != 0 && dpidr != 0xFFFFFFFF {
             return Ok(dpidr);
         }
+        self.assert_reset(false);
+        delay_cycles(300_000);
 
         // Restore original pins
         self.init_pins(orig_clk, orig_dio, rst, 100);

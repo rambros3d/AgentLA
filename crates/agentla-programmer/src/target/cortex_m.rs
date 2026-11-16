@@ -62,6 +62,24 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         self.csw = csw;
     }
 
+    pub fn is_armv8m_dpidr(dpidr: u32) -> bool {
+        dpidr == 0x6BA02477 || dpidr == 0x0BE12477
+    }
+
+    /// Configure Access Port and CSW based on DPIDR.
+    /// For ARMv8-M / Cortex-M33 (e.g. STM32H5), routes to AP 1 (AHB-AP) with CSW = 0x23000012.
+    /// For legacy ARMv7-M, defaults to AP 0 with standard CSW.
+    pub fn auto_configure_for_dpidr(&mut self, dpidr: u32) -> Result<(), CortexError> {
+        if Self::is_armv8m_dpidr(dpidr) {
+            self.select_ap(1)?;
+            self.csw = 0x23000012;
+        } else {
+            self.select_ap(0)?;
+            self.csw = ADIV5_AP_CSW_DEFAULT;
+        }
+        Ok(())
+    }
+
     pub fn select_ap(&mut self, apsel: u8) -> Result<(), CortexError> {
         self.apsel = apsel;
         self.swd
@@ -92,22 +110,45 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
             .write_ap_port(self.apsel, AP_TAR, addr)
             .map_err(|_| CortexError::SwdError)?;
         let mut val = 0u32;
-        self.swd
-            .read_ap_port(self.apsel, AP_DRW, &mut val)
-            .map_err(|_| CortexError::SwdError)?;
+        if self.swd.read_ap_port(self.apsel, AP_DRW, &mut val).is_err() {
+            if self.apsel == 1 {
+                self.swd
+                    .write_ap_port(self.apsel, AP_CSW, 0xE3000012)
+                    .map_err(|_| CortexError::SwdError)?;
+                self.swd
+                    .write_ap_port(self.apsel, AP_TAR, addr)
+                    .map_err(|_| CortexError::SwdError)?;
+                self.swd
+                    .read_ap_port(self.apsel, AP_DRW, &mut val)
+                    .map_err(|_| CortexError::SwdError)?;
+                self.csw = 0xE3000012;
+            } else {
+                return Err(CortexError::SwdError);
+            }
+        }
         Ok(val)
     }
 
     pub fn mem_write32(&mut self, addr: u32, value: u32) -> Result<(), CortexError> {
-        self.swd
-            .write_ap_port(self.apsel, AP_CSW, self.csw)
-            .map_err(|_| CortexError::SwdError)?;
-        self.swd
-            .write_ap_port(self.apsel, AP_TAR, addr)
-            .map_err(|_| CortexError::SwdError)?;
-        self.swd
-            .write_ap_port(self.apsel, AP_DRW, value)
-            .map_err(|_| CortexError::SwdError)?;
+        if self.swd.write_ap_port(self.apsel, AP_CSW, self.csw).is_err()
+            || self.swd.write_ap_port(self.apsel, AP_TAR, addr).is_err()
+            || self.swd.write_ap_port(self.apsel, AP_DRW, value).is_err()
+        {
+            if self.apsel == 1 {
+                self.swd
+                    .write_ap_port(self.apsel, AP_CSW, 0xE3000012)
+                    .map_err(|_| CortexError::SwdError)?;
+                self.swd
+                    .write_ap_port(self.apsel, AP_TAR, addr)
+                    .map_err(|_| CortexError::SwdError)?;
+                self.swd
+                    .write_ap_port(self.apsel, AP_DRW, value)
+                    .map_err(|_| CortexError::SwdError)?;
+                self.csw = 0xE3000012;
+            } else {
+                return Err(CortexError::SwdError);
+            }
+        }
         Ok(())
     }
 
@@ -119,8 +160,9 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
             let boundary_rem = (1024 - (curr_addr & 1023)) as usize;
             let chunk_len = boundary_rem.min(buf.len() - offset);
 
+            let csw = if self.apsel == 1 { self.csw | 0xC0000000 } else { self.csw };
             self.swd
-                .write_ap_port(self.apsel, AP_CSW, self.csw)
+                .write_ap_port(self.apsel, AP_CSW, csw)
                 .map_err(|_| CortexError::SwdError)?;
 
             let mut sub_offset = 0usize;
@@ -131,23 +173,41 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
 
                 if sub_words > 0 {
                     let mut words = [0u32; 64];
-                    self.swd
+                    if self
+                        .swd
                         .mem_read_chunk(self.apsel, sub_addr, &mut words[..sub_words])
-                        .map_err(|_| CortexError::SwdError)?;
-                    for i in 0..sub_words {
-                        let bytes = words[i].to_le_bytes();
-                        let target_idx = offset + sub_offset + i * 4;
-                        buf[target_idx..target_idx + 4].copy_from_slice(&bytes);
+                        .is_ok()
+                    {
+                        for i in 0..sub_words {
+                            let bytes = words[i].to_le_bytes();
+                            let target_idx = offset + sub_offset + i * 4;
+                            buf[target_idx..target_idx + 4].copy_from_slice(&bytes);
+                        }
+                    } else {
+                        for i in 0..sub_words {
+                            let w = self.mem_read32(sub_addr + (i * 4) as u32)?;
+                            let bytes = w.to_le_bytes();
+                            let target_idx = offset + sub_offset + i * 4;
+                            buf[target_idx..target_idx + 4].copy_from_slice(&bytes);
+                        }
                     }
                     sub_offset += sub_words * 4;
                 } else {
                     let mut single_word = [0u32; 1];
-                    self.swd
+                    if self
+                        .swd
                         .mem_read_chunk(self.apsel, sub_addr, &mut single_word)
-                        .map_err(|_| CortexError::SwdError)?;
-                    let bytes = single_word[0].to_le_bytes();
-                    let target_idx = offset + sub_offset;
-                    buf[target_idx..target_idx + sub_rem].copy_from_slice(&bytes[..sub_rem]);
+                        .is_ok()
+                    {
+                        let bytes = single_word[0].to_le_bytes();
+                        let target_idx = offset + sub_offset;
+                        buf[target_idx..target_idx + sub_rem].copy_from_slice(&bytes[..sub_rem]);
+                    } else {
+                        let w = self.mem_read32(sub_addr)?;
+                        let bytes = w.to_le_bytes();
+                        let target_idx = offset + sub_offset;
+                        buf[target_idx..target_idx + sub_rem].copy_from_slice(&bytes[..sub_rem]);
+                    }
                     sub_offset += sub_rem;
                 }
             }
@@ -278,10 +338,24 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         self.apsel = if is_m33 { 1 } else { 0 };
         self.csw = 0x23000012;
         let _ = self.swd.power_up_debug();
+        let _ = self.select_ap(self.apsel);
+
+        if is_m33 {
+            self.csw = 0xE3000012;
+            let _ = self.mem_write32(0x4402_4004, 0x06); // DBG_STOP | DBG_STANDBY
+            let _ = self.mem_write32(0x4402_4008, 0x1800); // DBG_WWDG_STOP | DBG_IWDG_STOP
+            self.csw = 0x23000012;
+        }
 
         // Release reset
         let _ = self.swd.assert_reset(false);
-        delay_cycles(150_000); // 1 ms settling
+
+        // Immediate burst write across reset rising edge
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        for _ in 0..10 {
+            let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+        }
 
         // Re-establish SWD sync and debug power after reset release
         let _ = self.swd.read_dpidr_retry(&mut dpidr);
@@ -307,6 +381,10 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     }
 
     pub fn reset_and_catch(&mut self) -> Result<u32, CortexError> {
+        // Hold reset low
+        let _ = self.swd.assert_reset(true);
+        delay_cycles(750_000); // 5 ms low
+
         let mut dpidr = 0u32;
         let _ = self.swd.read_dpidr_retry(&mut dpidr);
         let is_m33 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
@@ -315,17 +393,24 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         let _ = self.swd.power_up_debug();
         let _ = self.select_ap(self.apsel);
 
-        // 1. Arm vector catch and enable halting debug
-        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN);
-        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        if is_m33 {
+            self.csw = 0xE3000012;
+            let _ = self.mem_write32(0x4402_4004, 0x06); // DBG_STOP | DBG_STANDBY
+            let _ = self.mem_write32(0x4402_4008, 0x1800); // DBG_WWDG_STOP | DBG_IWDG_STOP
+            self.csw = 0x23000012;
+        }
 
-        // 2. Pulse hardware reset
-        let _ = self.swd.assert_reset(true);
-        delay_cycles(750_000); // 5 ms low
+        // Release hardware reset
         let _ = self.swd.assert_reset(false);
-        delay_cycles(150_000); // 1 ms settling
 
-        // 3. Re-attach and re-power debug
+        // Immediate burst write across reset rising edge
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        for _ in 0..10 {
+            let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+        }
+
+        // Re-attach and re-power debug
         let _ = self.swd.read_dpidr_retry(&mut dpidr);
         let _ = self.swd.power_up_debug();
         let _ = self.select_ap(self.apsel);
