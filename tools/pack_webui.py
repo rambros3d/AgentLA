@@ -105,15 +105,21 @@ def pack_webui(
             asset_files.append((rel_path, full_path))
 
     # Also include packages from packages_dir or apps/packages if available
-    pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
-    if pkg_dir.is_dir():
-        for root, _, files in os.walk(pkg_dir, followlinks=True):
-            for f in sorted(files):
-                if f.startswith(".") or f.endswith(".tmp") or f.endswith(".bak"):
-                    continue
-                full_path = Path(root) / f
-                rel_path = f"packages/{full_path.relative_to(pkg_dir).as_posix()}"
-                asset_files.append((rel_path, full_path))
+    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home"}
+    if include_user_apps:
+        pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
+        if pkg_dir.is_dir():
+            for root, _, files in os.walk(pkg_dir, followlinks=True):
+                for f in sorted(files):
+                    if f.startswith(".") or f.endswith(".tmp") or f.endswith(".bak"):
+                        continue
+                    # Skip system app packages (they are native in-ROM)
+                    base_name = f.split(".")[0]
+                    if base_name in SYSTEM_APPS:
+                        continue
+                    full_path = Path(root) / f
+                    rel_path = f"packages/{full_path.relative_to(pkg_dir).as_posix()}"
+                    asset_files.append((rel_path, full_path))
 
     # Also include universal agent skills from SKILLS directory
     skills_dir = (web_dir.parent / "SKILLS").resolve()
@@ -127,20 +133,19 @@ def pack_webui(
                 asset_files.append((rel_path, full_path))
 
     # Automatically regenerate apps/catalog.json from apps/*/app.json manifests
-    try:
-        sys.path.insert(0, str(Path(__file__).parent))
-        from build_catalog import generate_catalog
-        generate_catalog()
-    except Exception as e:
-        print(f"[pack_webui] Warning: auto build_catalog skipped: {e}")
+    if include_user_apps:
+        try:
+            sys.path.insert(0, str(Path(__file__).parent))
+            from build_catalog import generate_catalog
+            generate_catalog()
+        except Exception as e:
+            print(f"[pack_webui] Warning: auto build_catalog skipped: {e}")
 
-    # Official app store catalog at apps/catalog.json
-    apps_catalog = (web_dir.parent / "apps" / "catalog.json").resolve()
-    if apps_catalog.is_file():
-        if not any(rel == "apps/catalog.json" for rel, _ in asset_files):
-            asset_files.append(("apps/catalog.json", apps_catalog))
-        if not any(rel == "packages/catalog.json" for rel, _ in asset_files):
-            asset_files.append(("packages/catalog.json", apps_catalog))
+        # Official app store catalog at packages/catalog.json
+        apps_catalog = (web_dir.parent / "apps" / "catalog.json").resolve()
+        if apps_catalog.is_file():
+            if not any(rel == "packages/catalog.json" for rel, _ in asset_files):
+                asset_files.append(("packages/catalog.json", apps_catalog))
 
     if not asset_files:
         raise ValueError(f"No asset files found in {web_dir}")
@@ -158,9 +163,23 @@ def pack_webui(
     total_raw_bytes = 0
     total_gz_bytes = 0
 
+    import re
+
     for rel_name, full_path in asset_files:
         raw_data = full_path.read_bytes()
-        gz_data = gzip.compress(raw_data, compresslevel=9, mtime=0)
+        # Normalize whitespace in HTML to maximize compression within 512KB ROM partition budget
+        if rel_name.endswith(".html"):
+            try:
+                text = raw_data.decode("utf-8")
+                text = re.sub(r"[ \t]+", " ", text)
+                text = re.sub(r"\n\s*\n", "\n", text)
+                to_compress = text.encode("utf-8")
+            except Exception:
+                to_compress = raw_data
+        else:
+            to_compress = raw_data
+
+        gz_data = gzip.compress(to_compress, compresslevel=9, mtime=0)
 
         total_raw_bytes += len(raw_data)
         total_gz_bytes += len(gz_data)
@@ -174,9 +193,8 @@ def pack_webui(
         with fs.open(lfs_gz_path, "wb") as f:
             f.write(gz_data)
 
-        # For small assets (<= 2KB), also write uncompressed variant.
-        # Larger bundles, HTML, CSS, JS, and app packages are served pre-compressed with Content-Encoding: gzip.
-        if len(raw_data) <= 2048 and not rel_name.endswith(".tar"):
+        # For system flash algorithms (.bin), uncompressed variant is strictly required by programmer
+        if rel_name.startswith("system/algo/") and rel_name.endswith(".bin"):
             lfs_raw_path = f"/{rel_name}"
             ensure_parent_dirs(fs, lfs_raw_path)
             with fs.open(lfs_raw_path, "wb") as f:

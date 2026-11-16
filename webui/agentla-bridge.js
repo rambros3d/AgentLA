@@ -582,7 +582,7 @@
                 }
             }
         } catch (_) {}
-        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
     }
 
     function renderDockPinnedApps(container) {
@@ -590,7 +590,7 @@
         if (!container) return;
 
         var pinned = getPinnedApps();
-        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].forEach(function(sysId) {
+        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].forEach(function(sysId) {
             var el = document.getElementById('dock-app-' + sysId);
             if (el) {
                 el.style.display = pinned.indexOf(sysId) !== -1 ? 'inline-flex' : 'none';
@@ -599,7 +599,7 @@
         var html = '';
 
         pinned.forEach(function(appId) {
-            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].indexOf(appId) !== -1) return;
+            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].indexOf(appId) !== -1) return;
 
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
@@ -697,28 +697,32 @@
                     </svg>
                 </a>
 
-                <!-- Console -->
-                <a href="${isDemo ? labUrl + '#console' : '/agent/'}" class="dock-icon-btn" id="dock-app-console"${sysStyle('console')} data-dock-tooltip="MCP Console">
-                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path opacity="0.5" d="M2.73223 12.9391C3.06096 12.7418 3.47962 12.6331 4.05448 12.5732C4.14064 11.3357 4.36306 10.5351 4.93726 9.9519C5.87452 9 7.38301 9 10.4 9H13.6C16.617 9 18.1255 9 19.0627 9.9519C19.6369 10.5351 19.8596 11.3357 19.9458 12.5732C20.5207 12.6331 20.9393 12.7418 21.268 12.9391C22.0003 13.3784 22.0003 14.0855 22.0003 15.4997C22.0003 16.9139 22.0003 17.621 21.268 18.0604C20.9393 18.2576 20.5207 18.3663 19.9458 18.4262C19.8596 19.6637 19.6369 20.4649 19.0627 21.0481C18.1255 22 16.617 22 13.6 22H13.6H10.4C7.38301 22 5.87452 22 4.93726 21.0481C4.36306 20.4649 4.14064 19.6637 4.05448 18.4262C3.47962 18.3663 3.06096 18.2576 2.73223 18.0604C2 17.621 2 16.9139 2 15.4997C2 14.0855 2 13.3784 2.73223 12.9391Z" fill="currentColor"/>
-                        <path d="M14.5537 17.3975C14.8865 17.151 15.3559 17.221 15.6025 17.5537C15.849 17.8865 15.779 18.3559 15.4463 18.6025C14.4739 19.3232 13.2849 19.75 12 19.75C10.7151 19.75 9.52608 19.3232 8.55371 18.6025C8.22102 18.3559 8.15099 17.8865 8.39746 17.5537C8.64407 17.221 9.11354 17.151 9.44629 17.3975C10.1746 17.9373 11.0541 18.25 12 18.25C12.9459 18.25 13.8254 17.9373 14.5537 17.3975Z" fill="currentColor"/>
-                        <path d="M9 12C9.42949 12 9.68372 12.3352 9.80078 12.5693C9.93278 12.8334 10 13.1631 10 13.5C10 13.8369 9.93278 14.1666 9.80078 14.4307C9.68372 14.6648 9.42949 15 9 15C8.57051 15 8.31628 14.6648 8.19922 14.4307C8.06722 14.1666 8 13.8369 8 13.5C8 13.1631 8.06722 12.8334 8.19922 12.5693C8.31628 12.3352 8.57051 12 9 12Z" fill="currentColor"/>
-                        <path d="M15 12C15.4295 12 15.6837 12.3352 15.8008 12.5693C15.9328 12.8334 16 13.1631 16 13.5C16 13.8369 15.9328 14.1666 15.8008 14.4307C15.6837 14.6648 15.4295 15 15 15C14.5705 15 14.3163 14.6648 14.1992 14.4307C14.0672 14.1666 14 13.8369 14 13.5C14 13.1631 14.0672 12.8334 14.1992 12.5693C14.3163 12.3352 14.5705 12 15 12Z" fill="currentColor"/>
-                        <path d="M12 2C12.8284 2 13.5 2.67157 13.5 3.5C13.5 4.05495 13.198 4.5384 12.75 4.79785V9H11.25V4.79785C10.802 4.5384 10.5 4.05495 10.5 3.5C10.5 2.67157 11.1716 2 12 2Z" fill="currentColor"/>
-                    </svg>
-                </a>
-
-                <!-- Terminal -->
-                <a href="${isDemo ? 'terminal.html' : '/terminal/'}" class="dock-icon-btn" id="dock-app-terminal" data-dock-tooltip="Serial Terminal">
+                <!-- Files -->
+                <a href="${isDemo ? 'files.html' : '/files'}" class="dock-icon-btn" id="dock-app-files"${sysStyle('files')} data-dock-tooltip="Files">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
-                        <path d="M6.42385 9.51988C6.68903 9.20167 7.16195 9.15868 7.48016 9.42385L7.75658 9.6542L7.75661 9.65423C8.36154 10.1583 8.87654 10.5874 9.23295 10.9821C9.61151 11.4013 9.90694 11.8834 9.90694 12.5C9.90694 13.1166 9.61151 13.5987 9.23295 14.0179C8.87653 14.4126 8.36153 14.8418 7.75658 15.3458L7.48016 15.5762C7.16195 15.8414 6.68903 15.7984 6.42385 15.4802C6.15868 15.1619 6.20167 14.689 6.51988 14.4239L6.75428 14.2285C7.41285 13.6797 7.84348 13.3185 8.11968 13.0126C8.38196 12.7222 8.40694 12.586 8.40694 12.5C8.40694 12.414 8.38196 12.2779 8.11968 11.9874C7.84348 11.6815 7.41285 11.3203 6.75429 10.7715L6.51988 10.5762C6.20167 10.311 6.15868 9.83809 6.42385 9.51988Z" fill="currentColor"/>
-                        <path d="M17.75 15C17.75 15.4142 17.4142 15.75 17 15.75H12C11.5858 15.75 11.25 15.4142 11.25 15C11.25 14.5858 11.5858 14.25 12 14.25H17C17.4142 14.25 17.75 14.5858 17.75 15Z" fill="currentColor"/>
+                        <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
+                    </svg>
+                </a>
+
+                <!-- Motor (BareFOC) -->
+                <a href="${isDemo ? 'barefoc.html' : '/motor'}" class="dock-icon-btn" id="dock-app-motor"${sysStyle('motor')} data-dock-tooltip="Motor (BareFOC)">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <g opacity="0.45">
+                            <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18ZM15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" fill="currentColor"/>
+                        </g>
+                        <path d="M9.67217 17.5313L11.1967 14.8908C10.7001 14.7531 10.2553 14.491 9.89804 14.1401L8.37377 16.7802C8.77077 17.0818 9.2065 17.3351 9.67217 17.5313Z" fill="currentColor"/>
+                        <path d="M6.0464 12.7494H9.09446C9.0328 12.5097 9 12.2585 9 11.9996C9 11.7405 9.03283 11.4891 9.09456 11.2494H6.04644C6.01579 11.4951 6 11.7455 6 11.9996C6 12.2535 6.01577 12.5037 6.0464 12.7494Z" fill="currentColor"/>
+                        <path d="M8.37388 7.21886L9.89814 9.85896C10.2555 9.50807 10.7003 9.24594 11.1968 9.1083L9.6723 6.4678C9.20662 6.66399 8.77089 6.91726 8.37388 7.21886Z" fill="currentColor"/>
+                        <path d="M12.8031 9.10828L14.3276 6.46777C14.7933 6.66396 15.2291 6.91723 15.6261 7.21882L14.1018 9.85892C13.7445 9.50803 13.2997 9.24592 12.8031 9.10828Z" fill="currentColor"/>
+                        <path d="M14.9055 12.7494C14.9672 12.5097 15 12.2585 15 11.9996C15 11.7405 14.9672 11.4891 14.9054 11.2494H17.9536C17.9842 11.4951 18 11.7455 18 11.9996C18 12.2535 17.9842 12.5037 17.9536 12.7494H14.9055Z" fill="currentColor"/>
+                        <path d="M12.8034 14.8908C13.3 14.7531 13.7447 14.4909 14.102 14.14L15.6263 16.7801C15.2293 17.0818 14.7936 17.335 14.3279 17.5313L12.8034 14.8908Z" fill="currentColor"/>
                     </svg>
                 </a>
 
                 <!-- Console -->
-                <a href="${isDemo ? labUrl + '#console' : '/agent/'}" class="dock-icon-btn" id="dock-app-console" data-dock-tooltip="MCP Console">
+                <a href="${isDemo ? labUrl + '#console' : '/agent/'}" class="dock-icon-btn" id="dock-app-console"${sysStyle('console')} data-dock-tooltip="MCP Console">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path opacity="0.5" d="M2.73223 12.9391C3.06096 12.7418 3.47962 12.6331 4.05448 12.5732C4.14064 11.3357 4.36306 10.5351 4.93726 9.9519C5.87452 9 7.38301 9 10.4 9H13.6C16.617 9 18.1255 9 19.0627 9.9519C19.6369 10.5351 19.8596 11.3357 19.9458 12.5732C20.5207 12.6331 20.9393 12.7418 21.268 12.9391C22.0003 13.3784 22.0003 14.0855 22.0003 15.4997C22.0003 16.9139 22.0003 17.621 21.268 18.0604C20.9393 18.2576 20.5207 18.3663 19.9458 18.4262C19.8596 19.6637 19.6369 20.4649 19.0627 21.0481C18.1255 22 16.617 22 13.6 22H13.6H10.4C7.38301 22 5.87452 22 4.93726 21.0481C4.36306 20.4649 4.14064 19.6637 4.05448 18.4262C3.47962 18.3663 3.06096 18.2576 2.73223 18.0604C2 17.621 2 16.9139 2 15.4997C2 14.0855 2 13.3784 2.73223 12.9391Z" fill="currentColor"/>
                         <path d="M14.5537 17.3975C14.8865 17.151 15.3559 17.221 15.6025 17.5537C15.849 17.8865 15.779 18.3559 15.4463 18.6025C14.4739 19.3232 13.2849 19.75 12 19.75C10.7151 19.75 9.52608 19.3232 8.55371 18.6025C8.22102 18.3559 8.15099 17.8865 8.39746 17.5537C8.64407 17.221 9.11354 17.151 9.44629 17.3975C10.1746 17.9373 11.0541 18.25 12 18.25C12.9459 18.25 13.8254 17.9373 14.5537 17.3975Z" fill="currentColor"/>
@@ -824,6 +828,21 @@
             } else {
                 document.body.appendChild(dock);
             }
+        }
+
+        var curPath = window.location.pathname;
+        if (curPath.startsWith('/motor') || curPath.startsWith('/barefoc') || curPath.startsWith('/foc')) {
+            var mBtn = document.getElementById('dock-app-motor');
+            if (mBtn) mBtn.classList.add('active');
+        } else if (curPath.startsWith('/terminal')) {
+            var tBtn = document.getElementById('dock-app-terminal');
+            if (tBtn) tBtn.classList.add('active');
+        } else if (curPath.startsWith('/files')) {
+            var fBtn = document.getElementById('dock-app-files');
+            if (fBtn) fBtn.classList.add('active');
+        } else if (curPath.startsWith('/scope')) {
+            var sBtn = document.getElementById('dock-app-scope');
+            if (sBtn) sBtn.classList.add('active');
         }
 
         // Wire popover triggers

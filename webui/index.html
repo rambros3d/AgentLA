@@ -44,9 +44,9 @@
                 var stored = localStorage.getItem('agentla_pinned_dock_apps');
                 var pinned = stored ? JSON.parse(stored) : null;
                 if (!Array.isArray(pinned)) {
-                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'];
+                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
                 }
-                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'];
+                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
                 var css = '';
                 for (var i = 0; i < allSys.length; i++) {
                     if (pinned.indexOf(allSys[i]) === -1) {
@@ -128,6 +128,15 @@
                 <span class="start-menu-icon" aria-hidden="true"></span>
                 <span class="font-bold tracking-tight text-sm brand-title" id="top-bar-title-container">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> <span id="top-bar-context-title">BakuProbe</span></span>
             </a>
+        </div>
+
+        <!-- Canonical Top-Rail Navigation Header -->
+        <div class="navbar-center hidden sm:flex items-center gap-1 font-mono-tech text-xs">
+            <a href="#/" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10" onclick="navigateToRoute('#/'); return false;">Home</a>
+            <a href="#/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openLab('scope'); return false;">Scope</a>
+            <a href="#/terminal" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openTerminalApp(); return false;">Terminal</a>
+            <a href="#/files" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openFilesApp(); return false;">Files</a>
+            <a href="#/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openMotorApp(); return false;">Motor</a>
         </div>
 
         <div class="bar-right navbar-end">
@@ -265,6 +274,22 @@
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
                         <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
+                    </svg>
+                </button>
+
+                <!-- Motor (BareFOC Studio) -->
+                <button class="dock-icon-btn" id="dock-app-motor" data-dock-tooltip="Motor (BareFOC)" onclick="openMotorApp()">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <g opacity="0.45">
+                            <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18ZM15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" fill="currentColor"/>
+                        </g>
+                        <path d="M9.67217 17.5313L11.1967 14.8908C10.7001 14.7531 10.2553 14.491 9.89804 14.1401L8.37377 16.7802C8.77077 17.0818 9.2065 17.3351 9.67217 17.5313Z" fill="currentColor"/>
+                        <path d="M6.0464 12.7494H9.09446C9.0328 12.5097 9 12.2585 9 11.9996C9 11.7405 9.03283 11.4891 9.09456 11.2494H6.04644C6.01579 11.4951 6 11.7455 6 11.9996C6 12.2535 6.01577 12.5037 6.0464 12.7494Z" fill="currentColor"/>
+                        <path d="M8.37388 7.21886L9.89814 9.85896C10.2555 9.50807 10.7003 9.24594 11.1968 9.1083L9.6723 6.4678C9.20662 6.66399 8.77089 6.91726 8.37388 7.21886Z" fill="currentColor"/>
+                        <path d="M12.8031 9.10828L14.3276 6.46777C14.7933 6.66396 15.2291 6.91723 15.6261 7.21882L14.1018 9.85892C13.7445 9.50803 13.2997 9.24592 12.8031 9.10828Z" fill="currentColor"/>
+                        <path d="M14.9055 12.7494C14.9672 12.5097 15 12.2585 15 11.9996C15 11.7405 14.9672 11.4891 14.9054 11.2494H17.9536C17.9842 11.4951 18 11.7455 18 11.9996C18 12.2535 17.9842 12.5037 17.9536 12.7494H14.9055Z" fill="currentColor"/>
+                        <path d="M12.8034 14.8908C13.3 14.7531 13.7447 14.4909 14.102 14.14L15.6263 16.7801C15.2293 17.0818 14.7936 17.335 14.3279 17.5313L12.8034 14.8908Z" fill="currentColor"/>
                     </svg>
                 </button>
 
@@ -1071,6 +1096,8 @@
                                 <option value="/pins">Pin Crossbar Matrix (/pins)</option>
                                 <option value="/agent">MCP Agent Console (/agent)</option>
                                 <option value="/terminal">Serial Terminal (/terminal)</option>
+                                <option value="/files">Storage Explorer (/files)</option>
+                                <option value="/motor">BareFOC Studio (/motor)</option>
                             </select>
                         </div>
                     </div>
@@ -1365,6 +1392,11 @@
                 targetUrl = isDemo ? 'files.html' : '/files';
                 appTitle = 'Storage Files';
                 dockId = 'dock-app-files';
+            } else if (hash === '#/motor' || hash === '#/barefoc' || hash === '#/foc') {
+                if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
+                targetUrl = isDemo ? 'barefoc.html' : '/motor';
+                appTitle = 'BareFOC Studio';
+                dockId = 'dock-app-motor';
             } else if (hash.startsWith('#/app/')) {
                 if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
                 const appId = decodeURIComponent(hash.substring(6));
@@ -1607,6 +1639,28 @@
                 iconSvg: `<svg class="solar-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path opacity="0.5" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" fill="currentColor"/>
                     <path d="M4 8C4 6.89543 4.89543 6 6 6H9.58579C10.1162 6 10.6249 6.21071 11 6.58579L12.4142 8H18C19.1046 8 20 8.89543 20 10V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" fill="currentColor"/>
+                </svg>`
+            },
+            {
+                id: 'motor',
+                name: 'Motor',
+                category: 'Motion & FOC Control',
+                version: '1.0.0 (ROM)',
+                description: 'BareFOC Studio native workbench instrument. Real-time Field Oriented Control, telemetry, tuning, and closed-loop motor configuration.',
+                tags: ['System ROM', 'BareFOC', 'BLDC', 'Stepper', 'FOC', 'Motion'],
+                accent: 'accent-motor',
+                action: "openMotorApp()",
+                iconSvg: `<svg class="solar-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g opacity="0.45">
+                        <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18ZM15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" fill="currentColor"/>
+                    </g>
+                    <path d="M9.67217 17.5313L11.1967 14.8908C10.7001 14.7531 10.2553 14.491 9.89804 14.1401L8.37377 16.7802C8.77077 17.0818 9.2065 17.3351 9.67217 17.5313Z" fill="currentColor"/>
+                    <path d="M6.0464 12.7494H9.09446C9.0328 12.5097 9 12.2585 9 11.9996C9 11.7405 9.03283 11.4891 9.09456 11.2494H6.04644C6.01579 11.4951 6 11.7455 6 11.9996C6 12.2535 6.01577 12.5037 6.0464 12.7494Z" fill="currentColor"/>
+                    <path d="M8.37388 7.21886L9.89814 9.85896C10.2555 9.50807 10.7003 9.24594 11.1968 9.1083L9.6723 6.4678C9.20662 6.66399 8.77089 6.91726 8.37388 7.21886Z" fill="currentColor"/>
+                    <path d="M12.8031 9.10828L14.3276 6.46777C14.7933 6.66396 15.2291 6.91723 15.6261 7.21882L14.1018 9.85892C13.7445 9.50803 13.2997 9.24592 12.8031 9.10828Z" fill="currentColor"/>
+                    <path d="M14.9055 12.7494C14.9672 12.5097 15 12.2585 15 11.9996C15 11.7405 14.9672 11.4891 14.9054 11.2494H17.9536C17.9842 11.4951 18 11.7455 18 11.9996C18 12.2535 17.9842 12.5037 17.9536 12.7494H14.9055Z" fill="currentColor"/>
+                    <path d="M12.8034 14.8908C13.3 14.7531 13.7447 14.4909 14.102 14.14L15.6263 16.7801C15.2293 17.0818 14.7936 17.335 14.3279 17.5313L12.8034 14.8908Z" fill="currentColor"/>
                 </svg>`
             }
         ];
@@ -2002,6 +2056,7 @@
                 <option value="/agent">MCP Agent Console (/agent)</option>
                 <option value="/terminal">Serial Terminal (/terminal)</option>
                 <option value="/files">Storage Explorer (/files)</option>
+                <option value="/motor">BareFOC Studio (/motor)</option>
                 <option value="/device">Device Diagnostics (/device)</option>
             `;
 
@@ -2303,6 +2358,10 @@
             navigateToRoute('#/files');
         }
 
+        function openMotorApp() {
+            navigateToRoute('#/motor');
+        }
+
         async function fetchInstalledApps() {
             try {
                 const res = await fetch('/api/v1/apps');
@@ -2340,7 +2399,7 @@
                     }
                 }
             } catch (_) {}
-            return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'];
+            return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
         }
 
         function setPinnedApps(list) {
@@ -2379,7 +2438,7 @@
             const pinned = getPinnedApps();
 
             // Toggle visibility of system instruments in dock
-            ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'].forEach(sysId => {
+            ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].forEach(sysId => {
                 const el = document.getElementById(`dock-app-${sysId}`);
                 if (el) {
                     el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -2390,7 +2449,7 @@
 
             let html = '';
             pinned.forEach(appId => {
-                if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files'].includes(appId)) return;
+                if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].includes(appId)) return;
 
                 const installed = installedApps.find(a => (a.id || a.name) === appId);
                 if (!installed) return;

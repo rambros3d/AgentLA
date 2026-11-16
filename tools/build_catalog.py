@@ -35,8 +35,9 @@ def generate_catalog(apps_dir: Path = None, output_file: Path = None) -> dict:
     catalog_entries = []
 
     # Enumerate subdirectories with app.json
+    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home"}
     for item in sorted(apps_dir.iterdir()):
-        if not item.is_dir() or item.name == "packages" or item.name.startswith("."):
+        if not item.is_dir() or item.name == "packages" or item.name.startswith(".") or item.name in SYSTEM_APPS:
             continue
 
         manifest_path = item / "app.json"

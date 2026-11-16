@@ -60,9 +60,46 @@
     .font-tech {
       font-family: var(--font-mono-tech, ui-monospace, monospace);
     }
+
+    /* Chrome suppression when embedded in App-Shell */
+    html.is-embedded #top-bar,
+    html.is-embedded .app-nav-rail,
+    html.is-embedded #app-nav-rail,
+    html.is-embedded .floating-glass-dock,
+    html.is-embedded #floating-glass-dock {
+      display: none !important;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
+
+  <!-- Unified Clean OS Top Bar (Matching Workbench & Launcher) -->
+  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-1.5 min-h-0 flex justify-between items-center z-30">
+    <div class="navbar-start flex items-center gap-2">
+      <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="AgentLA App Launcher (Return to Home)">
+        <span class="start-menu-icon" aria-hidden="true"></span>
+        <span class="font-bold tracking-tight text-sm font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> Storage Console</span>
+      </a>
+    </div>
+
+    <!-- Canonical Top-Rail Navigation Header -->
+    <div class="navbar-center hidden sm:flex items-center gap-1 font-mono-tech text-xs">
+      <a href="/home" class="btn btn-ghost btn-xs font-mono-tech uppercase">Home</a>
+      <a href="/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase">Scope</a>
+      <a href="/terminal" class="btn btn-ghost btn-xs font-mono-tech uppercase">Terminal</a>
+      <a href="/files" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10">Files</a>
+      <a href="/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase">Motor</a>
+    </div>
+
+    <div class="navbar-end flex items-center gap-2">
+      <!-- Tri-State Theme Toggle -->
+      <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Toggle Theme" aria-label="Toggle Theme Mode">
+        <svg class="solar-icon icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="5"/>
+        </svg>
+      </button>
+    </div>
+  </header>
 
   <!-- Main Body Grid: Sidebar & Content -->
   <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -1146,6 +1183,6 @@
       fetchDirectory(currentPath);
     });
   </script>
-
+  <script src="/agentla-bridge.js"></script>
 </body>
 </html>
