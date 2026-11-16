@@ -3,6 +3,62 @@
   "name": "AgentLA Official Catalog",
   "apps": [
     {
+      "id": "bareboot",
+      "name": "BareBoot Manager",
+      "version": "1.0.0",
+      "author": "BareBoot Team",
+      "description": "Multi-bus bootloader workbench for BareBoot/Katapult targets. Supports hardware SWD bootstrapping, interactive bareboot.toml configuration, and handsfree firmware updates over UART, I2C, I3C, and CAN.",
+      "category": "Firmware",
+      "tags": [
+        "Bootloader",
+        "Katapult",
+        "SWD",
+        "CAN",
+        "I2C",
+        "I3C",
+        "UART",
+        "OTA"
+      ],
+      "requires": [
+        "uart",
+        "can",
+        "i2c",
+        "swd"
+      ],
+      "size_bytes": 10240,
+      "icon_url": "bareboot/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/bareboot",
+      "package_url": "/packages/bareboot.tar"
+    },
+    {
+      "id": "bareboot",
+      "name": "BareBoot Manager",
+      "version": "1.0.0",
+      "author": "BareBoot Team",
+      "description": "Multi-bus bootloader workbench for BareBoot/Katapult targets. Supports hardware SWD bootstrapping, interactive bareboot.toml configuration, and handsfree firmware updates over UART, I2C, I3C, and CAN.",
+      "category": "Firmware",
+      "tags": [
+        "Bootloader",
+        "Katapult",
+        "SWD",
+        "CAN",
+        "I2C",
+        "I3C",
+        "UART",
+        "OTA"
+      ],
+      "requires": [
+        "uart",
+        "can",
+        "i2c",
+        "swd"
+      ],
+      "size_bytes": 102400,
+      "icon_url": "bareboot/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/bareboot",
+      "package_url": "/packages/bareboot.tar"
+    },
+    {
       "id": "barefoc",
       "name": "BareFOC Studio",
       "version": "1.0.0",

@@ -218,6 +218,53 @@ pub fn hw_i2c_write(sda: u32, scl: u32, addr: u8, reg: u8, data: &[u8]) -> bool 
     true
 }
 
+pub fn hw_i2c_transfer(sda: u32, scl: u32, addr: u8, tx_data: &[u8], rx_data: &mut [u8]) -> (bool, usize, usize) {
+    hw_i2c_init(sda, scl);
+
+    let mut written = 0usize;
+    if !tx_data.is_empty() {
+        hw_i2c_start(sda, scl);
+        if !hw_i2c_write_byte(sda, scl, (addr << 1) & 0xFE) {
+            hw_i2c_stop(sda, scl);
+            return (false, 0, 0);
+        }
+        for (i, &b) in tx_data.iter().enumerate() {
+            if !hw_i2c_write_byte(sda, scl, b) {
+                hw_i2c_stop(sda, scl);
+                return (false, i, 0);
+            }
+            written += 1;
+        }
+        if rx_data.is_empty() {
+            hw_i2c_stop(sda, scl);
+            return (true, written, 0);
+        }
+        // Repeated start for read
+        hw_i2c_start(sda, scl);
+    } else if !rx_data.is_empty() {
+        hw_i2c_start(sda, scl);
+    } else {
+        // Zero-length ping
+        hw_i2c_start(sda, scl);
+        let ack = hw_i2c_write_byte(sda, scl, (addr << 1) & 0xFE);
+        hw_i2c_stop(sda, scl);
+        return (ack, 0, 0);
+    }
+
+    if !hw_i2c_write_byte(sda, scl, (addr << 1) | 1) {
+        hw_i2c_stop(sda, scl);
+        return (false, written, 0);
+    }
+
+    let n = rx_data.len();
+    for i in 0..n {
+        let ack = i + 1 < n;
+        rx_data[i] = hw_i2c_read_byte(sda, scl, ack);
+    }
+    hw_i2c_stop(sda, scl);
+    (true, written, n)
+}
+
 pub struct I2cBridge {
     active: bool,
     slot: Option<pin_owner::SlotId>,

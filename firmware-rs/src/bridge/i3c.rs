@@ -5,9 +5,13 @@
 //! PIO timing is deferred; state and command parsing live in RAM.
 
 use crate::pin_owner;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::mutex::Mutex;
 
 /// I3C SDA/SCL share the I2C flexible pair.
 pub const I3C_PINS: [u32; 2] = [23, 24];
+
+pub static I3C_INSTANCE: Mutex<CriticalSectionRawMutex, I3cBridge> = Mutex::new(I3cBridge::new());
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct I3cConfig { pub freq_khz: u32 }
@@ -21,7 +25,7 @@ pub struct I3cBridge {
 }
 
 impl I3cBridge {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { active: false, slot: None, config: I3cConfig { freq_khz: 1000 },
             devices: heapless::Vec::new(), last_status: heapless::String::new() }
     }
@@ -76,6 +80,30 @@ impl I3cBridge {
         if !self.active { return out; }
         for i in 0..len.min(64) { let _ = out.push((addr.wrapping_add(i as u8)) & 0xFF); }
         out
+    }
+
+    pub fn read_bytes(&mut self, addr: u8, dest: &mut [u8]) -> usize {
+        if !self.active { return 0; }
+        for (i, b) in dest.iter_mut().enumerate() {
+            *b = (addr.wrapping_add(i as u8)) & 0xFF;
+        }
+        dest.len()
+    }
+
+    pub fn transfer(&mut self, addr: u8, tx_data: &[u8], rx_data: &mut [u8]) -> Result<(usize, usize), ()> {
+        if !self.active { return Err(()); }
+        let written = if !tx_data.is_empty() {
+            self.write(addr, tx_data)?;
+            tx_data.len()
+        } else {
+            0
+        };
+        let read = if !rx_data.is_empty() {
+            self.read_bytes(addr, rx_data)
+        } else {
+            0
+        };
+        Ok((written, read))
     }
 
     pub fn poll_ibi(&mut self) -> bool {

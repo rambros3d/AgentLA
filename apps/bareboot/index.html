@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="nothing" data-style="industrial">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAREBOOT_MANAGER // AgentLA</title>
+  <script>
+    (function() {
+      document.documentElement.setAttribute('data-style', 'industrial');
+      var savedMode = localStorage.getItem('agentla-theme-mode');
+      var saved = localStorage.getItem('agentla-theme');
+      var defaultDark = 'nothing';
+      var defaultLight = 'industrial-light';
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+        var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+        document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+      } else if (savedMode === 'light') {
+        document.documentElement.setAttribute('data-theme', defaultLight);
+        document.documentElement.setAttribute('data-theme-scheme', 'light');
+      } else if (savedMode === 'dark') {
+        document.documentElement.setAttribute('data-theme', defaultDark);
+        document.documentElement.setAttribute('data-theme-scheme', 'dark');
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.setAttribute('data-theme', defaultLight);
+        document.documentElement.setAttribute('data-theme-scheme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', defaultDark);
+        document.documentElement.setAttribute('data-theme-scheme', 'dark');
+      }
+    })();
+  </script>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="/daisyui.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/themes.css">
+  <script src="/agentla-bridge.js"></script>
+  <style>
+    html.is-embedded #top-bar,
+    html.is-embedded .app-nav-rail,
+    html.is-embedded #app-nav-rail,
+    html.is-embedded .floating-glass-dock,
+    html.is-embedded #floating-glass-dock {
+      display: none !important;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: hsl(var(--b1));
+      color: hsl(var(--bc));
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+    .app-viewport {
+      height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .dock-anchor {
+      bottom: 0 !important;
+    }
+    .nav-tab-btn {
+      position: relative;
+      transition: all 0.15s ease-in-out;
+      border-bottom: 2px solid transparent;
+    }
+    .nav-tab-btn.active {
+      color: hsl(var(--p));
+      border-bottom-color: hsl(var(--p));
+      background-color: hsl(var(--p) / 0.08);
+    }
+    /* Strictly no dot indicators below buttons, dock icons, or tabs */
+    .nav-tab-btn::after,
+    .btn::after,
+    .dock-icon-btn::after {
+      display: none !important;
+      content: none !important;
+    }
+    .terminal-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .terminal-scroll::-webkit-scrollbar-track {
+      background: hsl(var(--b3) / 0.3);
+    }
+    .terminal-scroll::-webkit-scrollbar-thumb {
+      background: hsl(var(--bc) / 0.2);
+      border-radius: 3px;
+    }
+    .terminal-scroll::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--bc) / 0.4);
+    }
+    .dropzone-active {
+      border-color: hsl(var(--p)) !important;
+      background: hsl(var(--p) / 0.08) !important;
+    }
+  </style>
+</head>
+<body class="bg-base-100 text-base-content antialiased select-none">
+  <div class="app-viewport">
+
+    <!-- Top App Navigation & Status Bar -->
+    <header class="flex-none h-12 border-b border-base-300 bg-base-200/90 backdrop-blur px-4 flex items-center justify-between z-20">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 font-black tracking-wider text-sm">
+          <svg class="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <rect x="5" y="5" width="14" height="14" rx="2" stroke-width="1.75"/>
+            <path d="M9 2V5M15 2V5M9 19V22M15 19V22M2 9H5M2 15H5M19 9H22M19 15H22" stroke-width="1.75" stroke-linecap="round"/>
+            <path d="M8.5 12H15.5M12 8.5L15.5 12L12 15.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="text-primary font-bold">BAREBOOT</span>
+          <span class="text-xs opacity-50 font-normal">MANAGER v1.0</span>
+        </div>
+
+        <div class="divider divider-horizontal my-2 mx-0 opacity-40"></div>
+
+        <!-- Target Detection Status Pill -->
+        <div id="target-pill" class="badge badge-outline badge-sm gap-1.5 font-mono text-[11px] py-2">
+          <span id="target-pill-indicator" class="w-2 h-2 rounded-full bg-base-content/30"></span>
+          <span id="target-pill-text">TARGET: UNCHECKED</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex items-center gap-1 bg-base-300/60 p-0.5 rounded-lg border border-base-300 text-xs font-medium">
+        <button class="nav-tab-btn px-3 py-1.5 rounded text-xs font-semibold active" data-view="view-flasher">
+          1. Bootloader Flasher
+        </button>
+        <button class="nav-tab-btn px-3 py-1.5 rounded text-xs font-semibold" data-view="view-config">
+          2. Configuration
+        </button>
+        <button class="nav-tab-btn px-3 py-1.5 rounded text-xs font-semibold" data-view="view-updater">
+          3. Firmware Updater
+        </button>
+      </div>
+
+      <!-- Global Hardware Actions -->
+      <div class="flex items-center gap-2">
+        <button id="btn-detect-target" class="btn btn-xs btn-outline font-mono">
+          Detect Target
+        </button>
+        <button id="btn-reset-target" class="btn btn-xs btn-outline btn-warning font-mono" title="Pulse target hardware nRST line">
+          Pulse nRST
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <main class="flex-1 overflow-hidden relative">
+
+      <!-- ================================================================= -->
+      <!-- TAB 1: BOOTLOADER FLASHER                                         -->
+      <!-- ================================================================= -->
+      <section id="view-flasher" class="view-panel h-full p-4 overflow-y-auto">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+          <!-- Left Column: Target Hardware Diagnostics -->
+          <div class="lg:col-span-5 flex flex-col gap-4">
+            <div class="card bg-base-200/60 border border-base-300 shadow-sm p-4">
+              <div class="flex items-center justify-between border-b border-base-300 pb-2 mb-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-primary">SWD Target Diagnostics</span>
+                <span class="badge badge-xs font-mono" id="flasher-conn-badge">SWD READY</span>
+              </div>
+
+              <div class="space-y-2 text-xs font-mono">
+                <div class="flex justify-between py-1 border-b border-base-300/40">
+                  <span class="opacity-60">Programmer Port:</span>
+                  <select id="flasher-port-select" class="select select-bordered select-xs w-44 font-mono">
+                    <option value="bluepill" selected>BluePill / SWD</option>
+                    <option value="ch32v203">CH32V203 / QingKe</option>
+                    <option value="ch32v003">CH32V003 / 1-Wire</option>
+                    <option value="rp2040">RP2040 / RP2350</option>
+                  </select>
+                </div>
+                <div class="flex justify-between py-1 border-b border-base-300/40">
+                  <span class="opacity-60">Target Family:</span>
+                  <span id="flasher-target-family" class="font-bold">--</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-base-300/40">
+                  <span class="opacity-60">MCU Device Name:</span>
+                  <span id="flasher-target-name" class="font-bold">--</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-base-300/40">
+                  <span class="opacity-60">Core IDCODE:</span>
+                  <span id="flasher-target-idcode">--</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-base-300/40">
+                  <span class="opacity-60">Flash Memory Base:</span>
+                  <input type="text" id="flasher-flash-base" class="input input-xs input-bordered w-32 font-mono text-right" value="0x08000000" />
+                </div>
+                <div class="flex justify-between py-1">
+                  <span class="opacity-60">Detected Flash Size:</span>
+                  <span id="flasher-target-flash-size">--</span>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-base-300 flex gap-2">
+                <button id="btn-flasher-query" class="btn btn-sm btn-primary flex-1 font-mono">
+                  Query Programmer
+                </button>
+                <button id="btn-flasher-erase" class="btn btn-sm btn-error btn-outline font-mono">
+                  Erase Sector 0
+                </button>
+              </div>
+            </div>
+
+            <!-- Hardware Pin Connections Card -->
+            <div class="card bg-base-200/40 border border-base-300 p-3 text-xs">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-base-content/70 mb-1">Standard Programmer Pinout</span>
+              <div class="grid grid-cols-2 gap-2 text-[11px] font-mono mt-1 opacity-80">
+                <div>SWCLK: GPIO 2</div>
+                <div>SWDIO: GPIO 3</div>
+                <div>RST: GPIO 1</div>
+                <div>GND / 3V3 Rail</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Bootloader Catalog & Flashing -->
+          <div class="lg:col-span-7 flex flex-col gap-4">
+            <div class="card bg-base-200/60 border border-base-300 shadow-sm p-4">
+              <div class="flex items-center justify-between border-b border-base-300 pb-2 mb-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-primary">Target Bootloader Image</span>
+                <span class="text-[11px] opacity-60">BareBoot / Katapult Engine</span>
+              </div>
+
+              <!-- Catalog Selection Dropdown -->
+              <div class="form-control mb-3">
+                <label class="label py-1">
+                  <span class="label-text text-xs font-bold">Select Pre-compiled Bootloader Profile:</span>
+                </label>
+                <select id="flasher-catalog-select" class="select select-bordered select-sm w-full font-mono text-xs">
+                  <option value="" disabled selected>Loading catalog...</option>
+                </select>
+              </div>
+
+              <!-- Target Profile Details Banner -->
+              <div id="flasher-profile-details" class="p-3 bg-base-300/40 rounded border border-base-300 text-xs font-mono space-y-1 mb-3">
+                <div class="flex justify-between">
+                  <span class="opacity-60">Architecture / Core:</span>
+                  <span id="flasher-prof-core" class="font-bold">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="opacity-60">Supported Transports:</span>
+                  <span id="flasher-prof-transports" class="text-info">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="opacity-60">App Jump Address:</span>
+                  <span id="flasher-prof-appbase">--</span>
+                </div>
+                <div class="text-[11px] opacity-70 mt-1 pt-1 border-t border-base-300" id="flasher-prof-desc">
+                  Select a profile above or drop a custom binary below.
+                </div>
+              </div>
+
+              <!-- Custom Binary Dropzone -->
+              <div id="flasher-dropzone" class="border-2 border-dashed border-base-300 rounded-lg p-5 text-center cursor-pointer hover:border-primary transition-all">
+                <input type="file" id="flasher-file-input" class="hidden" accept=".bin" />
+                <div class="flex flex-col items-center justify-center gap-1">
+                  <svg class="w-8 h-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M4 16V19C4 20.1046 4.89543 21 6 21H18C19.1046 21 20 20.1046 20 19V16M12 15V3M12 3L7 8M12 3L17 8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="text-xs font-bold">Drop custom .bin here, or click to browse</span>
+                  <span class="text-[11px] opacity-50">ARM Cortex-M or RISC-V raw binary</span>
+                </div>
+              </div>
+
+              <!-- Selected Binary Metadata Card -->
+              <div id="flasher-bin-card" class="mt-3 p-2 bg-base-100 rounded border border-base-300 text-xs font-mono flex items-center justify-between">
+                <div>
+                  <div id="flasher-bin-name" class="font-bold">No file selected</div>
+                  <div id="flasher-bin-size" class="text-[11px] opacity-60">0 bytes</div>
+                </div>
+                <span id="flasher-bin-status" class="badge badge-sm badge-ghost">Awaiting image</span>
+              </div>
+
+              <!-- Flash Button & Progress -->
+              <div class="mt-4 pt-3 border-t border-base-300 flex flex-col gap-2">
+                <button id="btn-flasher-execute" class="btn btn-primary w-full font-mono font-bold" disabled>
+                  Flash Bootloader via SWD
+                </button>
+                <progress id="flasher-prog-bar" class="progress progress-primary w-full hidden" value="0" max="100"></progress>
+                <div id="flasher-prog-status" class="text-[11px] font-mono text-center opacity-70"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 2: CONFIGURATION EDITOR (bareboot.toml)                       -->
+      <!-- ================================================================= -->
+      <section id="view-config" class="view-panel h-full p-4 overflow-y-auto hidden">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+          <!-- Left Column: Interactive Settings Form -->
+          <div class="lg:col-span-6 flex flex-col gap-4">
+            <div class="card bg-base-200/60 border border-base-300 shadow-sm p-4">
+              <div class="flex items-center justify-between border-b border-base-300 pb-2 mb-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-primary">BareBoot Profile Settings</span>
+                <span class="text-[11px] opacity-60">Target MCU Specification</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">Target Family:</span></label>
+                  <input type="text" id="cfg-target" class="input input-xs input-bordered font-mono" value="stm32h503" />
+                </div>
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">Part Model:</span></label>
+                  <input type="text" id="cfg-mcu" class="input input-xs input-bordered font-mono" value="stm32h503kb" />
+                </div>
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">System Clock (Hz):</span></label>
+                  <input type="number" id="cfg-sysclk" class="input input-xs input-bordered font-mono" value="64000000" />
+                </div>
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">Boot Window (ms):</span></label>
+                  <input type="number" id="cfg-timeout" class="input input-xs input-bordered font-mono" value="3000" />
+                </div>
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">Flash Size (bytes):</span></label>
+                  <input type="number" id="cfg-flash-size" class="input input-xs input-bordered font-mono" value="131072" />
+                </div>
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">RAM Size (bytes):</span></label>
+                  <input type="number" id="cfg-ram-size" class="input input-xs input-bordered font-mono" value="32768" />
+                </div>
+                <div class="form-control col-span-2">
+                  <label class="label py-1"><span class="label-text text-[11px] font-bold">Application Base Address (app_base):</span></label>
+                  <input type="text" id="cfg-app-base" class="input input-xs input-bordered font-mono" value="0x08004000" />
+                </div>
+              </div>
+
+              <!-- Active Transports Selection -->
+              <div class="mt-4 pt-3 border-t border-base-300">
+                <span class="text-xs font-bold uppercase tracking-wider block mb-2">Enabled Host Transports</span>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <label class="flex items-center gap-2 cursor-pointer bg-base-100 p-2 rounded border border-base-300">
+                    <input type="checkbox" id="cfg-trans-i2c" class="checkbox checkbox-xs checkbox-primary" checked />
+                    <span class="font-bold">I2C Bus</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer bg-base-100 p-2 rounded border border-base-300">
+                    <input type="checkbox" id="cfg-trans-i3c" class="checkbox checkbox-xs checkbox-primary" checked />
+                    <span class="font-bold">MIPI I3C</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer bg-base-100 p-2 rounded border border-base-300">
+                    <input type="checkbox" id="cfg-trans-uart" class="checkbox checkbox-xs checkbox-primary" />
+                    <span class="font-bold">UART Telemetry</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer bg-base-100 p-2 rounded border border-base-300">
+                    <input type="checkbox" id="cfg-trans-can" class="checkbox checkbox-xs checkbox-primary" />
+                    <span class="font-bold">CAN Bus</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Transport Parameters -->
+              <div class="grid grid-cols-2 gap-3 mt-3 text-xs">
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px]">I2C Target Address:</span></label>
+                  <input type="text" id="cfg-i2c-addr" class="input input-xs input-bordered font-mono" value="0x40" />
+                </div>
+                <div class="form-control">
+                  <label class="label py-1"><span class="label-text text-[11px]">CAN Bitrate:</span></label>
+                  <select id="cfg-can-baud" class="select select-bordered select-xs font-mono">
+                    <option value="1000000" selected>1,000,000 bps</option>
+                    <option value="500000">500,000 bps</option>
+                    <option value="250000">250,000 bps</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-base-300 flex gap-2">
+                <button id="btn-cfg-template-h5" class="btn btn-xs btn-outline font-mono">Preset: STM32H503</button>
+                <button id="btn-cfg-template-f1" class="btn btn-xs btn-outline font-mono">Preset: STM32F103</button>
+                <button id="btn-cfg-template-ch32" class="btn btn-xs btn-outline font-mono">Preset: CH32V203</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Live TOML Preview & Export -->
+          <div class="lg:col-span-6 flex flex-col gap-4">
+            <div class="card bg-base-200/60 border border-base-300 shadow-sm p-4 flex-1 flex flex-col">
+              <div class="flex items-center justify-between border-b border-base-300 pb-2 mb-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-primary">Generated bareboot.toml</span>
+                <span class="text-[11px] opacity-60">Live Validator</span>
+              </div>
+
+              <textarea id="cfg-toml-output" class="textarea textarea-bordered font-mono text-xs flex-1 w-full h-80 bg-base-100 p-3 rounded resize-none" readonly></textarea>
+
+              <div class="mt-4 pt-3 border-t border-base-300 flex gap-2">
+                <button id="btn-cfg-copy" class="btn btn-sm btn-outline font-mono flex-1">
+                  Copy TOML
+                </button>
+                <button id="btn-cfg-download" class="btn btn-sm btn-primary font-mono flex-1">
+                  Download bareboot.toml
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 3: FIRMWARE UPDATER                                          -->
+      <!-- ================================================================= -->
+      <section id="view-updater" class="view-panel h-full p-4 overflow-y-auto hidden">
+        <div class="max-w-6xl mx-auto flex flex-col gap-4">
+
+          <!-- Bus Transport & Connection Controls Header -->
+          <div class="card bg-base-200/60 border border-base-300 shadow-sm p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-3 mb-3">
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-primary">Transport Bus:</span>
+                <div class="join">
+                  <input class="join-item btn btn-xs btn-outline bus-select-btn active" type="radio" name="bus-transport" value="i2c" aria-label="I2C Bus" checked />
+                  <input class="join-item btn btn-xs btn-outline bus-select-btn" type="radio" name="bus-transport" value="i3c" aria-label="I3C SDR" />
+                  <input class="join-item btn btn-xs btn-outline bus-select-btn" type="radio" name="bus-transport" value="uart" aria-label="UART Serial" />
+                  <input class="join-item btn btn-xs btn-outline bus-select-btn" type="radio" name="bus-transport" value="can" aria-label="CAN Bus" />
+                </div>
+              </div>
+
+              <!-- Dynamic Parameters based on Selected Bus -->
+              <div id="bus-params-area" class="flex items-center gap-2 text-xs font-mono">
+                <!-- Injected via JavaScript based on radio -->
+              </div>
+
+              <!-- Connection & Handsfree Actions -->
+              <div class="flex items-center gap-2">
+                <button id="btn-updater-handsfree" class="btn btn-xs btn-warning font-mono" title="Send in-band trigger to reboot target into bootloader">
+                  Send Handsfree Token
+                </button>
+                <button id="btn-updater-connect" class="btn btn-xs btn-primary font-mono">
+                  Connect Katapult
+                </button>
+              </div>
+            </div>
+
+            <!-- Bootloader Session Status Banner -->
+            <div id="updater-session-banner" class="flex items-center justify-between bg-base-100 p-2.5 rounded border border-base-300 text-xs font-mono">
+              <div class="flex items-center gap-2">
+                <span id="updater-session-dot" class="w-2.5 h-2.5 rounded-full bg-base-content/30"></span>
+                <span id="updater-session-text" class="font-bold">STATUS: DISCONNECTED</span>
+              </div>
+              <div id="updater-session-meta" class="text-[11px] opacity-70">
+                Awaiting connection (Command 0x11)
+              </div>
+            </div>
+          </div>
+
+          <!-- Application Firmware Upload & Block Streamer -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+            <!-- Left: Dropzone & File Summary -->
+            <div class="lg:col-span-5 flex flex-col gap-3">
+              <div id="updater-dropzone" class="border-2 border-dashed border-base-300 bg-base-200/30 rounded-lg p-5 text-center cursor-pointer hover:border-primary transition-all">
+                <input type="file" id="updater-file-input" class="hidden" accept=".bin" />
+                <div class="flex flex-col items-center justify-center gap-1">
+                  <svg class="w-8 h-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="text-xs font-bold">Drop Application .bin Here</span>
+                  <span class="text-[11px] opacity-50">Target user firmware image</span>
+                </div>
+              </div>
+
+              <!-- Binary Stats Card -->
+              <div class="card bg-base-200/60 border border-base-300 p-3 text-xs font-mono space-y-1.5">
+                <div class="flex justify-between">
+                  <span class="opacity-60">File Name:</span>
+                  <span id="app-file-name" class="font-bold">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="opacity-60">Binary Size:</span>
+                  <span id="app-file-size">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="opacity-60">Block Count:</span>
+                  <span id="app-block-count">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="opacity-60">Target Address:</span>
+                  <span id="app-target-addr" class="text-primary font-bold">--</span>
+                </div>
+              </div>
+
+              <button id="btn-updater-flash-app" class="btn btn-primary font-mono font-bold w-full" disabled>
+                Stream Application Firmware
+              </button>
+            </div>
+
+            <!-- Right: Streaming Progress & Telemetry Metrics -->
+            <div class="lg:col-span-7 flex flex-col gap-3">
+              <div class="card bg-base-200/60 border border-base-300 p-4 flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-base-300 pb-2">
+                  <span class="text-xs font-bold uppercase tracking-wider text-primary">Streaming Telemetry</span>
+                  <span id="stream-rate-badge" class="badge badge-sm font-mono">0.0 KB/s</span>
+                </div>
+
+                <!-- Progress Bar & Status -->
+                <div class="space-y-1">
+                  <div class="flex justify-between text-xs font-mono">
+                    <span id="stream-block-label">Block: 0 / 0</span>
+                    <span id="stream-percent-label" class="font-bold text-primary">0%</span>
+                  </div>
+                  <progress id="stream-progress-bar" class="progress progress-primary w-full h-3" value="0" max="100"></progress>
+                </div>
+
+                <!-- Live Metrics Grid -->
+                <div class="grid grid-cols-3 gap-2 text-xs font-mono mt-1">
+                  <div class="bg-base-100 p-2 rounded border border-base-300 text-center">
+                    <div class="text-[10px] opacity-60">ELAPSED</div>
+                    <div id="stat-elapsed" class="font-bold text-sm">00:00</div>
+                  </div>
+                  <div class="bg-base-100 p-2 rounded border border-base-300 text-center">
+                    <div class="text-[10px] opacity-60">THROUGHPUT</div>
+                    <div id="stat-speed" class="font-bold text-sm">0 B/s</div>
+                  </div>
+                  <div class="bg-base-100 p-2 rounded border border-base-300 text-center">
+                    <div class="text-[10px] opacity-60">ACK STATUS</div>
+                    <div id="stat-ack" class="font-bold text-sm text-success">IDLE</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Packet Log Inspector -->
+              <div class="card bg-base-200/60 border border-base-300 flex-1 flex flex-col p-3 overflow-hidden">
+                <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-base-300">
+                  <span class="text-xs font-bold uppercase tracking-wider text-base-content/80">Bus Transaction Log</span>
+                  <button id="btn-clear-log" class="btn btn-ghost btn-xs text-[10px] font-mono">Clear</button>
+                </div>
+                <div id="packet-log" class="terminal-scroll flex-1 h-44 overflow-y-auto bg-base-100 p-2 rounded font-mono text-[11px] space-y-1">
+                  <div class="opacity-40">[SYSTEM] Katapult packet inspector initialized. Ready.</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Client-Side Katapult Protocol & Application Logic -->
+  <script>
+    /* =========================================================================
+       1. KATAPULT PROTOCOL ENGINE (CRC16, FRAMING, SCANNER)
+       ========================================================================= */
+
+    const Katapult = {
+      HEADER: [0x01, 0x88],
+      TRAILER: [0x99, 0x03],
+      MAX_FRAME_BYTES: 192,
+
+      Commands: {
+        CONNECT: 0x11,
+        RX_BLOCK: 0x12,
+        RX_EOF: 0x13,
+        REQ_BLOCK: 0x14,
+        COMPLETE: 0x15,
+        GET_CANBUS_ID: 0x16
+      },
+
+      Responses: {
+        ACK: 0xa0,
+        NACK: 0xf1,
+        COMMAND_ERROR: 0xf2,
+        COMMAND_BUSY: 0xf3
+      },
+
+      // CRC16-CCITT matching bareBoot firmware & katapult
+      crc16Ccitt(data) {
+        let crc = 0xffff;
+        for (let i = 0; i < data.length; i++) {
+          let d = data[i] ^ (crc & 0xff);
+          d ^= (d << 4) & 0xff;
+          crc = (((d << 8) | (crc >> 8)) ^ (d >> 4) ^ (d << 3)) & 0xffff;
+        }
+        return crc;
+      },
+
+      // Build a full Katapult frame
+      encodeFrame(command, payload = new Uint8Array(0)) {
+        if (payload.length % 4 !== 0) {
+          throw new Error('Payload length must be multiple of 4 bytes');
+        }
+        const wordCount = Math.floor(payload.length / 4);
+        if (wordCount > 255) {
+          throw new Error('Word count exceeds protocol limit');
+        }
+        const frameLen = 4 + payload.length + 4;
+        const frame = new Uint8Array(frameLen);
+
+        frame[0] = this.HEADER[0];
+        frame[1] = this.HEADER[1];
+        frame[2] = command;
+        frame[3] = wordCount;
+        frame.set(payload, 4);
+
+        // CRC calculated over [command, word_count, ...payload]
+        const crcInput = frame.subarray(2, 4 + payload.length);
+        const crc = this.crc16Ccitt(crcInput);
+
+        const crcOffset = 4 + payload.length;
+        frame[crcOffset] = crc & 0xff;
+        frame[crcOffset + 1] = (crc >> 8) & 0xff;
+        frame[crcOffset + 2] = this.TRAILER[0];
+        frame[crcOffset + 3] = this.TRAILER[1];
+
+        return frame;
+      },
+
+      // Sliding window frame scanner
+      scanFrame(buffer) {
+        if (buffer.length < 8) return null;
+
+        // Search for HEADER
+        let headerIdx = -1;
+        for (let i = 0; i <= buffer.length - 2; i++) {
+          if (buffer[i] === this.HEADER[0] && buffer[i + 1] === this.HEADER[1]) {
+            headerIdx = i;
+            break;
+          }
+        }
+        if (headerIdx < 0) return null;
+
+        const candidate = buffer.subarray(headerIdx);
+        if (candidate.length < 8) return null;
+
+        const command = candidate[2];
+        const wordCount = candidate[3];
+        const frameLen = 4 + wordCount * 4 + 4;
+
+        if (frameLen > this.MAX_FRAME_BYTES + 32) {
+          // Bad length, discard header byte
+          return { drop: headerIdx + 1 };
+        }
+        if (candidate.length < frameLen) return null; // Wait for more data
+
+        // Check trailer
+        if (candidate[frameLen - 2] !== this.TRAILER[0] || candidate[frameLen - 1] !== this.TRAILER[1]) {
+          return { drop: headerIdx + 1 };
+        }
+
+        // Verify CRC
+        const crcInput = candidate.subarray(2, 4 + wordCount * 4);
+        const calcCrc = this.crc16Ccitt(crcInput);
+        const recvCrc = candidate[frameLen - 4] | (candidate[frameLen - 3] << 8);
+        if (calcCrc !== recvCrc) {
+          return { drop: headerIdx + 1 };
+        }
+
+        const payload = candidate.subarray(4, 4 + wordCount * 4);
+        return {
+          complete: true,
+          command,
+          wordCount,
+          payload,
+          totalBytes: headerIdx + frameLen
+        };
+      },
+
+      // Parse CONNECT response payload
+      parseConnectPayload(payload) {
+        if (payload.length < 16) {
+          throw new Error('Short CONNECT response');
+        }
+        const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+        const origCmd = view.getUint32(0, true);
+        const protocolVersion = view.getUint32(4, true);
+        const appBase = view.getUint32(8, true);
+        const blockSize = view.getUint32(12, true);
+
+        // Strings
+        let strData = payload.subarray(16);
+        let nullIdx = strData.indexOf(0);
+        let mcuType = '';
+        let swVersion = '';
+
+        if (nullIdx >= 0) {
+          mcuType = new TextDecoder().decode(strData.subarray(0, nullIdx));
+          let mcuWords = Math.floor((nullIdx + 3) / 4);
+          let vOffset = mcuWords * 4;
+          if (vOffset < strData.length) {
+            let vData = strData.subarray(vOffset);
+            let vNull = vData.indexOf(0);
+            swVersion = new TextDecoder().decode(vNull >= 0 ? vData.subarray(0, vNull) : vData);
+          }
+        } else {
+          mcuType = new TextDecoder().decode(strData);
+        }
+
+        return {
+          protocolVersion,
+          appBase,
+          blockSize,
+          mcuType: mcuType.trim(),
+          softwareVersion: swVersion.trim()
+        };
+      }
+    };
+
+    /* =========================================================================
+       2. BUS TRANSPORT ABSTRACTION (UART, CAN, I2C, I3C)
+       ========================================================================= */
+
+    class BusTransport {
+      constructor() {
+        this.type = 'i2c';
+        this.rxBuffer = new Uint8Array(0);
+        this.uartWs = null;
+        this.canWs = null;
+      }
+
+      appendRx(bytes) {
+        const next = new Uint8Array(this.rxBuffer.length + bytes.length);
+        next.set(this.rxBuffer, 0);
+        next.set(bytes, this.rxBuffer.length);
+        this.rxBuffer = next;
+      }
+
+      consumeRx(count) {
+        this.rxBuffer = this.rxBuffer.subarray(count);
+      }
+
+      async sendHandsfreeToken(type, params) {
+        if (type === 'uart') {
+          // Token: ~ \x1c Request Serial Bootloader!! ~
+          const tokenStr = "~ \x1c Request Serial Bootloader!! ~";
+          await this.sendUartRaw(new TextEncoder().encode(tokenStr), params.baud || 115200);
+          return true;
+        } else if (type === 'i2c') {
+          // Byte 0xF0 to target address
+          const res = await fetch('/api/v1/bus/i2c/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ addr: params.addr || 0x40, data_hex: 'F0', read_len: 0 })
+          });
+          return res.ok;
+        } else if (type === 'i3c') {
+          // Byte 0xF0 to target address via I3C
+          const res = await fetch('/api/v1/bus/i3c/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ addr: params.addr || 0x08, data_hex: 'F0', read_len: 0, entdaa: params.entdaa || false })
+          });
+          return res.ok;
+        } else if (type === 'can') {
+          // CAN reboot frame on ID 0x3F0 opcode 0x02
+          return this.sendCanFrame(0x3F0, '0200000000000000');
+        }
+        return false;
+      }
+
+      async sendUartRaw(dataBytes, baud) {
+        return new Promise((resolve, reject) => {
+          const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + `/api/v1/terminal/ws?baud=${baud}`;
+          const ws = new WebSocket(wsUrl);
+          ws.binaryType = 'arraybuffer';
+          ws.onopen = () => {
+            ws.send(dataBytes);
+            setTimeout(() => { ws.close(); resolve(true); }, 150);
+          };
+          ws.onerror = (e) => reject(e);
+        });
+      }
+
+      async sendCanFrame(id, dataHex) {
+        return new Promise((resolve, reject) => {
+          const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + `/api/v1/can/ws`;
+          const ws = new WebSocket(wsUrl);
+          ws.onopen = () => {
+            ws.send(JSON.stringify({ id, ext: false, rtr: false, dlc: Math.floor(dataHex.length / 2), data: dataHex }));
+            setTimeout(() => { ws.close(); resolve(true); }, 150);
+          };
+          ws.onerror = (e) => reject(e);
+        });
+      }
+
+      // High-level exchange: transmit Katapult frame, wait for complete ACK response frame
+      async exchange(frameBytes, transportType, params, timeoutMs = 1500) {
+        if (transportType === 'i2c') {
+          const hex = Array.from(frameBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          const resp = await fetch('/api/v1/bus/i2c/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ addr: params.addr, data_hex: hex, read_len: 64 })
+          });
+          if (!resp.ok) throw new Error(`I2C HTTP error: ${resp.status}`);
+          const json = await resp.json();
+          if (json.status !== 'ok' && json.rx_len === 0) {
+            throw new Error(`I2C NACK on address 0x${params.addr.toString(16)}`);
+          }
+          if (!json.rx_hex) return null;
+          const rxBytes = new Uint8Array(json.rx_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+          this.appendRx(rxBytes);
+          return this.pollParsedFrame();
+        }
+
+        if (transportType === 'i3c') {
+          const hex = Array.from(frameBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          const resp = await fetch('/api/v1/bus/i3c/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ addr: params.addr, data_hex: hex, read_len: 64, entdaa: params.entdaa })
+          });
+          if (!resp.ok) throw new Error(`I3C HTTP error: ${resp.status}`);
+          const json = await resp.json();
+          if (!json.rx_hex) return null;
+          const rxBytes = new Uint8Array(json.rx_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+          this.appendRx(rxBytes);
+          return this.pollParsedFrame();
+        }
+
+        if (transportType === 'uart') {
+          return this.exchangeUart(frameBytes, params.baud, timeoutMs);
+        }
+
+        if (transportType === 'can') {
+          return this.exchangeCan(frameBytes, params.canId, timeoutMs);
+        }
+
+        throw new Error('Unsupported transport: ' + transportType);
+      }
+
+      pollParsedFrame() {
+        const parsed = Katapult.scanFrame(this.rxBuffer);
+        if (parsed) {
+          if (parsed.drop) {
+            this.consumeRx(parsed.drop);
+            return null;
+          }
+          if (parsed.complete) {
+            this.consumeRx(parsed.totalBytes);
+            return parsed;
+          }
+        }
+        return null;
+      }
+
+      async exchangeUart(frameBytes, baud, timeoutMs) {
+        return new Promise((resolve, reject) => {
+          const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + `/api/v1/terminal/ws?baud=${baud}`;
+          const ws = new WebSocket(wsUrl);
+          ws.binaryType = 'arraybuffer';
+          let timer = null;
+
+          ws.onopen = () => {
+            ws.send(frameBytes);
+            timer = setTimeout(() => {
+              ws.close();
+              reject(new Error('UART exchange timeout'));
+            }, timeoutMs);
+          };
+
+          ws.onmessage = (evt) => {
+            const chunk = new Uint8Array(evt.data);
+            this.appendRx(chunk);
+            const parsed = this.pollParsedFrame();
+            if (parsed) {
+              clearTimeout(timer);
+              ws.close();
+              resolve(parsed);
+            }
+          };
+
+          ws.onerror = (e) => {
+            clearTimeout(timer);
+            reject(new Error('UART WebSocket error'));
+          };
+        });
+      }
+
+      async exchangeCan(frameBytes, canId, timeoutMs) {
+        return new Promise((resolve, reject) => {
+          const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + `/api/v1/can/ws`;
+          const ws = new WebSocket(wsUrl);
+          let timer = null;
+
+          ws.onopen = () => {
+            // SFF CAN frames carry up to 8 bytes. Send chunks
+            let offset = 0;
+            while (offset < frameBytes.length) {
+              const chunk = frameBytes.subarray(offset, Math.min(offset + 8, frameBytes.length));
+              const hex = Array.from(chunk).map(b => b.toString(16).padStart(2, '0')).join('');
+              ws.send(JSON.stringify({ id: canId, ext: false, rtr: false, dlc: chunk.length, data: hex }));
+              offset += chunk.length;
+            }
+
+            timer = setTimeout(() => {
+              ws.close();
+              reject(new Error('CAN exchange timeout'));
+            }, timeoutMs);
+          };
+
+          ws.onmessage = (evt) => {
+            try {
+              const frame = JSON.parse(evt.data);
+              if (frame.data) {
+                const chunk = new Uint8Array(frame.data.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                this.appendRx(chunk);
+                const parsed = this.pollParsedFrame();
+                if (parsed) {
+                  clearTimeout(timer);
+                  ws.close();
+                  resolve(parsed);
+                }
+              }
+            } catch (_) {}
+          };
+
+          ws.onerror = (e) => {
+            clearTimeout(timer);
+            reject(new Error('CAN WebSocket error'));
+          };
+        });
+      }
+    }
+
+    const transport = new BusTransport();
+
+    /* =========================================================================
+       3. GLOBAL APPLICATION STATE & WORKBENCH LOGIC
+       ========================================================================= */
+
+    const AppState = {
+      catalog: [],
+      selectedProfile: null,
+      customBootloaderBin: null,
+      customBootloaderName: '',
+      connectedSession: null,
+      applicationBin: null,
+      applicationName: '',
+      activeTransport: 'i2c'
+    };
+
+    function logPacket(dir, type, info) {
+      const logEl = document.getElementById('packet-log');
+      if (!logEl) return;
+      const time = new Date().toISOString().substring(11, 23);
+      const row = document.createElement('div');
+      row.className = dir === 'TX' ? 'text-primary' : (dir === 'RX' ? 'text-success' : 'text-base-content/60');
+      row.textContent = `[${time}] [${dir}] [${type}] ${info}`;
+      logEl.appendChild(row);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Load bundled target catalog
+    async function loadCatalog() {
+      try {
+        const res = await fetch('catalog.json');
+        if (!res.ok) throw new Error('Catalog fetch failed');
+        const data = await res.json();
+        AppState.catalog = data.targets || [];
+
+        const select = document.getElementById('flasher-catalog-select');
+        select.innerHTML = '<option value="" disabled selected>-- Choose Target Profile --</option>';
+        AppState.catalog.forEach((target, idx) => {
+          const opt = document.createElement('option');
+          opt.value = target.id;
+          opt.textContent = `${target.name} (${target.core})`;
+          select.appendChild(opt);
+        });
+
+        // Default to first target
+        if (AppState.catalog.length > 0) {
+          select.value = AppState.catalog[0].id;
+          applyProfile(AppState.catalog[0]);
+        }
+      } catch (e) {
+        logPacket('ERR', 'CATALOG', 'Failed to load catalog: ' + e.message);
+      }
+    }
+
+    function applyProfile(target) {
+      AppState.selectedProfile = target;
+      document.getElementById('flasher-prof-core').textContent = target.core;
+      document.getElementById('flasher-prof-transports').textContent = target.supported_transports.join(', ').toUpperCase();
+      document.getElementById('flasher-prof-appbase').textContent = target.app_base;
+      document.getElementById('flasher-prof-desc').textContent = target.description;
+
+      if (target.flash_base) {
+        document.getElementById('flasher-flash-base').value = target.flash_base;
+      }
+
+      // Load bundled binary
+      if (target.firmware_binary) {
+        fetch(target.firmware_binary)
+          .then(r => r.arrayBuffer())
+          .then(buf => {
+            AppState.customBootloaderBin = new Uint8Array(buf);
+            AppState.customBootloaderName = target.firmware_binary.split('/').pop();
+            document.getElementById('flasher-bin-name').textContent = AppState.customBootloaderName;
+            document.getElementById('flasher-bin-size').textContent = `${buf.byteLength} bytes`;
+            document.getElementById('flasher-bin-status').textContent = 'BUNDLED IMAGE';
+            document.getElementById('flasher-bin-status').className = 'badge badge-sm badge-success';
+            document.getElementById('btn-flasher-execute').disabled = false;
+          })
+          .catch(() => {});
+      }
+
+      // Sync with Configuration Tab
+      document.getElementById('cfg-target').value = target.family;
+      document.getElementById('cfg-mcu').value = target.id;
+      document.getElementById('cfg-sysclk').value = target.system_clock_hz;
+      document.getElementById('cfg-timeout').value = target.boot_window_ms;
+      document.getElementById('cfg-flash-size').value = target.flash_size;
+      document.getElementById('cfg-ram-size').value = target.ram_size;
+      document.getElementById('cfg-app-base').value = target.app_base;
+
+      generateToml();
+    }
+
+    // Generate bareboot.toml
+    function generateToml() {
+      const target = document.getElementById('cfg-target').value.trim();
+      const mcu = document.getElementById('cfg-mcu').value.trim();
+      const sysclk = parseInt(document.getElementById('cfg-sysclk').value, 10) || 64000000;
+      const timeout = parseInt(document.getElementById('cfg-timeout').value, 10) || 3000;
+      const flashSize = parseInt(document.getElementById('cfg-flash-size').value, 10) || 131072;
+      const ramSize = parseInt(document.getElementById('cfg-ram-size').value, 10) || 32768;
+      const appBase = document.getElementById('cfg-app-base').value.trim() || '0x08004000';
+
+      const transports = [];
+      if (document.getElementById('cfg-trans-i2c').checked) transports.push('"i2c"');
+      if (document.getElementById('cfg-trans-i3c').checked) transports.push('"i3c"');
+      if (document.getElementById('cfg-trans-uart').checked) transports.push('"uart"');
+      if (document.getElementById('cfg-trans-can').checked) transports.push('"can"');
+
+      const i2cAddr = document.getElementById('cfg-i2c-addr').value.trim();
+      const canBaud = document.getElementById('cfg-can-baud').value;
+
+      let toml = `# BareBoot Configuration Generated by AgentLA BareBoot Manager\n`;
+      toml += `target = "${target}"\n`;
+      toml += `mcu = "${mcu}"\n`;
+      toml += `system_clock_hz = ${sysclk}\n`;
+      toml += `flash_size = ${flashSize}\n`;
+      toml += `ram_size = ${ramSize}\n`;
+      toml += `app_base = ${appBase}\n`;
+      toml += `boot_window_ms = ${timeout}\n`;
+      toml += `transports = [${transports.join(', ')}]\n`;
+
+      if (document.getElementById('cfg-trans-i2c').checked) {
+        toml += `i2c_target_address = ${i2cAddr}\n`;
+      }
+      if (document.getElementById('cfg-trans-can').checked) {
+        toml += `can_bitrate = ${canBaud}\n`;
+      }
+
+      document.getElementById('cfg-toml-output').value = toml;
+    }
+
+    /* =========================================================================
+       4. HARDWARE PROGRAMMER FLASHING (SWD)
+       ========================================================================= */
+
+    async function detectTarget() {
+      const port = document.getElementById('flasher-port-select').value;
+      const pillText = document.getElementById('target-pill-text');
+      const pillDot = document.getElementById('target-pill-indicator');
+      pillText.textContent = 'DETECTING...';
+
+      try {
+        const res = await fetch(`/api/v1/programmer/target?port=${port}`);
+        const data = await res.json();
+
+        if (data.status === 'ok' && data.detected) {
+          pillDot.className = 'w-2 h-2 rounded-full bg-success';
+          pillText.textContent = `TARGET: ${data.family} (${data.name || 'FOUND'})`;
+
+          document.getElementById('flasher-target-family').textContent = data.family;
+          document.getElementById('flasher-target-name').textContent = data.name || data.family;
+          document.getElementById('flasher-target-idcode').textContent = data.idcode || '0x00000000';
+          if (data.flash_base) document.getElementById('flasher-flash-base').value = data.flash_base;
+          if (data.flash_size) document.getElementById('flasher-target-flash-size').textContent = `${data.flash_size} bytes (${data.flash_size / 1024} KB)`;
+
+          logPacket('OK', 'SWD', `Detected target: ${data.name || data.family} IDCODE=${data.idcode}`);
+        } else {
+          pillDot.className = 'w-2 h-2 rounded-full bg-warning';
+          pillText.textContent = 'TARGET: NOT FOUND';
+          logPacket('WARN', 'SWD', 'Target not detected. Check SWCLK/SWDIO wiring.');
+        }
+      } catch (e) {
+        pillDot.className = 'w-2 h-2 rounded-full bg-error';
+        pillText.textContent = 'DETECT ERROR';
+        logPacket('ERR', 'SWD', 'Target query failed: ' + e.message);
+      }
+    }
+
+    async function flashBootloaderSwd() {
+      if (!AppState.customBootloaderBin) return;
+
+      const addr = document.getElementById('flasher-flash-base').value.trim();
+      const port = document.getElementById('flasher-port-select').value;
+      const progBar = document.getElementById('flasher-prog-bar');
+      const progStatus = document.getElementById('flasher-prog-status');
+      const btn = document.getElementById('btn-flasher-execute');
+
+      btn.disabled = true;
+      progBar.classList.remove('hidden');
+      progBar.value = 10;
+      progStatus.textContent = 'Unlocking & programming bootloader sector...';
+      logPacket('TX', 'SWD', `Flashing ${AppState.customBootloaderBin.length} bytes to ${addr}...`);
+
+      try {
+        const res = await fetch(`/api/v1/programmer/flash?addr=${encodeURIComponent(addr)}&port=${encodeURIComponent(port)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: AppState.customBootloaderBin
+        });
+
+        progBar.value = 80;
+
+        if (res.ok) {
+          progBar.value = 100;
+          progStatus.textContent = 'Programming complete! Resetting target core...';
+          logPacket('OK', 'SWD', 'Bootloader programmed successfully. Issuing reset...');
+          await fetch('/api/v1/programmer/reset', { method: 'POST' });
+          progStatus.textContent = 'Target reset! Bootloader active in boot window.';
+        } else {
+          const err = await res.text();
+          progStatus.textContent = 'Flash error: ' + err;
+          logPacket('ERR', 'SWD', 'Flash failed: ' + err);
+        }
+      } catch (e) {
+        progStatus.textContent = 'Network or flash error: ' + e.message;
+        logPacket('ERR', 'SWD', 'Error: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        setTimeout(() => {
+          progBar.classList.add('hidden');
+        }, 3000);
+      }
+    }
+
+    /* =========================================================================
+       5. APPLICATION FIRMWARE UPDATER & BLOCK STREAMER
+       ========================================================================= */
+
+    function getSelectedBusParams() {
+      const type = document.querySelector('input[name="bus-transport"]:checked').value;
+      if (type === 'i2c') {
+        const addrInput = document.getElementById('bus-i2c-addr');
+        let addr = 0x40;
+        if (addrInput) {
+          const val = addrInput.value.trim();
+          addr = val.startsWith('0x') || val.startsWith('0X') ? parseInt(val, 16) : parseInt(val, 10);
+        }
+        return { type, addr };
+      }
+      if (type === 'i3c') {
+        const addrInput = document.getElementById('bus-i3c-addr');
+        const entdaaChk = document.getElementById('bus-i3c-entdaa');
+        let addr = 0x08;
+        if (addrInput) {
+          const val = addrInput.value.trim();
+          addr = val.startsWith('0x') || val.startsWith('0X') ? parseInt(val, 16) : parseInt(val, 10);
+        }
+        return { type, addr, entdaa: entdaaChk ? entdaaChk.checked : false };
+      }
+      if (type === 'uart') {
+        const baudSel = document.getElementById('bus-uart-baud');
+        return { type, baud: baudSel ? parseInt(baudSel.value, 10) : 115200 };
+      }
+      if (type === 'can') {
+        const idInput = document.getElementById('bus-can-id');
+        let canId = 0x3F0;
+        if (idInput) {
+          const val = idInput.value.trim();
+          canId = val.startsWith('0x') || val.startsWith('0X') ? parseInt(val, 16) : parseInt(val, 10);
+        }
+        return { type, canId };
+      }
+      return { type };
+    }
+
+    function renderBusParams() {
+      const type = document.querySelector('input[name="bus-transport"]:checked').value;
+      const area = document.getElementById('bus-params-area');
+      area.innerHTML = '';
+
+      if (type === 'i2c') {
+        area.innerHTML = `
+          <span>Addr:</span>
+          <input type="text" id="bus-i2c-addr" class="input input-xs input-bordered w-20 font-mono" value="0x40" />
+        `;
+      } else if (type === 'i3c') {
+        area.innerHTML = `
+          <span>Dynamic Addr:</span>
+          <input type="text" id="bus-i3c-addr" class="input input-xs input-bordered w-20 font-mono" value="0x08" />
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" id="bus-i3c-entdaa" class="checkbox checkbox-xs" checked />
+            <span class="text-[11px]">ENTDAA</span>
+          </label>
+        `;
+      } else if (type === 'uart') {
+        area.innerHTML = `
+          <span>Baud:</span>
+          <select id="bus-uart-baud" class="select select-bordered select-xs font-mono">
+            <option value="115200" selected>115,200</option>
+            <option value="250000">250,000</option>
+            <option value="500000">500,000</option>
+            <option value="1000000">1,000,000</option>
+          </select>
+        `;
+      } else if (type === 'can') {
+        area.innerHTML = `
+          <span>Node CAN ID:</span>
+          <input type="text" id="bus-can-id" class="input input-xs input-bordered w-24 font-mono" value="0x3F0" />
+        `;
+      }
+    }
+
+    async function sendHandsfree() {
+      const params = getSelectedBusParams();
+      logPacket('TX', params.type.toUpperCase(), `Sending in-band reboot trigger...`);
+      try {
+        const ok = await transport.sendHandsfreeToken(params.type, params);
+        if (ok) {
+          logPacket('OK', params.type.toUpperCase(), 'Handsfree token sent. Waiting for bootloader window...');
+        } else {
+          logPacket('WARN', params.type.toUpperCase(), 'Handsfree token transmission returned error');
+        }
+      } catch (e) {
+        logPacket('ERR', params.type.toUpperCase(), 'Handsfree trigger failed: ' + e.message);
+      }
+    }
+
+    async function connectKatapult() {
+      const params = getSelectedBusParams();
+      const dot = document.getElementById('updater-session-dot');
+      const text = document.getElementById('updater-session-text');
+      const meta = document.getElementById('updater-session-meta');
+
+      text.textContent = 'STATUS: CONNECTING...';
+      dot.className = 'w-2.5 h-2.5 rounded-full bg-warning animate-pulse';
+
+      logPacket('TX', params.type.toUpperCase(), 'Sending CONNECT (0x11) handshake frame...');
+
+      try {
+        const connectFrame = Katapult.encodeFrame(Katapult.Commands.CONNECT);
+        const parsed = await transport.exchange(connectFrame, params.type, params);
+
+        if (!parsed || parsed.command !== Katapult.Responses.ACK) {
+          throw new Error('Did not receive valid ACK to CONNECT');
+        }
+
+        const info = Katapult.parseConnectPayload(parsed.payload);
+        AppState.connectedSession = info;
+
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-success';
+        text.textContent = `STATUS: CONNECTED (${info.mcuType || 'TARGET'})`;
+        meta.textContent = `Block: ${info.blockSize}B | AppBase: 0x${info.appBase.toString(16).toUpperCase()} | Ver: 0x${info.protocolVersion.toString(16)}`;
+
+        logPacket('RX', params.type.toUpperCase(), `ACK CONNECT: MCU=${info.mcuType} BlockSize=${info.blockSize} AppBase=0x${info.appBase.toString(16)}`);
+
+        if (AppState.applicationBin) {
+          document.getElementById('btn-updater-flash-app').disabled = false;
+        }
+      } catch (e) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-error';
+        text.textContent = 'STATUS: CONNECTION FAILED';
+        meta.textContent = e.message;
+        logPacket('ERR', params.type.toUpperCase(), 'Connect failed: ' + e.message);
+      }
+    }
+
+    async function streamApplicationFirmware() {
+      if (!AppState.connectedSession || !AppState.applicationBin) return;
+
+      const session = AppState.connectedSession;
+      const params = getSelectedBusParams();
+      const bin = AppState.applicationBin;
+      const blockSize = session.blockSize;
+      const totalBlocks = Math.ceil(bin.length / blockSize);
+
+      const progBar = document.getElementById('stream-progress-bar');
+      const blockLabel = document.getElementById('stream-block-label');
+      const percentLabel = document.getElementById('stream-percent-label');
+      const statAck = document.getElementById('stat-ack');
+      const statSpeed = document.getElementById('stat-speed');
+      const statElapsed = document.getElementById('stat-elapsed');
+      const btn = document.getElementById('btn-updater-flash-app');
+
+      btn.disabled = true;
+      statAck.textContent = 'STREAMING';
+      statAck.className = 'font-bold text-sm text-warning animate-pulse';
+
+      const startTime = performance.now();
+      let sentBytes = 0;
+
+      logPacket('TX', params.type.toUpperCase(), `Streaming ${bin.length} bytes in ${totalBlocks} blocks of ${blockSize}B to 0x${session.appBase.toString(16)}...`);
+
+      try {
+        for (let i = 0; i < totalBlocks; i++) {
+          const blockOffset = i * blockSize;
+          const blockSlice = bin.subarray(blockOffset, Math.min(blockOffset + blockSize, bin.length));
+
+          // Pad block with 0xFF to block_size if last block is incomplete
+          const fullBlock = new Uint8Array(blockSize);
+          fullBlock.fill(0xff);
+          fullBlock.set(blockSlice, 0);
+
+          const blockAddr = session.appBase + blockOffset;
+
+          // Payload: [addr (4 bytes u32_le), ...data]
+          const payload = new Uint8Array(4 + blockSize);
+          const view = new DataView(payload.buffer);
+          view.setUint32(0, blockAddr, true);
+          payload.set(fullBlock, 4);
+
+          const frame = Katapult.encodeFrame(Katapult.Commands.RX_BLOCK, payload);
+          const parsed = await transport.exchange(frame, params.type, params);
+
+          if (!parsed || parsed.command !== Katapult.Responses.ACK) {
+            throw new Error(`NACK or bad response on block ${i} (addr 0x${blockAddr.toString(16)})`);
+          }
+
+          sentBytes += fullBlock.length;
+          const elapsedSec = (performance.now() - startTime) / 1000;
+          const kbps = elapsedSec > 0 ? (sentBytes / 1024 / elapsedSec).toFixed(1) : 0;
+          const percent = Math.floor(((i + 1) / totalBlocks) * 100);
+
+          progBar.value = percent;
+          percentLabel.textContent = `${percent}%`;
+          blockLabel.textContent = `Block: ${i + 1} / ${totalBlocks}`;
+          statSpeed.textContent = `${kbps} KB/s`;
+
+          const m = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+          const s = Math.floor(elapsedSec % 60).toString().padStart(2, '0');
+          statElapsed.textContent = `${m}:${s}`;
+        }
+
+        // Send RX_EOF (0x13)
+        logPacket('TX', params.type.toUpperCase(), 'Sending RX_EOF (0x13)...');
+        const eofFrame = Katapult.encodeFrame(Katapult.Commands.RX_EOF);
+        const eofParsed = await transport.exchange(eofFrame, params.type, params);
+        if (!eofParsed || eofParsed.command !== Katapult.Responses.ACK) {
+          throw new Error('NACK on RX_EOF');
+        }
+        logPacket('RX', params.type.toUpperCase(), 'ACK RX_EOF received. Target verified flash.');
+
+        // Send COMPLETE (0x15) to jump to user app
+        logPacket('TX', params.type.toUpperCase(), 'Sending COMPLETE (0x15) to boot application...');
+        const compFrame = Katapult.encodeFrame(Katapult.Commands.COMPLETE);
+        try {
+          await transport.exchange(compFrame, params.type, params, 500);
+        } catch (_) {
+          // Bootloader immediately reboots/jumps, may drop connection
+        }
+
+        statAck.textContent = 'BOOTED [OK]';
+        statAck.className = 'font-bold text-sm text-success';
+        logPacket('OK', params.type.toUpperCase(), 'Firmware update completed successfully! Target running application.');
+
+      } catch (e) {
+        statAck.textContent = 'ERROR';
+        statAck.className = 'font-bold text-sm text-error';
+        logPacket('ERR', params.type.toUpperCase(), 'Firmware stream failed: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    /* =========================================================================
+       6. UI EVENT LISTENERS & WIRING
+       ========================================================================= */
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Tab Navigation
+      document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const viewId = btn.getAttribute('data-view');
+          document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+          const targetView = document.getElementById(viewId);
+          if (targetView) targetView.classList.remove('hidden');
+        });
+      });
+
+      // Top Actions
+      document.getElementById('btn-detect-target').addEventListener('click', detectTarget);
+      document.getElementById('btn-flasher-query').addEventListener('click', detectTarget);
+      document.getElementById('btn-reset-target').addEventListener('click', async () => {
+        logPacket('TX', 'PROGRAMMER', 'Pulsing nRST line...');
+        await fetch('/api/v1/programmer/reset', { method: 'POST' });
+        logPacket('OK', 'PROGRAMMER', 'nRST line pulsed.');
+      });
+
+      // Catalog Dropdown
+      document.getElementById('flasher-catalog-select').addEventListener('change', (e) => {
+        const found = AppState.catalog.find(t => t.id === e.target.value);
+        if (found) applyProfile(found);
+      });
+
+      // Flasher Custom File Dropzone
+      const flasherDropzone = document.getElementById('flasher-dropzone');
+      const flasherFileInput = document.getElementById('flasher-file-input');
+
+      flasherDropzone.addEventListener('click', () => flasherFileInput.click());
+      flasherDropzone.addEventListener('dragover', (e) => { e.preventDefault(); flasherDropzone.classList.add('dropzone-active'); });
+      flasherDropzone.addEventListener('dragleave', () => flasherDropzone.classList.remove('dropzone-active'));
+      flasherDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        flasherDropzone.classList.remove('dropzone-active');
+        if (e.dataTransfer.files.length > 0) handleBootloaderFile(e.dataTransfer.files[0]);
+      });
+      flasherFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) handleBootloaderFile(e.target.files[0]);
+      });
+
+      function handleBootloaderFile(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          AppState.customBootloaderBin = new Uint8Array(reader.result);
+          AppState.customBootloaderName = file.name;
+          document.getElementById('flasher-bin-name').textContent = file.name;
+          document.getElementById('flasher-bin-size').textContent = `${file.size} bytes (${(file.size / 1024).toFixed(1)} KB)`;
+          document.getElementById('flasher-bin-status').textContent = 'CUSTOM FILE';
+          document.getElementById('flasher-bin-status').className = 'badge badge-sm badge-info';
+          document.getElementById('btn-flasher-execute').disabled = false;
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      document.getElementById('btn-flasher-execute').addEventListener('click', flashBootloaderSwd);
+
+      document.getElementById('btn-flasher-erase').addEventListener('click', async () => {
+        const port = document.getElementById('flasher-port-select').value;
+        const addr = document.getElementById('flasher-flash-base').value.trim();
+        logPacket('TX', 'SWD', `Erasing sector at ${addr}...`);
+        const res = await fetch(`/api/v1/programmer/erase?addr=${encodeURIComponent(addr)}&port=${encodeURIComponent(port)}`, { method: 'POST' });
+        if (res.ok) logPacket('OK', 'SWD', 'Sector erased successfully.');
+        else logPacket('ERR', 'SWD', 'Erase returned error.');
+      });
+
+      // Config Editor Events
+      const cfgInputs = ['cfg-target', 'cfg-mcu', 'cfg-sysclk', 'cfg-timeout', 'cfg-flash-size', 'cfg-ram-size', 'cfg-app-base', 'cfg-i2c-addr', 'cfg-can-baud', 'cfg-trans-i2c', 'cfg-trans-i3c', 'cfg-trans-uart', 'cfg-trans-can'];
+      cfgInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', generateToml);
+      });
+
+      document.getElementById('btn-cfg-copy').addEventListener('click', () => {
+        const txt = document.getElementById('cfg-toml-output').value;
+        navigator.clipboard.writeText(txt).then(() => {
+          logPacket('OK', 'CONFIG', 'bareboot.toml copied to clipboard.');
+        });
+      });
+
+      document.getElementById('btn-cfg-download').addEventListener('click', () => {
+        const txt = document.getElementById('cfg-toml-output').value;
+        const blob = new Blob([txt], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'bareboot.toml';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('btn-cfg-template-h5').addEventListener('click', () => {
+        const found = AppState.catalog.find(t => t.id === 'stm32h503_i3c');
+        if (found) applyProfile(found);
+      });
+      document.getElementById('btn-cfg-template-f1').addEventListener('click', () => {
+        const found = AppState.catalog.find(t => t.id === 'stm32f103_bluepill');
+        if (found) applyProfile(found);
+      });
+      document.getElementById('btn-cfg-template-ch32').addEventListener('click', () => {
+        const found = AppState.catalog.find(t => t.id === 'ch32v203_riscv');
+        if (found) applyProfile(found);
+      });
+
+      // Bus Transport Selector
+      document.querySelectorAll('input[name="bus-transport"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          renderBusParams();
+        });
+      });
+      renderBusParams();
+
+      // Handsfree & Connect
+      document.getElementById('btn-updater-handsfree').addEventListener('click', sendHandsfree);
+      document.getElementById('btn-updater-connect').addEventListener('click', connectKatapult);
+
+      // Application File Dropzone
+      const updaterDropzone = document.getElementById('updater-dropzone');
+      const updaterFileInput = document.getElementById('updater-file-input');
+
+      updaterDropzone.addEventListener('click', () => updaterFileInput.click());
+      updaterDropzone.addEventListener('dragover', (e) => { e.preventDefault(); updaterDropzone.classList.add('dropzone-active'); });
+      updaterDropzone.addEventListener('dragleave', () => updaterDropzone.classList.remove('dropzone-active'));
+      updaterDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        updaterDropzone.classList.remove('dropzone-active');
+        if (e.dataTransfer.files.length > 0) handleAppFile(e.dataTransfer.files[0]);
+      });
+      updaterFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) handleAppFile(e.target.files[0]);
+      });
+
+      function handleAppFile(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          AppState.applicationBin = new Uint8Array(reader.result);
+          AppState.applicationName = file.name;
+
+          document.getElementById('app-file-name').textContent = file.name;
+          document.getElementById('app-file-size').textContent = `${file.size} bytes (${(file.size / 1024).toFixed(1)} KB)`;
+
+          const blockSize = AppState.connectedSession ? AppState.connectedSession.blockSize : 64;
+          const blocks = Math.ceil(file.size / blockSize);
+          document.getElementById('app-block-count').textContent = `${blocks} blocks (${blockSize}B/block)`;
+
+          const appBase = AppState.connectedSession ? `0x${AppState.connectedSession.appBase.toString(16).toUpperCase()}` : '0x08004000 (default)';
+          document.getElementById('app-target-addr').textContent = appBase;
+
+          if (AppState.connectedSession) {
+            document.getElementById('btn-updater-flash-app').disabled = false;
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      document.getElementById('btn-updater-flash-app').addEventListener('click', streamApplicationFirmware);
+      document.getElementById('btn-clear-log').addEventListener('click', () => {
+        document.getElementById('packet-log').innerHTML = '<div class="opacity-40">[SYSTEM] Log cleared.</div>';
+      });
+
+      // Load initial catalog & detect target
+      loadCatalog();
+      detectTarget();
+    });
+  </script>
+</body>
+</html>

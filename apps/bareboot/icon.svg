@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- BareBoot Manager Industrial Icon -->
+  <g opacity="0.35">
+    <rect x="5" y="5" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.75"/>
+    <path d="M9 2V5M15 2V5M9 19V22M15 19V22M2 9H5M2 15H5M19 9H22M19 15H22" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+  </g>
+  <path d="M8.5 12H15.5M12 8.5L15.5 12L12 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="8.5" cy="8.5" r="1" fill="currentColor"/>
+  <circle cx="8.5" cy="15.5" r="1" fill="currentColor"/>
+</svg>

@@ -271,6 +271,54 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             )
         }))
         .route("/files.html", get_service(crate::fs_http::SystemWebFile::new("files.html", "text/html")))
+        .route("/motor", get_service(crate::fs_http::SystemWebFile::new("barefoc.html", "text/html")))
+        .route("/motor/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/motor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/motor.html", get_service(crate::fs_http::SystemWebFile::new("barefoc.html", "text/html")))
+        .route("/barefoc.html", get_service(crate::fs_http::SystemWebFile::new("barefoc.html", "text/html")))
+        .route("/foc", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/motor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/foc/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/motor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/barefoc", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/motor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/barefoc/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/motor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/lab.html", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
         // Legacy /apps and /lab aliases -> redirect to canonical routes
@@ -409,6 +457,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/packages/servo.tar", get_service(crate::fs_http::SystemWebFile::new("packages/servo.tar", "application/x-tar")))
         .route("/packages/canbus.tar", get_service(crate::fs_http::SystemWebFile::new("packages/canbus.tar", "application/x-tar")))
         .route("/packages/neopixel.tar", get_service(crate::fs_http::SystemWebFile::new("packages/neopixel.tar", "application/x-tar")))
+        .route("/packages/bareboot.tar", get_service(crate::fs_http::SystemWebFile::new("packages/bareboot.tar", "application/x-tar")))
         .route("/packages/servo-master.tar", get_service(crate::fs_http::SystemWebFile::new("packages/servo.tar", "application/x-tar")))
         .route("/packages/can-sniffer.tar", get_service(crate::fs_http::SystemWebFile::new("packages/canbus.tar", "application/x-tar")))
         .route("/packages/neopixel-control.tar", get_service(crate::fs_http::SystemWebFile::new("packages/neopixel.tar", "application/x-tar")))
@@ -711,6 +760,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/bus/i2c/read", crate::rest::BridgeI2cRead)
         .route_service("/api/v1/bridge/i2c/write", crate::rest::BridgeI2cWrite)
         .route_service("/api/v1/bus/i2c/write", crate::rest::BridgeI2cWrite)
+        .route_service("/api/v1/bridge/i2c/transfer", crate::rest::BridgeI2cTransfer)
+        .route_service("/api/v1/bus/i2c/transfer", crate::rest::BridgeI2cTransfer)
         .route_service("/api/v1/bridge/can", crate::rest::BridgeCan)
         .route_service("/api/v1/bridge/can/termination", crate::rest::BridgeCanTermination)
         .route_service("/api/v1/bridge/can/on", crate::rest::BridgeCanOn)
@@ -721,6 +772,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/bus/led/transmit", crate::rest::BridgeLedTransmit)
         .route_service("/api/v1/bridge/i3c/on", crate::rest::BridgeI3cOn)
         .route_service("/api/v1/bridge/i3c/off", crate::rest::BridgeI3cOff)
+        .route_service("/api/v1/bridge/i3c/transfer", crate::rest::BridgeI3cTransfer)
+        .route_service("/api/v1/bus/i3c/transfer", crate::rest::BridgeI3cTransfer)
         .route_service("/api/v1/bridge/spi/on", crate::rest::BridgeSpiOn)
         .route_service("/api/v1/bridge/spi/off", crate::rest::BridgeSpiOff)
         .route_service("/api/v1/bridge/spi/transfer", crate::rest::BridgeSpiTransfer)

@@ -1,0 +1,37 @@
+{
+  "name": "bareboot",
+  "title": "BareBoot Manager",
+  "version": "1.0.0",
+  "author": "BareBoot Team",
+  "description": "Multi-bus bootloader workbench for BareBoot/Katapult targets. Supports hardware SWD bootstrapping, interactive bareboot.toml configuration, and handsfree firmware updates over UART, I2C, I3C, and CAN.",
+  "category": "Firmware",
+  "tags": [
+    "Bootloader",
+    "Katapult",
+    "SWD",
+    "CAN",
+    "I2C",
+    "I3C",
+    "UART",
+    "OTA"
+  ],
+  "icon": "icon.svg",
+  "requires": [
+    "uart",
+    "can",
+    "i2c",
+    "swd"
+  ],
+  "min_firmware_version": "1.0.0",
+  "homepage": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/bareboot",
+  "files": [
+    "index.html",
+    "icon.svg",
+    "catalog.json",
+    "firmwares/bareboot-stm32h503-i3c.bin",
+    "firmwares/bareboot-stm32f103.bin",
+    "firmwares/bareboot-stm32f401.bin",
+    "firmwares/bareboot-ch32v203.bin",
+    "firmwares/bareboot-rp2350.bin"
+  ]
+}

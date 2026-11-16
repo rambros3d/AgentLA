@@ -177,6 +177,8 @@ pub struct BridgeI3cOff;
 pub struct BridgeI2cScan;
 pub struct BridgeI2cRead;
 pub struct BridgeI2cWrite;
+pub struct BridgeI2cTransfer;
+pub struct BridgeI3cTransfer;
 pub struct BridgeLedTransmit;
 pub struct BridgeSpiOn;
 pub struct BridgeSpiOff;
@@ -217,7 +219,7 @@ macro_rules! service {
 
 service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET"); service!(ProgrammerSwoStatus, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
-service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
+service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeI2cTransfer, "POST"); service!(BridgeI3cTransfer, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
 service!(BridgeUartOn, "POST"); service!(BridgeUartOff, "POST"); service!(BridgeUartWrite, "POST"); service!(BridgeUartRead, "GET");
 service!(ScopeData, "GET"); service!(ScopeStart, "POST"); service!(ScopeStop, "POST");
@@ -1345,6 +1347,144 @@ impl BridgeI2cWrite {
         let mut resp = heapless::String::<64>::new();
         let _ = write!(resp, r#"{{"status":"{}","bytes_written":{}}}"#, if ok { "ok" } else { "nack" }, if ok { 1 } else { 0 });
         send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl BridgeI2cTransfer {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let addr = key_int(query, &body, "addr").unwrap_or(0x40) as u8;
+        let read_len = (key_int(query, &body, "read_len").or_else(|| key_int(query, &body, "len")).unwrap_or(0) as usize).min(256);
+
+        let mut tx_buf = [0u8; 256];
+        let mut tx_len = 0usize;
+        if let Some(hex_str) = key_str(query, &body, "data_hex").or_else(|| key_str(query, &body, "tx_hex")).or_else(|| key_str(query, &body, "data")) {
+            let bytes = hex_str.as_bytes();
+            let mut i = 0;
+            while i + 1 < bytes.len() && tx_len < tx_buf.len() {
+                if let (Some(h), Some(l)) = (hex_nibble(bytes[i]), hex_nibble(bytes[i+1])) {
+                    tx_buf[tx_len] = (h << 4) | l;
+                    tx_len += 1;
+                }
+                i += 2;
+            }
+        }
+
+        let pins = &crate::bridge::i2c::I2C_PINS;
+        let mut claimed_slot: Option<pin_owner::SlotId> = None;
+        if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
+            match pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+                Ok(slot) => { claimed_slot = Some(slot); }
+                Err(_) => {
+                    return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+                }
+            }
+        }
+
+        let mut rx_buf = [0u8; 256];
+        let (ok, written, read_count) = crate::bridge::i2c::hw_i2c_transfer(
+            pins[0],
+            pins[1],
+            addr,
+            &tx_buf[..tx_len],
+            &mut rx_buf[..read_len],
+        );
+
+        if let Some(slot) = claimed_slot {
+            let _ = pin_owner::release(slot);
+        }
+
+        let mut rx_hex = heapless::String::<514>::new();
+        for &byte in &rx_buf[..read_count] {
+            let _ = write!(rx_hex, "{:02X}", byte);
+        }
+
+        let mut resp = heapless::String::<600>::new();
+        let _ = write!(
+            resp,
+            r#"{{"status":"{}","addr":{},"bytes_written":{},"rx_len":{},"rx_hex":"{}"}}"#,
+            if ok { "ok" } else { "nack" },
+            addr,
+            written,
+            read_count,
+            rx_hex.as_str()
+        );
+        send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+    }
+}
+
+impl BridgeI3cTransfer {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let addr = key_int(query, &body, "addr").unwrap_or(0x08) as u8;
+        let entdaa = key_str(query, &body, "entdaa").map(|s| s == "true" || s == "1").unwrap_or(false);
+        let read_len = (key_int(query, &body, "read_len").or_else(|| key_int(query, &body, "len")).unwrap_or(0) as usize).min(256);
+
+        let mut tx_buf = [0u8; 256];
+        let mut tx_len = 0usize;
+        if let Some(hex_str) = key_str(query, &body, "data_hex").or_else(|| key_str(query, &body, "tx_hex")).or_else(|| key_str(query, &body, "data")) {
+            let bytes = hex_str.as_bytes();
+            let mut i = 0;
+            while i + 1 < bytes.len() && tx_len < tx_buf.len() {
+                if let (Some(h), Some(l)) = (hex_nibble(bytes[i]), hex_nibble(bytes[i+1])) {
+                    tx_buf[tx_len] = (h << 4) | l;
+                    tx_len += 1;
+                }
+                i += 2;
+            }
+        }
+
+        let mut bridge = crate::bridge::i3c::I3C_INSTANCE.lock().await;
+        let mut was_inactive = false;
+        if !bridge.active() {
+            if bridge.enable().is_err() {
+                return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+            }
+            was_inactive = true;
+        }
+
+        let assigned_addr = if entdaa {
+            bridge.entdaa()
+        } else {
+            addr
+        };
+
+        let target_addr = if entdaa { assigned_addr } else { addr };
+
+        let mut rx_buf = [0u8; 256];
+        let transfer_res = bridge.transfer(target_addr, &tx_buf[..tx_len], &mut rx_buf[..read_len]);
+
+        if was_inactive {
+            bridge.disable();
+        }
+
+        match transfer_res {
+            Ok((written, read_count)) => {
+                let mut rx_hex = heapless::String::<514>::new();
+                for &byte in &rx_buf[..read_count] {
+                    let _ = write!(rx_hex, "{:02X}", byte);
+                }
+
+                let mut resp = heapless::String::<600>::new();
+                let _ = write!(
+                    resp,
+                    r#"{{"status":"ok","addr":{},"assigned_addr":{},"bytes_written":{},"rx_len":{},"rx_hex":"{}"}}"#,
+                    target_addr,
+                    assigned_addr,
+                    written,
+                    read_count,
+                    rx_hex.as_str()
+                );
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"status":"error","error":"transfer_failed"}"#).await
+            }
+        }
     }
 }
 
