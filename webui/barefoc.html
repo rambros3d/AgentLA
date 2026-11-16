@@ -3029,6 +3029,10 @@
     const targetPowerSwitch = document.getElementById('target-power-switch');
     if (targetPowerSwitch) {
       targetPowerSwitch.addEventListener('change', async () => {
+        if (window.FeatureRegistry && !window.FeatureRegistry.hasTargetPowerControl) {
+          targetPowerSwitch.checked = false;
+          return;
+        }
         const on = targetPowerSwitch.checked;
         if (window.AgentLA && AgentLA.power && AgentLA.power.setEnabled) {
           await AgentLA.power.setEnabled(on);

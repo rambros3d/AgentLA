@@ -11,6 +11,7 @@ use picoserve::response::IntoResponse;
 use crate::pin_owner;
 use crate::profile;
 use crate::servo;
+use agentla_bsp::BoardProfile;
 pub use crate::fs_http::{FsEntry, FsList, FsMkdir, FsRead, FsRename, FsStat, FsWrite};
 
 // Minimal JSON/query helpers (no serde in no_std)
@@ -2860,6 +2861,77 @@ impl picoserve::routing::MethodHandlerService<()> for SystemTelemetry {
         let mut buf = heapless::String::<2048>::new();
         crate::telemetry::format_telemetry_json(&mut buf);
         send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
+    }
+}
+
+pub struct DeviceTelemetry;
+
+impl picoserve::routing::MethodHandlerService<()> for DeviceTelemetry {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "GET" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+        let snap = crate::telemetry::sample_telemetry();
+        let mut buf = heapless::String::<512>::new();
+        let free_sram = snap.sram_total_bytes.saturating_sub(snap.sram_used_bytes);
+        let _ = write!(
+            buf,
+            r#"{{"vtarget_mv":{},"itarget_ma":{},"temp_c":{},"free_sram_bytes":{}}}"#,
+            snap.v_target_mv,
+            snap.i_target_ma,
+            snap.temp_c,
+            free_sram,
+        );
+        send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
+    }
+}
+
+pub struct DevicePower;
+
+impl picoserve::routing::MethodHandlerService<()> for DevicePower {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        _path_parameters: (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "POST" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+
+        if !crate::board::ActiveBoard::FEATURES.target_power_control {
+            return send_json(
+                request,
+                response_writer,
+                StatusCode::BAD_REQUEST,
+                r#"{"status":"error","message":"Target power control not supported on active board"}"#,
+            ).await;
+        }
+
+        let body = read_body_str(&mut request).await;
+        let on = body.contains(r#""power":"on""#)
+            || body.contains(r#""power": "on""#)
+            || body.contains(r#""power_on":true"#)
+            || body.contains(r#""power_on": true"#)
+            || body.contains(r#""power":true"#)
+            || body.contains(r#""power": true"#);
+
+        crate::profile::set_target_power(on);
+        let resp = if on {
+            r#"{"power":"on","status":"ok"}"#
+        } else {
+            r#"{"power":"off","status":"ok"}"#
+        };
+        send_json(request, response_writer, StatusCode::OK, resp).await
     }
 }
 

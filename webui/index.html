@@ -1280,6 +1280,105 @@
                        window.location.search.includes('demo=1') ||
                        (window.location.hostname === 'localhost' && window.location.port !== '80');
 
+        let BOARD_MANIFEST = null;
+
+        const FeatureRegistry = window.FeatureRegistry || {
+            manifest: null,
+            hasHardwareCan: false,
+            hasHardwareRs485: false,
+            hasCurrentSense: true,
+            hasTargetPowerControl: true,
+
+            init(manifest) {
+                this.manifest = manifest;
+                const feat = (manifest && manifest.features) || {};
+                this.hasHardwareCan = !!feat.has_hardware_can;
+                this.hasHardwareRs485 = !!feat.has_hardware_rs485;
+                this.hasCurrentSense = (feat.target_current_sense !== undefined) ? !!feat.target_current_sense : !!(manifest?.power_architecture?.target_power?.current_sense_ic);
+                this.hasTargetPowerControl = (feat.target_power_control !== undefined) ? !!feat.target_power_control : !!(manifest?.power_architecture?.target_power?.firmware_switchable);
+
+                this.applyPowerWidgets();
+            },
+
+            applyPowerWidgets() {
+                const pill = document.getElementById('btn-target-power-pill');
+                const pwrSwitch = document.getElementById('target-power-switch');
+                const text = document.getElementById('top-bar-power-text');
+
+                if (!this.hasTargetPowerControl) {
+                    if (pwrSwitch) {
+                        pwrSwitch.style.display = 'none';
+                        pwrSwitch.disabled = true;
+                    }
+                    if (pill) {
+                        pill.title = 'Target Power Rail (Direct / Unswitched)';
+                        pill.style.cursor = 'default';
+                    }
+                    if (!this.hasCurrentSense) {
+                        if (text) {
+                            const vref = (this.manifest?.features?.vref_volts || 3.3).toFixed(1);
+                            text.innerHTML = `<span class="power-rail-badge">${vref}V Fixed Rail</span>`;
+                        }
+                    } else {
+                        if (text) {
+                            const voltVal = document.getElementById('top-bar-voltage-val');
+                            const currVal = document.getElementById('top-bar-current-val');
+                            const vStr = voltVal ? voltVal.textContent : '3.3V';
+                            const iStr = currVal ? currVal.textContent : '0mA';
+                            text.innerHTML = `<span>${vStr} · ${iStr}</span>`;
+                        }
+                    }
+                } else {
+                    if (pwrSwitch) {
+                        pwrSwitch.style.display = '';
+                        pwrSwitch.disabled = false;
+                    }
+                    if (pill) {
+                        pill.title = 'Target Power Rail (Click to toggle ON/OFF)';
+                        pill.style.cursor = 'pointer';
+                    }
+                    if (!this.hasCurrentSense && text) {
+                        const voltVal = document.getElementById('top-bar-voltage-val');
+                        const vStr = voltVal ? voltVal.textContent : '3.3V';
+                        text.innerHTML = `<span id="top-bar-voltage-val">${vStr}</span>`;
+                    }
+                }
+
+                if (!this.hasCurrentSense) {
+                    const currEl = document.getElementById('top-bar-current-val');
+                    if (currEl) currEl.style.display = 'none';
+                    const hudI = document.getElementById('hud-itarget');
+                    if (hudI && hudI.parentElement) hudI.parentElement.style.display = 'none';
+                    const hudP = document.getElementById('hud-ptarget');
+                    if (hudP && hudP.parentElement) hudP.parentElement.style.display = 'none';
+                }
+            }
+        };
+        window.FeatureRegistry = FeatureRegistry;
+
+        function initPowerPillListener() {
+            const pill = document.getElementById('btn-target-power-pill');
+            if (pill && !pill._wired) {
+                pill._wired = true;
+                let isPowerOn = true;
+                pill.addEventListener('click', async (e) => {
+                    if (!FeatureRegistry.hasTargetPowerControl) {
+                        e.preventDefault();
+                        return;
+                    }
+                    isPowerOn = !isPowerOn;
+                    pill.classList.toggle('active-on', isPowerOn);
+                    try {
+                        await fetch('/api/v1/device/power', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ power_on: isPowerOn })
+                        });
+                    } catch (_) {}
+                });
+            }
+        }
+
         // ---------------------------------------------------------------------
         // Universal App-Shell Client-Side Hash Routing & Viewport Management
         // ---------------------------------------------------------------------
@@ -2238,6 +2337,10 @@
                 }
                 if (boardRes.status === 'fulfilled' && boardRes.value.ok) {
                     const boardManifest = await boardRes.value.json();
+                    BOARD_MANIFEST = boardManifest;
+                    window.BOARD_MANIFEST = boardManifest;
+                    FeatureRegistry.init(boardManifest);
+                    initPowerPillListener();
                     if (boardManifest && boardManifest.name) {
                         deviceSystem.board_name = boardManifest.name;
                     }
@@ -3271,16 +3374,76 @@
 
             // Hardware requirements check
             const hwAlert = document.getElementById('sheet-hw-alert');
+            const hwText = document.getElementById('sheet-hw-text');
+            const hwOverride = document.getElementById('sheet-hw-override');
             const capsList = document.getElementById('sheet-caps-list');
+
+            const reqs = app.requires || [];
+            const manifestFeats = (BOARD_MANIFEST && BOARD_MANIFEST.features) || {};
+            const missingReqs = [];
+            const capsItems = [];
+
+            if (reqs.length > 0) {
+                reqs.forEach(r => {
+                    let satisfied = true;
+                    if (r === 'has_hardware_can' || r === 'can' || r === 'canbus') {
+                        satisfied = !!manifestFeats.has_hardware_can;
+                    } else if (r === 'has_hardware_rs485' || r === 'rs485') {
+                        satisfied = !!manifestFeats.has_hardware_rs485;
+                    } else if (r === 'target_current_sense' || r === 'current_sense') {
+                        satisfied = !!manifestFeats.target_current_sense;
+                    } else if (r === 'target_power_control' || r === 'power_control') {
+                        satisfied = !!manifestFeats.target_power_control;
+                    } else if (r in manifestFeats) {
+                        satisfied = !!manifestFeats[r];
+                    } else {
+                        satisfied = true;
+                    }
+
+                    if (!satisfied) {
+                        missingReqs.push(r);
+                        capsItems.push(`<div style="color: var(--error, #ef4444); font-weight: 600;">[MISSING] Requires hardware module: <code>${escapeHtml(r)}</code> (Not detected on ${escapeHtml(BOARD_MANIFEST?.name || 'current board')})</div>`);
+                    } else {
+                        capsItems.push(`<div>[OK] Requires hardware module: <code>${escapeHtml(r)}</code></div>`);
+                    }
+                });
+            } else {
+                capsItems.push('<div>[OK] Runs on standard RP2350 microcontroller and web browser.</div>');
+            }
+
             if (capsList) {
-                const reqs = app.requires || [];
-                if (reqs.length > 0) {
-                    capsList.innerHTML = reqs.map(r => `<div>[OK] Requires hardware module: <code>${escapeHtml(r)}</code></div>`).join('');
-                } else {
-                    capsList.innerHTML = '<div>[OK] Runs on standard RP2350 microcontroller and web browser.</div>';
+                capsList.innerHTML = capsItems.join('');
+            }
+
+            if (missingReqs.length > 0) {
+                if (hwAlert) {
+                    hwAlert.style.display = 'block';
+                    if (hwText) {
+                        hwText.innerText = `Requires hardware module (${missingReqs.join(', ')}) not detected on ${BOARD_MANIFEST?.name || 'this board'}. An external breakout or compatible hardware is required.`;
+                    }
+                }
+                if (hwOverride) {
+                    hwOverride.checked = false;
+                }
+                if (!isInstalled && btnInstall) {
+                    btnInstall.disabled = !hwOverride?.checked;
+                }
+            } else {
+                if (hwAlert) hwAlert.style.display = 'none';
+                if (!isInstalled && btnInstall) {
+                    btnInstall.disabled = false;
                 }
             }
-            if (hwAlert) hwAlert.style.display = 'none';
+
+            if (hwOverride && !hwOverride._wired) {
+                hwOverride._wired = true;
+                hwOverride.addEventListener('change', () => {
+                    const btn = document.getElementById('btn-sheet-install');
+                    if (btn && activeSheetApp && !installedApps.some(a => a.id === activeSheetApp.id)) {
+                        btn.disabled = (missingReqs.length > 0 && !hwOverride.checked);
+                    }
+                });
+            }
 
             // Progress container reset
             const progressContainer = document.getElementById('sheet-progress-container');
@@ -3869,15 +4032,34 @@
 
                 const itarget = document.getElementById('hud-itarget');
                 const pItarget = document.getElementById('pinned-hud-itarget');
-                const iVal = data.i_target_ma + ' mA';
-                if (itarget) itarget.textContent = iVal;
-                if (pItarget) pItarget.textContent = iVal;
-
                 const ptarget = document.getElementById('hud-ptarget');
                 const pPtarget = document.getElementById('pinned-hud-ptarget');
-                const pVal = data.p_target_mw + ' mW';
-                if (ptarget) ptarget.textContent = pVal;
-                if (pPtarget) pPtarget.textContent = pVal;
+
+                if (FeatureRegistry.hasCurrentSense) {
+                    const iVal = data.i_target_ma + ' mA';
+                    if (itarget) {
+                        if (itarget.parentElement) itarget.parentElement.style.display = '';
+                        itarget.textContent = iVal;
+                    }
+                    if (pItarget) {
+                        if (pItarget.parentElement) pItarget.parentElement.style.display = '';
+                        pItarget.textContent = iVal;
+                    }
+                    const pVal = data.p_target_mw + ' mW';
+                    if (ptarget) {
+                        if (ptarget.parentElement) ptarget.parentElement.style.display = '';
+                        ptarget.textContent = pVal;
+                    }
+                    if (pPtarget) {
+                        if (pPtarget.parentElement) pPtarget.parentElement.style.display = '';
+                        pPtarget.textContent = pVal;
+                    }
+                } else {
+                    if (itarget && itarget.parentElement) itarget.parentElement.style.display = 'none';
+                    if (pItarget && pItarget.parentElement) pItarget.parentElement.style.display = 'none';
+                    if (ptarget && ptarget.parentElement) ptarget.parentElement.style.display = 'none';
+                    if (pPtarget && pPtarget.parentElement) pPtarget.parentElement.style.display = 'none';
+                }
 
                 const temp = document.getElementById('hud-temp');
                 const pTemp = document.getElementById('pinned-hud-temp');
@@ -3888,10 +4070,22 @@
                 const tbVolt = document.getElementById('top-bar-voltage-val');
                 const tbCurr = document.getElementById('top-bar-current-val');
                 if (tbVolt && data.v_target_mv !== undefined) tbVolt.textContent = (data.v_target_mv / 1000).toFixed(2) + 'V';
-                if (tbCurr && data.i_target_ma !== undefined) tbCurr.textContent = data.i_target_ma + 'mA';
+                if (tbCurr) {
+                    if (FeatureRegistry.hasCurrentSense) {
+                        tbCurr.style.display = '';
+                        if (data.i_target_ma !== undefined) tbCurr.textContent = data.i_target_ma + 'mA';
+                    } else {
+                        tbCurr.style.display = 'none';
+                    }
+                }
                 const pwrSwitch = document.getElementById('target-power-switch');
-                if (pwrSwitch && data.v_target_mv !== undefined) {
-                    pwrSwitch.checked = (data.v_target_mv > 1000);
+                if (pwrSwitch) {
+                    if (!FeatureRegistry.hasTargetPowerControl) {
+                        pwrSwitch.style.display = 'none';
+                        pwrSwitch.disabled = true;
+                    } else if (data.v_target_mv !== undefined) {
+                        pwrSwitch.checked = (data.v_target_mv > 1000);
+                    }
                 }
 
                 const alarmBadge = document.getElementById('hud-alarm-badge');

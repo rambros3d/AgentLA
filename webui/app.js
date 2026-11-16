@@ -1153,8 +1153,8 @@ const FeatureRegistry = {
         const feat = manifest.features || {};
         this.hasHardwareCan = !!feat.has_hardware_can;
         this.hasHardwareRs485 = !!feat.has_hardware_rs485;
-        this.hasCurrentSense = !!feat.target_current_sense || !!(manifest.power_architecture?.target_power?.current_sense_ic);
-        this.hasTargetPowerControl = !!feat.target_power_control || !!(manifest.power_architecture?.target_power?.firmware_switchable);
+        this.hasCurrentSense = (feat.target_current_sense !== undefined) ? !!feat.target_current_sense : !!(manifest.power_architecture?.target_power?.current_sense_ic);
+        this.hasTargetPowerControl = (feat.target_power_control !== undefined) ? !!feat.target_power_control : !!(manifest.power_architecture?.target_power?.firmware_switchable);
 
         if (manifest.gpio_range && Array.isArray(manifest.gpio_range)) {
             this.gpioMin = manifest.gpio_range[0];
@@ -1182,6 +1182,8 @@ const FeatureRegistry = {
         this.applyBranding();
         this.applyTransceiverBadges();
         this.applyTelemetryWidgets();
+        this.applyPowerWidgets();
+        window.FeatureRegistry = this;
     },
 
     applyBranding() {
@@ -1266,6 +1268,60 @@ const FeatureRegistry = {
                 telemetryWidget.style.display = 'none';
             }
         }
+    },
+
+    applyPowerWidgets() {
+        const pill = document.getElementById('btn-target-power-pill');
+        const pwrSwitch = document.getElementById('target-power-switch');
+        const text = document.getElementById('top-bar-power-text');
+
+        if (!this.hasTargetPowerControl) {
+            if (pwrSwitch) {
+                pwrSwitch.style.display = 'none';
+                pwrSwitch.disabled = true;
+            }
+            if (pill) {
+                pill.title = 'Target Power Rail (Direct / Unswitched)';
+                pill.style.cursor = 'default';
+            }
+            if (!this.hasCurrentSense) {
+                if (text) {
+                    const vref = (this.manifest?.features?.vref_volts || 3.3).toFixed(1);
+                    text.innerHTML = `<span class="power-rail-badge">${vref}V Fixed Rail</span>`;
+                }
+            } else {
+                if (text) {
+                    const voltVal = document.getElementById('top-bar-voltage-val');
+                    const currVal = document.getElementById('top-bar-current-val');
+                    const vStr = voltVal ? voltVal.textContent : '3.3V';
+                    const iStr = currVal ? currVal.textContent : '0mA';
+                    text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${vStr}</span> / <span id="top-bar-current-val">${iStr}</span>`;
+                }
+            }
+        } else {
+            if (pwrSwitch) {
+                pwrSwitch.style.display = '';
+                pwrSwitch.disabled = false;
+            }
+            if (pill) {
+                pill.title = 'Target Power Rail (Click to toggle ON/OFF)';
+                pill.style.cursor = 'pointer';
+            }
+            if (!this.hasCurrentSense && text) {
+                const voltVal = document.getElementById('top-bar-voltage-val');
+                const vStr = voltVal ? voltVal.textContent : '3.3V';
+                text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${vStr}</span>`;
+            }
+        }
+
+        if (!this.hasCurrentSense) {
+            const currEl = document.getElementById('top-bar-current-val');
+            if (currEl) currEl.style.display = 'none';
+            const hudI = document.getElementById('hud-itarget');
+            if (hudI && hudI.parentElement) hudI.parentElement.style.display = 'none';
+            const hudP = document.getElementById('hud-ptarget');
+            if (hudP && hudP.parentElement) hudP.parentElement.style.display = 'none';
+        }
     }
 };
 
@@ -1276,14 +1332,19 @@ function generatePinMapFromManifest(manifest) {
     if (!manifest || !manifest.zones) return list;
 
     const levelShifting = manifest.level_shifting || {};
+    const hasHardwareCan = !!manifest.features?.has_hardware_can;
+    const hasHardwareRs485 = !!manifest.features?.has_hardware_rs485;
 
     Object.entries(manifest.zones).forEach(([zoneKey, zone]) => {
         const isProgZone = zoneKey.includes('prog') || (zone.name || '').toLowerCase().includes('programmer');
+        const isFlexibleZone = zoneKey.includes('flexible') || (zone.name || '').toLowerCase().includes('flexible');
         const [zMin, zMax] = zone.gpio_range || [0, 0];
 
-        let levelShift = '3.3V Direct';
+        let levelShift = '3.3V Direct SIO';
         if (isProgZone && levelShifting.zone1_programmer) {
             levelShift = `${levelShifting.zone1_programmer.voltage_range} Level-Shifted (${levelShifting.zone1_programmer.chip})`;
+        } else if (isProgZone && zone.transceivers) {
+            levelShift = '1.65V - 5.5V Level-Shifted';
         } else if (levelShifting.zone3_bus_masters && (zoneKey.includes('bus') || zoneKey.includes('adapt'))) {
             levelShift = `${levelShifting.zone3_bus_masters.voltage_range} Level-Shifted (${levelShifting.zone3_bus_masters.chip})`;
         } else if (zone.connector && zone.connector.includes('Level Translation')) {
@@ -1304,12 +1365,12 @@ function generatePinMapFromManifest(manifest) {
                         break;
                     }
                 }
-            } else if (zone.can_fd && (zone.can_fd.tx_pin === p || zone.can_fd.rx_pin === p || zone.can_fd.term_120ohm_relay_pin === p)) {
+            } else if (hasHardwareCan && zone.can_fd && (zone.can_fd.tx_pin === p || zone.can_fd.rx_pin === p || zone.can_fd.term_120ohm_relay_pin === p)) {
                 if (zone.can_fd.tx_pin === p) fn = 'CAN_TX';
                 else if (zone.can_fd.rx_pin === p) fn = 'CAN_RX';
                 else fn = 'CAN_TERM_120Ω';
                 role = 'CAN';
-            } else if (zone.rs485 && (zone.rs485.tx_pin === p || zone.rs485.rx_pin === p || zone.rs485.de_re_pin === p)) {
+            } else if (hasHardwareRs485 && zone.rs485 && (zone.rs485.tx_pin === p || zone.rs485.rx_pin === p || zone.rs485.de_re_pin === p)) {
                 if (zone.rs485.tx_pin === p) fn = 'RS485_TX';
                 else if (zone.rs485.rx_pin === p) fn = 'RS485_RX';
                 else fn = 'RS485_DE';
@@ -1328,18 +1389,21 @@ function generatePinMapFromManifest(manifest) {
                 const chIdx = p - zone.base_pin;
                 fn = `LA CH${chIdx} (PIO)`;
                 role = 'CAPTURE';
+            } else if (isFlexibleZone) {
+                fn = `GPIO ${p}`;
+                role = 'GENERAL';
             } else if (p >= 10 && p <= 19) {
                 if (p === 10) fn = 'A_SDA (I2C1)';
                 else if (p === 11) fn = 'A_SCL (I2C1)';
-                else if (p === 12) fn = 'RS-485 TX';
-                else if (p === 13) fn = 'RS-485 RX';
-                else if (p === 14) fn = 'RS-485 DE';
+                else if (p === 12) fn = hasHardwareRs485 ? 'RS-485 TX' : `GPIO ${p}`;
+                else if (p === 13) fn = hasHardwareRs485 ? 'RS-485 RX' : `GPIO ${p}`;
+                else if (p === 14) fn = hasHardwareRs485 ? 'RS-485 DE' : `GPIO ${p}`;
                 else if (p === 15) fn = 'A_MOSI (SPI1)';
                 else if (p === 16) fn = 'A_MISO (SPI1)';
                 else if (p === 17) fn = 'A_CS (SPI1)';
-                else if (p === 18) fn = 'CAN_TX';
-                else if (p === 19) fn = 'CAN_RX';
-                role = 'ADAPTER';
+                else if (p === 18) fn = hasHardwareCan ? 'CAN_TX' : `GPIO ${p}`;
+                else if (p === 19) fn = hasHardwareCan ? 'CAN_RX' : `GPIO ${p}`;
+                role = (p >= 12 && p <= 14 && !hasHardwareRs485) || (p >= 18 && p <= 19 && !hasHardwareCan) ? 'GENERAL' : 'ADAPTER';
             } else if (p >= 20 && p <= 29) {
                 if (p >= 26) {
                     fn = `ADC${p - 26} / LA CH${p - 20}`;
@@ -1386,7 +1450,15 @@ function renderDynamicPinMatrix(manifest) {
         const isScope = zoneKey.includes('scope') || (zone.name || '').toLowerCase().includes('scope');
 
         let tagText = 'Unified Flexible Pool';
-        if (isProgZone) tagText = 'Dedicated CMSIS-DAP (1.2V–5.0V)';
+        if (isProgZone) {
+            if (manifest.level_shifting && manifest.level_shifting.zone1_programmer) {
+                tagText = `Dedicated CMSIS-DAP (${manifest.level_shifting.zone1_programmer.voltage_range} Level-Shifted)`;
+            } else if (zone.transceivers) {
+                tagText = 'Dedicated CMSIS-DAP (Level-Shifted)';
+            } else {
+                tagText = 'Dedicated CMSIS-DAP (3.3V Direct SIO)';
+            }
+        }
         else if (isTransceiver) tagText = 'Differential PHY (Isolated)';
         else if (isScope) tagText = `${zone.attenuation || '1x'} Front-End & ADC`;
         else if (zone.connector && zone.connector.includes('Level Translation')) tagText = 'Level-Shifted 1.2V–5.0V';
@@ -3486,17 +3558,35 @@ function updateTargetPowerUI(isOn, voltage, current) {
     }
     const pwrSwitch = document.getElementById('target-power-switch');
     if (pwrSwitch) {
-        pwrSwitch.checked = isOn;
+        if (!FeatureRegistry.hasTargetPowerControl) {
+            pwrSwitch.style.display = 'none';
+            pwrSwitch.disabled = true;
+        } else {
+            pwrSwitch.checked = isOn;
+        }
     }
     if (text) {
-        if (isOn) {
-            text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${targetVoltage}</span> / <span id="top-bar-current-val">${targetCurrent}</span>`;
+        if (!FeatureRegistry.hasTargetPowerControl && !FeatureRegistry.hasCurrentSense) {
+            const vref = (FeatureRegistry.manifest?.features?.vref_volts || 3.3).toFixed(1);
+            text.innerHTML = `<span class="power-rail-badge">${vref}V Fixed Rail</span>`;
+        } else if (!FeatureRegistry.hasCurrentSense) {
+            if (isOn) {
+                text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${targetVoltage}</span>`;
+            } else {
+                text.innerHTML = `VTarget: <span class="power-standby">POWER OFF</span>`;
+            }
         } else {
-            text.innerHTML = `VTarget: <span class="power-standby">POWER OFF</span>`;
+            if (isOn) {
+                text.innerHTML = `VTarget: <span id="top-bar-voltage-val">${targetVoltage}</span> / <span id="top-bar-current-val">${targetCurrent}</span>`;
+            } else {
+                text.innerHTML = `VTarget: <span class="power-standby">POWER OFF</span>`;
+            }
         }
-    } else if (voltVal && currVal && isOn) {
+    } else if (voltVal && isOn) {
         voltVal.textContent = targetVoltage;
-        currVal.textContent = targetCurrent;
+        if (currVal && FeatureRegistry.hasCurrentSense) {
+            currVal.textContent = targetCurrent;
+        }
     }
 
     const summary = document.getElementById('target-detect-summary');
@@ -3510,6 +3600,7 @@ function updateTargetPowerUI(isOn, voltage, current) {
 }
 
 async function toggleTargetPower() {
+    if (!FeatureRegistry.hasTargetPowerControl) return;
     const newState = !targetPowerOn;
     try {
         if (newState) {
@@ -3526,8 +3617,15 @@ async function toggleTargetPower() {
 
 function initTargetStation() {
     const pill = document.getElementById('btn-target-power-pill');
-    if (pill) {
-        pill.addEventListener('click', toggleTargetPower);
+    if (pill && !pill._wired) {
+        pill._wired = true;
+        pill.addEventListener('click', (e) => {
+            if (!FeatureRegistry.hasTargetPowerControl) {
+                e.preventDefault();
+                return;
+            }
+            toggleTargetPower();
+        });
     }
     updateTargetPowerUI(targetPowerOn, targetVoltage, targetCurrent);
 }

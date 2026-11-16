@@ -7,6 +7,9 @@ use core::fmt::Write as _;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use rp_pac as pac;
 
+use agentla_bsp::BoardProfile;
+use crate::board::ActiveBoard;
+
 pub static OVERCURRENT_LIMIT_MA: AtomicU32 = AtomicU32::new(0);
 pub static OVERCURRENT_TRIPPED: AtomicBool = AtomicBool::new(false);
 
@@ -65,12 +68,16 @@ pub fn sample_telemetry() -> TelemetrySnapshot {
     let v_target_mv = get_target_voltage_mv();
 
     // ADC 1: Itarget current sense via INA180 (Gain 50 V/V across 0.05 ohm = 2.5 mV/mA)
-    let raw_itarget = read_adc_raw_channel(1);
-    let v_ina_mv = (raw_itarget as u32 * 3300) / 4096;
-    let i_target_ma = (v_ina_mv * 4) / 10; // divide by 2.5 mV/mA
-
-    // Target power
-    let p_target_mw = (v_target_mv * i_target_ma) / 1000;
+    // Only sample ADC 1 if target_current_sense is supported by the board profile
+    let (i_target_ma, p_target_mw) = if ActiveBoard::FEATURES.target_current_sense {
+        let raw_itarget = read_adc_raw_channel(1);
+        let v_ina_mv = (raw_itarget as u32 * 3300) / 4096;
+        let i_ma = (v_ina_mv * 4) / 10; // divide by 2.5 mV/mA
+        let p_mw = (v_target_mv * i_ma) / 1000;
+        (i_ma, p_mw)
+    } else {
+        (0, 0)
+    };
 
     // ADC 4: RP2350 internal junction temperature diode (T = 27 - (V - 0.706) / 0.001721)
     let raw_temp = read_adc_raw_channel(4);
@@ -81,10 +88,10 @@ pub fn sample_telemetry() -> TelemetrySnapshot {
     let raw_vsys = read_adc_raw_channel(3);
     let v_sys_mv = ((raw_vsys as u32 * 3300) * 3) / 4096;
 
-    // Overcurrent protection monitor
+    // Overcurrent protection monitor: only active if target_current_sense is supported
     let limit_ma = OVERCURRENT_LIMIT_MA.load(Ordering::Relaxed);
     let mut is_tripped = OVERCURRENT_TRIPPED.load(Ordering::Relaxed);
-    if i_target_ma > limit_ma && limit_ma > 0 {
+    if ActiveBoard::FEATURES.target_current_sense && i_target_ma > limit_ma && limit_ma > 0 {
         if !is_tripped {
             // Immediate hardware trip: quiesce all pins to High-Z
             crate::pin_owner::quiesce_and_reset();
@@ -132,7 +139,7 @@ pub fn format_telemetry_json(out: &mut heapless::String<2048>) {
 
     let _ = write!(
         out,
-        r#"{{"v_target_mv":{},"i_target_ma":{},"p_target_mw":{},"temp_c":{},"v_sys_mv":{},"sram_used_bytes":{},"sram_total_bytes":{},"lfs_used_bytes":{},"lfs_total_bytes":{},"user_lfs_used_bytes":{},"user_lfs_total_bytes":{},"overcurrent_limit_ma":{},"alarm":"{}","pins":["#,
+        r#"{{"v_target_mv":{},"i_target_ma":{},"p_target_mw":{},"temp_c":{},"v_sys_mv":{},"sram_used_bytes":{},"sram_total_bytes":{},"lfs_used_bytes":{},"lfs_total_bytes":{},"user_lfs_used_bytes":{},"user_lfs_total_bytes":{},"overcurrent_limit_ma":{},"alarm":"{}","target_current_sense":{},"target_power_control":{},"pins":["#,
         s.v_target_mv,
         s.i_target_ma,
         s.p_target_mw,
@@ -146,6 +153,8 @@ pub fn format_telemetry_json(out: &mut heapless::String<2048>) {
         s.user_lfs_total_bytes,
         s.overcurrent_limit_ma,
         alarm_str,
+        ActiveBoard::FEATURES.target_current_sense,
+        ActiveBoard::FEATURES.target_power_control,
     );
 
     // 30 GPIO pin matrix
