@@ -60,8 +60,8 @@
       "max_current_a": 20.0,
       "pwm_switch": "High-Efficiency N-FET + TI LM5106 gate driver (GP1 / DC24V_PWM, up to 20 kHz)",
       "inductive_clamp": "V10150 / SS54 Schottky flyback diode + TVS suppressor",
-      "current_sense": "TI INA240A1 across 2mOhm shunt -> ADS1118 Ch 3",
-      "voltage_sense": "Precision resistor divider -> ADS1118 Ch 2"
+      "current_sense": "TI INA240A2 across 2mOhm shunt -> ADC124S021 Ch 4",
+      "voltage_sense": "Precision 10:1 resistor divider -> ADC124S021 Ch 3"
     },
     "regulators": {
       "digital_3v3_ldo": "MKSemi AMS1117-3.3V (SOT-89)",
@@ -71,8 +71,8 @@
     },
     "target_power": {
       "voltage_selection": "Manual 3-way switch (1.8V, 3.3V, 5.0V)",
-      "voltage_auto_detect": "10:1 resistor divider -> ADS1118 Ch 0",
-      "current_sense_ic": "TI INA180A2 (G=50) -> ADS1118 Ch 1",
+      "voltage_auto_detect": "2:1 resistor divider -> ADC124S021 Ch 1",
+      "current_sense_ic": "TI INA180A2 (G=50) -> ADC124S021 Ch 2",
       "high_side_switch": "P-FET controlled by Shift Reg Bit 24 (TARGET_PWR_EN)",
       "current_sensing": {
         "architecture": "PPK2-Style Dynamic Auto-Bypass (1uA to 500mA)",
@@ -80,19 +80,23 @@
         "auto_bypass_fet": "SI2301 / DMP3099 P-FET",
         "fast_comparator": "TI TLV3691 / SGM8743 (<50ns) -> GP0 (TARGET_RANGE_FLAG)",
         "brownout_clamp": "BAT54 sub-nanosecond Schottky diode",
-        "amplifier": "TI INA180A2 (G=50) -> ADS1118 Ch 1"
+        "amplifier": "TI INA180A2 (G=50) -> ADC124S021 Ch 2"
       }
     }
   },
   "internal_instrumentation": {
     "power_adc": {
-      "chip": "TI ADS1118IRUGR",
+      "chip": "TI ADC124S021CIMM/NOPB",
+      "package": "VSSOP-10",
+      "sample_rate_ksps": 200,
+      "upgrade_path": "ADC124S051 (500 kS/s) / ADC124S101 (1 MS/s)",
+      "vref_volts": 3.0,
       "interface": "Dedicated SPI0 (SCK=GP10, MOSI=GP11, MISO=GP8, CS=GP9)",
       "channels": {
-        "ch0": "Target Rail Voltage (10:1 divider)",
-        "ch1": "Target Current Draw (TI INA180)",
-        "ch2": "24V Aux DC Voltage (divider)",
-        "ch3": "24V Aux DC Current Draw (TI INA240 20A shunt)"
+        "ch1": "Target Rail Voltage (2:1 divider)",
+        "ch2": "Target Current Draw (TI INA180)",
+        "ch3": "24V Aux DC Voltage (10:1 divider)",
+        "ch4": "24V Aux DC Current Draw (TI INA240A2 20A shunt)"
       }
     },
     "shift_registers": {
@@ -147,7 +151,7 @@
         "neopixel_data": 6,
         "spare_gpio7": 7,
         "int_spi0_rx": 8,
-        "ads1118_cs": 9,
+        "adc124_cs": 9,
         "int_spi0_sck": 10,
         "int_spi0_tx": 11
       }

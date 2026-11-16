@@ -104,6 +104,31 @@ impl FlashAlgorithmRunner {
     }
 
     #[inline(always)]
+    pub fn stm32h5_unlock(cortex: &mut CortexM) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32h5_unlock(cortex)
+    }
+
+    #[inline(always)]
+    pub fn stm32h5_wait_bsy(cortex: &mut CortexM) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32h5_wait_bsy(cortex)
+    }
+
+    #[inline(always)]
+    pub fn stm32h5_erase_sector(cortex: &mut CortexM, sector_addr: u32) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32h5_erase_sector(cortex, sector_addr)
+    }
+
+    #[inline(always)]
+    pub fn stm32h5_program_page(cortex: &mut CortexM, addr: u32, data: &[u8]) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32h5_program_page(cortex, addr, data)
+    }
+
+    #[inline(always)]
+    pub fn stm32h5_lock(cortex: &mut CortexM) -> Result<(), AlgoError> {
+        agentla_programmer::algo::FlashAlgorithmRunner::stm32h5_lock(cortex)
+    }
+
+    #[inline(always)]
     pub fn flm_init(
         cortex: &mut CortexM,
         hdr: &AlgoBlobHeader,

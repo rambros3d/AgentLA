@@ -243,19 +243,168 @@ impl Handler for VendorControlHandler {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgrammerPersonality {
+    CmsisDap,
+    StLink,
+    WchLink,
+}
+
+impl ProgrammerPersonality {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::CmsisDap => "cmsis",
+            Self::StLink => "stlink",
+            Self::WchLink => "wchlink",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        if s.eq_ignore_ascii_case("cmsis") || s.eq_ignore_ascii_case("cmsis-dap") {
+            Some(Self::CmsisDap)
+        } else if s.eq_ignore_ascii_case("stlink") || s.eq_ignore_ascii_case("st-link") {
+            Some(Self::StLink)
+        } else if s.eq_ignore_ascii_case("wchlink") || s.eq_ignore_ascii_case("wch-link") || s.eq_ignore_ascii_case("wch") {
+            Some(Self::WchLink)
+        } else {
+            None
+        }
+    }
+}
+
+pub const SCRATCH_PERSONALITY_MAGIC: u32 = 0xA61A_0000;
+
+pub fn detect_boot_personality() -> ProgrammerPersonality {
+    let scratch = rp_pac::WATCHDOG.scratch5().read();
+    if (scratch & 0xFFFF_0000) == SCRATCH_PERSONALITY_MAGIC {
+        match scratch & 0xFFFF {
+            1 => ProgrammerPersonality::StLink,
+            2 => ProgrammerPersonality::WchLink,
+            _ => ProgrammerPersonality::CmsisDap,
+        }
+    } else {
+        ProgrammerPersonality::CmsisDap
+    }
+}
+
+pub fn get_programmer_personality() -> ProgrammerPersonality {
+    detect_boot_personality()
+}
+
+pub fn set_programmer_personality_in_scratch(p: ProgrammerPersonality) {
+    let code = match p {
+        ProgrammerPersonality::CmsisDap => 0,
+        ProgrammerPersonality::StLink => 1,
+        ProgrammerPersonality::WchLink => 2,
+    };
+    rp_pac::WATCHDOG.scratch5().write_value(SCRATCH_PERSONALITY_MAGIC | code);
+}
+
+pub fn load_personality_from_fs() -> ProgrammerPersonality {
+    let mut found = None;
+    let _ = crate::storage::with_user_fs(|fs| {
+        let Ok(path) = littlefs2::path::PathBuf::try_from("/system/programmer_mode.txt") else { return };
+        if let Ok(data) = fs.read::<32>(&path) {
+            if let Ok(s) = core::str::from_utf8(&data) {
+                found = ProgrammerPersonality::from_str(s.trim());
+            }
+        }
+    });
+    if let Some(p) = found {
+        set_programmer_personality_in_scratch(p);
+        p
+    } else {
+        detect_boot_personality()
+    }
+}
+
+pub fn save_personality_to_fs(p: ProgrammerPersonality) {
+    set_programmer_personality_in_scratch(p);
+    let _ = crate::storage::with_user_fs(|fs| {
+        let Ok(dir) = littlefs2::path::PathBuf::try_from("/system") else { return };
+        let _ = fs.create_dir_all(&dir);
+        let Ok(path) = littlefs2::path::PathBuf::try_from("/system/programmer_mode.txt") else { return };
+        let _ = fs.write(&path, p.as_str().as_bytes());
+    });
+}
+
+static STLINK_REPORTED_VERSION: portable_atomic::AtomicU16 =
+    portable_atomic::AtomicU16::new(agentla_programmer::stlink::STLINK_VER_REPORTED);
+
+pub fn get_stlink_version() -> u16 {
+    STLINK_REPORTED_VERSION.load(portable_atomic::Ordering::Relaxed)
+}
+
+pub fn load_stlink_version() -> u16 {
+    let mut found = None;
+    let _ = crate::storage::with_user_fs(|fs| {
+        let Ok(path) = littlefs2::path::PathBuf::try_from("/system/stlink_version.txt") else { return };
+        if let Ok(data) = fs.read::<32>(&path) {
+            if let Ok(s) = core::str::from_utf8(&data) {
+                found = agentla_programmer::stlink::parse_version(s.trim());
+            }
+        }
+    });
+    let v = found.unwrap_or(agentla_programmer::stlink::STLINK_VER_REPORTED);
+    STLINK_REPORTED_VERSION.store(v, portable_atomic::Ordering::Relaxed);
+    v
+}
+
+pub fn save_stlink_version(v: u16) {
+    STLINK_REPORTED_VERSION.store(v, portable_atomic::Ordering::Relaxed);
+    let mut buf = [0u8; 16];
+    let v_str = agentla_programmer::stlink::format_version(v, &mut buf);
+    let _ = crate::storage::with_user_fs(|fs| {
+        let Ok(dir) = littlefs2::path::PathBuf::try_from("/system") else { return };
+        let _ = fs.create_dir_all(&dir);
+        let Ok(path) = littlefs2::path::PathBuf::try_from("/system/stlink_version.txt") else { return };
+        let _ = fs.write(&path, v_str.as_bytes());
+    });
+}
+
+pub async fn switch_programmer_personality(new_mode: ProgrammerPersonality) {
+    save_personality_to_fs(new_mode);
+    // Soft detach: disable USB pullup
+    rp_pac::USB.sie_ctrl().modify(|w| w.set_pullup_en(false));
+    embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+    // System reset into new personality
+    cortex_m::peripheral::SCB::sys_reset();
+}
+
+pub enum ProgrammerEndpoints {
+    CmsisDap {
+        dap_v1_reader: HidReader<'static, Driver<'static, USB>, 64>,
+        dap_v1_writer: HidWriter<'static, Driver<'static, USB>, 64>,
+        dap_v2: CmsisDapV2Class<'static, Driver<'static, USB>>,
+    },
+    StLink {
+        cmd_out: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+        cmd_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+        trace_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+    },
+    WchLink {
+        cmd_out: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+        cmd_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+        data_out: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+        data_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+    },
+}
+
 pub struct CompositeUsb {
     pub device: UsbDevice<'static, Driver<'static, USB>>,
+    pub personality: ProgrammerPersonality,
+    pub programmer: ProgrammerEndpoints,
     pub cdc_uart: CdcAcmClass<'static, Driver<'static, USB>>,
-    pub dap_v1_reader: HidReader<'static, Driver<'static, USB>, 64>,
-    pub dap_v1_writer: HidWriter<'static, Driver<'static, USB>, 64>,
-    pub dap_v2: CmsisDapV2Class<'static, Driver<'static, USB>>,
     pub ncm_runner: embassy_usb::class::cdc_ncm::embassy_net::Runner<'static, Driver<'static, USB>, 1514>,
     pub net_device: embassy_usb::class::cdc_ncm::embassy_net::Device<'static, 1514>,
     pub gs_usb_read_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
     pub gs_usb_write_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
 }
 
-pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
+pub fn create_composite_usb(
+    driver: Driver<'static, USB>,
+    personality: ProgrammerPersonality,
+) -> CompositeUsb {
     static CONFIG_DESC: StaticCell<[u8; 1024]> = StaticCell::new();
     static BOS_DESC: StaticCell<[u8; 256]> = StaticCell::new();
     static MSOS_DESC: StaticCell<[u8; 512]> = StaticCell::new();
@@ -273,9 +422,15 @@ pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
     let msos_desc = MSOS_DESC.init([0; 512]);
     let control_buf = CONTROL_BUF.init([0; 256]);
 
-    let mut config = embassy_usb::Config::new(0x1209, 0x414D);
-    config.manufacturer = Some("AgentLA");
-    config.product = Some("AgentLA RP2350 Probe");
+    let (vid, pid, product_str, mfg_str) = match personality {
+        ProgrammerPersonality::CmsisDap => (0x1209, 0x414D, "AgentLA CMSIS-DAP Probe", "AgentLA"),
+        ProgrammerPersonality::StLink => (0x0483, 0x3752, "ST-LINK/V2-1", "STMicroelectronics"),
+        ProgrammerPersonality::WchLink => (0x1a86, 0x8010, "WCH-Link", "wch.cn"),
+    };
+
+    let mut config = embassy_usb::Config::new(vid, pid);
+    config.manufacturer = Some(mfg_str);
+    config.product = Some(product_str);
     config.serial_number = Some("00000001");
     config.max_power = 500;
     config.max_packet_size_0 = 64;
@@ -295,35 +450,73 @@ pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
 
     builder.msos_descriptor(embassy_usb::msos::windows_version::WIN8_1, 1);
 
-    // 1 & 2: CDC-ACM (Target UART telemetry bridge)
+    // Programmer Interface (Allocated to EP 0x01/0x81 and 0x02/0x82 first)
+    let programmer = match personality {
+        ProgrammerPersonality::CmsisDap => {
+            // CMSIS-DAP v1 (HID)
+            let hid_state = HID_STATE.init(HidState::new());
+            let hid_config = HidConfig {
+                report_descriptor: CMSIS_DAP_REPORT_DESC,
+                request_handler: None,
+                poll_ms: 1,
+                max_packet_size: 64,
+                hid_subclass: HidSubclass::No,
+                hid_boot_protocol: HidBootProtocol::None,
+            };
+            let hid_rw = HidReaderWriter::<_, 64, 64>::new(&mut builder, hid_state, hid_config);
+            let (dap_v1_reader, dap_v1_writer) = hid_rw.split();
+
+            // CMSIS-DAP v2 (Bulk)
+            let dap_v2_state = DAP_V2_STATE.init(DapV2State::new());
+            let dap_v2 = CmsisDapV2Class::new(&mut builder, dap_v2_state, 64, false);
+            ProgrammerEndpoints::CmsisDap {
+                dap_v1_reader,
+                dap_v1_writer,
+                dap_v2,
+            }
+        }
+        ProgrammerPersonality::StLink => {
+            let st_str = builder.string();
+            let mut st_func = builder.function(0xFF, 0xFF, 0xFF);
+            let mut st_iface = st_func.interface();
+            let mut st_alt = st_iface.alt_setting(0xFF, 0xFF, 0xFF, Some(st_str));
+            let cmd_out = st_alt.endpoint_bulk_out(None, 64);
+            let cmd_in = st_alt.endpoint_bulk_in(None, 64);
+            let trace_in = st_alt.endpoint_bulk_in(None, 64);
+            drop(st_func);
+            ProgrammerEndpoints::StLink { cmd_out, cmd_in, trace_in }
+        }
+        ProgrammerPersonality::WchLink => {
+            let wch_str = builder.string();
+            let mut wch_func = builder.function(0xFF, 0x80, 0x55);
+            let mut wch_iface = wch_func.interface();
+            let mut wch_alt = wch_iface.alt_setting(0xFF, 0x80, 0x55, Some(wch_str));
+            let cmd_out = wch_alt.endpoint_bulk_out(None, 64);
+            let cmd_in = wch_alt.endpoint_bulk_in(None, 64);
+            let data_out = wch_alt.endpoint_bulk_out(None, 64);
+            let data_in = wch_alt.endpoint_bulk_in(None, 64);
+            drop(wch_func);
+            ProgrammerEndpoints::WchLink {
+                cmd_out,
+                cmd_in,
+                data_out,
+                data_in,
+            }
+        }
+    };
+
+    // CDC-ACM (Target UART telemetry bridge)
     let cdc_uart_state = CDC_UART_STATE.init(CdcAcmState::new());
     let cdc_uart = CdcAcmClass::new(&mut builder, cdc_uart_state, 64);
 
-    // 3: CMSIS-DAP v1 (HID)
-    let hid_state = HID_STATE.init(HidState::new());
-    let hid_config = HidConfig {
-        report_descriptor: CMSIS_DAP_REPORT_DESC,
-        request_handler: None,
-        poll_ms: 1,
-        max_packet_size: 64,
-        hid_subclass: HidSubclass::No,
-        hid_boot_protocol: HidBootProtocol::None,
-    };
-    let hid_rw = HidReaderWriter::<_, 64, 64>::new(&mut builder, hid_state, hid_config);
-    let (dap_v1_reader, dap_v1_writer) = hid_rw.split();
-
-    // 4: CMSIS-DAP v2 (Bulk)
-    let dap_v2_state = DAP_V2_STATE.init(DapV2State::new());
-    let dap_v2 = CmsisDapV2Class::new(&mut builder, dap_v2_state, 64, false);
-
-    // 5 & 6: CDC-NCM (Ethernet)
+    // CDC-NCM (Ethernet)
     let ncm_state = NCM_STATE.init(CdcNcmState::new());
     let ncm_class = CdcNcmClass::new(&mut builder, ncm_state, HOST_MAC_ADDR, 64);
     let net_state = NET_STATE.init(NetState::new());
     let (ncm_runner, net_device) =
         ncm_class.into_embassy_net_device::<1514, 4, 4>(net_state, DEVICE_MAC_ADDR);
 
-    // 7: gs_usb SocketCAN (Vendor Class 0xFF, Subclass 0x00, Protocol 0x00)
+    // gs_usb SocketCAN (Vendor Class 0xFF, Subclass 0x00, Protocol 0x00)
     let gs_str = builder.string();
     let mut gs_func = builder.function(0xFF, 0x00, 0x00);
     let mut gs_iface = gs_func.interface();
@@ -332,7 +525,7 @@ pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
     let gs_usb_write_ep = gs_alt.endpoint_bulk_in(None, 64);
     drop(gs_func);
 
-    // 8: i2c-tiny-usb (Vendor Class 0xFF, Subclass 0x00, Protocol 0x00)
+    // i2c-tiny-usb (Vendor Class 0xFF, Subclass 0x00, Protocol 0x00)
     let i2c_str = builder.string();
     let mut i2c_func = builder.function(0xFF, 0x00, 0x00);
     let mut i2c_iface = i2c_func.interface();
@@ -346,10 +539,9 @@ pub fn create_composite_usb(driver: Driver<'static, USB>) -> CompositeUsb {
 
     CompositeUsb {
         device,
+        personality,
+        programmer,
         cdc_uart,
-        dap_v1_reader,
-        dap_v1_writer,
-        dap_v2,
         ncm_runner,
         net_device,
         gs_usb_read_ep,
@@ -498,6 +690,220 @@ pub async fn gs_usb_task(
             }
             Err(_) => {
                 embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
+            }
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn stlink_usb_task(
+    mut cmd_out: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    mut cmd_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+) {
+    use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
+    cmd_out.wait_enabled().await;
+
+    let transport = crate::programmer::swd::SwdTransport::new();
+    let mut handler = agentla_programmer::stlink::StLinkHandler::with_swo(
+        transport,
+        &crate::programmer::swo::SWO_ENGINE,
+    );
+    handler.set_reported_version(get_stlink_version());
+    handler.set_voltage_provider(crate::telemetry::get_target_voltage_mv);
+
+    let mut cmd_buf = [0u8; 64];
+    let mut data_buf = [0u8; 1024];
+    let mut resp_buf = [0u8; 1024];
+
+    loop {
+        match cmd_out.read(&mut cmd_buf).await {
+            Ok(n) if n > 0 => {
+                let cmd = &cmd_buf[..n];
+                handler.set_reported_version(get_stlink_version());
+                if cmd.len() >= 2 && cmd[0] == agentla_programmer::stlink::STLINK_DEBUG_COMMAND {
+                    if cmd[1] == agentla_programmer::stlink::DBG_APIV2_START_TRACE_RX {
+                        crate::programmer::swo::init_swo_pin(crate::programmer::swo::PIN_SWO);
+                    } else if cmd[1] == agentla_programmer::stlink::DBG_APIV2_GET_TRACE_NB {
+                        let baud = handler.swo.baud_rate();
+                        crate::programmer::swo::poll_swo_burst(crate::programmer::swo::PIN_SWO, baud, 64);
+                    }
+                }
+
+                let out_len = handler.out_len(cmd);
+                let in_len = handler.in_len(cmd);
+
+                if out_len > 0 {
+                    // Host sends data payload for memory write or RW_MISC_OUT
+                    let mut received = 0;
+                    while received < out_len {
+                        let chunk = (out_len - received).min(data_buf.len());
+                        match cmd_out.read(&mut data_buf[..chunk]).await {
+                            Ok(rx_n) if rx_n > 0 => {
+                                handler.mem_out(cmd, received, &data_buf[..rx_n]);
+                                received += rx_n;
+                            }
+                            _ => break,
+                        }
+                    }
+                    // For memory write, send 2-byte status reply
+                    let mut resp = [0u8; 2];
+                    resp[0] = handler.last_status;
+                    let _ = cmd_in.write(&resp).await;
+                } else if in_len > 0 {
+                    // Host expects read data on Bulk IN
+                    let mut sent = 0;
+                    while sent < in_len {
+                        let chunk = (in_len - sent).min(data_buf.len());
+                        handler.mem_in(cmd, sent, &mut data_buf[..chunk]);
+                        if let Err(_) = cmd_in.write(&data_buf[..chunk]).await {
+                            break;
+                        }
+                        sent += chunk;
+                    }
+                } else {
+                    let resp_len = handler.execute(cmd, &mut resp_buf);
+                    if resp_len > 0 {
+                        let _ = cmd_in.write(&resp_buf[..resp_len]).await;
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(_) => {
+                embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
+            }
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn swo_trace_task(
+    mut trace_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+) {
+    use embassy_usb::driver::{Endpoint, EndpointIn};
+    trace_in.wait_enabled().await;
+
+    let mut pkt_buf = [0u8; 64];
+
+    loop {
+        let swo = &crate::programmer::swo::SWO_ENGINE;
+        if swo.is_active() {
+            let baud = swo.baud_rate();
+            crate::programmer::swo::poll_swo_burst(crate::programmer::swo::PIN_SWO, baud, 64);
+
+            if swo.is_polled() {
+                if swo.trace_owed() > 0 {
+                    let n = swo.pop_trace_packet(&mut pkt_buf);
+                    if n > 0 {
+                        let _ = trace_in.write(&pkt_buf[..n]).await;
+                    }
+                } else {
+                    embassy_time::Timer::after(embassy_time::Duration::from_micros(200)).await;
+                }
+            } else {
+                let avail = swo.available();
+                if avail >= 64 {
+                    let n = swo.pop_trace_packet(&mut pkt_buf);
+                    if n > 0 {
+                        let _ = trace_in.write(&pkt_buf[..n]).await;
+                    }
+                } else if avail > 0 {
+                    embassy_time::Timer::after(embassy_time::Duration::from_millis(2)).await;
+                    let n = swo.pop_trace_packet(&mut pkt_buf);
+                    if n > 0 {
+                        let _ = trace_in.write(&pkt_buf[..n]).await;
+                    }
+                } else {
+                    embassy_time::Timer::after(embassy_time::Duration::from_millis(1)).await;
+                }
+            }
+        } else {
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(20)).await;
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn swo_rx_task() {
+    let pin = crate::programmer::swo::PIN_SWO;
+    loop {
+        let swo = &crate::programmer::swo::SWO_ENGINE;
+        if swo.is_active() {
+            let baud = swo.baud_rate();
+            let count = crate::programmer::swo::poll_swo_burst(pin, baud, 64);
+            if count == 0 {
+                embassy_time::Timer::after(embassy_time::Duration::from_micros(100)).await;
+            }
+        } else {
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn wchlink_usb_task(
+    mut cmd_out: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    mut cmd_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+    mut data_out: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    mut data_in: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+) {
+    use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
+    cmd_out.wait_enabled().await;
+    data_out.wait_enabled().await;
+
+    let transport = crate::programmer::rvswd::RvswdTransport::new();
+    let mut handler = agentla_programmer::wch::WchLinkHandler::new(transport);
+
+    let mut cmd_rx_buf = [0u8; 64];
+    let mut cmd_tx_buf = [0u8; 64];
+    let mut data_rx_buf = [0u8; 64];
+    let mut data_tx_buf = [0u8; 64];
+
+    loop {
+        // 1. Check flow-control ACK or memory read streaming on data_in
+        let mut ack = [0u8; 4];
+        if handler.ack_pending(&mut ack) {
+            if data_in.write(&ack).await.is_ok() {
+                handler.ack_sent();
+            }
+        } else if handler.reading {
+            let n = handler.read_chunk(&mut data_tx_buf);
+            if n > 0 {
+                let _ = data_in.write(&data_tx_buf[..n]).await;
+            }
+        }
+
+        // 2. Select between command OUT and data OUT (if wanted)
+        if handler.wants_data() {
+            match embassy_futures::select::select(
+                cmd_out.read(&mut cmd_rx_buf),
+                data_out.read(&mut data_rx_buf),
+            ).await {
+                embassy_futures::select::Either::First(Ok(n)) if n > 0 => {
+                    let resp_len = handler.execute(&cmd_rx_buf[..n], &mut cmd_tx_buf);
+                    if resp_len > 0 {
+                        let _ = cmd_in.write(&cmd_tx_buf[..resp_len]).await;
+                    }
+                }
+                embassy_futures::select::Either::Second(Ok(n)) if n > 0 => {
+                    handler.data_out(&data_rx_buf[..n]);
+                }
+                _ => {
+                    embassy_time::Timer::after(embassy_time::Duration::from_millis(1)).await;
+                }
+            }
+        } else {
+            // Only waiting on command OUT
+            match embassy_time::with_timeout(
+                embassy_time::Duration::from_millis(5),
+                cmd_out.read(&mut cmd_rx_buf),
+            ).await {
+                Ok(Ok(n)) if n > 0 => {
+                    let resp_len = handler.execute(&cmd_rx_buf[..n], &mut cmd_tx_buf);
+                    if resp_len > 0 {
+                        let _ = cmd_in.write(&cmd_tx_buf[..resp_len]).await;
+                    }
+                }
+                _ => {}
             }
         }
     }

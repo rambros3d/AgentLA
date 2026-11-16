@@ -93,6 +93,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 resp[1] = 0;
                 2
             }
+            DAP_SWD_SEQUENCE => self.handle_swd_sequence(req, resp),
             cmd => {
                 resp[0] = cmd;
                 resp[1] = 0x00;
@@ -116,7 +117,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 2 + v.len()
             }
             0x02 => {
-                let p = b"AgentLA RP2350 Probe";
+                let p = b"AgentLA CMSIS-DAP Probe";
                 resp[1] = p.len() as u8;
                 resp[2..2 + p.len()].copy_from_slice(p);
                 2 + p.len()
@@ -128,7 +129,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 2 + s.len()
             }
             0x04 => {
-                let ver = b"1.0.0";
+                let ver = b"2.0.0";
                 resp[1] = ver.len() as u8;
                 resp[2..2 + ver.len()].copy_from_slice(ver);
                 2 + ver.len()
@@ -173,6 +174,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         let port = if req.len() >= 2 { req[1] } else { 0 };
 
         if port == 0 || port == DAP_PORT_SWD {
+            let _ = self.transport.ensure_initialized();
             let _ = self.transport.jtag_to_swd();
             self.connected = true;
             resp[1] = DAP_PORT_SWD;
@@ -201,6 +203,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
     }
 
     fn handle_transfer(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
+        let _ = self.transport.ensure_initialized();
         resp[0] = DAP_TRANSFER;
         if req.len() < 3 {
             resp[1] = 0;
@@ -416,6 +419,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
     }
 
     fn handle_transfer_block(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
+        let _ = self.transport.ensure_initialized();
         resp[0] = DAP_TRANSFER_BLOCK;
         if req.len() < 5 {
             resp[1] = 0;
@@ -534,6 +538,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
     }
 
     fn handle_swj_pins(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
+        let _ = self.transport.ensure_initialized();
         resp[0] = DAP_SWJ_PINS;
         if req.len() < 7 {
             resp[1] = 0;
@@ -556,6 +561,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
     }
 
     fn handle_swj_sequence(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
+        let _ = self.transport.ensure_initialized();
         resp[0] = DAP_SWJ_SEQUENCE;
         if req.len() < 2 {
             resp[1] = 1;
@@ -582,12 +588,14 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 .write_bits(chunk_bits as u32, req[2 + i] as u32);
             bits_left -= chunk_bits;
         }
+        let _ = self.transport.wait_idle();
 
         resp[1] = 0;
         2
     }
 
     fn handle_swj_clock(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
+        let _ = self.transport.ensure_initialized();
         resp[0] = DAP_SWJ_CLOCK;
         if req.len() >= 5 {
             let freq_hz = (req[1] as u32)
@@ -599,6 +607,74 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         }
         resp[1] = 0;
         2
+    }
+
+    fn handle_swd_sequence(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
+        resp[0] = DAP_SWD_SEQUENCE;
+        if req.len() < 2 {
+            resp[1] = 0xFF;
+            return 2;
+        }
+
+        let _ = self.transport.ensure_initialized();
+
+        let seq_count = req[1] as usize;
+        let mut req_idx = 2;
+        let mut resp_idx = 2;
+        resp[1] = 0x00; // OK
+
+        for _ in 0..seq_count {
+            if req_idx >= req.len() {
+                resp[1] = 0xFF;
+                break;
+            }
+            let info = req[req_idx];
+            req_idx += 1;
+
+            let mut bit_count = (info & 0x3F) as usize;
+            if bit_count == 0 {
+                bit_count = 64;
+            }
+            let is_read = (info & 0x80) != 0;
+            let byte_count = (bit_count + 7) / 8;
+
+            if is_read {
+                let mut bits_left = bit_count;
+                while bits_left > 0 {
+                    let chunk = bits_left.min(32);
+                    let val = self.transport.read_bits(chunk as u32).unwrap_or(0);
+                    let chunk_bytes = (chunk + 7) / 8;
+                    for b in 0..chunk_bytes {
+                        if resp_idx < resp.len() {
+                            resp[resp_idx] = (val >> (b * 8)) as u8;
+                            resp_idx += 1;
+                        }
+                    }
+                    bits_left -= chunk;
+                }
+            } else {
+                if req_idx + byte_count > req.len() {
+                    resp[1] = 0xFF;
+                    break;
+                }
+                let mut bits_left = bit_count;
+                let mut byte_offset = 0;
+                while bits_left > 0 {
+                    let chunk = bits_left.min(32);
+                    let chunk_bytes = (chunk + 7) / 8;
+                    let mut val = 0u32;
+                    for b in 0..chunk_bytes {
+                        val |= (req[req_idx + byte_offset + b] as u32) << (b * 8);
+                    }
+                    let _ = self.transport.write_bits(chunk as u32, val);
+                    bits_left -= chunk;
+                    byte_offset += chunk_bytes;
+                }
+                req_idx += byte_count;
+            }
+        }
+        let _ = self.transport.wait_idle();
+        resp_idx
     }
 
     fn handle_write_abort(&mut self, req: &[u8], resp: &mut [u8]) -> usize {

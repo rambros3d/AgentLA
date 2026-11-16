@@ -4,7 +4,7 @@
 
 use agentla_bsp::{
     AdapterPins, AnalogFrontendConfig, BoardFeatures, BoardProfile, CanPins, FlexiblePool,
-    I2cPins, McuPackage, ProgrammerPins, Rs485Pins, SpiPins, UartPins,
+    I2cPins, McuPackage, ProbeWireTopology, ProgrammerPins, Rs485Pins, SpiPins, UartPins,
 };
 
 pub const MANIFEST_JSON: &str = include_str!("../board.json");
@@ -61,6 +61,11 @@ impl BoardProfile for BakuProbeBoard {
         },
         default_uart: UartPins { tx: 12, rx: 13 },
         default_ws2812: Some(6),
+        probe: Some(ProbeWireTopology::Split {
+            clk: 14,
+            dio_drv: 15,
+            dio_sns: 16,
+        }),
     };
 
     const FLEXIBLE: FlexiblePool = FlexiblePool::new(32, 39);

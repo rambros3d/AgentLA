@@ -51,6 +51,7 @@ impl BoardProfile for CustomBoard {
         },
         default_uart: UartPins { tx: 8, rx: 14 },
         default_ws2812: None,
+        probe: None,
     };
 
     const FLEXIBLE: FlexiblePool = FlexiblePool::new(0, 29);

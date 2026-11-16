@@ -12,7 +12,7 @@
         var savedMode = localStorage.getItem('agentla-theme-mode');
         var saved = localStorage.getItem('agentla-theme');
         var defaultDark = 'nothing';
-        var defaultLight = 'industrial-light';
+        var defaultLight = 'emerald';
         if (saved) {
           document.documentElement.setAttribute('data-theme', saved);
           var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
@@ -38,7 +38,6 @@
   <link rel="stylesheet" href="/daisyui.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
-  <script src="/agentla-bridge.js"></script>
   <style>
     /* Technical / Industrial Layout Enhancements */
     .file-dropzone-active {
@@ -61,61 +60,18 @@
     .font-tech {
       font-family: var(--font-mono-tech, ui-monospace, monospace);
     }
-    /* Chrome suppression when embedded in App-Shell */
-    html.is-embedded #top-bar,
-    html.is-embedded .floating-glass-dock,
-    html.is-embedded #floating-glass-dock {
-      display: none !important;
-    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
-
-  <!-- Top Navigation Header -->
-  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-2 min-h-0 flex justify-between items-center z-30 sticky top-0">
-    <div class="navbar-start flex items-center gap-2">
-      <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="Return to Launcher (Home)">
-        <span class="start-menu-icon" aria-hidden="true"></span>
-        <span class="font-bold tracking-tight text-sm font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> Storage Files</span>
-      </a>
-    </div>
-
-    <div class="navbar-center hidden md:flex items-center gap-2">
-      <!-- Partition Selector Segmented Switch -->
-      <div class="join border border-base-300 rounded-lg p-0.5 bg-base-300/40">
-        <button id="btn-part-user" class="join-item btn btn-xs btn-primary font-dot" onclick="switchPartition('user')">
-          <span class="inline-block w-1.5 h-1.5 rounded-full bg-success mr-1"></span>
-          user:/ [RW]
-        </button>
-        <button id="btn-part-system" class="join-item btn btn-xs btn-ghost font-dot" onclick="switchPartition('system')">
-          <span class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1"></span>
-          sys:/ [RO]
-        </button>
-      </div>
-    </div>
-
-    <div class="navbar-end flex items-center gap-2">
-      <!-- Theme Mode Toggle -->
-      <button class="btn btn-ghost btn-xs font-tech border border-base-300" id="btn-theme-toggle" onclick="toggleFilesTheme()" title="Toggle Light / Dark Mode">
-        <span id="theme-btn-label">THEME</span>
-      </button>
-
-      <a href="/home" class="btn btn-ghost btn-xs btn-square border border-base-300" title="Home">
-        <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1V9.5z"/>
-        </svg>
-      </a>
-    </div>
-  </header>
 
   <!-- Main Body Grid: Sidebar & Content -->
   <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
     
     <!-- Left Navigation & Bento Partition Storage Card -->
-    <aside class="w-full md:w-64 bg-base-200/50 border-r border-base-300 p-3 pb-[72px] flex flex-col gap-3 shrink-0 overflow-y-auto">
+    <aside class="w-full md:w-64 bg-base-200/50 border-r border-base-300 p-3 flex flex-col gap-3 shrink-0 overflow-y-auto">
       
-      <!-- Mobile Partition Selector -->
-      <div class="join md:hidden w-full border border-base-300 rounded-lg p-0.5 bg-base-300/40">
+      <!-- Partition Selector -->
+      <div class="join w-full border border-base-300 rounded-lg p-0.5 bg-base-300/40">
         <button id="btn-part-user-m" class="join-item btn btn-xs flex-1 btn-primary font-dot" onclick="switchPartition('user')">
           user:/ [RW]
         </button>
@@ -1133,7 +1089,7 @@
     function toggleFilesTheme() {
       const curTheme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('agentla-theme') || 'nothing';
       const isCurrentlyLight = (curTheme === 'industrial-light' || curTheme === 'emerald' || curTheme === 'caramellatte' || curTheme === 'light');
-      const nextTheme = isCurrentlyLight ? 'nothing' : 'industrial-light';
+      const nextTheme = isCurrentlyLight ? 'nothing' : 'emerald';
       const nextMode = isCurrentlyLight ? 'dark' : 'light';
       try {
         localStorage.setItem('agentla-theme', nextTheme);
@@ -1146,6 +1102,19 @@
           bc.postMessage({ type: 'THEME_CHANGE', theme: nextTheme, mode: nextMode, scheme: nextMode });
           bc.close();
         }
+      } catch (_) {}
+      try {
+        fetch('/api/v1/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            theme_mode: nextMode,
+            default_light_theme: 'emerald',
+            default_dark_theme: 'nothing',
+            default_home_route: '/home',
+            active_profile: "Default Lab Bench"
+          })
+        }).catch(() => {});
       } catch (_) {}
       showToast(`Switched to ${nextMode.toUpperCase()} mode`);
     }

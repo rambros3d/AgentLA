@@ -2,6 +2,8 @@
 
 use core::fmt::Debug;
 
+pub use agentla_bsp::ProbeWireTopology;
+
 pub trait SwdIo {
     type Error: Debug;
 
@@ -50,6 +52,16 @@ pub trait SwdIo {
         Ok(())
     }
 
+    /// Ensure the transport hardware and pins are initialized.
+    fn ensure_initialized(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Wait for pending PIO or hardware transmissions to complete.
+    fn wait_idle(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     /// Direct SWJ pin manipulation for CMSIS-DAP DAP_SWJ_Pins command.
     /// Returns current state of pins (Bit 0: SWCLK, Bit 1: SWDIO, Bit 7: nRESET).
     fn swj_pins(
@@ -81,6 +93,9 @@ impl<T: SwdIo + ?Sized> SwdIo for &mut T {
     }
     fn dormant_to_swd(&mut self) -> Result<(), Self::Error> {
         (**self).dormant_to_swd()
+    }
+    fn ensure_initialized(&mut self) -> Result<(), Self::Error> {
+        (**self).ensure_initialized()
     }
     fn set_clock(&mut self, freq_khz: u32) -> Result<(), Self::Error> {
         (**self).set_clock(freq_khz)
@@ -141,6 +156,11 @@ pub trait RvswdIo {
 
     /// Reset sequence for RVSWD interface.
     fn reset(&mut self) -> Result<(), Self::Error>;
+
+    /// Set clock frequency in kHz.
+    fn set_clock(&mut self, _freq_khz: u32) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 impl<T: RvswdIo + ?Sized> RvswdIo for &mut T {
@@ -153,5 +173,8 @@ impl<T: RvswdIo + ?Sized> RvswdIo for &mut T {
     }
     fn reset(&mut self) -> Result<(), Self::Error> {
         (**self).reset()
+    }
+    fn set_clock(&mut self, freq_khz: u32) -> Result<(), Self::Error> {
+        (**self).set_clock(freq_khz)
     }
 }

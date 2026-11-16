@@ -606,11 +606,19 @@ body.no-transparency {
    -------------------------------------------------------------------------- */
 .app-shell {
     display: flex;
+    flex-direction: row;
     flex: 1;
     min-height: 0;
     width: 100%;
+    height: calc(100vh - 44px);
     position: relative;
     overflow: hidden;
+}
+
+@media (max-width: 899.98px) {
+    .app-shell {
+        flex-direction: column-reverse;
+    }
 }
 
 /* Desktop Left Vertical Navigation Sidebar (>= 900px) */
@@ -696,10 +704,12 @@ body.no-transparency {
     opacity: 1;
 }
 
-/* Main Workspace */
-.main-workspace, #main-workspace {
+/* Main Workspace & In-Flow Viewports */
+.main-workspace, #main-workspace,
+.app-viewport-container, #view-app-viewport {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     height: 100%;
     position: relative;
     overflow: hidden;
@@ -882,9 +892,6 @@ body.no-transparency {
         }
     }
 
-    .main-workspace {
-        padding-bottom: calc(var(--bottom-nav-height, 66px) + env(safe-area-inset-bottom, 0px)) !important;
-    }
 
     .quick-presets {
         display: none;
@@ -4735,7 +4742,7 @@ body.no-transparency {
     min-height: 0;
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    padding: 32px 24px calc(6.5rem + env(safe-area-inset-bottom, 0px)) 24px;
+    padding: 32px 24px 24px 24px;
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
@@ -4763,12 +4770,13 @@ body.no-transparency {
 .launcher-container {
     width: 100%;
     max-width: 1080px;
+    margin-inline: auto;
     margin-left: auto;
     margin-right: auto;
     display: flex;
     flex-direction: column;
     gap: 32px;
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 24px;
 }
 
 /* Spotlight Search */
@@ -4858,35 +4866,45 @@ body.no-transparency {
 }
 
 /* ==========================================================================
-   Industrial Chamfered Rail Dock & Telemetry Popovers
+   Adaptive In-Flow Navigation Rail & Adjacent Telemetry Popovers
    ========================================================================== */
 
+.app-nav-rail,
 .floating-glass-dock {
-    position: fixed;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100;
+    position: static;
+    transform: none;
+    width: 48px;
+    height: 100%;
+    flex-shrink: 0;
     display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
-    background: color-mix(in oklch, var(--color-base-100) 88%, transparent);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid color-mix(in oklch, var(--color-base-content) 14%, transparent);
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+    padding: 8px 0;
+    background: var(--color-base-200);
+    border: none;
+    border-right: 1px solid var(--border-color, color-mix(in oklch, var(--color-base-content) 14%, transparent));
+    border-radius: 0;
+    box-shadow: none;
+    z-index: 20;
     box-sizing: border-box;
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+    user-select: none;
 }
 
+.nav-rail-primary,
+.nav-rail-secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.nav-rail-btn,
 .dock-icon-btn {
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 6px;
     background: transparent;
     border: none;
@@ -4896,54 +4914,30 @@ body.no-transparency {
     justify-content: center;
     cursor: pointer;
     text-decoration: none;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, color 0.2s ease;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
     outline: none;
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
+.nav-rail-btn:hover,
 .dock-icon-btn:hover {
-    transform: scale(1.15) translateY(-3px);
     background: color-mix(in oklch, var(--color-base-content) 10%, transparent);
     color: var(--color-primary);
 }
 
+.nav-rail-btn:active,
 .dock-icon-btn:active {
-    transform: scale(1.02) translateY(-1px);
+    transform: scale(0.96);
 }
 
+.nav-rail-btn.active,
 .dock-icon-btn.active {
     background: color-mix(in oklch, var(--color-primary) 18%, transparent);
     color: var(--color-primary);
 }
 
-.dock-icon-btn[data-dock-tooltip]::before {
-    content: attr(data-dock-tooltip);
-    position: absolute;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    padding: 3px 7px;
-    border-radius: 4px;
-    background: var(--color-base-200, #0a0a0a);
-    border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
-    color: var(--color-base-content, #f4f4f4);
-    font-family: var(--font-mono-tech);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-    z-index: 120;
-}
-
-.dock-icon-btn[data-dock-tooltip]:hover::before {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
-
+.nav-rail-btn svg,
 .dock-icon-btn svg {
     width: 22px;
     height: 22px;
@@ -4955,24 +4949,108 @@ body.no-transparency {
     position: relative;
     display: flex;
     align-items: center;
+    justify-content: center;
 }
 
-/* Dock separator */
+/* Nav Rail & Dock Separator */
+.nav-rail-separator,
 .dock-separator {
-    width: 1px;
-    height: 24px;
+    width: 32px;
+    height: 1px;
     background: color-mix(in oklch, var(--color-base-content) 14%, transparent);
-    margin: 0 4px;
+    margin: 4px 0;
     flex-shrink: 0;
+}
+
+/* Right-flying tooltips for Desktop (>= 900px) */
+@media (min-width: 900px) {
+    .dock-icon-btn[data-dock-tooltip]::before,
+    .nav-rail-btn[data-dock-tooltip]::before {
+        content: attr(data-dock-tooltip);
+        position: absolute;
+        left: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%) translateX(-4px);
+        bottom: auto;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: var(--color-base-300, #1f2937);
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
+        color: var(--color-base-content, #f4f4f4);
+        font-family: var(--font-mono-tech, ui-monospace, monospace);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        z-index: 120;
+    }
+
+    .dock-icon-btn[data-dock-tooltip]:hover::before,
+    .nav-rail-btn[data-dock-tooltip]:hover::before {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+    }
+}
+
+/* Suppress tooltips on touch/mobile (< 900px) */
+@media (max-width: 899.98px) {
+    .dock-icon-btn[data-dock-tooltip]::before,
+    .nav-rail-btn[data-dock-tooltip]::before {
+        display: none !important;
+    }
+}
+
+/* Mobile & Narrow Screen Responsive Navigation Bar (< 900px) */
+@media (max-width: 899.98px) {
+    .app-nav-rail,
+    .floating-glass-dock {
+        position: static;
+        transform: none;
+        width: 100%;
+        height: calc(48px + env(safe-area-inset-bottom, 0px));
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)) 8px;
+        background: var(--color-base-200);
+        border: none;
+        border-top: 1px solid var(--border-color, color-mix(in oklch, var(--color-base-content) 14%, transparent));
+        border-right: none;
+        border-radius: 0;
+        box-shadow: none;
+        z-index: 20;
+    }
+
+    .nav-rail-primary,
+    .nav-rail-secondary {
+        flex-direction: row;
+        width: auto;
+        gap: 6px;
+    }
+
+    .nav-rail-separator,
+    .dock-separator {
+        width: 1px;
+        height: 24px;
+        margin: 0 4px;
+    }
 }
 
 /* Glass Storage & System Info Popover */
 .storage-glass-popover {
     position: absolute;
-    bottom: calc(100% + 14px);
-    right: 0;
+    left: calc(100% + 8px);
+    bottom: 8px;
+    right: auto;
+    top: auto;
     width: 350px;
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 64px);
+    max-height: calc(100vh - 64px);
     padding: 14px 16px;
     background: color-mix(in oklch, var(--color-base-100) 92%, transparent);
     backdrop-filter: blur(24px) saturate(190%);
@@ -4986,6 +5064,39 @@ body.no-transparency {
     z-index: 101;
     animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.telemetry-glass-popover {
+    width: 360px;
+    left: calc(100% + 8px);
+    bottom: 8px;
+    right: auto;
+    top: auto;
+}
+
+@media (max-width: 899.98px) {
+    .storage-glass-popover {
+        position: fixed;
+        bottom: calc(48px + env(safe-area-inset-bottom, 0px) + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        right: auto;
+        top: auto;
+        width: calc(100vw - 24px);
+        max-width: 360px;
+        max-height: calc(100vh - 64px);
+    }
+
+    .telemetry-glass-popover {
+        width: calc(100vw - 24px);
+        max-width: 360px;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: calc(48px + env(safe-area-inset-bottom, 0px) + 8px);
+        right: auto;
+        top: auto;
+    }
 }
 
 .popover-info-grid {
@@ -5062,10 +5173,6 @@ body.no-transparency {
     margin-top: 2px;
 }
 
-.telemetry-glass-popover {
-    width: 360px;
-    right: -48px;
-}
 
 /* ==========================================================================
    Launchpad Subtitle & Project Link Bar (Minimalist & Non-intrusive)
@@ -5717,24 +5824,6 @@ body.no-transparency {
 }
 
 @media (max-width: 640px) {
-    .floating-glass-dock {
-        bottom: 0;
-        padding: 4px 8px;
-        padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
-        gap: 4px;
-        max-width: 98vw;
-    }
-    .dock-icon-btn {
-        width: 36px;
-        height: 36px;
-    }
-    .dock-storage-pill span.pill-text {
-        display: none;
-    }
-    .storage-glass-popover {
-        right: -30px;
-        width: 290px;
-    }
     .os-squircle-grid {
         justify-content: center;
         gap: 20px 14px;
@@ -7690,9 +7779,6 @@ body.no-transparency {
     display: none !important;
 }
 
-.main-workspace {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
-}
 
 /* Telemetry HUD Popover above the Floating Dock */
 .telemetry-hud-overlay {

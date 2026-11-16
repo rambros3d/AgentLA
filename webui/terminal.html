@@ -5,13 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SERIAL_TERMINAL // AgentLA</title>
   <script>
-    // Restore system theme immediately before render to avoid flash
+    // Synchronous Embed / Shell FOUC Guard: Prevent duplicate top bar / nav rail flash
     (function() {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var isEmbed = (window.self !== window.top) || 
+                      params.get('embed') === '1' || 
+                      params.get('no_launcher') === '1' || 
+                      window.AgentLANoLauncher === true;
+        if (isEmbed) {
+          document.documentElement.classList.add('is-embedded');
+        }
+      } catch (_) {
+        document.documentElement.classList.add('is-embedded');
+      }
+
       document.documentElement.setAttribute('data-style', 'industrial');
       var savedMode = localStorage.getItem('agentla-theme-mode');
       var saved = localStorage.getItem('agentla-theme');
       var defaultDark = 'nothing';
-      var defaultLight = 'industrial-light';
+      var defaultLight = 'emerald';
       if (saved) {
         document.documentElement.setAttribute('data-theme', saved);
         var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
@@ -88,6 +101,8 @@
 
     /* Chrome suppression when embedded in App-Shell */
     html.is-embedded #top-bar,
+    html.is-embedded .app-nav-rail,
+    html.is-embedded #app-nav-rail,
     html.is-embedded .floating-glass-dock,
     html.is-embedded #floating-glass-dock {
       display: none !important;

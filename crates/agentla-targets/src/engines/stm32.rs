@@ -282,3 +282,110 @@ pub fn h7_dualbank_program_page<M: TargetMemAccess>(
     mem.write32(cr_addr, 0).map_err(|_| TargetError::BusError)?;
     Ok(())
 }
+
+// ----------------------------------------------------------------------------
+// 5. STM32H5 128-Bit Quad-Word Flash Engine
+// ----------------------------------------------------------------------------
+pub fn h5_erase_sector<M: TargetMemAccess>(
+    mem: &mut M,
+    desc: &TargetDescriptor,
+    sector_addr: u32,
+) -> Result<(), TargetError> {
+    let nscr_addr = desc.reg_base + 0x28;
+    let nssr_addr = desc.reg_base + 0x20;
+    let nskeyr_addr = desc.reg_base + 0x04;
+    let nsccr_addr = desc.reg_base + 0x30;
+
+    // Unlock
+    let cr = mem.read32(nscr_addr).map_err(|_| TargetError::BusError)?;
+    if (cr & 0x01) != 0 {
+        mem.write32(nskeyr_addr, desc.keys.0).map_err(|_| TargetError::BusError)?;
+        mem.write32(nskeyr_addr, desc.keys.1).map_err(|_| TargetError::BusError)?;
+    }
+    let _ = mem.write32(nsccr_addr, 0x001F0000);
+
+    // Wait initial busy
+    for _ in 0..10_000 {
+        let sr = mem.read32(nssr_addr).map_err(|_| TargetError::BusError)?;
+        if (sr & 0x0B) == 0 {
+            break;
+        }
+    }
+
+    let (snb, bksel) = if sector_addr >= (desc.flash_base + 0x10000) {
+        ((sector_addr - (desc.flash_base + 0x10000)) / desc.sector_size, 1u32 << 31)
+    } else {
+        ((sector_addr - desc.flash_base) / desc.sector_size, 0u32)
+    };
+
+    let cr_val = (1 << 2) | (1 << 5) | bksel | ((snb & 0x7F) << 6); // SER=1, START=1, BKSEL, SNB
+    mem.write32(nscr_addr, cr_val).map_err(|_| TargetError::BusError)?;
+
+    for _ in 0..100_000 {
+        let sr = mem.read32(nssr_addr).map_err(|_| TargetError::BusError)?;
+        if (sr & 0x0B) == 0 {
+            if (sr & 0x00BE0000) != 0 {
+                let _ = mem.write32(nsccr_addr, 0x001F0000);
+                return Err(TargetError::FlashControllerFault(sr));
+            }
+            break;
+        }
+    }
+
+    mem.write32(nscr_addr, 0).map_err(|_| TargetError::BusError)?;
+    Ok(())
+}
+
+pub fn h5_program_page<M: TargetMemAccess>(
+    mem: &mut M,
+    desc: &TargetDescriptor,
+    addr: u32,
+    data: &[u8],
+) -> Result<(), TargetError> {
+    let nscr_addr = desc.reg_base + 0x28;
+    let nssr_addr = desc.reg_base + 0x20;
+    let nskeyr_addr = desc.reg_base + 0x04;
+    let nsccr_addr = desc.reg_base + 0x30;
+
+    let cr = mem.read32(nscr_addr).map_err(|_| TargetError::BusError)?;
+    if (cr & 0x01) != 0 {
+        mem.write32(nskeyr_addr, desc.keys.0).map_err(|_| TargetError::BusError)?;
+        mem.write32(nskeyr_addr, desc.keys.1).map_err(|_| TargetError::BusError)?;
+    }
+    let _ = mem.write32(nsccr_addr, 0x001F0000);
+
+    mem.write32(nscr_addr, 1 << 1).map_err(|_| TargetError::BusError)?; // PG=1
+
+    let mut offset = 0usize;
+    while offset < data.len() {
+        let chunk_addr = addr + offset as u32;
+        let mut quad = [0xFFu8; 16];
+        let copy_len = (data.len() - offset).min(16);
+        quad[..copy_len].copy_from_slice(&data[offset..offset + copy_len]);
+
+        let w0 = u32::from_le_bytes(quad[0..4].try_into().unwrap());
+        let w1 = u32::from_le_bytes(quad[4..8].try_into().unwrap());
+        let w2 = u32::from_le_bytes(quad[8..12].try_into().unwrap());
+        let w3 = u32::from_le_bytes(quad[12..16].try_into().unwrap());
+
+        mem.write32(chunk_addr + 0, w0).map_err(|_| TargetError::BusError)?;
+        mem.write32(chunk_addr + 4, w1).map_err(|_| TargetError::BusError)?;
+        mem.write32(chunk_addr + 8, w2).map_err(|_| TargetError::BusError)?;
+        mem.write32(chunk_addr + 12, w3).map_err(|_| TargetError::BusError)?;
+
+        for _ in 0..10_000 {
+            let sr = mem.read32(nssr_addr).map_err(|_| TargetError::BusError)?;
+            if (sr & 0x0B) == 0 {
+                if (sr & 0x00BE0000) != 0 {
+                    let _ = mem.write32(nsccr_addr, 0x001F0000);
+                    return Err(TargetError::FlashControllerFault(sr));
+                }
+                break;
+            }
+        }
+        offset += 16;
+    }
+
+    mem.write32(nscr_addr, 0).map_err(|_| TargetError::BusError)?;
+    Ok(())
+}

@@ -111,6 +111,62 @@ pub struct UartPins {
     pub rx: u32,
 }
 
+/// Wire topology for 2-wire serial debug interfaces (ARM SWD and WCH RVSWD).
+///
+/// Supports conventional single-pin bidirectional routing (e.g. Raspberry Pi Pico 2)
+/// as well as split driver/sense resistor network routing (e.g. Jolt Connect / BakuProbe)
+/// eliminating turnaround bus contention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProbeWireTopology {
+    /// Combined single-pin bidirectional data line.
+    Combined { clk: u32, dio: u32 },
+    /// Split driver and sense lines separated by a series damping resistor network.
+    Split { clk: u32, dio_drv: u32, dio_sns: u32 },
+}
+
+impl ProbeWireTopology {
+    /// Create a new single-pin combined wire topology.
+    pub const fn combined(clk: u32, dio: u32) -> Self {
+        Self::Combined { clk, dio }
+    }
+
+    /// Create a new split driver/sense wire topology.
+    pub const fn split(clk: u32, dio_drv: u32, dio_sns: u32) -> Self {
+        Self::Split { clk, dio_drv, dio_sns }
+    }
+
+    /// Return the clock output pin.
+    pub const fn clk(&self) -> u32 {
+        match *self {
+            Self::Combined { clk, .. } | Self::Split { clk, .. } => clk,
+        }
+    }
+
+    /// Return the data output / driver pin.
+    pub const fn dio_out(&self) -> u32 {
+        match *self {
+            Self::Combined { dio, .. } => dio,
+            Self::Split { dio_drv, .. } => dio_drv,
+        }
+    }
+
+    /// Return the data input / sense pin.
+    pub const fn dio_in(&self) -> u32 {
+        match *self {
+            Self::Combined { dio, .. } => dio,
+            Self::Split { dio_sns, .. } => dio_sns,
+        }
+    }
+
+    /// Return `true` if this is a split driver/sense topology.
+    pub const fn is_split(&self) -> bool {
+        match *self {
+            Self::Combined { .. } => false,
+            Self::Split { .. } => true,
+        }
+    }
+}
+
 /// Dedicated transceiver and default protocol bridge pin mappings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterPins {
@@ -120,6 +176,7 @@ pub struct AdapterPins {
     pub default_spi: SpiPins,
     pub default_uart: UartPins,
     pub default_ws2812: Option<u32>,
+    pub probe: Option<ProbeWireTopology>,
 }
 
 /// Flexible multiplexed pin pool allocation.
@@ -238,5 +295,44 @@ pub trait BoardProfile: Send + Sync + 'static {
     /// Embedded SVG pinout diagram asset.
     fn pinout_svg() -> &'static [u8] {
         &[]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_probe_wire_topology_combined() {
+        let topo = ProbeWireTopology::Combined { clk: 2, dio: 3 };
+        assert_eq!(topo.clk(), 2);
+        assert_eq!(topo.dio_out(), 3);
+        assert_eq!(topo.dio_in(), 3);
+        assert!(!topo.is_split());
+
+        let helper = ProbeWireTopology::combined(4, 5);
+        assert_eq!(helper.clk(), 4);
+        assert_eq!(helper.dio_out(), 5);
+        assert_eq!(helper.dio_in(), 5);
+        assert!(!helper.is_split());
+    }
+
+    #[test]
+    fn test_probe_wire_topology_split() {
+        let topo = ProbeWireTopology::Split {
+            clk: 2,
+            dio_drv: 3,
+            dio_sns: 4,
+        };
+        assert_eq!(topo.clk(), 2);
+        assert_eq!(topo.dio_out(), 3);
+        assert_eq!(topo.dio_in(), 4);
+        assert!(topo.is_split());
+
+        let helper = ProbeWireTopology::split(14, 15, 16);
+        assert_eq!(helper.clk(), 14);
+        assert_eq!(helper.dio_out(), 15);
+        assert_eq!(helper.dio_in(), 16);
+        assert!(helper.is_split());
     }
 }

@@ -39,6 +39,8 @@
   <script src="/agentla-bridge.js"></script>
   <style>
     html.is-embedded #top-bar,
+    html.is-embedded .app-nav-rail,
+    html.is-embedded #app-nav-rail,
     html.is-embedded .floating-glass-dock,
     html.is-embedded #floating-glass-dock {
       display: none !important;
@@ -105,10 +107,9 @@
   <!-- In-App Sub-Toolbar (Active in both Standalone and Embedded Modes) -->
   <div class="border-b border-base-300 bg-base-200/95 backdrop-blur px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-20">
     <div class="flex items-center gap-2">
-      <h1 class="text-xs uppercase tracking-wider font-bold text-base-content flex items-center gap-2 font-dot">
-        Multi-Channel Servo Sequencer
-        <span class="badge badge-primary badge-outline badge-xs font-mono">v1.0.0</span>
-      </h1>
+      <div id="channel-count-badge" class="badge badge-neutral badge-sm font-mono text-xs py-2">
+        <span id="active-channels-count">2</span> Channels Active
+      </div>
     </div>
 
     <!-- Master Controls & Status Badges -->
@@ -313,6 +314,8 @@
     /* Render Channels */
     function renderChannels() {
       channelsGrid.innerHTML = "";
+      const countEl = document.getElementById("active-channels-count");
+      if (countEl) countEl.textContent = channels.length;
       channels.forEach(ch => {
         const card = document.createElement("div");
         card.className = "card bg-base-200 border border-base-300 shadow-sm p-4 flex flex-col gap-4";

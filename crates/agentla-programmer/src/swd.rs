@@ -20,7 +20,8 @@ pub const AP_TAR: u8 = 0x04;
 pub const AP_DRW: u8 = 0x0C;
 pub const AP_IDR: u8 = 0xFC;
 
-pub const ADIV5_AP_CSW_DEFAULT: u32 = 0x23000012;
+pub const ADIV5_AP_CSW_DEFAULT: u32 = 0x23000012; // Secure Privileged (HNONSEC = 0)
+pub const ADIV5_AP_CSW_NONSEC: u32 = 0xE3000012;  // Non-Secure Privileged (HNONSEC = 1)
 pub const ADIV5_AP_CSW_16BIT: u32 = 0x23000011;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +66,10 @@ pub trait Adiv5Access {
     fn write_ap_port(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError>;
     fn read_ap(&mut self, reg: u8, value: &mut u32) -> Result<(), SwdError>;
     fn read_ap_port(&mut self, apsel: u8, reg: u8, value: &mut u32) -> Result<(), SwdError>;
+    fn raw_write_ap_no_recovery(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError>;
+    fn write_targetsel(&mut self, targetid: u32);
     fn read_dpidr_retry(&mut self, idcode: &mut u32) -> Result<(), SwdError>;
+    fn dormant_to_swd(&mut self) -> Result<(), SwdError>;
     fn assert_reset(&mut self, assert: bool) -> Result<(), SwdError>;
 }
 
@@ -131,15 +135,18 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
     }
 
     fn power_up_debug(&mut self) -> Result<(), SwdError> {
+        let _ = self.write_dp(DP_SELECT, 0);
+        self.ap_select = 0;
         let _ = self.write_dp(DP_ABORT, 0x0000001E);
         let _ = self.write_dp(DP_CTRLSTAT, 0x50000000);
-        for _ in 0..100 {
+        for _ in 0..200 {
             let mut val = 0u32;
             if self.read_dp(DP_CTRLSTAT, &mut val).is_ok() && (val & 0xA0000000) == 0xA0000000 {
                 return Ok(());
             }
+            crate::delay::delay_cycles(1500);
         }
-        Ok(())
+        Err(SwdError::Timeout)
     }
 
     fn recover_from_ack_error(&mut self) -> Result<(), SwdError> {
@@ -156,7 +163,8 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
     }
 
     fn write_ap(&mut self, reg: u8, value: u32) -> Result<(), SwdError> {
-        self.write_ap_port(0, reg, value)
+        let apsel = if self.ap_select == 0xFFFFFFFF { 0 } else { (self.ap_select >> 24) as u8 };
+        self.write_ap_port(apsel, reg, value)
     }
 
     fn write_ap_port(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError> {
@@ -186,7 +194,8 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
     }
 
     fn read_ap(&mut self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
-        self.read_ap_port(0, reg, value)
+        let apsel = if self.ap_select == 0xFFFFFFFF { 0 } else { (self.ap_select >> 24) as u8 };
+        self.read_ap_port(apsel, reg, value)
     }
 
     fn read_ap_port(&mut self, apsel: u8, reg: u8, value: &mut u32) -> Result<(), SwdError> {
@@ -222,9 +231,39 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
         Err(SwdError::ProtocolError)
     }
 
+    fn raw_write_ap_no_recovery(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError> {
+        let apbank = (reg >> 4) & 0x0F;
+        self.select_ap(apsel, apbank)?;
+        let req = build_request(true, false, (reg >> 2) & 3);
+        for _ in 0..500 {
+            match self.transport.transfer(req, Some(value)) {
+                Ok((SWD_ACK_OK, _)) => return Ok(()),
+                Ok((SWD_ACK_WAIT, _)) => continue,
+                Ok((SWD_ACK_FAULT, _)) => {
+                    let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                    continue;
+                }
+                _ => {
+                    let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                    return Err(SwdError::ProtocolError);
+                }
+            }
+        }
+        let _ = self.write_dp(DP_ABORT, 0x0000001E);
+        Err(SwdError::Timeout)
+    }
+
+    fn write_targetsel(&mut self, targetid: u32) {
+        let req = 0x99u8;
+        let _ = self.transport.transfer(req, None);
+        let _ = self.transport.transfer(0, Some(targetid));
+        let parity = (targetid.count_ones() & 1) as u32;
+        let _ = self.transport.transfer(0, Some(parity));
+    }
+
     fn read_dpidr_retry(&mut self, idcode: &mut u32) -> Result<(), SwdError> {
         let mut res = self.read_dp(DP_DPIDR, idcode);
-        let freqs = [100, 200, 500, 1000];
+        let freqs = [1000, 500, 200, 100];
         let mut freq_idx = 0;
 
         for retry in 0..30 {
@@ -236,6 +275,7 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
                     freq_idx += 1;
                     let _ = self.transport.set_clock(freqs[freq_idx]);
                 }
+                let _ = self.transport.dormant_to_swd();
                 let _ = self.transport.jtag_to_swd();
             }
             let _ = self.write_dp(DP_ABORT, 0x0000001E);
@@ -243,6 +283,14 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
             res = self.read_dp(DP_DPIDR, idcode);
         }
         res
+    }
+
+    fn dormant_to_swd(&mut self) -> Result<(), SwdError> {
+        self.transport
+            .dormant_to_swd()
+            .map_err(|_| SwdError::ProtocolError)?;
+        self.ap_select = 0xFFFFFFFF;
+        Ok(())
     }
 
     fn assert_reset(&mut self, assert: bool) -> Result<(), SwdError> {
@@ -280,8 +328,17 @@ impl<T: Adiv5Access + ?Sized> Adiv5Access for &mut T {
     fn read_ap_port(&mut self, apsel: u8, reg: u8, value: &mut u32) -> Result<(), SwdError> {
         (**self).read_ap_port(apsel, reg, value)
     }
+    fn raw_write_ap_no_recovery(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError> {
+        (**self).raw_write_ap_no_recovery(apsel, reg, value)
+    }
+    fn write_targetsel(&mut self, targetid: u32) {
+        (**self).write_targetsel(targetid)
+    }
     fn read_dpidr_retry(&mut self, idcode: &mut u32) -> Result<(), SwdError> {
         (**self).read_dpidr_retry(idcode)
+    }
+    fn dormant_to_swd(&mut self) -> Result<(), SwdError> {
+        (**self).dormant_to_swd()
     }
     fn assert_reset(&mut self, assert: bool) -> Result<(), SwdError> {
         (**self).assert_reset(assert)

@@ -67,7 +67,13 @@ impl ProgrammerPins {
         tristate_pins();
         let mut transport = SwdTransport::new();
         match port {
-            TargetPort::BluePill => transport.init_pins(PIN_SWCLK, PIN_SWDIO, PIN_RESET, freq_khz),
+            TargetPort::BluePill => {
+                if let Some(topo) = ActiveBoard::ADAPTERS.probe {
+                    transport.init_topology(topo, PIN_RESET, freq_khz);
+                } else {
+                    transport.init_pins(PIN_SWCLK, PIN_SWDIO, PIN_RESET, freq_khz);
+                }
+            }
             TargetPort::Ch32v203 => transport.init_pins(8, 9, 10, freq_khz),
             TargetPort::Ch32v003 => transport.init_pins(PIN_SWCLK, PIN_SWDIO, PIN_RESET, freq_khz),
         }
@@ -118,7 +124,11 @@ impl ProgrammerPins {
             }
             TargetPort::BluePill => {
                 drive_reset_pin(PIN_RESET, false);
-                transport.init_pins(PIN_SWCLK, PIN_SWDIO);
+                if let Some(topo) = ActiveBoard::ADAPTERS.probe {
+                    transport.init_topology(topo);
+                } else {
+                    transport.init_pins(PIN_SWCLK, PIN_SWDIO);
+                }
             }
             TargetPort::Ch32v003 => {
                 drive_reset_pin(13, false);
@@ -241,41 +251,8 @@ pub fn pulse_reset_pin(pin: usize) {
 
 impl SwdSession {
     pub fn attach(&mut self) -> Result<u32, crate::programmer::swd::SwdError> {
-        self.transport.jtag_to_swd();
-        let mut dpidr = 0u32;
-        if self.transport.read_dpidr_retry(&mut dpidr).is_ok() && dpidr != 0 && dpidr != 0xFFFFFFFF {
-            self.transport.power_up_debug()?;
-            return Ok(dpidr);
-        }
-        // Pulse nRESET: assert low 20ms, release high, wait 20ms recovery
-        let pin = self.transport.reset_pin;
-        pac::PADS_BANK0.gpio(pin).modify(|w| {
-            w.set_ie(true);
-            w.set_od(false);
-            w.set_pue(false);
-            w.set_pde(false);
-        });
-        pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
-        });
-        pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
-        pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
-        cortex_m::asm::delay(3_000_000); // 20 ms low
-
-        // Release nRESET
-        pac::PADS_BANK0.gpio(pin).modify(|w| {
-            w.set_ie(true);
-            w.set_od(true);
-            w.set_pue(true);
-            w.set_pde(false);
-        });
-        pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
-        cortex_m::asm::delay(3_000_000); // 20 ms recovery
-
-        self.transport.jtag_to_swd();
-        let res = self.transport.read_dpidr_retry(&mut dpidr);
-        res?;
-        self.transport.power_up_debug()?;
+        let dpidr = self.transport.try_attach()?;
+        let _ = self.transport.power_up_debug();
         Ok(dpidr)
     }
 

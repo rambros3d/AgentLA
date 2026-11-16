@@ -300,6 +300,93 @@ impl FlashAlgorithmRunner {
         Ok(())
     }
 
+    pub fn stm32h5_unlock<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
+        let cr = cortex.mem_read32(0x40022028).map_err(|_| AlgoError::SwdError)?;
+        if (cr & 0x01) != 0 {
+            cortex.mem_write32(0x40022004, 0x45670123).map_err(|_| AlgoError::SwdError)?;
+            cortex.mem_write32(0x40022004, 0xCDEF89AB).map_err(|_| AlgoError::SwdError)?;
+        }
+        let _ = cortex.mem_write32(0x40022030, 0x001F0000);
+        Self::stm32h5_wait_bsy(cortex)?;
+        Ok(())
+    }
+
+    pub fn stm32h5_wait_bsy<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
+        for _ in 0..100_000 {
+            if let Ok(sr) = cortex.mem_read32(0x40022020) {
+                if (sr & 0x0B) == 0 {
+                    if (sr & 0x00BE0000) != 0 {
+                        let _ = cortex.mem_write32(0x40022030, 0x001F0000);
+                        return Err(AlgoError::ExecutionFailed(sr));
+                    }
+                    return Ok(());
+                }
+            }
+            delay_cycles(150);
+        }
+        Err(AlgoError::Timeout)
+    }
+
+    pub fn stm32h5_erase_sector<S: Adiv5Access>(
+        cortex: &mut CortexM<S>,
+        sector_addr: u32,
+    ) -> Result<(), AlgoError> {
+        Self::stm32h5_unlock(cortex)?;
+
+        let (snb, bksel) = if sector_addr >= 0x08010000 {
+            ((sector_addr - 0x08010000) / 8192, 1u32 << 31)
+        } else {
+            ((sector_addr - 0x08000000) / 8192, 0u32)
+        };
+
+        let cr = (1 << 2) | (1 << 5) | bksel | ((snb & 0x7F) << 6);
+        cortex.mem_write32(0x40022028, cr).map_err(|_| AlgoError::SwdError)?;
+
+        Self::stm32h5_wait_bsy(cortex)?;
+
+        cortex.mem_write32(0x40022028, 0).map_err(|_| AlgoError::SwdError)?;
+        Ok(())
+    }
+
+    pub fn stm32h5_program_page<S: Adiv5Access>(
+        cortex: &mut CortexM<S>,
+        addr: u32,
+        data: &[u8],
+    ) -> Result<(), AlgoError> {
+        Self::stm32h5_unlock(cortex)?;
+
+        cortex.mem_write32(0x40022028, 1 << 1).map_err(|_| AlgoError::SwdError)?;
+
+        let mut offset = 0usize;
+        while offset < data.len() {
+            let chunk_addr = addr + offset as u32;
+            let mut quad = [0xFFu8; 16];
+            let copy_len = (data.len() - offset).min(16);
+            quad[..copy_len].copy_from_slice(&data[offset..offset + copy_len]);
+
+            let w0 = u32::from_le_bytes(quad[0..4].try_into().unwrap());
+            let w1 = u32::from_le_bytes(quad[4..8].try_into().unwrap());
+            let w2 = u32::from_le_bytes(quad[8..12].try_into().unwrap());
+            let w3 = u32::from_le_bytes(quad[12..16].try_into().unwrap());
+
+            cortex.mem_write32(chunk_addr + 0, w0).map_err(|_| AlgoError::SwdError)?;
+            cortex.mem_write32(chunk_addr + 4, w1).map_err(|_| AlgoError::SwdError)?;
+            cortex.mem_write32(chunk_addr + 8, w2).map_err(|_| AlgoError::SwdError)?;
+            cortex.mem_write32(chunk_addr + 12, w3).map_err(|_| AlgoError::SwdError)?;
+
+            Self::stm32h5_wait_bsy(cortex)?;
+            offset += 16;
+        }
+
+        cortex.mem_write32(0x40022028, 0).map_err(|_| AlgoError::SwdError)?;
+        Ok(())
+    }
+
+    pub fn stm32h5_lock<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
+        cortex.mem_write32(0x40022028, 1 << 0).map_err(|_| AlgoError::SwdError)?;
+        Ok(())
+    }
+
     pub fn flm_init<S: Adiv5Access>(
         cortex: &mut CortexM<S>,
         hdr: &AlgoBlobHeader,
@@ -476,6 +563,46 @@ impl FlashAlgorithmRunner {
         data: &[u8],
     ) -> Result<(), AlgoError> {
         match target.family {
+            TargetFamily::Stm32H5 => {
+                let _ = cortex.select_ap(1);
+                let sector_size = target.sector_size;
+                let mut curr_sector = addr & !(sector_size - 1);
+                let end_addr = addr + data.len() as u32;
+                while curr_sector < end_addr {
+                    Self::stm32h5_erase_sector(cortex, curr_sector)?;
+                    curr_sector += sector_size;
+                }
+                let mut offset = 0usize;
+                while offset < data.len() {
+                    let chunk_len = (data.len() - offset).min(target.page_size as usize);
+                    Self::stm32h5_program_page(
+                        cortex,
+                        addr + offset as u32,
+                        &data[offset..offset + chunk_len],
+                    )?;
+                    offset += chunk_len;
+                }
+                let _ = Self::stm32h5_lock(cortex);
+                let mut readback = [0u8; 64];
+                let mut v_offset = 0usize;
+                while v_offset < data.len() {
+                    let chunk_len = (data.len() - v_offset).min(readback.len());
+                    cortex
+                        .mem_read_block(addr + v_offset as u32, &mut readback[..chunk_len])
+                        .map_err(|_| AlgoError::SwdError)?;
+                    for i in 0..chunk_len {
+                        if readback[i] != data[v_offset + i] {
+                            return Err(AlgoError::VerifyMismatch {
+                                addr: addr + (v_offset + i) as u32,
+                                expected: data[v_offset + i],
+                                actual: readback[i],
+                            });
+                        }
+                    }
+                    v_offset += chunk_len;
+                }
+                Ok(())
+            }
             TargetFamily::Stm32F1 | TargetFamily::Py32F0 => {
                 let sector_size = target.sector_size;
                 let mut curr_sector = addr & !(sector_size - 1);

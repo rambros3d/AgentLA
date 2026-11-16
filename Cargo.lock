@@ -100,6 +100,7 @@ dependencies = [
 name = "agentla-programmer"
 version = "0.1.0"
 dependencies = [
+ "agentla-bsp",
  "agentla-targets",
  "rp-pac",
 ]

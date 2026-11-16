@@ -18,5 +18,5 @@ pub use drivers::{
 
 pub use traits::{
     AdapterPins, AnalogFrontendConfig, BoardFeatures, BoardProfile, CanPins, FlexiblePool,
-    I2cPins, McuPackage, ProgrammerPins, Rs485Pins, SpiPins, UartPins,
+    I2cPins, McuPackage, ProbeWireTopology, ProgrammerPins, Rs485Pins, SpiPins, UartPins,
 };

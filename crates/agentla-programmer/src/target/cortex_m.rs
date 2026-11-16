@@ -30,18 +30,40 @@ pub enum CortexError {
     HaltFailed,
     NotHalted,
     ResetTimeout,
+    Diag(u8, u32, u32),
 }
 
 pub struct CortexM<'a, S: Adiv5Access> {
     pub swd: &'a mut S,
+    pub apsel: u8,
+    pub csw: u32,
 }
 
 impl<'a, S: Adiv5Access> CortexM<'a, S> {
     pub fn new(swd: &'a mut S) -> Self {
-        Self { swd }
+        Self {
+            swd,
+            apsel: 0,
+            csw: ADIV5_AP_CSW_DEFAULT,
+        }
+    }
+
+    pub fn with_csw(mut self, csw: u32) -> Self {
+        self.csw = csw;
+        self
+    }
+
+    pub fn with_apsel(mut self, apsel: u8) -> Self {
+        self.apsel = apsel;
+        self
+    }
+
+    pub fn set_csw(&mut self, csw: u32) {
+        self.csw = csw;
     }
 
     pub fn select_ap(&mut self, apsel: u8) -> Result<(), CortexError> {
+        self.apsel = apsel;
         self.swd
             .select_ap(apsel, 0)
             .map_err(|_| CortexError::SwdError)
@@ -64,27 +86,27 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
 
     pub fn mem_read32(&mut self, addr: u32) -> Result<u32, CortexError> {
         self.swd
-            .write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT)
+            .write_ap_port(self.apsel, AP_CSW, self.csw)
             .map_err(|_| CortexError::SwdError)?;
         self.swd
-            .write_ap(AP_TAR, addr)
+            .write_ap_port(self.apsel, AP_TAR, addr)
             .map_err(|_| CortexError::SwdError)?;
         let mut val = 0u32;
         self.swd
-            .read_ap(AP_DRW, &mut val)
+            .read_ap_port(self.apsel, AP_DRW, &mut val)
             .map_err(|_| CortexError::SwdError)?;
         Ok(val)
     }
 
     pub fn mem_write32(&mut self, addr: u32, value: u32) -> Result<(), CortexError> {
         self.swd
-            .write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT)
+            .write_ap_port(self.apsel, AP_CSW, self.csw)
             .map_err(|_| CortexError::SwdError)?;
         self.swd
-            .write_ap(AP_TAR, addr)
+            .write_ap_port(self.apsel, AP_TAR, addr)
             .map_err(|_| CortexError::SwdError)?;
         self.swd
-            .write_ap(AP_DRW, value)
+            .write_ap_port(self.apsel, AP_DRW, value)
             .map_err(|_| CortexError::SwdError)?;
         Ok(())
     }
@@ -132,6 +154,9 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     }
 
     pub fn halt(&mut self) -> Result<(), CortexError> {
+        // Step 1: Enable debug if not already enabled (ARMv8-M requirement)
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN);
+        // Step 2: Request halt with debug enabled
         self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT)?;
         for _ in 0..1000 {
             if let Ok(dhcsr) = self.mem_read32(DHCSR) {
@@ -180,55 +205,95 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     }
 
     pub fn connect_under_reset(&mut self) -> Result<u32, CortexError> {
-        // 1. Assert nRST low
-        let _ = self.swd.assert_reset(true);
-        delay_cycles(3_000_000); // 20 ms reset pulse
+        // 1. Try reset_and_catch first (clean hardware vector catch + reset pulse)
+        if let Ok(pc) = self.reset_and_catch() {
+            return Ok(pc);
+        }
 
-        // 2. Perform SWD line reset and switch to SWD
-        let _ = self.swd.recover_from_ack_error();
+        // 2. Hardware connect under reset:
+        // Hold reset low
+        let _ = self.swd.assert_reset(true);
+        delay_cycles(750_000); // 5 ms low
+
+        // Attach while reset is low
         let mut dpidr = 0u32;
         let _ = self.swd.read_dpidr_retry(&mut dpidr);
+        let is_m33 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
+        self.apsel = if is_m33 { 1 } else { 0 };
+        self.csw = 0x23000012;
         let _ = self.swd.power_up_debug();
 
-        // 3. Write DHCSR and DEMCR (arm vector catch) while reset is held low
-        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        // Release reset
+        let _ = self.swd.assert_reset(false);
         delay_cycles(150_000); // 1 ms settling
 
-        // 4. Release nRST
-        let _ = self.swd.assert_reset(false);
+        // Re-establish SWD sync and debug power after reset release
+        let _ = self.swd.read_dpidr_retry(&mut dpidr);
+        let _ = self.swd.power_up_debug();
+        let _ = self.select_ap(self.apsel);
 
-        // 5. Poll DHCSR.S_HALT up to 500 ms (50_000 iterations x 10 µs)
-        for i in 0..50_000 {
-            if let Ok(dhcsr) = self.mem_read32(DHCSR) {
-                if (dhcsr & DHCSR_S_HALT) != 0 {
-                    let pc = self.read_core_reg(15)?;
-                    return Ok(pc);
-                }
-            }
-            if i == 5000 {
-                let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-                let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
-                let _ = self.mem_write32(AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
-            }
-            delay_cycles(1500); // 10 µs
+        // Request halt
+        let _ = self.halt();
+        if let Ok(pc) = self.read_core_reg(15) {
+            return Ok(pc);
         }
-        Err(CortexError::ResetTimeout)
+
+        // Check if halted anyway
+        if let Ok(dhcsr) = self.mem_read32(DHCSR) {
+            if (dhcsr & DHCSR_S_HALT) != 0 {
+                let pc = self.read_core_reg(15).unwrap_or(0);
+                return Ok(pc);
+            }
+            return Err(CortexError::Diag(3, dpidr, dhcsr));
+        }
+
+        Err(CortexError::Diag(1, dpidr, 0))
     }
 
     pub fn reset_and_catch(&mut self) -> Result<u32, CortexError> {
-        self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN)?;
-        self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET)?;
-        self.mem_write32(AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ)?;
-        for _ in 0..50_000 {
+        let mut dpidr = 0u32;
+        let _ = self.swd.read_dpidr_retry(&mut dpidr);
+        let is_m33 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
+        self.apsel = if is_m33 { 1 } else { 0 };
+        self.csw = 0x23000012;
+        let _ = self.swd.power_up_debug();
+        let _ = self.select_ap(self.apsel);
+
+        // 1. Arm vector catch and enable halting debug
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN);
+        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+
+        // 2. Pulse hardware reset
+        let _ = self.swd.assert_reset(true);
+        delay_cycles(750_000); // 5 ms low
+        let _ = self.swd.assert_reset(false);
+        delay_cycles(150_000); // 1 ms settling
+
+        // 3. Re-attach and re-power debug
+        let _ = self.swd.read_dpidr_retry(&mut dpidr);
+        let _ = self.swd.power_up_debug();
+        let _ = self.select_ap(self.apsel);
+
+        // 4. Poll DHCSR for halt
+        for i in 0..1000 {
             if let Ok(dhcsr) = self.mem_read32(DHCSR) {
                 if (dhcsr & DHCSR_S_HALT) != 0 {
-                    let pc = self.read_core_reg(15)?;
+                    let pc = self.read_core_reg(15).unwrap_or(0);
                     return Ok(pc);
                 }
             }
+            if i < 20 || i % 20 == 0 {
+                let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+            }
             delay_cycles(1500); // 10 µs
         }
+
+        // 5. Explicit halt fallback
+        let _ = self.halt();
+        if let Ok(pc) = self.read_core_reg(15) {
+            return Ok(pc);
+        }
+
         Err(CortexError::ResetTimeout)
     }
 }

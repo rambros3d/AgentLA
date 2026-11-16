@@ -18,6 +18,7 @@ pub enum TargetError {
     Timeout,
     FlashError,
     FlashErrorCode(u32),
+    Diag(u8, u32, u32),
 }
 
 pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result<TargetInfo, TargetError> {
@@ -27,14 +28,19 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
             let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
             if let Ok(dpidr) = swd_session.attach() {
                 let mut cortex = CortexM::new(&mut swd_session.transport);
+                if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+                    let _ = cortex.select_ap(1);
+                    cortex.csw = 0x23000012;
+                }
 
                 let mut dbgmcu_id = 0u32;
-                if let Ok(id) = cortex.mem_read32(0xE0042000) {
-                    dbgmcu_id = id;
-                } else if let Ok(id) = cortex.mem_read32(0x40015800) {
-                    dbgmcu_id = id;
-                } else if let Ok(id) = cortex.mem_read32(0xE0044000) {
-                    dbgmcu_id = id;
+                for &addr in &[0xE0044000, 0x44024000, 0xE0042000, 0x40015800, 0x44022000, 0x40022000] {
+                    if let Ok(id) = cortex.mem_read32(addr) {
+                        if id != 0 && id != 0xFFFFFFFF {
+                            dbgmcu_id = id;
+                            break;
+                        }
+                    }
                 }
 
                 let mut sysinfo_id = 0u32;

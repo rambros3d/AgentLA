@@ -425,6 +425,10 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/system/firmware/status", crate::rest::FirmwareStatus)
         .route_service("/api/v1/system/firmware/rollback", crate::rest::FirmwareRollback)
         .route_service("/api/v1/system/firmware/ota", crate::rest::FirmwareOtaStream)
+        .route_service("/api/v1/firmware/status", crate::rest::FirmwareStatus)
+        .route_service("/api/v1/firmware/info", crate::rest::FirmwareStatus)
+        .route_service("/api/v1/firmware/rollback", crate::rest::FirmwareRollback)
+        .route_service("/api/v1/firmware/ota", crate::rest::FirmwareOtaStream)
         .route_service("/api/v1/system/telemetry", crate::rest::SystemTelemetry)
         .route_service("/api/v1/system/telemetry/stream", crate::rest::SystemTelemetryStream)
         .route_service("/api/v1/terminal/ws", crate::rest::TerminalWebSocket)
@@ -435,15 +439,13 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             get(|| async move { (("Content-Type", "application/json"), PINS_JSON) }),
         )
         .route_service("/api/v1/programmer/target", crate::rest::ProgrammerTarget)
-        .route(
-            "/api/v1/programmer/flash",
-            post(|| async move {
-                // Execute flash operation on target
-                let dummy_firmware = [0xAAu8; 1024];
-                let _ = crate::programmer::flash_target_global(0x08000000, &dummy_firmware);
-                (("Content-Type", "application/json"), PROGRAMMER_FLASH_OK)
-            }),
-        )
+        .route_service("/api/v1/programmer/flash", crate::rest::ProgrammerFlash)
+        .route_service("/api/programmer/mode", crate::rest::ProgrammerMode)
+        .route_service("/api/v1/programmer/mode", crate::rest::ProgrammerMode)
+        .route_service("/api/programmer/stlink/version", crate::rest::ProgrammerStLinkVersion)
+        .route_service("/api/v1/programmer/stlink/version", crate::rest::ProgrammerStLinkVersion)
+        .route_service("/api/programmer/swo/status", crate::rest::ProgrammerSwoStatus)
+        .route_service("/api/v1/programmer/swo/status", crate::rest::ProgrammerSwoStatus)
         .route(
             "/api/v1/events",
             get(|| async move { EventStream(TelemetryEvents) }),
@@ -674,6 +676,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/programmer/read", crate::rest::ProgrammerRead)
         .route_service("/api/v1/programmer/rtt/status", crate::rest::ProgrammerRttStatus)
         .route_service("/api/v1/programmer/rtt/stream", crate::rest::ProgrammerRttStream)
+        .route_service("/api/v1/programmer/swo/status", crate::rest::ProgrammerSwoStatus)
         .route_service("/api/v1/logic-analyzer/arm", crate::rest::LogicAnalyzerArm)
         .route_service("/api/v1/logic-analyzer/start", crate::rest::LogicAnalyzerStart)
         .route_service("/api/v1/logic-analyzer/stop", crate::rest::LogicAnalyzerStop)

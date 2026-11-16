@@ -69,11 +69,11 @@ pub fn identify_cortex_target(dpidr: u32, dbgmcu_id: u32, sysinfo_id: u32) -> Ta
             page_size: 256,
         };
     }
-    if (sysinfo_id >> 16) == 0x2350 || sysinfo_id == 0x00002350 {
+    if (sysinfo_id >> 16) == 0x2350 || sysinfo_id == 0x00002350 || dpidr == 0x4C013477 {
         return TargetInfo {
             name: "Raspberry Pi RP2350 (Dual Cortex-M33)",
             family: TargetFamily::Rp2350,
-            idcode: sysinfo_id,
+            idcode: if sysinfo_id != 0 { sysinfo_id } else { dpidr },
             flash_base: 0x10000000,
             flash_size: 4 * 1024 * 1024,
             ram_base: 0x20000000,
@@ -130,6 +130,17 @@ pub fn identify_cortex_target(dpidr: u32, dbgmcu_id: u32, sysinfo_id: u32) -> Ta
             sector_size: 16 * 1024,
             page_size: 256,
         },
+        0x474 => TargetInfo {
+            name: "STM32H503 Microcontroller (Cortex-M33)",
+            family: TargetFamily::Stm32H5,
+            idcode: dbgmcu_id,
+            flash_base: 0x08000000,
+            flash_size: 128 * 1024,
+            ram_base: 0x20000000,
+            ram_size: 32 * 1024,
+            sector_size: 8192,
+            page_size: 256,
+        },
         0x484 => TargetInfo {
             name: "STM32H5 High Performance Cortex-M33",
             family: TargetFamily::Stm32H5,
@@ -165,6 +176,18 @@ pub fn identify_cortex_target(dpidr: u32, dbgmcu_id: u32, sysinfo_id: u32) -> Ta
                     ram_size: 20 * 1024,
                     sector_size: 1024,
                     page_size: 1024,
+                }
+            } else if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+                TargetInfo {
+                    name: "STM32H503 Microcontroller (Cortex-M33)",
+                    family: TargetFamily::Stm32H5,
+                    idcode: if dbgmcu_id != 0 { dbgmcu_id } else { dpidr },
+                    flash_base: 0x08000000,
+                    flash_size: 128 * 1024,
+                    ram_base: 0x20000000,
+                    ram_size: 32 * 1024,
+                    sector_size: 8192,
+                    page_size: 256,
                 }
             } else if dbgmcu_id == 0x20000000 || (dpidr == 0x0BC11477 && dbgmcu_id == 0) {
                 TargetInfo {

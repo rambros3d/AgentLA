@@ -6,6 +6,7 @@ pub enum DirectEngineKind {
     Stm32Sector,
     Stm32Modern64,
     Stm32DualBankH7,
+    Stm32H5,
     PuyaPy32,
     NordicNvmc,
     MicrochipSamd,

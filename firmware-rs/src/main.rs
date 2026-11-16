@@ -213,14 +213,37 @@ async fn main(spawner: embassy_executor::Spawner) {
     pin_owner::init();
 
     // 2. Composite USB Device (Start USB FIRST so host enumerates immediately)
+    let personality = usb::detect_boot_personality();
+    defmt::info!("Active programmer personality: {}", personality.as_str());
     let driver = Driver::new(p.USB, Irqs);
-    let composite = usb::create_composite_usb(driver);
+    let composite = usb::create_composite_usb(driver, personality);
 
     // 3. Spawn core USB tasks immediately
     spawner.spawn(usb::usb_task(composite.device).unwrap());
     spawner.spawn(usb::cdc_uart_task(composite.cdc_uart).unwrap());
-    spawner.spawn(usb::dap_v1_task(composite.dap_v1_reader, composite.dap_v1_writer).unwrap());
-    spawner.spawn(usb::dap_v2_task(composite.dap_v2).unwrap());
+    match composite.programmer {
+        usb::ProgrammerEndpoints::CmsisDap {
+            dap_v1_reader,
+            dap_v1_writer,
+            dap_v2,
+        } => {
+            spawner.spawn(usb::dap_v1_task(dap_v1_reader, dap_v1_writer).unwrap());
+            spawner.spawn(usb::dap_v2_task(dap_v2).unwrap());
+        }
+        usb::ProgrammerEndpoints::StLink { cmd_out, cmd_in, trace_in } => {
+            spawner.spawn(usb::stlink_usb_task(cmd_out, cmd_in).unwrap());
+            spawner.spawn(usb::swo_trace_task(trace_in).unwrap());
+            spawner.spawn(usb::swo_rx_task().unwrap());
+        }
+        usb::ProgrammerEndpoints::WchLink {
+            cmd_out,
+            cmd_in,
+            data_out,
+            data_in,
+        } => {
+            spawner.spawn(usb::wchlink_usb_task(cmd_out, cmd_in, data_out, data_in).unwrap());
+        }
+    }
     spawner.spawn(usb::ncm_task(composite.ncm_runner).unwrap());
     spawner.spawn(usb::gs_usb_task(composite.gs_usb_read_ep, composite.gs_usb_write_ep).unwrap());
 
@@ -261,6 +284,8 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     if mounted {
         rest::init_settings_from_fs();
+        usb::load_personality_from_fs();
+        usb::load_stlink_version();
         profile::scan_boot_default().await;
     }
 

@@ -15,7 +15,7 @@ fn main() {
 
     let memory_x = format!(
 r#"MEMORY {{
-    FLASH : ORIGIN = {flash_origin}, LENGTH = 1024K
+    FLASH : ORIGIN = {flash_origin}, LENGTH = 1008K
     RAM   : ORIGIN = 0x20000000, LENGTH = 520K
 }}
 "#);

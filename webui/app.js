@@ -115,10 +115,10 @@ function getEffectiveTheme() {
     if (themeState.mode === 'light') {
         return themeState.defaultLightTheme || 'emerald';
     } else if (themeState.mode === 'dark') {
-        return themeState.defaultDarkTheme || 'forest';
+        return themeState.defaultDarkTheme || 'nothing';
     } else {
         const prefersDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
-        return prefersDark ? (themeState.defaultDarkTheme || 'forest') : (themeState.defaultLightTheme || 'emerald');
+        return prefersDark ? (themeState.defaultDarkTheme || 'nothing') : (themeState.defaultLightTheme || 'emerald');
     }
 }
 
@@ -236,11 +236,11 @@ function handleExternalThemeSync(newTheme, newMode) {
             themeState.mode = newMode;
         }
         if (newTheme) {
-            const isDark = (newTheme === 'forest' || newTheme === 'dark' || newTheme === 'black' || newTheme === 'luxury');
-            if (isDark) {
-                themeState.defaultDarkTheme = newTheme;
-            } else {
+            const isLight = (newTheme === 'emerald' || newTheme === 'caramellatte' || newTheme === 'industrial-light' || newTheme === 'light');
+            if (isLight) {
                 themeState.defaultLightTheme = newTheme;
+            } else {
+                themeState.defaultDarkTheme = newTheme;
             }
         }
         applyTheme();
@@ -284,7 +284,7 @@ function applyTheme() {
     const activeThemeObj = themeState.availableThemes.find(t => t.name === effectiveTheme);
     const isLight = activeThemeObj 
         ? (activeThemeObj.color_scheme === 'light' || activeThemeObj.colorScheme === 'light' || !activeThemeObj.prefersdark)
-        : (effectiveTheme === 'emerald' || effectiveTheme === 'caramellatte' || effectiveTheme === 'light');
+        : (effectiveTheme === 'emerald' || effectiveTheme === 'caramellatte' || effectiveTheme === 'industrial-light' || effectiveTheme === 'light');
     
     document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
 
@@ -420,9 +420,13 @@ async function loadAvailableThemes() {
 function openAddThemeModal() {
     const modal = document.getElementById('modal-add-theme');
     if (modal) {
+        modal.style.display = '';
         modal.classList.add('open');
-        modal.style.display = 'flex';
+        modal.classList.add('modal-open');
         modal.setAttribute('aria-hidden', 'false');
+        if (typeof modal.showModal === 'function' && !modal.open) {
+            modal.showModal();
+        }
         const statusMsg = document.getElementById('custom-theme-status-msg');
         if (statusMsg) {
             statusMsg.textContent = '';
@@ -435,8 +439,11 @@ function closeAddThemeModal() {
     const modal = document.getElementById('modal-add-theme');
     if (modal) {
         modal.classList.remove('open');
-        modal.style.display = 'none';
+        modal.classList.remove('modal-open');
         modal.setAttribute('aria-hidden', 'true');
+        if (typeof modal.close === 'function' && modal.open) {
+            modal.close();
+        }
     }
 }
 
@@ -489,9 +496,19 @@ async function initThemeEngine() {
         const resp = await fetch('/api/v1/settings');
         if (resp.ok) {
             const data = await resp.json();
-            if (data.theme_mode) themeState.mode = data.theme_mode;
-            if (data.default_light_theme) themeState.defaultLightTheme = data.default_light_theme;
-            if (data.default_dark_theme) themeState.defaultDarkTheme = data.default_dark_theme;
+            if (data.theme_mode && (data.theme_mode === 'system' || data.theme_mode === 'light' || data.theme_mode === 'dark')) {
+                themeState.mode = data.theme_mode;
+            }
+            if (data.default_light_theme && (data.default_light_theme === 'emerald' || data.default_light_theme === 'caramellatte' || data.default_light_theme === 'industrial-light' || data.default_light_theme === 'light')) {
+                themeState.defaultLightTheme = data.default_light_theme;
+            } else {
+                themeState.defaultLightTheme = 'emerald';
+            }
+            if (data.default_dark_theme && (data.default_dark_theme === 'nothing' || data.default_dark_theme === 'forest' || data.default_dark_theme === 'dark' || data.default_dark_theme === 'black')) {
+                themeState.defaultDarkTheme = data.default_dark_theme;
+            } else {
+                themeState.defaultDarkTheme = 'nothing';
+            }
             if (data.default_home_route) themeState.defaultHomeRoute = data.default_home_route;
         }
     } catch (e) {
@@ -505,9 +522,9 @@ async function initThemeEngine() {
             }
         }
         const savedTheme = localStorage.getItem('agentla-theme');
-        if (savedTheme === 'emerald' || savedTheme === 'caramellatte') {
+        if (savedTheme === 'emerald' || savedTheme === 'caramellatte' || savedTheme === 'industrial-light' || savedTheme === 'light') {
             themeState.defaultLightTheme = savedTheme;
-        } else if (savedTheme === 'forest') {
+        } else if (savedTheme) {
             themeState.defaultDarkTheme = savedTheme;
         }
     }
@@ -588,6 +605,126 @@ async function initThemeEngine() {
             themeState.defaultHomeRoute = selDefaultHome.value;
             await saveSettings();
         });
+    }
+
+    const selProgMode = document.getElementById('settings-programmer-mode-select');
+    if (selProgMode) {
+        try {
+            fetch('/api/programmer/mode')
+                .then(r => r.json())
+                .then(d => { if (d && d.mode) selProgMode.value = d.mode; })
+                .catch(() => {});
+        } catch (_) {}
+
+        selProgMode.addEventListener('change', async () => {
+            try {
+                await fetch('/api/programmer/mode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: selProgMode.value })
+                });
+            } catch (_) {}
+        });
+
+        // ST-Link reported version negotiation
+        const selStlinkVer = document.getElementById('settings-stlink-version-select');
+        const customVerContainer = document.getElementById('stlink-custom-version-container');
+        const inputCustomVer = document.getElementById('settings-stlink-custom-input');
+        const btnCustomApply = document.getElementById('btn-stlink-custom-apply');
+        const btnVerReset = document.getElementById('btn-stlink-version-reset');
+        const lblActiveVer = document.getElementById('stlink-version-active-label');
+
+        async function loadStLinkVersion() {
+            if (!selStlinkVer) return;
+            try {
+                const res = await fetch('/api/programmer/stlink/version');
+                if (!res.ok) return;
+                const d = await res.json();
+                if (d && d.version) {
+                    if (lblActiveVer) {
+                        lblActiveVer.textContent = `Active: ${d.version} (0x${(d.raw || 0).toString(16).toUpperCase()})`;
+                    }
+                    const knownPresets = ['V2J48M35', 'V2J46M27', 'V2J49M36'];
+                    if (knownPresets.includes(d.version)) {
+                        selStlinkVer.value = d.version;
+                        if (customVerContainer) customVerContainer.style.display = 'none';
+                    } else {
+                        selStlinkVer.value = 'custom';
+                        if (customVerContainer) customVerContainer.style.display = 'flex';
+                        if (inputCustomVer) inputCustomVer.value = d.version;
+                    }
+                }
+            } catch (_) {}
+        }
+
+        async function saveStLinkVersion(versionStr) {
+            try {
+                const res = await fetch('/api/programmer/stlink/version', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version: versionStr })
+                });
+                if (res.ok) {
+                    await loadStLinkVersion();
+                }
+            } catch (_) {}
+        }
+
+        if (selStlinkVer) {
+            loadStLinkVersion();
+            selStlinkVer.addEventListener('change', async () => {
+                if (selStlinkVer.value === 'custom') {
+                    if (customVerContainer) customVerContainer.style.display = 'flex';
+                } else {
+                    if (customVerContainer) customVerContainer.style.display = 'none';
+                    await saveStLinkVersion(selStlinkVer.value);
+                }
+            });
+        }
+
+        if (btnCustomApply && inputCustomVer) {
+            btnCustomApply.addEventListener('click', async () => {
+                const v = inputCustomVer.value.trim();
+                if (v) {
+                    await saveStLinkVersion(v);
+                }
+            });
+        }
+
+        if (btnVerReset) {
+            btnVerReset.addEventListener('click', async () => {
+                await saveStLinkVersion('default');
+            });
+        }
+
+        // SWO / ITM live telemetry polling
+        async function updateSwoTelemetry() {
+            const badge = document.getElementById('swo-active-badge');
+            if (!badge) return;
+            try {
+                const res = await fetch('/api/programmer/swo/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const baudVal = document.getElementById('swo-baud-val');
+                const rxVal = document.getElementById('swo-rx-val');
+                const delVal = document.getElementById('swo-delivered-val');
+                const dropVal = document.getElementById('swo-dropped-val');
+
+                badge.textContent = data.active ? 'Active' : 'Inactive';
+                badge.className = data.active ? 'badge badge-sm badge-success' : 'badge badge-sm badge-ghost';
+
+                if (baudVal) baudVal.textContent = data.baud_rate ? `${(data.baud_rate / 1000000).toFixed(1)} Mbaud` : '--';
+                if (rxVal) rxVal.textContent = `${data.bytes_received} B`;
+                if (delVal) delVal.textContent = `${data.bytes_delivered} B`;
+                if (dropVal) {
+                    dropVal.textContent = `${data.bytes_dropped} B`;
+                    dropVal.className = data.bytes_dropped > 0 ? 'text-error font-semibold' : 'text-base-content/70';
+                }
+            } catch (_) {}
+        }
+
+        setInterval(updateSwoTelemetry, 2000);
+        updateSwoTelemetry();
     }
 
     // 6. Hook Add Custom Theme Modal
@@ -821,10 +958,13 @@ let primaryMode = 'scope';
 function openSettingsModal() {
     const modal = document.getElementById('modal-settings');
     if (modal) {
+        modal.style.display = '';
         modal.classList.add('open');
         modal.classList.add('modal-open');
-        modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
+        if (typeof modal.showModal === 'function' && !modal.open) {
+            modal.showModal();
+        }
         populateLandingPageDropdown();
         const selTheme = document.getElementById('settings-theme-select');
         if (selTheme) selTheme.value = getCurrentTheme();
@@ -836,8 +976,10 @@ function closeSettingsModal() {
     if (modal) {
         modal.classList.remove('open');
         modal.classList.remove('modal-open');
-        modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
+        if (typeof modal.close === 'function' && modal.open) {
+            modal.close();
+        }
         if (window.location.hash.toLowerCase() === '#settings') {
             history.replaceState(null, '', window.location.pathname + window.location.search);
         }
@@ -847,9 +989,13 @@ function closeSettingsModal() {
 function openAgentGuideModal() {
     const modal = document.getElementById('modal-agent-guide');
     if (modal) {
+        modal.style.display = '';
         modal.classList.add('open');
-        modal.style.display = 'flex';
+        modal.classList.add('modal-open');
         modal.setAttribute('aria-hidden', 'false');
+        if (typeof modal.showModal === 'function' && !modal.open) {
+            modal.showModal();
+        }
     }
 }
 
@@ -857,8 +1003,11 @@ function closeAgentGuideModal() {
     const modal = document.getElementById('modal-agent-guide');
     if (modal) {
         modal.classList.remove('open');
-        modal.style.display = 'none';
+        modal.classList.remove('modal-open');
         modal.setAttribute('aria-hidden', 'true');
+        if (typeof modal.close === 'function' && modal.open) {
+            modal.close();
+        }
     }
 }
 
@@ -1585,8 +1734,13 @@ function openPinConfigModal(pin) {
     // Toggle trigger sections based on current mode
     syncModalTriggerSections(currentMode);
 
-    modal.style.display = 'flex';
+    modal.style.display = '';
+    modal.classList.add('open');
+    modal.classList.add('modal-open');
     modal.setAttribute('aria-hidden', 'false');
+    if (typeof modal.showModal === 'function' && !modal.open) {
+        modal.showModal();
+    }
 }
 
 function syncModalTriggerSections(mode) {
@@ -1636,8 +1790,12 @@ function renderColorSwatches(activeColor) {
 function closePinConfigModal() {
     const modal = document.getElementById('modal-pin-config');
     if (!modal) return;
-    modal.style.display = 'none';
+    modal.classList.remove('open');
+    modal.classList.remove('modal-open');
     modal.setAttribute('aria-hidden', 'true');
+    if (typeof modal.close === 'function' && modal.open) {
+        modal.close();
+    }
 }
 
 function initPinConfigModal() {
@@ -4083,12 +4241,12 @@ function renderProfileMenu(activeName) {
 
     cachedProfileSlots.forEach(slot => {
         const item = document.createElement('div');
-        item.className = 'profile-slot-item' + (slot.id === activeProfileSlot ? ' active-slot' : '');
+        item.className = 'profile-slot-item rounded-field' + (slot.id === activeProfileSlot ? ' active-slot' : '');
         item.innerHTML = `
             <span><strong>${slot.id === 0 ? '[LOCKED] ' : ''}${slot.name}</strong></span>
-            <div>
-                ${slot.is_boot ? '<span class="profile-boot-badge">BOOT</span>' : ''}
-                <span style="font-size: 10px; opacity: 0.5; margin-left: 6px;">Slot ${slot.id}</span>
+            <div class="flex items-center gap-1.5">
+                ${slot.is_boot ? '<span class="profile-boot-badge badge badge-xs badge-success font-mono-tech">BOOT</span>' : ''}
+                <span class="text-[10px] opacity-50 font-mono-tech">Slot ${slot.id}</span>
             </div>
         `;
         item.addEventListener('click', () => {
@@ -4100,10 +4258,31 @@ function renderProfileMenu(activeName) {
 }
 
 function toggleProfileMenu(forceState) {
+    const wrapper = document.getElementById('profile-dropdown-wrapper');
     const menu = document.getElementById('profile-dropdown-menu');
-    if (!menu) return;
-    const shouldShow = forceState !== undefined ? forceState : (menu.style.display === 'none');
-    menu.style.display = shouldShow ? 'block' : 'none';
+    if (!wrapper && !menu) return;
+    if (forceState === true) {
+        if (wrapper) wrapper.classList.add('dropdown-open');
+        if (menu) menu.style.display = '';
+    } else if (forceState === false) {
+        if (wrapper) {
+            wrapper.classList.remove('dropdown-open');
+            if (document.activeElement && wrapper.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        }
+        if (menu) menu.style.display = 'none';
+    } else {
+        if (wrapper) {
+            const isOpen = wrapper.classList.toggle('dropdown-open');
+            if (menu) menu.style.display = isOpen ? '' : 'none';
+            if (!isOpen && document.activeElement && wrapper.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        } else if (menu) {
+            menu.style.display = menu.style.display === 'none' ? '' : 'none';
+        }
+    }
 }
 
 async function triggerEmergencySafeState() {
@@ -4154,12 +4333,25 @@ function openSaveProfileModal() {
     }
 
     if (input) input.value = '';
-    modal.style.display = 'flex';
+    modal.style.display = '';
+    modal.classList.add('open');
+    modal.classList.add('modal-open');
+    modal.setAttribute('aria-hidden', 'false');
+    if (typeof modal.showModal === 'function' && !modal.open) {
+        modal.showModal();
+    }
 }
 
 function closeSaveProfileModal() {
     const modal = document.getElementById('modal-save-profile');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.classList.remove('open');
+        modal.classList.remove('modal-open');
+        modal.setAttribute('aria-hidden', 'true');
+        if (typeof modal.close === 'function' && modal.open) {
+            modal.close();
+        }
+    }
 }
 
 async function confirmSaveProfile() {
@@ -4241,8 +4433,17 @@ function initProfileManager() {
     const btnCloseCompat = document.getElementById('btn-close-compat-modal');
     const btnAckCompat = document.getElementById('btn-ack-compat');
     const modalCompat = document.getElementById('modal-profile-compat');
-    if (btnCloseCompat && modalCompat) btnCloseCompat.addEventListener('click', () => modalCompat.style.display = 'none');
-    if (btnAckCompat && modalCompat) btnAckCompat.addEventListener('click', () => modalCompat.style.display = 'none');
+    const closeCompatModal = () => {
+        if (!modalCompat) return;
+        modalCompat.classList.remove('open');
+        modalCompat.classList.remove('modal-open');
+        modalCompat.setAttribute('aria-hidden', 'true');
+        if (typeof modalCompat.close === 'function' && modalCompat.open) {
+            modalCompat.close();
+        }
+    };
+    if (btnCloseCompat) btnCloseCompat.addEventListener('click', closeCompatModal);
+    if (btnAckCompat) btnAckCompat.addEventListener('click', closeCompatModal);
 
     refreshProfilesList();
 }
@@ -4499,6 +4700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetTab = tab.getAttribute('data-tab');
             document.querySelectorAll('.stimulus-tab').forEach(t => {
                 t.classList.toggle('active', t === tab);
+                t.classList.toggle('tab-active', t === tab);
                 t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
             });
             document.querySelectorAll('.stimulus-pane').forEach(p => {
@@ -4528,6 +4730,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const bus = tab.getAttribute('data-bus');
             document.querySelectorAll('#bus-master-subtabs .bus-subtab').forEach(t => {
                 t.classList.toggle('active', t === tab);
+                t.classList.toggle('tab-active', t === tab);
             });
             document.querySelectorAll('.bus-sender-panel').forEach(p => {
                 p.classList.toggle('active', p.id === `bus-sender-${bus}`);

@@ -6,7 +6,10 @@ use super::programs::{
     RVSWD_WRAP_TARGET,
 };
 use crate::delay::delay_cycles;
-use crate::rvswd::{build_header, RvswdError};
+use crate::rvswd::{
+    build_header_byte, double_even_parity, header_parity, verify_read_tail, verify_status,
+    RvswdError,
+};
 use crate::traits::RvswdIo;
 use rp_pac as pac;
 
@@ -14,6 +17,7 @@ pub struct RvswdTransport {
     prog_offset: u8,
     pub clk_pin: usize,
     pub dio_pin: usize,
+    pub dio_in_pin: usize,
     clkdiv: u16,
     initialized: bool,
 }
@@ -45,6 +49,7 @@ impl RvswdTransport {
             prog_offset: 0,
             clk_pin: 8,
             dio_pin: 9,
+            dio_in_pin: 9,
             clkdiv: 36,
             initialized: false,
         }
@@ -55,8 +60,21 @@ impl RvswdTransport {
     }
 
     pub fn init_pins(&mut self, clk_pin: usize, dio_pin: usize) {
+        self.init_pins_split(clk_pin, dio_pin, dio_pin);
+    }
+
+    pub fn init_topology(&mut self, topology: crate::traits::ProbeWireTopology) {
+        self.init_pins_split(
+            topology.clk() as usize,
+            topology.dio_out() as usize,
+            topology.dio_in() as usize,
+        );
+    }
+
+    pub fn init_pins_split(&mut self, clk_pin: usize, dio_out_pin: usize, dio_in_pin: usize) {
         self.clk_pin = clk_pin;
-        self.dio_pin = dio_pin;
+        self.dio_pin = dio_out_pin;
+        self.dio_in_pin = dio_in_pin;
 
         pac::PADS_BANK0.gpio(clk_pin).modify(|w| {
             w.set_iso(false);
@@ -71,7 +89,7 @@ impl RvswdTransport {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
 
-        pac::PADS_BANK0.gpio(dio_pin).modify(|w| {
+        pac::PADS_BANK0.gpio(dio_out_pin).modify(|w| {
             w.set_iso(false);
             w.set_ie(true);
             w.set_od(false);
@@ -80,9 +98,24 @@ impl RvswdTransport {
             w.set_slewfast(false);
             w.set_drive(pac::pads::vals::Drive::_2M_A);
         });
-        pac::IO_BANK0.gpio(dio_pin).ctrl().write(|w| {
+        pac::IO_BANK0.gpio(dio_out_pin).ctrl().write(|w| {
             w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
         });
+
+        if dio_in_pin != dio_out_pin {
+            pac::PADS_BANK0.gpio(dio_in_pin).modify(|w| {
+                w.set_iso(false);
+                w.set_ie(true);
+                w.set_od(false);
+                w.set_pue(true);
+                w.set_pde(false);
+                w.set_slewfast(false);
+                w.set_drive(pac::pads::vals::Drive::_2M_A);
+            });
+            pac::IO_BANK0.gpio(dio_in_pin).ctrl().write(|w| {
+                w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into());
+            });
+        }
 
         self.prog_offset = 0;
         for (i, &ins) in RVSWD_INSTRUCTIONS.iter().enumerate() {
@@ -96,11 +129,11 @@ impl RvswdTransport {
         sm.pinctrl().write(|w| {
             w.set_sideset_base(clk_pin as u8);
             w.set_sideset_count(1);
-            w.set_out_base(dio_pin as u8);
+            w.set_out_base(dio_out_pin as u8);
             w.set_out_count(1);
-            w.set_set_base(dio_pin as u8);
+            w.set_set_base(dio_out_pin as u8);
             w.set_set_count(1);
-            w.set_in_base(dio_pin as u8);
+            w.set_in_base(dio_in_pin as u8);
         });
 
         sm.execctrl().write(|w| {
@@ -117,13 +150,13 @@ impl RvswdTransport {
             w.set_autopush(false);
         });
 
-        sm.clkdiv().write(|w| {
-            w.set_int(self.clkdiv);
-            w.set_frac(0);
-        });
+        self.set_clock(6000);
 
         pio_set_pindirs(sm, clk_pin, 1, true);
-        pio_set_pindirs(sm, dio_pin, 1, true);
+        pio_set_pindirs(sm, dio_out_pin, 1, true);
+        if dio_in_pin != dio_out_pin {
+            pio_set_pindirs(sm, dio_in_pin, 1, false);
+        }
 
         pac::PIO0.fdebug().write(|w| w.0 = 0xFFFFFFFF);
 
@@ -144,7 +177,12 @@ impl RvswdTransport {
             w.set_sm_enable(w.sm_enable() & !(1 << 0));
         });
 
-        for pin in [self.clk_pin, self.dio_pin] {
+        let pins = if self.dio_in_pin != self.dio_pin {
+            &[self.clk_pin, self.dio_pin, self.dio_in_pin][..]
+        } else {
+            &[self.clk_pin, self.dio_pin][..]
+        };
+        for &pin in pins {
             pac::PADS_BANK0.gpio(pin).modify(|w| {
                 w.set_pue(false);
                 w.set_pde(false);
@@ -160,6 +198,19 @@ impl RvswdTransport {
 
     pub fn is_initialized(&self) -> bool {
         self.initialized
+    }
+
+    pub fn set_clock(&mut self, freq_khz: u32) {
+        let (int_div, frac_div) = crate::clock::calculate_pio_clkdiv(150_000_000, freq_khz * 1000, 7);
+        pac::PIO0.sm(0).clkdiv().write(|w| {
+            w.set_int(int_div);
+            w.set_frac(frac_div);
+        });
+        pac::PIO0.sm(1).clkdiv().write(|w| {
+            w.set_int(int_div);
+            w.set_frac(frac_div);
+        });
+        self.clkdiv = int_div;
     }
 
     fn put_fifo(&self, data: u32) -> bool {
@@ -230,69 +281,71 @@ impl RvswdTransport {
     }
 
     pub fn write(&self, reg: u8, value: u32) -> Result<(), RvswdError> {
+        let h = build_header_byte(reg, true);
+        let h_par = header_parity(h);
         if !self.start_seq() {
             return Err(RvswdError::Timeout);
         }
-        if !self.write_bits(build_header(reg, true), 9) {
+        // Header: 8 bits address + rw
+        if !self.write_bits(h as u32, 8) {
             return Err(RvswdError::Timeout);
         }
-        if !self.write_bits(0b10101, 5) {
+        // Doubled even parity: 2 bits
+        if !self.write_bits(h_par as u32, 2) {
+            return Err(RvswdError::Timeout);
+        }
+        // 4 padding zeros
+        if !self.write_bits(0, 4) {
             return Err(RvswdError::Timeout);
         }
 
-        let mut parity = false;
-        for i in 0..32 {
-            if ((value >> (31 - i)) & 1) != 0 {
-                parity = !parity;
-            }
-        }
+        // Data: 32 bits
         if !self.write_bits(value, 32) {
             return Err(RvswdError::Timeout);
         }
-        if !self.write_bits(if parity { 1 } else { 0 }, 1) {
+        // Doubled even parity: 2 bits
+        let v_par = double_even_parity(value);
+        if !self.write_bits(v_par as u32, 2) {
             return Err(RvswdError::Timeout);
         }
-        if !self.write_bits(0b10111, 5) {
-            return Err(RvswdError::Timeout);
-        }
+
+        // Target status: 4 bits
+        let st = self.read_bits(4)?;
         if !self.stop_seq() {
             return Err(RvswdError::Timeout);
         }
+        verify_status((st & 0x0F) as u8)?;
         Ok(())
     }
 
     pub fn read(&self, reg: u8) -> Result<u32, RvswdError> {
+        let h = build_header_byte(reg, false);
+        let h_par = header_parity(h);
         if !self.start_seq() {
             return Err(RvswdError::Timeout);
         }
-        if !self.write_bits(build_header(reg, false), 9) {
+        // Header: 8 bits address + rw
+        if !self.write_bits(h as u32, 8) {
             return Err(RvswdError::Timeout);
         }
-        if !self.write_bits(0b10101, 5) {
+        // Doubled even parity: 2 bits
+        if !self.write_bits(h_par as u32, 2) {
+            return Err(RvswdError::Timeout);
+        }
+        // 4 padding zeros
+        if !self.write_bits(0, 4) {
             return Err(RvswdError::Timeout);
         }
 
+        // Target data: 32 bits
         let data = self.read_bits(32)?;
-        let parity_read = self.read_bits(1)?;
-
-        if !self.write_bits(0b10111, 5) {
-            return Err(RvswdError::Timeout);
-        }
+        // Tail: 6 bits (parity[1], 1, status[4])
+        let tail = self.read_bits(6)?;
         if !self.stop_seq() {
             return Err(RvswdError::Timeout);
         }
 
-        let mut data_parity = false;
-        for i in 0..32 {
-            if ((data >> (31 - i)) & 1) != 0 {
-                data_parity = !data_parity;
-            }
-        }
-
-        let parity_bit = (parity_read & 1) == 1;
-        if data_parity != parity_bit {
-            return Err(RvswdError::ParityError);
-        }
+        verify_read_tail(data, tail as u8)?;
         Ok(data)
     }
 }
@@ -310,5 +363,10 @@ impl RvswdIo for RvswdTransport {
 
     fn reset(&mut self) -> Result<(), Self::Error> {
         RvswdTransport::reset(self)
+    }
+
+    fn set_clock(&mut self, freq_khz: u32) -> Result<(), Self::Error> {
+        RvswdTransport::set_clock(self, freq_khz);
+        Ok(())
     }
 }

@@ -337,5 +337,78 @@ def test_build_portal_staging_pipeline(tmp_path):
     assert "is-embedded" in webui_html
 
 
+def test_adaptive_navigation_rail_invariants():
+    """Verify adaptive navigation rail markup, styling, and rules across index.html, lab.html, and style.css."""
+    style_css = (HTML_DIR / "style.css").read_text(encoding="utf-8")
+    index_html = (HTML_DIR / "index.html").read_text(encoding="utf-8")
+    lab_html = (HTML_DIR / "lab.html").read_text(encoding="utf-8")
+
+    # Invariant 1: No active dot pips
+    assert ".dock-icon-btn.active::after" not in style_css, "Active dot indicators strictly forbidden"
+    assert ".nav-rail-btn.active::after" not in style_css, "Active dot indicators strictly forbidden"
+
+    # Invariant 2: Adaptive rail classes in CSS
+    assert ".app-nav-rail" in style_css
+    assert ".nav-rail-primary" in style_css
+    assert ".nav-rail-secondary" in style_css
+
+    # Invariant 3: Responsive breakpoint at 900px
+    assert "@media (max-width: 899.98px)" in style_css or "@media (max-width: 900px)" in style_css or "@media (max-width: 899px)" in style_css
+
+    # Invariant 4: HTML structure in index.html & lab.html
+    for html in (index_html, lab_html):
+        assert 'id="app-nav-rail"' in html, "app-nav-rail ID missing"
+        assert 'class="app-nav-rail' in html, "app-nav-rail class missing"
+        assert 'class="nav-rail-primary"' in html, "nav-rail-primary container missing"
+        assert 'class="nav-rail-secondary"' in html, "nav-rail-secondary container missing"
+
+    # Invariant 5: No artificial bottom padding hacks in workspace or launcher
+    assert "padding-bottom: calc(6.5rem" not in style_css
+    assert "padding-bottom: calc(5rem" not in style_css
+
+    # Invariant 6: In-flow viewport container geometry (no position: fixed on app-viewport-container)
+    assert ".app-viewport-container {\n            position: fixed;" not in index_html
+    assert "flex: 1;" in index_html, "app-viewport-container must be flex: 1 in-flow child"
+    assert ".app-viewport-container" in style_css, "app-viewport-container must be defined in style.css"
+
+    # Invariant 7: Synchronous embed FOUC guard in lab.html <head> (prevents duplicate top-bar flash)
+    head_tag_idx = lab_html.find("<head>")
+    top_bar_idx = lab_html.find('id="top-bar"')
+    assert head_tag_idx != -1 and top_bar_idx != -1
+    head_content = lab_html[head_tag_idx:top_bar_idx]
+    assert "classList.add('is-embedded')" in head_content, "lab.html must add is-embedded synchronously in <head> before #top-bar is rendered"
+
+
+def test_html_and_js_syntax_integrity():
+    """Verify that all inline HTML scripts and standalone JS files compile without syntax errors."""
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+
+    node_bin = shutil.which("node")
+    if not node_bin:
+        return
+
+    html_files = [HTML_DIR / "index.html", HTML_DIR / "lab.html", HTML_DIR / "terminal.html", HTML_DIR / "files.html"]
+    for html_file in html_files:
+        content = html_file.read_text(encoding="utf-8")
+        scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", content, re.DOTALL)
+        for idx, script_src in enumerate(scripts):
+            with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as tmp:
+                tmp.write(script_src)
+                tmp_path = tmp.name
+            try:
+                res = subprocess.run([node_bin, "-c", tmp_path], capture_output=True, text=True)
+                assert res.returncode == 0, f"Syntax error in {html_file.name} inline script {idx}: {res.stderr}"
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+
+    js_files = [HTML_DIR / "agentla-bridge.js", HTML_DIR / "app.js"]
+    for js_file in js_files:
+        res = subprocess.run([node_bin, "-c", str(js_file)], capture_output=True, text=True)
+        assert res.returncode == 0, f"Syntax error in {js_file.name}: {res.stderr}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

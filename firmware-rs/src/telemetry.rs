@@ -7,7 +7,7 @@ use core::fmt::Write as _;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use rp_pac as pac;
 
-pub static OVERCURRENT_LIMIT_MA: AtomicU32 = AtomicU32::new(500);
+pub static OVERCURRENT_LIMIT_MA: AtomicU32 = AtomicU32::new(0);
 pub static OVERCURRENT_TRIPPED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy)]
@@ -48,10 +48,21 @@ fn read_adc_raw_channel(channel: u8) -> u16 {
     pac::ADC.result().read().result()
 }
 
+/// Measures the target voltage rail (ADC channel 2) in millivolts.
+/// Clamps readings below 800 mV to 0 mV to denote an unpowered or disconnected target.
+pub fn get_target_voltage_mv() -> u32 {
+    let raw_vtarget = read_adc_raw_channel(2);
+    let mv = (raw_vtarget as u32 * 3300) / 4096;
+    if mv < 800 {
+        0
+    } else {
+        mv
+    }
+}
+
 pub fn sample_telemetry() -> TelemetrySnapshot {
     // ADC 2: Vtarget sense rail (0..3300 mV)
-    let raw_vtarget = read_adc_raw_channel(2);
-    let v_target_mv = (raw_vtarget as u32 * 3300) / 4096;
+    let v_target_mv = get_target_voltage_mv();
 
     // ADC 1: Itarget current sense via INA180 (Gain 50 V/V across 0.05 ohm = 2.5 mV/mA)
     let raw_itarget = read_adc_raw_channel(1);

@@ -40,9 +40,9 @@ BakuProbe features two distinct power domains:
        [ High-Side P-FET Gate ] (Shift Reg Bit 24: TARGET_PWR_EN)
                     │
                     ▼
-       [ High-Side Current Sense ] (TI INA180 Shunt Monitor ──> ADS1118 ADC Ch 1)
+       [ High-Side Current Sense ] (TI INA180 Shunt Monitor ──> ADC124S021 Ch 2 / IN2)
                     │
-                    ├──────> [ Voltage Divider (10:1) ] ───────> ADS1118 ADC Ch 0
+                    ├──────> [ Voltage Divider (2:1) ] ────────> ADC124S021 Ch 1 / IN1
                     ▼
         Target MCU VTARGET Supply (Programmer & Bus Pods)
 
@@ -54,16 +54,16 @@ BakuProbe features two distinct power domains:
                                     [ High-Side Switch (20A) ] (RP2350 DC24V_PWM)
                                                    │
                                                    ▼
-                                    [ High-Side Current Sense (20A) ] ──> ADS1118 ADC Ch 3
+                                    [ High-Side Current Sense (20A) ] ──> ADC124S021 Ch 4 / IN4
                                                    │
-                                                   ├──────> [ 24V Resistor Divider ] ──> ADS1118 ADC Ch 2
+                                                   ├──────> [ 24V Resistor Divider (10:1) ] ──> ADC124S021 Ch 3 / IN3
                                                    ▼
                                     [ High-Current Screw Terminal Output ]
 ```
 
 ### 2.1 Target MCU Power Rail & Wide-Range Dynamic Telemetry
 - **Voltage Selection**: Manual 3-way hardware selector switch choosing between **1.8V**, **3.3V**, or **5.0V**.
-- **Automated Rail Auto-Detection**: A precision 10:1 resistor divider feeds TI ADS1118 Channel 0, allowing AgentLA firmware to automatically identify the target voltage rail and configure logic thresholds.
+- **Automated Rail Auto-Detection**: A precision 2:1 resistor divider ($10.0\,\text{k}\Omega : 10.0\,\text{k}\Omega$, $0.1\%$) feeds **TI ADC124S021 Channel 1 (`IN1`)**, allowing AgentLA firmware to automatically identify the target voltage rail ($0.0\,\text{V} - 6.0\,\text{V}$ range, $1.465\,\text{mV}/\text{LSB}$ at $3.000\,\text{V}$ VREF) and configure logic thresholds.
 - **High-Side Target Power Switch**: Firmware-controlled P-channel MOSFET (`TARGET_PWR_EN`) enabling software-driven power cycling, hard resets, and brownout tests.
 - **Ultra-Wide Dynamic Range Current Sense ($1\,\mu\text{A}$ to $500\,\text{mA}$)**:
   - **Hardware Auto-Bypass Architecture (PPK2-Lite Style)**:
@@ -71,7 +71,7 @@ BakuProbe features two distinct power domains:
     - **Auto-Bypass P-FET (SI2301 / DMP3099)**: Connected across $R_{\text{high}}$ to bypass it during active currents.
     - **Fast Hardware Comparator (TLV3691 / SGM8743)**: Automatically trips in $< 50\,\text{ns}$ when voltage drop exceeds $50\,\text{mV}$, driving the P-FET gate without firmware latency or software overhead.
     - **Sub-Nanosecond Schottky Diode Clamp (BAT54)**: In parallel across $R_{\text{high}}$, clamping maximum rail drop to $< 0.3\,\text{V}$ during sudden target wakeups to completely eliminate brownout resets.
-    - **Telemetry Interface**: ADS1118 reads the INA180 current sense output, while direct RP2350 GPIO pin `GPIO 0` (`TARGET_RANGE_FLAG`) reads the comparator state to apply active calibration multipliers.
+    - **Telemetry Interface**: **TI ADC124S021 Channel 2 (`IN2`)** reads the INA180 current sense output at up to **$200\,\text{kS/s}$** ($5.0\,\mu\text{s}$ per conversion, or $500\,\text{kS/s}$ / $2.0\,\mu\text{s}$ with drop-in ADC124S051), while direct RP2350 GPIO pin `GPIO 0` (`TARGET_RANGE_FLAG`) reads the comparator state to apply active calibration multipliers.
 
 ### 2.2 Auxiliary High-Power DC Path ($24\,\text{V} / 20\,\text{A}$) with PWM Modulation
 - **Input**: Heavy-duty DC Barrel Jack ($5.5\text{mm} \times 2.1/2.5\text{mm}$) rated for up to $24\,\text{V}$.
@@ -80,21 +80,39 @@ BakuProbe features two distinct power domains:
   - High-efficiency N-channel MOSFET ($40\text{V} / 60\text{V}$, $R_{\text{DS(on)}} < 3\,\text{m}\Omega$) driven by a dedicated high-side gate driver (e.g. TI LM5106 / MIC5014).
   - Driven by RP2350 hardware PWM pin `GPIO 1` (`DC24V_PWM`, up to **20 kHz**), allowing BakuProbe to act as a programmable DC motor speed controller, electronic load, and step-load transient tester.
 - **Inductive Flyback Clamping**: Fast Schottky flyback diode (V10150 / SS54) and TVS suppressor across the output screw terminal to safely absorb inductive kickbacks from motor windings and solenoids.
-- **High-Power Telemetry**: TI ADS1118 Channels 2 and 3 measure 24V rail voltage (divider) and 20A motor current (TI INA240 across $2\,\text{m}\Omega$ shunt).
+- **High-Power Telemetry**: 
+  - **TI ADC124S021 Channel 3 (`IN3`)** measures 24V rail voltage via a 10:1 divider ($90.9\,\text{k}\Omega : 10.0\,\text{k}\Omega$, $0.1\%$, $0.0\,\text{V} - 30.27\,\text{V}$ range, $7.39\,\text{mV}/\text{LSB}$).
+  - **TI ADC124S021 Channel 4 (`IN4`)** measures 20A motor current from a **TI INA240A2** ($G = 50\,\text{V/V}$, $400\,\text{kHz}$ bandwidth, $80\,\text{V}$ common mode) across a $2.0\,\text{m}\Omega$ 3W metal foil shunt ($0.0\,\text{A} - 30.0\,\text{A}$ peak range, $7.32\,\text{mA}/\text{LSB}$).
 
 ---
 
 ## 3. Dedicated Functional Hardware Pods
 
 ### Pod 1: Universal Target Programmer & Debugger (Dual-Rail 74LVC Architecture)
-* **Connector**: Standard 10-pin 1.27mm / 2.54mm shrouded ARM Cortex Debug Header.
+* **Connector**: Standard 10-pin 1.27mm / 2.54mm shrouded ARM Cortex Debug Header (with compact 6-pin single-row breakout support).
 * **Level Translation**: **Two SN74LVC4T245** dual-supply bus transceivers ($1.65\,\text{V} - 5.5\,\text{V}$):
-  - **Zero Voltage Tracking Restrictions**: $V_{\text{CCA}}$ and $V_{\text{CCB}}$ operate completely independently ($V_{\text{CCA}} > V_{\text{CCB}}$, $V_{\text{CCA}} < V_{\text{CCB}}$, or $V_{\text{CCA}} = V_{\text{CCB}}$).
+  - **Zero Voltage Tracking Restrictions**: $V_{\text{CCA}}$ and $V_{\text{CCB}}$ operate completely independently ($V_{\text{CCA}} > V_{\text{CCB}}$, $V_{\text{CCA}} < V_{\text{CCB}}$, or $V_{\text{CCA}} = V_{\text{CCB}}$), reliably supporting $1.8\,\text{V}$, $3.3\,\text{V}$, and $5.0\,\text{V}$ targets without auto-sense edge-accelerator ringing or rail inversions.
   - **Crisp Drive Strength**: $\pm 24\,\text{mA}$ push-pull drive delivering razor-sharp square waves up to **50+ MHz** over long ribbon cables.
 * **SWDIO Bidirectional Architecture (CMSIS-DAP Split-Resistor)**:
   - `SWDIO_TX` drives target pin through a $100\,\Omega$ damping resistor.
   - `SWDIO_RX` listens directly at target pin.
   - **Instantaneous 0 ns Hardware Turnaround**: When switching from write to read, the probe puts `SWDIO_TX` in high-Z and reads `SWDIO_RX` immediately without software delay.
+* **Unified Pin Mapping & Silkscreen Notation**:
+  - The programmer multiplexes ARM SWD, 4-Wire JTAG, WCH 1-Wire RISC-V, and full-duplex UART serial console onto a single header. In SWD mode, UART console runs simultaneously on the unused data pins.
+
+| Pin | Unified Net Name | Silkscreen Label | SWD Mode | JTAG Mode | 1-Wire Mode | Serial ISP / Console |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | `PROG_VTARGET` | `VTGT` | VTARGET Sense | VTARGET Sense | VTARGET Sense | VTARGET Sense |
+| **2** | `PROG_SWDIO_TMS_SDI` | `DIO / TMS` | `SWDIO` (Bidir) | `TMS` (Mode) | `SDI` (1-Wire) | Unused |
+| **3** | `GND` | `GND` | Ground | Ground | Ground | Ground |
+| **4** | `PROG_SWDCLK_TCK` | `CLK / TCK` | `SWDCLK` (Clock) | `TCK` (Clock) | High-Z | Unused |
+| **5** | `GND` | `GND` | Ground | Ground | Ground | Ground |
+| **6** | `PROG_UART_RX_TDO` | `RX <- / TDO` | `UART_RX` (Log) | `TDO / SWO` | High-Z | `UART_RX` (In) |
+| **7** | `PROG_BOOT0` | `BOOT` / `KEY` | Unused / Key | Unused | Unused | `BOOT0` (Entry) |
+| **8** | `PROG_UART_TX_TDI` | `TX -> / TDI` | `UART_TX` (Shell) | `TDI` (Data In) | High-Z | `UART_TX` (Out) |
+| **9** | `GND` | `GND` | Ground | Ground | Ground | Ground |
+| **10**| `PROG_NRESET` | `NRST` | `nRESET` | `nRESET` | `nRESET` | `nRESET` |
+
 * **Pin Mapping (7 Direct RP2350 GPIOs on `GPIO 12..18`)**:
   - `GPIO 12`: `PROG_UART_TX` (Native hardware UART0 TX for ISP bootloader & serial monitor).
   - `GPIO 13`: `PROG_UART_RX` (Native hardware UART0 RX).
@@ -207,10 +225,10 @@ All 16 high-speed instrumentation channels are placed consecutively on the **hig
 | **`GPIO 5`** | `EMERGENCY_BTN` | SIO Input (IRQ) | **1. Power & Instrumentation** | Front-panel Emergency Stop / Safe Mode pushbutton |
 | **`GPIO 6`** | `NEOPIXEL_DATA` | PIO0 | **1. Power & Instrumentation** | Serial 800 kHz RGB drive for Header Pin NeoPixels |
 | **`GPIO 7`** | `SPARE_GPIO7` | SIO / Spare | **1. Power & Instrumentation** | **Unassigned Pure Spare GPIO** (Routed to test pad) |
-| **`GPIO 8`** | `INT_SPI0_RX` | SPI0_RX | **1. Power & Instrumentation** | Dedicated Internal SPI MISO from TI ADS1118 DOUT/DRDY |
-| **`GPIO 9`** | `ADS1118_CS` | SPI0_CSn | **1. Power & Instrumentation** | Dedicated Internal SPI Chip Select for TI ADS1118 ADC |
-| **`GPIO 10`** | `INT_SPI0_SCK` | SPI0_SCK | **1. Power & Instrumentation** | Dedicated Internal SPI Clock for TI ADS1118 ADC |
-| **`GPIO 11`** | `INT_SPI0_TX` | SPI0_TX | **1. Power & Instrumentation** | Dedicated Internal SPI MOSI for TI ADS1118 ADC |
+| **`GPIO 8`** | `INT_SPI0_RX` | SPI0_RX | **1. Power & Instrumentation** | Dedicated Internal SPI MISO from TI ADC124S021 DOUT |
+| **`GPIO 9`** | `ADC124_CS` | SPI0_CSn | **1. Power & Instrumentation** | Dedicated Internal SPI Chip Select for TI ADC124S021 ADC |
+| **`GPIO 10`** | `INT_SPI0_SCK` | SPI0_SCK | **1. Power & Instrumentation** | Dedicated Internal SPI Clock for TI ADC124S021 ADC (3.2 MHz SCLK) |
+| **`GPIO 11`** | `INT_SPI0_TX` | SPI0_TX | **1. Power & Instrumentation** | Dedicated Internal SPI MOSI for TI ADC124S021 DIN (Channel Address) |
 | **`GPIO 12`** | `PROG_UART_TX` | UART0_TX | **2. Programmer** | Pod 1 Target Serial ISP / Debug UART TX |
 | **`GPIO 13`** | `PROG_UART_RX` | UART0_RX | **2. Programmer** | Pod 1 Target Serial ISP / Debug UART RX |
 | **`GPIO 14`** | `PROG_SWDCLK_TCK`| PIO1 / SIO | **2. Programmer** | Pod 1 SWD Clock / JTAG Clock |
@@ -319,10 +337,10 @@ Four cascaded 74HC595 shift registers shift 32 bits out over dedicated PIO pins 
 | **Auto-Bypass Comparator** | TI TLV3691 / SGM8743 | SC-70-5 / SOT-23 | 1 | Nano-power fast comparator for hardware auto-ranging (<50 ns) |
 | **Auto-Bypass P-FET** | Vishay Si2301 / DMP3099 | SOT-23 | 1 | Low $R_{\text{DS(on)}}$ (<30 mΩ) P-channel MOSFET |
 | **Brownout Clamp Diode** | Diodes Inc BAT54 | SOT-23 | 1 | Ultra-fast Schottky clamp diode (<1 ns forward turn-on) |
-| **20A DC Current Sense**| TI INA240A1 | TSSOP-8 | 1 | High-side current sense amplifier with enhanced PWM rejection for 20A shunt |
+| **20A DC Current Sense**| TI INA240A2PWR | TSSOP-8 | 1 | High-side current sense amplifier ($G=50\,\text{V/V}$, $80\,\text{V}$ CM) with enhanced PWM rejection for 20A shunt |
 | **20A PWM High-Side Switch**| N-FET + TI LM5106 / MIC5014 | DPAK / PowerPAK | 1 | 40V/60V low-$R_{\text{DS(on)}}$ (<3 mΩ) N-FET with high-speed gate driver (up to 20 kHz PWM) |
 | **20A Flyback Clamp Diode**| V10150 / SS54 | TO-277 / SMC | 1 | Fast high-current Schottky clamp diode across 24V screw terminal |
-| **Power Telemetry ADC** | TI ADS1118IRUGR | VSSOP-10 / X2QFN | 1 | 16-bit 4-channel SPI $\Delta\Sigma$ ADC with precision internal VREF on dedicated SPI0 (`GPIO 8..11`) |
+| **Power Telemetry ADC** | TI ADC124S021CIMM/NOPB | VSSOP-10 (DGK) | 1 | 12-bit 4-channel 200 kS/s SAR ADC powered from REF3030 on dedicated SPI0 (`GPIO 8..11`); pin-compatible drop-in with ADC124S051 (500 kS/s) / ADC124S101 (1 MS/s) |
 | **MSO Quad Op-Amps** | SGMICRO SGM8054 / TP1564 | TSSOP-14 | 2 | 250 MHz GBW, $130\,\text{V}/\mu\text{s}$ slew rate, rail-to-rail I/O (8 channels total on `GPIO 40..47`) |
 | **MSO 4:1 Switches** | WCH CH444G / 74LVC4052 | TSSOP-16 / SOP-16 | 4 | Dual 4:1 analog switch ($R_{\text{on}} \approx 5\,\Omega$, 550 MHz BW) |
 | **Config Shift Registers**| 74HC595 / 74LVC595 | TSSOP-16 | 4 | 32-bit cascaded dedicated PIO shift register chain |

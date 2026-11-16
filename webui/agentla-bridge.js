@@ -28,7 +28,7 @@
     var themeState = {
         mode: localStorage.getItem('agentla-theme-mode') || 'system',
         defaultLightTheme: 'emerald',
-        defaultDarkTheme: 'forest'
+        defaultDarkTheme: 'nothing'
     };
 
     function syncTheme(theme, scheme) {
@@ -39,11 +39,11 @@
                 themeState.mode = mode;
                 if (!theme) {
                     var prefersDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    theme = (mode === 'light' || (mode === 'system' && !prefersDark)) ? 'emerald' : 'forest';
+                    theme = (mode === 'light' || (mode === 'system' && !prefersDark)) ? (themeState.defaultLightTheme || 'emerald') : (themeState.defaultDarkTheme || 'nothing');
                 }
             }
             if (!scheme) {
-                var isLight = (theme === 'emerald' || theme === 'caramellatte' || theme === 'light');
+                var isLight = (theme === 'emerald' || theme === 'caramellatte' || theme === 'industrial-light' || theme === 'light');
                 scheme = isLight ? 'light' : 'dark';
             }
             document.documentElement.setAttribute('data-theme', theme);
@@ -92,23 +92,40 @@
         else themeState.mode = 'system';
 
         var prefersDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var effectiveTheme = (themeState.mode === 'light') ? 'emerald' :
-                             (themeState.mode === 'dark') ? 'forest' :
-                             (prefersDark ? 'forest' : 'emerald');
+        var effectiveTheme = (themeState.mode === 'light') ? (themeState.defaultLightTheme || 'emerald') :
+                             (themeState.mode === 'dark') ? (themeState.defaultDarkTheme || 'nothing') :
+                             (prefersDark ? (themeState.defaultDarkTheme || 'nothing') : (themeState.defaultLightTheme || 'emerald'));
+
+        var isLight = (effectiveTheme === 'emerald' || effectiveTheme === 'caramellatte' || effectiveTheme === 'industrial-light' || effectiveTheme === 'light');
+        var effectiveScheme = isLight ? 'light' : 'dark';
 
         try {
             localStorage.setItem('agentla-theme-mode', themeState.mode);
             localStorage.setItem('agentla-theme', effectiveTheme);
         } catch (_) {}
 
-        syncTheme(effectiveTheme, (effectiveTheme === 'emerald') ? 'light' : 'dark');
+        syncTheme(effectiveTheme, effectiveScheme);
 
         if (typeof BroadcastChannel !== 'undefined') {
             try {
                 var ch = new BroadcastChannel('agentla-theme-channel');
-                ch.postMessage({ type: 'THEME_CHANGE', theme: effectiveTheme, mode: themeState.mode, scheme: (effectiveTheme === 'emerald') ? 'light' : 'dark' });
+                ch.postMessage({ type: 'THEME_CHANGE', theme: effectiveTheme, mode: themeState.mode, scheme: effectiveScheme });
             } catch (_) {}
         }
+
+        try {
+            fetch('/api/v1/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    theme_mode: themeState.mode,
+                    default_light_theme: themeState.defaultLightTheme || 'emerald',
+                    default_dark_theme: themeState.defaultDarkTheme || 'nothing',
+                    default_home_route: '/home',
+                    active_profile: "Default Lab Bench"
+                })
+            }).catch(function() {});
+        } catch (_) {}
     }
 
     // -------------------------------------------------------------------------
@@ -123,10 +140,31 @@
     var activeProfileSlot = 0;
 
     function toggleProfileMenu(forceState) {
+        var wrapper = document.getElementById('profile-dropdown-wrapper');
         var menu = document.getElementById('profile-dropdown-menu');
-        if (!menu) return;
-        var shouldShow = forceState !== undefined ? forceState : (menu.style.display === 'none');
-        menu.style.display = shouldShow ? 'block' : 'none';
+        if (!wrapper && !menu) return;
+        if (forceState === true) {
+            if (wrapper) wrapper.classList.add('dropdown-open');
+            if (menu) menu.style.display = '';
+        } else if (forceState === false) {
+            if (wrapper) {
+                wrapper.classList.remove('dropdown-open');
+                if (document.activeElement && wrapper.contains(document.activeElement)) {
+                    document.activeElement.blur();
+                }
+            }
+            if (menu) menu.style.display = 'none';
+        } else {
+            if (wrapper) {
+                var isOpen = wrapper.classList.toggle('dropdown-open');
+                if (menu) menu.style.display = isOpen ? '' : 'none';
+                if (!isOpen && document.activeElement && wrapper.contains(document.activeElement)) {
+                    document.activeElement.blur();
+                }
+            } else if (menu) {
+                menu.style.display = menu.style.display === 'none' ? '' : 'none';
+            }
+        }
     }
 
     function renderProfileMenu(activeName) {
@@ -138,10 +176,11 @@
 
         cachedProfileSlots.forEach(function(slot) {
             var item = document.createElement('div');
-            item.className = 'profile-slot-item' + (slot.id === activeProfileSlot ? ' active-slot' : '');
+            item.className = 'profile-slot-item rounded-field' + (slot.id === activeProfileSlot ? ' active-slot' : '');
             item.innerHTML = '<span class="profile-slot-title">' + (slot.name || 'Profile ' + slot.id) + '</span>' +
-                (slot.is_boot ? '<span class="profile-boot-badge">BOOT</span>' : '');
+                (slot.is_boot ? '<span class="profile-boot-badge badge badge-xs badge-success font-mono-tech">BOOT</span>' : '');
             item.addEventListener('click', function() {
+                toggleProfileMenu(false);
                 applyHardwareProfile(slot.id);
             });
             slotsContainer.appendChild(item);
@@ -200,7 +239,7 @@
                         <span class="power-pill-label font-mono-tech text-xs font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
                         <input type="checkbox" class="toggle toggle-xs toggle-success" id="target-power-switch" checked />
                     </label>
-                    <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+                    <div class="profile-dropdown-wrapper dropdown dropdown-end" id="profile-dropdown-wrapper">
                         <div class="join">
                             <button class="join-item btn btn-sm btn-error gap-1.5 font-bold text-xs uppercase tracking-wider text-error-content shadow-none border-r border-error-content/20" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
                                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
@@ -210,14 +249,14 @@
                                 </svg>
                                 <span>SAFE STATE</span>
                             </button>
-                            <button class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                            <button tabindex="0" role="button" class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
                                 <span class="profile-name-text" id="active-profile-name">Safe State</span>
                                 <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
                             </button>
                         </div>
-                        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
-                            <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
-                            <div class="profile-menu-slots" id="profile-menu-slots"></div>
+                        <div tabindex="0" class="dropdown-content menu bg-base-200 border border-base-300 rounded-box z-50 w-64 p-2 shadow-lg mt-1 profile-dropdown-menu" id="profile-dropdown-menu">
+                            <div class="profile-menu-header font-bold text-[10px] tracking-wider text-base-content/70 pb-1 mb-1 border-b border-base-300">HARDWARE PROFILES (FLASH)</div>
+                            <div class="profile-menu-slots flex flex-col gap-0.5 max-h-64 overflow-y-auto" id="profile-menu-slots"></div>
                         </div>
                     </div>
                     <button class="theme-toggle-btn mode-${themeState.mode}" id="btn-theme-toggle" data-mode="${themeState.mode}" title="Theme Mode" aria-label="Toggle Theme Mode">
@@ -241,16 +280,16 @@
             if (barRight) {
                 if (!document.getElementById('profile-dropdown-wrapper')) {
                     var profileWrapper = document.createElement('div');
-                    profileWrapper.className = 'profile-dropdown-wrapper';
+                    profileWrapper.className = 'profile-dropdown-wrapper dropdown dropdown-end';
                     profileWrapper.id = 'profile-dropdown-wrapper';
                     profileWrapper.innerHTML = `
-                        <button class="preset-pill profile-pill" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+                        <button tabindex="0" role="button" class="preset-pill profile-pill btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
                             <span class="profile-name-text" id="active-profile-name">Safe State</span>
-                            <span class="dropdown-arrow">▾</span>
+                            <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
                         </button>
-                        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
-                            <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
-                            <div class="profile-menu-slots" id="profile-menu-slots"></div>
+                        <div tabindex="0" class="dropdown-content menu bg-base-200 border border-base-300 rounded-box z-50 w-64 p-2 shadow-lg mt-1 profile-dropdown-menu" id="profile-dropdown-menu">
+                            <div class="profile-menu-header font-bold text-[10px] tracking-wider text-base-content/70 pb-1 mb-1 border-b border-base-300">HARDWARE PROFILES (FLASH)</div>
+                            <div class="profile-menu-slots flex flex-col gap-0.5 max-h-64 overflow-y-auto" id="profile-menu-slots"></div>
                         </div>
                     `;
                     var themeBtnEl = document.getElementById('btn-theme-toggle');
@@ -591,18 +630,20 @@
     }
 
     function mountDock() {
-        var dock = document.getElementById('floating-glass-dock');
+        var dock = document.getElementById('app-nav-rail') || document.getElementById('floating-glass-dock');
         if (!dock) {
             var pinned = getPinnedApps();
             function sysStyle(id) {
                 return pinned.indexOf(id) === -1 ? ' style="display: none;"' : '';
             }
 
-            dock = document.createElement('div');
-            dock.id = 'floating-glass-dock';
-            dock.className = 'floating-glass-dock';
+            dock = document.createElement('nav');
+            dock.id = 'app-nav-rail';
+            dock.className = 'app-nav-rail floating-glass-dock';
+            dock.setAttribute('aria-label', 'Application Navigation Rail');
             dock.innerHTML = `
-                <!-- Launcher -->
+                <div class="nav-rail-primary">
+                    <!-- Launcher -->
                 <a href="${homeUrl}" class="dock-icon-btn" data-dock-tooltip="Apps Launcher">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <g fill="currentColor" opacity="0.5">
@@ -690,10 +731,9 @@
                 
                 <!-- Pinned LittleFS Applications in Dock -->
                 <div id="dock-pinned-apps" style="display: contents;"></div>
-
-                <div class="dock-separator"></div>
-
-                <!-- Dedicated Hardware Telemetry HUD -->
+                </div>
+                <div class="nav-rail-secondary">
+                    <!-- Dedicated Hardware Telemetry HUD -->
                 <div class="dock-item-wrapper">
                     <button class="dock-icon-btn" id="dock-btn-telemetry" data-dock-tooltip="Hardware Telemetry">
                         <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -776,8 +816,14 @@
                         </div>
                     </div>
                 </div>
+                </div>
             `;
-            document.body.appendChild(dock);
+            var shell = document.querySelector('.app-shell');
+            if (shell) {
+                shell.insertBefore(dock, shell.firstChild);
+            } else {
+                document.body.appendChild(dock);
+            }
         }
 
         // Wire popover triggers
@@ -1280,6 +1326,14 @@
 
     window.AgentLA = AgentLA;
 
+    // Immediate synchronous embed detection to prevent FOUC / duplicate header flash
+    try {
+        var _p = new URLSearchParams(window.location.search);
+        if ((window.self !== window.top) || _p.get('embed') === '1' || _p.get('no_launcher') === '1' || window.AgentLANoLauncher === true) {
+            document.documentElement.classList.add('is-embedded');
+        }
+    } catch (_) {}
+
     function initBridge() {
         try {
             var params = new URLSearchParams(window.location.search);
@@ -1291,16 +1345,13 @@
                 document.documentElement.classList.add('is-embedded');
                 var existingTopBar = document.getElementById('top-bar');
                 if (existingTopBar) existingTopBar.style.display = 'none';
-                var existingDock = document.getElementById('floating-glass-dock');
+                var existingDock = document.getElementById('app-nav-rail') || document.getElementById('floating-glass-dock');
                 if (existingDock) existingDock.style.display = 'none';
                 return;
             }
         } catch (_) {}
         initTopBar();
         mountDock();
-        if (document.body) {
-            document.body.style.paddingBottom = '84px';
-        }
     }
 
     if (document.readyState === 'loading') {

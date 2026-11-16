@@ -8,6 +8,7 @@ pub mod rtt;
 pub mod rvswd;
 pub mod swd;
 pub mod swio;
+pub mod swo;
 pub mod target;
 
 use algo::FlashAlgorithmRunner;
@@ -20,8 +21,9 @@ use pins::{ProgrammerPins, pulse_reset_pin};
 use target::cortex_m::CortexM;
 use target::qingke::QingKe;
 use target::targets::TargetInfo;
-use target::TargetError;
+pub use target::TargetError;
 use rp_pac as pac;
+use swd::{AP_CSW, AP_TAR, AP_DRW};
 
 pub static PROGRAMMER_PINS: Mutex<CriticalSectionRawMutex, RefCell<ProgrammerPins>> =
     Mutex::new(RefCell::new(ProgrammerPins::new()));
@@ -40,15 +42,93 @@ pub fn detect_target_port_global(port: TargetPort) -> Result<TargetInfo, TargetE
     })
 }
 
-pub fn debug_probe_bluepill_global() -> (u32, u8, u32) {
+pub fn debug_probe_bluepill_global() -> (u32, u8, u32, u8) {
+    let raw_in = pac::SIO.gpio_in(0).read();
+    let clk = (raw_in & (1 << pins::PIN_SWCLK)) != 0;
+    let dio = (raw_in & (1 << pins::PIN_SWDIO)) != 0;
+    let rst = (raw_in & (1 << pins::PIN_RESET)) != 0;
+    let mut pin_levels = 0u8;
+    if clk { pin_levels |= 1; }
+    if dio { pin_levels |= 2; }
+    if rst { pin_levels |= 4; }
+
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
-        let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-        let dpidr = swd_session.attach().unwrap_or(0);
+        let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
+        let dpidr_res = swd_session.attach();
         let req = swd::SwdTransport::build_request(false, true, 0);
-        let ack = if dpidr != 0 { swd::SWD_ACK_OK } else { 7 };
+        let mut val = 0u32;
+        let ack = swd_session.transport.transfer_raw(req, &mut val);
+        let final_dpidr = match dpidr_res {
+            Ok(d) => d,
+            Err(_) => val,
+        };
         *pins = swd_session.release();
-        (dpidr, ack, req as u32)
+        (final_dpidr, ack, req as u32, pin_levels)
+    })
+}
+
+pub fn probe_swd_diagnostics() -> (u32, u32, u32, u32, u32, u32) {
+    PROGRAMMER_PINS.lock(|cell| {
+        let mut pins = cell.borrow_mut();
+        let mut swd = pins.into_swd_port(TargetPort::BluePill, 100);
+
+        // 1. Assert nRST LOW to keep core in reset
+        swd.transport.assert_reset(true);
+        cortex_m::asm::delay(300_000); // 2 ms
+
+        // 2. Wake target using dormant/line-reset sequence and read DPIDR
+        let mut dpidr = 0u32;
+        let dpidr_ok = swd.transport.read_dpidr_retry(&mut dpidr).is_ok();
+
+        // 3. Power up debug: write DP_ABORT = 0x1E, write DP_CTRLSTAT = 0x50000000
+        let req_abort = swd::SwdTransport::build_request(false, false, 0); // reg 0
+        let mut val_abort = 0x0000001Eu32;
+        let ack_abort = swd.transport.transfer_raw(req_abort, &mut val_abort);
+
+        let req_w_ctrl = swd::SwdTransport::build_request(false, false, 1); // reg 4
+        let mut val_w_ctrl = 0x50000000u32;
+        let ack_w_ctrl = swd.transport.transfer_raw(req_w_ctrl, &mut val_w_ctrl);
+
+        let req_r_ctrl = swd::SwdTransport::build_request(false, true, 1); // reg 4
+        let mut ctrlstat = 0u32;
+        let ack_r_ctrl = swd.transport.transfer_raw(req_r_ctrl, &mut ctrlstat);
+
+        let mut ctrlstat2 = 0u32;
+        let ack_r_ctrl2 = swd.transport.transfer_raw(req_r_ctrl, &mut ctrlstat2);
+
+        // Now write DP_SELECT = 0
+        let req_sel = swd::SwdTransport::build_request(false, false, 2); // reg 8
+        let mut val_sel = 0u32;
+        let ack_sel = swd.transport.transfer_raw(req_sel, &mut val_sel);
+
+        // Pack ACKs into a diagnostic word: [ack_sel:4, ack_abort:4, ack_w_ctrl:4, ack_r_ctrl:4, ack_r_ctrl2:4, dpidr_ok:4]
+        let acks = ((ack_sel as u32 & 0xF) << 20)
+            | ((ack_abort as u32 & 0xF) << 16)
+            | ((ack_w_ctrl as u32 & 0xF) << 12)
+            | ((ack_r_ctrl as u32 & 0xF) << 8)
+            | ((ack_r_ctrl2 as u32 & 0xF) << 4)
+            | (if dpidr_ok { 1 } else { 0 });
+
+        // 4. Read AP 0 IDR
+        let mut ap0_idr = 0u32;
+        let mut ap0_dummy = 0u32;
+        let mut sel_val0 = 0x000000F0u32;
+        let ack_ap0_sel = swd.transport.transfer_raw(req_sel, &mut sel_val0);
+        let ack_ap0_req = swd.transport.transfer_raw(swd::SwdTransport::build_request(true, true, 3), &mut ap0_dummy);
+        let req_rdbuff = swd::SwdTransport::build_request(false, true, 3); // reg 12
+        let ack_ap0_rd = swd.transport.transfer_raw(req_rdbuff, &mut ap0_idr);
+
+        let ap0_diag = ((ack_ap0_sel as u32 & 0xF) << 24)
+            | ((ack_ap0_req as u32 & 0xF) << 20)
+            | ((ack_ap0_rd as u32 & 0xF) << 16)
+            | (ap0_idr & 0xFFFF);
+
+        // 6. Release nRST
+        swd.transport.assert_reset(false);
+
+        *pins = swd.release();
+        (dpidr, acks, ctrlstat, ctrlstat2, ap0_diag, ap0_idr)
     })
 }
 
@@ -84,8 +164,12 @@ pub fn halt_target_port_global(port: TargetPort) -> Result<(), TargetError> {
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+                let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
+                if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+                    let _ = cortex.select_ap(1);
+                    cortex.csw = 0x23000012;
+                }
                 let res = cortex.halt().map_err(|_| TargetError::Timeout);
                 *pins = swd_session.release();
                 res
@@ -116,8 +200,12 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+                let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
+                if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+                    let _ = cortex.select_ap(1);
+                    cortex.csw = 0x23000012;
+                }
                 let res = cortex.resume().map_err(|_| TargetError::Timeout);
                 *pins = swd_session.release();
                 res
@@ -146,8 +234,12 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
     match port {
         TargetPort::BluePill => {
             let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-            swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+            let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
             let mut cortex = CortexM::new(&mut swd_session.transport);
+            if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
+                let _ = cortex.select_ap(1);
+                cortex.csw = 0x23000012;
+            }
             let _ = cortex.halt();
             let res = cortex
                 .mem_read_block(addr, buf)
@@ -236,25 +328,47 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                let dpidr = swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
-                cortex.halt().map_err(|_| TargetError::FlashErrorCode(0x2001))?;
-                let sector_size = 1024u32;
-                let start_addr = addr & !(sector_size - 1);
-                let end_addr = addr + len;
-                let mut curr = start_addr;
-                while curr < end_addr {
-                    FlashAlgorithmRunner::stm32f1_erase_sector(&mut cortex, curr)
-                        .map_err(|e| match e {
-                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
-                            _ => TargetError::FlashError,
-                        })?;
-                    curr += sector_size;
+                let is_h5 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
+                if is_h5 {
+                    let _ = cortex.select_ap(1);
+                    cortex.csw = 0x23000012;
                 }
-                // Lock flash before releasing
-                let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-                let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-                let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
+                let _ = cortex.halt();
+
+                if is_h5 {
+                    let sector_size = 8192u32;
+                    let start_addr = addr & !(sector_size - 1);
+                    let end_addr = addr + len;
+                    let mut curr = start_addr;
+                    while curr < end_addr {
+                        FlashAlgorithmRunner::stm32h5_erase_sector(&mut cortex, curr)
+                            .map_err(|e| match e {
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
+                                _ => TargetError::FlashError,
+                            })?;
+                        curr += sector_size;
+                    }
+                    let _ = FlashAlgorithmRunner::stm32h5_lock(&mut cortex);
+                } else {
+                    let sector_size = 1024u32;
+                    let start_addr = addr & !(sector_size - 1);
+                    let end_addr = addr + len;
+                    let mut curr = start_addr;
+                    while curr < end_addr {
+                        FlashAlgorithmRunner::stm32f1_erase_sector(&mut cortex, curr)
+                            .map_err(|e| match e {
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
+                                _ => TargetError::FlashError,
+                            })?;
+                        curr += sector_size;
+                    }
+                    // Lock flash before releasing
+                    let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
+                    let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+                    let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
+                }
                 *pins = swd_session.release();
                 Ok(())
             }
@@ -355,39 +469,72 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                let dpidr = swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
-                cortex.halt().map_err(|_| TargetError::FlashErrorCode(0x2001))?;
-
-                // 1. Erase sector(s) covering destination
-                let sector_size = 1024u32;
-                let mut curr_sector = addr & !(sector_size - 1);
-                let end_addr = addr + data.len() as u32;
-                while curr_sector < end_addr {
-                    FlashAlgorithmRunner::stm32f1_erase_sector(&mut cortex, curr_sector)
-                        .map_err(|e| match e {
-                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x3000 | (code & 0xFF)),
-                            _ => TargetError::FlashErrorCode(0x30FF),
-                        })?;
-                    curr_sector += sector_size;
+                let is_h5 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
+                if is_h5 {
+                    let _ = cortex.select_ap(1);
+                    cortex.csw = 0x23000012;
                 }
+                let _ = cortex.halt();
 
-                // 2. Program pages
-                let page_size = 1024usize;
-                let mut offset = 0usize;
-                while offset < data.len() {
-                    let chunk_len = (data.len() - offset).min(page_size);
-                    FlashAlgorithmRunner::stm32f1_program_page(&mut cortex, addr + offset as u32, &data[offset..offset + chunk_len])
-                        .map_err(|e| match e {
-                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x4000 | (code & 0xFF)),
-                            _ => TargetError::FlashErrorCode(0x40FF),
-                        })?;
-                    offset += chunk_len;
+                if is_h5 {
+                    // STM32H5 Flash: 8 KB sectors, 128-bit (16-byte) quad-word programming
+                    let sector_size = 8192u32;
+                    let mut curr_sector = addr & !(sector_size - 1);
+                    let end_addr = addr + data.len() as u32;
+                    while curr_sector < end_addr {
+                        FlashAlgorithmRunner::stm32h5_erase_sector(&mut cortex, curr_sector)
+                            .map_err(|e| match e {
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x3000 | (code & 0xFF)),
+                                _ => TargetError::FlashErrorCode(0x30FF),
+                            })?;
+                        curr_sector += sector_size;
+                    }
+
+                    let page_size = 256usize;
+                    let mut offset = 0usize;
+                    while offset < data.len() {
+                        let chunk_len = (data.len() - offset).min(page_size);
+                        FlashAlgorithmRunner::stm32h5_program_page(&mut cortex, addr + offset as u32, &data[offset..offset + chunk_len])
+                            .map_err(|e| match e {
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x4000 | (code & 0xFF)),
+                                _ => TargetError::FlashErrorCode(0x40FF),
+                            })?;
+                        offset += chunk_len;
+                    }
+                    let _ = FlashAlgorithmRunner::stm32h5_lock(&mut cortex);
+                } else {
+                    // 1. Erase sector(s) covering destination
+                    let sector_size = 1024u32;
+                    let mut curr_sector = addr & !(sector_size - 1);
+                    let end_addr = addr + data.len() as u32;
+                    while curr_sector < end_addr {
+                        FlashAlgorithmRunner::stm32f1_erase_sector(&mut cortex, curr_sector)
+                            .map_err(|e| match e {
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x3000 | (code & 0xFF)),
+                                _ => TargetError::FlashErrorCode(0x30FF),
+                            })?;
+                        curr_sector += sector_size;
+                    }
+
+                    // 2. Program pages
+                    let page_size = 1024usize;
+                    let mut offset = 0usize;
+                    while offset < data.len() {
+                        let chunk_len = (data.len() - offset).min(page_size);
+                        FlashAlgorithmRunner::stm32f1_program_page(&mut cortex, addr + offset as u32, &data[offset..offset + chunk_len])
+                            .map_err(|e| match e {
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x4000 | (code & 0xFF)),
+                                _ => TargetError::FlashErrorCode(0x40FF),
+                            })?;
+                        offset += chunk_len;
+                    }
+                    // Lock flash before verify and resume
+                    let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
+                    let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
+                    let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
                 }
-                // Lock flash before verify and resume
-                let _ = cortex.swd.write_ap(crate::programmer::swd::AP_CSW, crate::programmer::swd::ADIV5_AP_CSW_DEFAULT);
-                let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
-                let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
 
                 // Verify
                 let mut readback = [0u8; 64];
@@ -682,6 +829,7 @@ pub fn connect_under_reset_port_global(port: TargetPort) -> Result<u32, TargetEr
         let res = match swd_session.connect_under_reset() {
             Ok(pc) => Ok(pc),
             Err(target::cortex_m::CortexError::ResetTimeout) => Err(TargetError::Timeout),
+            Err(target::cortex_m::CortexError::Diag(step, v1, v2)) => Err(TargetError::Diag(step, v1, v2)),
             Err(_) => Err(TargetError::ProtocolError),
         };
         *pins = swd_session.release();

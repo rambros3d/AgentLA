@@ -4,7 +4,7 @@
 
 use agentla_bsp::{
     AdapterPins, AnalogFrontendConfig, BoardFeatures, BoardProfile, CanPins, FlexiblePool,
-    I2cPins, McuPackage, ProgrammerPins, SpiPins, UartPins,
+    I2cPins, McuPackage, ProbeWireTopology, ProgrammerPins, SpiPins, UartPins,
 };
 
 pub const MANIFEST_JSON: &str = include_str!("../board.json");
@@ -57,6 +57,7 @@ impl BoardProfile for Pico2Board {
         },
         default_uart: UartPins { tx: 8, rx: 14 },
         default_ws2812: Some(22),
+        probe: Some(ProbeWireTopology::Combined { clk: 4, dio: 5 }),
     };
 
     const FLEXIBLE: FlexiblePool = FlexiblePool::new(10, 25);

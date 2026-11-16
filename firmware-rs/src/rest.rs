@@ -151,14 +151,18 @@ pub struct LogicAnalyzerDecodersConfigure;
 pub struct LogicAnalyzerTriggersConfigure;
 pub struct DecodedStreamWebSocket;
 pub struct ProgrammerTarget;
+pub struct ProgrammerMode;
+pub struct ProgrammerStLinkVersion;
 pub struct ProgrammerReset;
 pub struct ProgrammerResetCatch;
 pub struct ProgrammerRescueStm32;
 pub struct ProgrammerRescueNrf;
 pub struct ProgrammerErase;
+pub struct ProgrammerFlash;
 pub struct ProgrammerRead;
 pub struct ProgrammerRttStatus;
 pub struct ProgrammerRttStream;
+pub struct ProgrammerSwoStatus;
 pub struct BridgeState;
 pub struct BridgeI2cOn;
 pub struct BridgeI2cOff;
@@ -211,7 +215,7 @@ macro_rules! service {
     };
 }
 
-service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET");
+service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET"); service!(ProgrammerSwoStatus, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
@@ -778,6 +782,105 @@ impl MethodHandlerService<(), ()> for ProgrammerTarget {
     }
 }
 
+impl ProgrammerMode {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let method = request.parts.method();
+        if method == "GET" {
+            let mode = crate::usb::get_programmer_personality();
+            let mut resp = heapless::String::<128>::new();
+            let _ = write!(
+                resp,
+                r#"{{"status":"ok","mode":"{}"}}"#,
+                mode.as_str()
+            );
+            send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+        } else if method == "POST" {
+            let query = request.parts.query();
+            let body = read_body_str(&mut request).await;
+            let mode_str = key_str(query, &body, "mode");
+            if let Some(m_str) = mode_str {
+                if let Some(personality) = crate::usb::ProgrammerPersonality::from_str(&m_str) {
+                    let mut resp = heapless::String::<128>::new();
+                    let _ = write!(
+                        resp,
+                        r#"{{"status":"ok","mode":"{}","re-enumerating":true}}"#,
+                        personality.as_str()
+                    );
+                    let res = send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
+                    crate::usb::switch_programmer_personality(personality).await;
+                    return res;
+                }
+            }
+            send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"status":"error","message":"Invalid mode (choose 'cmsis', 'stlink', or 'wchlink')"}"#).await
+        } else {
+            send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"status":"error","message":"Method not allowed"}"#).await
+        }
+    }
+}
+
+impl MethodHandlerService<(), ()> for ProgrammerMode {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error=R::Error>>(
+        &self, _state: &(), (): (), _method: &str, request: Request<'_, R>, response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        ProgrammerMode::run(request, response_writer).await
+    }
+}
+
+impl ProgrammerStLinkVersion {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let method = request.parts.method();
+        if method == "GET" {
+            let ver = crate::usb::get_stlink_version();
+            let mut buf_cur = [0u8; 16];
+            let cur_str = agentla_programmer::stlink::format_version(ver, &mut buf_cur);
+            let mut buf_def = [0u8; 16];
+            let def_str = agentla_programmer::stlink::format_version(agentla_programmer::stlink::STLINK_VER_REPORTED, &mut buf_def);
+            let mut resp = heapless::String::<128>::new();
+            let _ = write!(
+                resp,
+                r#"{{"status":"ok","version":"{}","raw":{},"default":"{}"}}"#,
+                cur_str, ver, def_str
+            );
+            send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+        } else if method == "POST" {
+            let query = request.parts.query();
+            let body = read_body_str(&mut request).await;
+            let ver_param = key_str(query, &body, "version");
+            let target_ver = match ver_param.as_ref().map(|s| s.as_str()) {
+                Some("default") => Some(agentla_programmer::stlink::STLINK_VER_REPORTED),
+                Some(s) => agentla_programmer::stlink::parse_version(s),
+                None => None,
+            };
+            if let Some(new_ver) = target_ver {
+                crate::usb::save_stlink_version(new_ver);
+                let mut buf_cur = [0u8; 16];
+                let cur_str = agentla_programmer::stlink::format_version(new_ver, &mut buf_cur);
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(
+                    resp,
+                    r#"{{"status":"ok","version":"{}","raw":{}}}"#,
+                    cur_str, new_ver
+                );
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            } else {
+                send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"status":"error","message":"Invalid version format (expected e.g. 'V2J48M35' or 'default')"}"#).await
+            }
+        } else {
+            send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"status":"error","message":"Method not allowed"}"#).await
+        }
+    }
+}
+
+impl MethodHandlerService<(), ()> for ProgrammerStLinkVersion {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error=R::Error>>(
+        &self, _state: &(), (): (), _method: &str, request: Request<'_, R>, response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        ProgrammerStLinkVersion::run(request, response_writer).await
+    }
+}
+
 impl ProgrammerReset {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
@@ -879,8 +982,100 @@ impl ProgrammerRescueNrf {
 impl ProgrammerErase {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let _ = read_body_str(&mut request).await;
-        send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","erased":true,"mode":"mass"}"#).await
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let port_str = key_str(query, &body, "port");
+        let port = match port_str.as_ref().map(|s| s.as_str()) {
+            Some("ch32v203") => crate::programmer::TargetPort::Ch32v203,
+            Some("ch32v003") => crate::programmer::TargetPort::Ch32v003,
+            _ => crate::programmer::TargetPort::BluePill,
+        };
+        let addr = key_u32(query, &body, "addr").unwrap_or(0x08000000);
+        let len = key_u32(query, &body, "len").unwrap_or(8192);
+
+        match crate::programmer::erase_flash_port_global(port, addr, len) {
+            Ok(()) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"ok","erased":true,"addr":{},"len":{}}}"#, addr, len);
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"error","error":"{:?}"}}"#, e);
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, resp.as_str()).await
+            }
+        }
+    }
+}
+
+impl picoserve::routing::MethodHandlerService<(), ()> for ProgrammerFlash {
+    async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
+        &self,
+        _state: &(),
+        (): (),
+        method: &str,
+        mut request: Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if method != "POST" {
+            return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+
+        let query = request.parts.query();
+        let port_str = query_val(query, "port");
+        let port = match port_str.as_ref().map(|s| s.as_str()) {
+            Some("ch32v203") => crate::programmer::TargetPort::Ch32v203,
+            Some("ch32v003") => crate::programmer::TargetPort::Ch32v003,
+            _ => crate::programmer::TargetPort::BluePill,
+        };
+        let addr = query_val(query, "addr")
+            .and_then(|s| {
+                let st = s.as_str().trim();
+                if let Some(h) = st.strip_prefix("0x").or_else(|| st.strip_prefix("0X")) {
+                    u32::from_str_radix(h, 16).ok()
+                } else {
+                    st.parse::<u32>().ok()
+                }
+            })
+            .unwrap_or(0x08000000);
+
+        let mut reader = request
+            .body_connection
+            .body()
+            .reader()
+            .with_different_timeout(embassy_time::Duration::from_secs(30));
+
+        let mut buf = [0u8; 8192];
+        let mut total_len = 0usize;
+        loop {
+            match reader.read(&mut buf[total_len..]).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    total_len += n;
+                    if total_len >= buf.len() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        if total_len == 0 {
+            return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"empty_payload"}"#).await;
+        }
+
+        match crate::programmer::flash_target_port_global(port, addr, &buf[..total_len]) {
+            Ok(()) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"ok","flashed":true,"addr":{},"bytes_written":{}}}"#, addr, total_len);
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(e) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"error","error":"{:?}"}}"#, e);
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, resp.as_str()).await
+            }
+        }
     }
 }
 
@@ -908,6 +1103,15 @@ impl ProgrammerRead {
                 let mut resp = heapless::String::<160>::new();
                 let _ = write!(resp, r#"{{"status":"ok","port":"{:?}","addr":{},"len":16,"data_hex":"{}"}}"#, port, addr, hex.as_str());
                 send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(crate::programmer::TargetError::Diag(step, v1, v2)) => {
+                let mut resp = heapless::String::<160>::new();
+                let _ = write!(
+                    resp,
+                    r#"{{"status":"error","port":"{:?}","error":"Diag","diag_step":{},"v1":"0x{:08X}","v2":"0x{:08X}"}}"#,
+                    port, step, v1, v2
+                );
+                send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, resp.as_str()).await
             }
             Err(e) => {
                 let mut resp = heapless::String::<128>::new();
@@ -955,6 +1159,25 @@ impl ProgrammerRttStream {
                 send_json(request, response_writer, StatusCode::OK, r#"{"status":"error","message":"ERR RTT NOT FOUND"}"#).await
             }
         }
+    }
+}
+
+impl ProgrammerSwoStatus {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        let telem = crate::programmer::swo::SWO_ENGINE.telemetry();
+        let mut buf = heapless::String::<256>::new();
+        let _ = write!(
+            buf,
+            r#"{{"active":{},"baud_rate":{},"bytes_received":{},"bytes_delivered":{},"bytes_dropped":{}}}"#,
+            telem.active,
+            telem.baud_rate,
+            telem.bytes_received,
+            telem.bytes_delivered,
+            telem.bytes_dropped
+        );
+        send_json(request, response_writer, StatusCode::OK, buf.as_str()).await
     }
 }
 
