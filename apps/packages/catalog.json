@@ -3,6 +3,31 @@
   "name": "AgentLA Official Catalog",
   "apps": [
     {
+      "id": "barefoc",
+      "name": "BareFOC Studio",
+      "version": "1.0.0",
+      "author": "BareFOC Team",
+      "description": "Field-Oriented Control (FOC) motor workbench with cascaded PID/LPF tuning, 60 FPS oscilloscope, hardware alignment wizard, and multi-protocol diagnostics (Fibre, Commander, MultiBus).",
+      "category": "Robotics",
+      "tags": [
+        "Robotics",
+        "Motor",
+        "FOC",
+        "BLDC",
+        "Stepper",
+        "ODrive"
+      ],
+      "requires": [
+        "uart",
+        "can",
+        "gpio_flexible"
+      ],
+      "size_bytes": 112640,
+      "icon_url": "barefoc/icon.svg",
+      "app_url": "https://github.com/rambros3d/AgentLA/tree/embassy/apps/barefoc",
+      "package_url": "/packages/barefoc.tar"
+    },
+    {
       "id": "canbus",
       "name": "CAN Bus Analyzer",
       "version": "1.2.0",
