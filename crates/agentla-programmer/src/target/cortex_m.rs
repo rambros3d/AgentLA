@@ -114,17 +114,46 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     pub fn mem_read_block(&mut self, addr: u32, buf: &mut [u8]) -> Result<(), CortexError> {
         let mut offset = 0usize;
         let mut curr_addr = addr;
-        while offset + 4 <= buf.len() {
-            let val = self.mem_read32(curr_addr)?;
-            buf[offset..offset + 4].copy_from_slice(&val.to_le_bytes());
-            offset += 4;
-            curr_addr += 4;
-        }
-        if offset < buf.len() {
-            let val = self.mem_read32(curr_addr)?;
-            let bytes = val.to_le_bytes();
-            let rem = buf.len() - offset;
-            buf[offset..offset + rem].copy_from_slice(&bytes[..rem]);
+        while offset < buf.len() {
+            // TAR auto-increment is guaranteed only within 1 KiB
+            let boundary_rem = (1024 - (curr_addr & 1023)) as usize;
+            let chunk_len = boundary_rem.min(buf.len() - offset);
+
+            self.swd
+                .write_ap_port(self.apsel, AP_CSW, self.csw)
+                .map_err(|_| CortexError::SwdError)?;
+
+            let mut sub_offset = 0usize;
+            while sub_offset < chunk_len {
+                let sub_rem = chunk_len - sub_offset;
+                let sub_words = (sub_rem / 4).min(64);
+                let sub_addr = curr_addr + sub_offset as u32;
+
+                if sub_words > 0 {
+                    let mut words = [0u32; 64];
+                    self.swd
+                        .mem_read_chunk(self.apsel, sub_addr, &mut words[..sub_words])
+                        .map_err(|_| CortexError::SwdError)?;
+                    for i in 0..sub_words {
+                        let bytes = words[i].to_le_bytes();
+                        let target_idx = offset + sub_offset + i * 4;
+                        buf[target_idx..target_idx + 4].copy_from_slice(&bytes);
+                    }
+                    sub_offset += sub_words * 4;
+                } else {
+                    let mut single_word = [0u32; 1];
+                    self.swd
+                        .mem_read_chunk(self.apsel, sub_addr, &mut single_word)
+                        .map_err(|_| CortexError::SwdError)?;
+                    let bytes = single_word[0].to_le_bytes();
+                    let target_idx = offset + sub_offset;
+                    buf[target_idx..target_idx + sub_rem].copy_from_slice(&bytes[..sub_rem]);
+                    sub_offset += sub_rem;
+                }
+            }
+
+            offset += chunk_len;
+            curr_addr += chunk_len as u32;
         }
         Ok(())
     }
@@ -132,23 +161,50 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     pub fn mem_write_block(&mut self, addr: u32, data: &[u8]) -> Result<(), CortexError> {
         let mut offset = 0usize;
         let mut curr_addr = addr;
-        while offset + 4 <= data.len() {
-            let val = u32::from_le_bytes([
-                data[offset],
-                data[offset + 1],
-                data[offset + 2],
-                data[offset + 3],
-            ]);
-            self.mem_write32(curr_addr, val)?;
-            offset += 4;
-            curr_addr += 4;
-        }
-        if offset < data.len() {
-            let mut chunk = [0xFFu8; 4];
-            let rem = data.len() - offset;
-            chunk[..rem].copy_from_slice(&data[offset..]);
-            let val = u32::from_le_bytes(chunk);
-            self.mem_write32(curr_addr, val)?;
+        while offset < data.len() {
+            // TAR auto-increment is guaranteed only within 1 KiB
+            let boundary_rem = (1024 - (curr_addr & 1023)) as usize;
+            let chunk_len = boundary_rem.min(data.len() - offset);
+
+            self.swd
+                .write_ap_port(self.apsel, AP_CSW, self.csw)
+                .map_err(|_| CortexError::SwdError)?;
+
+            let mut sub_offset = 0usize;
+            while sub_offset < chunk_len {
+                let sub_rem = chunk_len - sub_offset;
+                let sub_words = (sub_rem / 4).min(64);
+                let sub_addr = curr_addr + sub_offset as u32;
+
+                if sub_words > 0 {
+                    let mut words = [0u32; 64];
+                    for i in 0..sub_words {
+                        let idx = offset + sub_offset + i * 4;
+                        words[i] = u32::from_le_bytes([
+                            data[idx],
+                            data[idx + 1],
+                            data[idx + 2],
+                            data[idx + 3],
+                        ]);
+                    }
+                    self.swd
+                        .mem_write_chunk(self.apsel, sub_addr, &words[..sub_words])
+                        .map_err(|_| CortexError::SwdError)?;
+                    sub_offset += sub_words * 4;
+                } else {
+                    let mut chunk = [0xFFu8; 4];
+                    let idx = offset + sub_offset;
+                    chunk[..sub_rem].copy_from_slice(&data[idx..idx + sub_rem]);
+                    let single_word = [u32::from_le_bytes(chunk)];
+                    self.swd
+                        .mem_write_chunk(self.apsel, sub_addr, &single_word)
+                        .map_err(|_| CortexError::SwdError)?;
+                    sub_offset += sub_rem;
+                }
+            }
+
+            offset += chunk_len;
+            curr_addr += chunk_len as u32;
         }
         Ok(())
     }

@@ -369,6 +369,7 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
                     let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
                     let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
                 }
+                let _ = cortex.resume();
                 *pins = swd_session.release();
                 Ok(())
             }
@@ -550,6 +551,7 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                     }
                     v_offset += chunk_len;
                 }
+                let _ = cortex.resume();
                 *pins = swd_session.release();
                 Ok(())
             }

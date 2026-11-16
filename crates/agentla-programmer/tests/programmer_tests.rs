@@ -780,3 +780,56 @@ fn test_wchlink_speed_tier_command() {
     assert_eq!(resp[1], 0x81); // unknown error reply
     assert_eq!(resp[3], 0xFF);
 }
+
+#[test]
+fn test_cmsis_dap_match_value_and_mask() {
+    let mut mock = MockSwd::new();
+    // DP 0x04 (CTRLSTAT) = 0xF0000000
+    mock.dp_regs.insert(DP_CTRLSTAT, 0xF0000000);
+
+    let mut handler = CmsisDapHandler::new(mock);
+    let mut resp = [0u8; 64];
+
+    // Connect
+    handler.handle_packet(&[DAP_CONNECT, 0x01], &mut resp);
+
+    // 1. Configure Transfer with match retry = 10
+    let config_cmd = [DAP_TRANSFER_CONFIGURE, 0, 100, 0, 10, 0];
+    let len = handler.handle_packet(&config_cmd, &mut resp);
+    assert_eq!(len, 2);
+    assert_eq!(resp[0], DAP_TRANSFER_CONFIGURE);
+    assert_eq!(resp[1], 0);
+
+    // 2. Transfer with MATCH_MASK and MATCH_VALUE matching DP_CTRLSTAT
+    // Request 2 operations:
+    // Op 0: Match Mask = 0xF0000000 (req byte 0x20)
+    // Op 1: Match Value for DP reg 0x04 = 0xF0000000 (req byte 0x12: is_read=1, a23=1 -> reg 4, match_value=1)
+    let transfer_cmd = [
+        DAP_TRANSFER,
+        0x00, // dap index
+        0x02, // 2 transfers
+        0x20, // Match Mask
+        0x00, 0x00, 0x00, 0xF0, // mask = 0xF0000000
+        0x16, // Read DP reg 0x04 (RnW=1, A23=1 -> 0x04 | 0x02 = 0x06 | 0x10 = 0x16)
+        0x00, 0x00, 0x00, 0xF0, // expected = 0xF0000000
+    ];
+    let _len = handler.handle_packet(&transfer_cmd, &mut resp);
+    assert_eq!(resp[0], DAP_TRANSFER);
+    assert_eq!(resp[1], 2); // 2 transfers completed
+    assert_eq!(resp[2], DAP_TRANSFER_OK); // ACK OK
+
+    // 3. Transfer with mismatch
+    let transfer_mismatch = [
+        DAP_TRANSFER,
+        0x00,
+        0x02,
+        0x20, // Match Mask
+        0x00, 0x00, 0x00, 0xF0,
+        0x16, // Read DP reg 0x04
+        0x00, 0x00, 0x00, 0x10, // expected = 0x10000000 (will mismatch 0xF0000000)
+    ];
+    let _len = handler.handle_packet(&transfer_mismatch, &mut resp);
+    assert_eq!(resp[0], DAP_TRANSFER);
+    assert_eq!(resp[1], 1); // 1 transfer completed before mismatch
+    assert_eq!(resp[2], DAP_TRANSFER_MISMATCH | DAP_TRANSFER_OK); // 0x11
+}

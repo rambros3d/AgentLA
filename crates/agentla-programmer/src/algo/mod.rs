@@ -333,13 +333,8 @@ impl FlashAlgorithmRunner {
     ) -> Result<(), AlgoError> {
         Self::stm32h5_unlock(cortex)?;
 
-        let (snb, bksel) = if sector_addr >= 0x08010000 {
-            ((sector_addr - 0x08010000) / 8192, 1u32 << 31)
-        } else {
-            ((sector_addr - 0x08000000) / 8192, 0u32)
-        };
-
-        let cr = (1 << 2) | (1 << 5) | bksel | ((snb & 0x7F) << 6);
+        let snb = (sector_addr.saturating_sub(0x08000000)) / 8192;
+        let cr = (1 << 2) | (1 << 5) | ((snb & 0x7F) << 6);
         cortex.mem_write32(0x40022028, cr).map_err(|_| AlgoError::SwdError)?;
 
         Self::stm32h5_wait_bsy(cortex)?;

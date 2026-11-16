@@ -71,6 +71,8 @@ pub trait Adiv5Access {
     fn read_dpidr_retry(&mut self, idcode: &mut u32) -> Result<(), SwdError>;
     fn dormant_to_swd(&mut self) -> Result<(), SwdError>;
     fn assert_reset(&mut self, assert: bool) -> Result<(), SwdError>;
+    fn mem_read_chunk(&mut self, apsel: u8, addr: u32, words: &mut [u32]) -> Result<(), SwdError>;
+    fn mem_write_chunk(&mut self, apsel: u8, addr: u32, words: &[u32]) -> Result<(), SwdError>;
 }
 
 /// Generic ADIv5 state machine operating over any `SwdIo` transport.
@@ -298,6 +300,97 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
             .assert_reset(assert)
             .map_err(|_| SwdError::ProtocolError)
     }
+
+    fn mem_read_chunk(&mut self, apsel: u8, addr: u32, words: &mut [u32]) -> Result<(), SwdError> {
+        if words.is_empty() {
+            return Ok(());
+        }
+        self.write_ap_port(apsel, AP_TAR, addr)?;
+        let drw_read_req = build_request(true, true, (AP_DRW >> 2) & 3);
+        let rdbuff_read_req = build_request(false, true, (DP_RDBUFF >> 2) & 3);
+
+        let mut ok = false;
+        for _ in 0..200 {
+            match self.transport.transfer(drw_read_req, None) {
+                Ok((SWD_ACK_OK, _)) => {
+                    ok = true;
+                    break;
+                }
+                Ok((SWD_ACK_WAIT, _)) => {
+                    delay_cycles(300);
+                    continue;
+                }
+                _ => {
+                    let _ = self.recover_from_ack_error();
+                    break;
+                }
+            }
+        }
+        if !ok {
+            return Err(SwdError::Timeout);
+        }
+
+        for i in 0..words.len() {
+            let last = i + 1 == words.len();
+            let req = if last { rdbuff_read_req } else { drw_read_req };
+            let mut word_ok = false;
+            for _ in 0..200 {
+                match self.transport.transfer(req, None) {
+                    Ok((SWD_ACK_OK, data)) => {
+                        words[i] = data;
+                        word_ok = true;
+                        break;
+                    }
+                    Ok((SWD_ACK_WAIT, _)) => {
+                        delay_cycles(300);
+                        continue;
+                    }
+                    _ => {
+                        let _ = self.recover_from_ack_error();
+                        break;
+                    }
+                }
+            }
+            if !word_ok {
+                return Err(SwdError::Timeout);
+            }
+        }
+        Ok(())
+    }
+
+    fn mem_write_chunk(&mut self, apsel: u8, addr: u32, words: &[u32]) -> Result<(), SwdError> {
+        if words.is_empty() {
+            return Ok(());
+        }
+        self.write_ap_port(apsel, AP_TAR, addr)?;
+        let drw_write_req = build_request(true, false, (AP_DRW >> 2) & 3);
+        let rdbuff_read_req = build_request(false, true, (DP_RDBUFF >> 2) & 3);
+
+        for &val in words {
+            let mut word_ok = false;
+            for _ in 0..500 {
+                match self.transport.transfer(drw_write_req, Some(val)) {
+                    Ok((SWD_ACK_OK, _)) => {
+                        word_ok = true;
+                        break;
+                    }
+                    Ok((SWD_ACK_WAIT, _)) => {
+                        delay_cycles(300);
+                        continue;
+                    }
+                    _ => {
+                        let _ = self.recover_from_ack_error();
+                        break;
+                    }
+                }
+            }
+            if !word_ok {
+                return Err(SwdError::Timeout);
+            }
+        }
+        let _ = self.transport.transfer(rdbuff_read_req, None);
+        Ok(())
+    }
 }
 
 impl<T: Adiv5Access + ?Sized> Adiv5Access for &mut T {
@@ -342,5 +435,11 @@ impl<T: Adiv5Access + ?Sized> Adiv5Access for &mut T {
     }
     fn assert_reset(&mut self, assert: bool) -> Result<(), SwdError> {
         (**self).assert_reset(assert)
+    }
+    fn mem_read_chunk(&mut self, apsel: u8, addr: u32, words: &mut [u32]) -> Result<(), SwdError> {
+        (**self).mem_read_chunk(apsel, addr, words)
+    }
+    fn mem_write_chunk(&mut self, apsel: u8, addr: u32, words: &[u32]) -> Result<(), SwdError> {
+        (**self).mem_write_chunk(apsel, addr, words)
     }
 }

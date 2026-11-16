@@ -29,12 +29,15 @@ pub const DAP_TRANSFER_OK: u8 = 0x01;
 pub const DAP_TRANSFER_WAIT: u8 = 0x02;
 pub const DAP_TRANSFER_FAULT: u8 = 0x04;
 pub const DAP_TRANSFER_ERROR: u8 = 0x08;
-pub const DAP_TRANSFER_NO_ACK: u8 = 0x10;
+pub const DAP_TRANSFER_MISMATCH: u8 = 0x10;
+pub const DAP_TRANSFER_NO_ACK: u8 = 0x07;
 
 pub struct CmsisDapHandler<T: SwdIo> {
     pub transport: T,
     pub idle_cycles: u8,
     pub wait_retry: u16,
+    pub match_retry: u16,
+    pub match_mask: u32,
     pub connected: bool,
 }
 
@@ -44,6 +47,8 @@ impl<T: SwdIo> CmsisDapHandler<T> {
             transport,
             idle_cycles: 0,
             wait_retry: 100,
+            match_retry: 100,
+            match_mask: 0,
             connected: false,
         }
     }
@@ -196,6 +201,9 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         if req.len() >= 4 {
             self.idle_cycles = req[1];
             self.wait_retry = (req[2] as u16) | ((req[3] as u16) << 8);
+            if req.len() >= 6 {
+                self.match_retry = (req[4] as u16) | ((req[5] as u16) << 8);
+            }
             self.transport.set_idle_cycles(self.idle_cycles);
         }
         resp[1] = 0;
@@ -220,6 +228,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         let mut response_count = 0u8;
         let mut post_read = false;
         let wait_retry = self.wait_retry;
+        let match_retry = self.match_retry;
 
         for _ in 0..request_count {
             if req_idx >= req.len() {
@@ -233,10 +242,49 @@ impl<T: SwdIo> CmsisDapHandler<T> {
             let is_ap = (req_byte & 0x01) != 0;
             let is_read = (req_byte & 0x02) != 0;
             let a23 = (req_byte >> 2) & 0x03;
+            let match_value = (req_byte & 0x10) != 0;
+            let match_mask = (req_byte & 0x20) != 0;
             let wire_req = build_request(is_ap, is_read, a23);
 
             if !is_read {
-                // Write transfer
+                // Write transfer (or Match Mask)
+                if post_read {
+                    let rdbuff_wire = build_request(false, true, 3);
+                    let mut prev_data = 0u32;
+                    let mut ack = SWD_ACK_OK;
+                    for _ in 0..wait_retry {
+                        match self.transport.transfer(rdbuff_wire, None) {
+                            Ok((a, data)) => {
+                                ack = a;
+                                prev_data = data;
+                                if ack != SWD_ACK_WAIT {
+                                    break;
+                                }
+                            }
+                            Err(_) => {
+                                ack = SWD_ACK_TIMEOUT;
+                                break;
+                            }
+                        }
+                        delay_cycles(1500);
+                    }
+                    if ack != SWD_ACK_OK {
+                        resp[2] = if ack == SWD_ACK_WAIT {
+                            DAP_TRANSFER_WAIT
+                        } else if ack == SWD_ACK_FAULT {
+                            DAP_TRANSFER_FAULT
+                        } else {
+                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        };
+                        break;
+                    }
+                    if resp_idx + 4 <= resp.len() {
+                        resp[resp_idx..resp_idx + 4].copy_from_slice(&prev_data.to_le_bytes());
+                        resp_idx += 4;
+                    }
+                    post_read = false;
+                }
+
                 if req_idx + 4 > req.len() {
                     resp[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
                     break;
@@ -248,6 +296,12 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                     req[req_idx + 3],
                 ]);
                 req_idx += 4;
+
+                if match_mask {
+                    self.match_mask = val;
+                    response_count += 1;
+                    continue;
+                }
 
                 let mut ack = SWD_ACK_OK;
                 for _ in 0..wait_retry {
@@ -278,26 +332,48 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 }
                 response_count += 1;
             } else {
-                // Read transfer
+                // Read transfer (or Match Value)
                 if post_read {
                     let mut prev_data = 0u32;
                     let mut ack = SWD_ACK_OK;
-                    for _ in 0..wait_retry {
-                        match self.transport.transfer(wire_req, None) {
-                            Ok((a, data)) => {
-                                ack = a;
-                                prev_data = data;
-                                if ack != SWD_ACK_WAIT {
+                    if is_ap && !match_value {
+                        for _ in 0..wait_retry {
+                            match self.transport.transfer(wire_req, None) {
+                                Ok((a, data)) => {
+                                    ack = a;
+                                    prev_data = data;
+                                    if ack != SWD_ACK_WAIT {
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    ack = SWD_ACK_TIMEOUT;
                                     break;
                                 }
                             }
-                            Err(_) => {
-                                ack = SWD_ACK_TIMEOUT;
-                                break;
-                            }
+                            delay_cycles(1500);
                         }
-                        delay_cycles(1500);
+                    } else {
+                        let rdbuff_wire = build_request(false, true, 3);
+                        for _ in 0..wait_retry {
+                            match self.transport.transfer(rdbuff_wire, None) {
+                                Ok((a, data)) => {
+                                    ack = a;
+                                    prev_data = data;
+                                    if ack != SWD_ACK_WAIT {
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    ack = SWD_ACK_TIMEOUT;
+                                    break;
+                                }
+                            }
+                            delay_cycles(1500);
+                        }
+                        post_read = false;
                     }
+
                     if ack != SWD_ACK_OK {
                         resp[2] = if ack == SWD_ACK_WAIT {
                             DAP_TRANSFER_WAIT
@@ -312,69 +388,168 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                         resp[resp_idx..resp_idx + 4].copy_from_slice(&prev_data.to_le_bytes());
                         resp_idx += 4;
                     }
-                } else if is_ap {
-                    let mut ack = SWD_ACK_OK;
-                    for _ in 0..wait_retry {
-                        match self.transport.transfer(wire_req, None) {
-                            Ok((a, _)) => {
-                                ack = a;
-                                if ack != SWD_ACK_WAIT {
-                                    break;
-                                }
-                            }
-                            Err(_) => {
-                                ack = SWD_ACK_TIMEOUT;
-                                break;
-                            }
-                        }
-                        delay_cycles(1500);
-                    }
-                    if ack != SWD_ACK_OK {
-                        resp[2] = if ack == SWD_ACK_WAIT {
-                            DAP_TRANSFER_WAIT
-                        } else if ack == SWD_ACK_FAULT {
-                            DAP_TRANSFER_FAULT
-                        } else {
-                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
-                        };
-                        break;
-                    }
-                    post_read = true;
-                } else {
-                    let mut dp_data = 0u32;
-                    let mut ack = SWD_ACK_OK;
-                    for _ in 0..wait_retry {
-                        match self.transport.transfer(wire_req, None) {
-                            Ok((a, data)) => {
-                                ack = a;
-                                dp_data = data;
-                                if ack != SWD_ACK_WAIT {
-                                    break;
-                                }
-                            }
-                            Err(_) => {
-                                ack = SWD_ACK_TIMEOUT;
-                                break;
-                            }
-                        }
-                        delay_cycles(1500);
-                    }
-                    if ack != SWD_ACK_OK {
-                        resp[2] = if ack == SWD_ACK_WAIT {
-                            DAP_TRANSFER_WAIT
-                        } else if ack == SWD_ACK_FAULT {
-                            DAP_TRANSFER_FAULT
-                        } else {
-                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
-                        };
-                        break;
-                    }
-                    if resp_idx + 4 <= resp.len() {
-                        resp[resp_idx..resp_idx + 4].copy_from_slice(&dp_data.to_le_bytes());
-                        resp_idx += 4;
-                    }
                 }
-                response_count += 1;
+
+                if match_value {
+                    if req_idx + 4 > req.len() {
+                        resp[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                        break;
+                    }
+                    let expected_val = u32::from_le_bytes([
+                        req[req_idx],
+                        req[req_idx + 1],
+                        req[req_idx + 2],
+                        req[req_idx + 3],
+                    ]);
+                    req_idx += 4;
+
+                    let mut ack = SWD_ACK_OK;
+                    if is_ap {
+                        for _ in 0..wait_retry {
+                            match self.transport.transfer(wire_req, None) {
+                                Ok((a, _)) => {
+                                    ack = a;
+                                    if ack != SWD_ACK_WAIT {
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    ack = SWD_ACK_TIMEOUT;
+                                    break;
+                                }
+                            }
+                            delay_cycles(1500);
+                        }
+                        if ack != SWD_ACK_OK {
+                            resp[2] = if ack == SWD_ACK_WAIT {
+                                DAP_TRANSFER_WAIT
+                            } else if ack == SWD_ACK_FAULT {
+                                DAP_TRANSFER_FAULT
+                            } else {
+                                DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                            };
+                            break;
+                        }
+                    }
+
+                    let mut matched = false;
+                    let mut read_val = 0u32;
+                    let mut retry_count = match_retry;
+                    loop {
+                        ack = SWD_ACK_OK;
+                        for _ in 0..wait_retry {
+                            match self.transport.transfer(wire_req, None) {
+                                Ok((a, data)) => {
+                                    ack = a;
+                                    read_val = data;
+                                    if ack != SWD_ACK_WAIT {
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    ack = SWD_ACK_TIMEOUT;
+                                    break;
+                                }
+                            }
+                            delay_cycles(1500);
+                        }
+                        if ack != SWD_ACK_OK {
+                            break;
+                        }
+                        if (read_val & self.match_mask) == expected_val {
+                            matched = true;
+                            break;
+                        }
+                        if retry_count == 0 {
+                            break;
+                        }
+                        retry_count -= 1;
+                        delay_cycles(1500);
+                    }
+
+                    if ack != SWD_ACK_OK {
+                        resp[2] = if ack == SWD_ACK_WAIT {
+                            DAP_TRANSFER_WAIT
+                        } else if ack == SWD_ACK_FAULT {
+                            DAP_TRANSFER_FAULT
+                        } else {
+                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        };
+                        break;
+                    }
+
+                    if !matched {
+                        resp[2] = DAP_TRANSFER_MISMATCH | DAP_TRANSFER_OK;
+                        break;
+                    }
+                    response_count += 1;
+                } else if !post_read {
+                    if is_ap {
+                        let mut ack = SWD_ACK_OK;
+                        for _ in 0..wait_retry {
+                            match self.transport.transfer(wire_req, None) {
+                                Ok((a, _)) => {
+                                    ack = a;
+                                    if ack != SWD_ACK_WAIT {
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    ack = SWD_ACK_TIMEOUT;
+                                    break;
+                                }
+                            }
+                            delay_cycles(1500);
+                        }
+                        if ack != SWD_ACK_OK {
+                            resp[2] = if ack == SWD_ACK_WAIT {
+                                DAP_TRANSFER_WAIT
+                            } else if ack == SWD_ACK_FAULT {
+                                DAP_TRANSFER_FAULT
+                            } else {
+                                DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                            };
+                            break;
+                        }
+                        post_read = true;
+                    } else {
+                        let mut dp_data = 0u32;
+                        let mut ack = SWD_ACK_OK;
+                        for _ in 0..wait_retry {
+                            match self.transport.transfer(wire_req, None) {
+                                Ok((a, data)) => {
+                                    ack = a;
+                                    dp_data = data;
+                                    if ack != SWD_ACK_WAIT {
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    ack = SWD_ACK_TIMEOUT;
+                                    break;
+                                }
+                            }
+                            delay_cycles(1500);
+                        }
+                        if ack != SWD_ACK_OK {
+                            resp[2] = if ack == SWD_ACK_WAIT {
+                                DAP_TRANSFER_WAIT
+                            } else if ack == SWD_ACK_FAULT {
+                                DAP_TRANSFER_FAULT
+                            } else {
+                                DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                            };
+                            break;
+                        }
+                        if resp_idx + 4 <= resp.len() {
+                            resp[resp_idx..resp_idx + 4].copy_from_slice(&dp_data.to_le_bytes());
+                            resp_idx += 4;
+                        }
+                    }
+                    response_count += 1;
+                } else {
+                    response_count += 1;
+                }
             }
         }
 
@@ -449,11 +624,53 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         let wait_retry = self.wait_retry;
 
         if is_read {
-            for _ in 0..count {
-                let mut data = 0u32;
+            if is_ap {
+                // Post the first AP read
                 let mut ack = SWD_ACK_OK;
                 for _ in 0..wait_retry {
                     match self.transport.transfer(wire_req, None) {
+                        Ok((a, _)) => {
+                            ack = a;
+                            if ack != SWD_ACK_WAIT {
+                                break;
+                            }
+                        }
+                        Err(_) => {
+                            ack = SWD_ACK_TIMEOUT;
+                            break;
+                        }
+                    }
+                    delay_cycles(1500);
+                }
+                if ack != SWD_ACK_OK {
+                    resp[3] = if ack == SWD_ACK_WAIT {
+                        DAP_TRANSFER_WAIT
+                    } else if ack == SWD_ACK_FAULT {
+                        DAP_TRANSFER_FAULT
+                    } else {
+                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                    };
+                    resp[1] = 0;
+                    resp[2] = 0;
+                    return 4;
+                }
+            }
+
+            let rdbuff_wire = build_request(false, true, 3);
+            for i in 0..count {
+                let mut data = 0u32;
+                let mut ack = SWD_ACK_OK;
+                let req_wire = if is_ap {
+                    if i + 1 == count {
+                        rdbuff_wire
+                    } else {
+                        wire_req
+                    }
+                } else {
+                    wire_req
+                };
+                for _ in 0..wait_retry {
+                    match self.transport.transfer(req_wire, None) {
                         Ok((a, d)) => {
                             ack = a;
                             data = d;
@@ -525,6 +742,11 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                     break;
                 }
                 completed += 1;
+            }
+
+            if resp[3] == DAP_TRANSFER_OK && completed > 0 {
+                let rdbuff_wire = build_request(false, true, 3);
+                let _ = self.transport.transfer(rdbuff_wire, None);
             }
         }
 

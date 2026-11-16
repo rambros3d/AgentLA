@@ -286,6 +286,27 @@ pub fn h7_dualbank_program_page<M: TargetMemAccess>(
 // ----------------------------------------------------------------------------
 // 5. STM32H5 128-Bit Quad-Word Flash Engine
 // ----------------------------------------------------------------------------
+pub fn h5_unlock<M: TargetMemAccess>(mem: &mut M, desc: &TargetDescriptor) -> Result<(), TargetError> {
+    let nscr_addr = desc.reg_base + 0x28;
+    let nskeyr_addr = desc.reg_base + 0x04;
+    let cr = mem.read32(nscr_addr).map_err(|_| TargetError::BusError)?;
+    if (cr & 0x01) != 0 {
+        mem.write32(nskeyr_addr, desc.keys.0).map_err(|_| TargetError::BusError)?;
+        mem.write32(nskeyr_addr, desc.keys.1).map_err(|_| TargetError::BusError)?;
+        let cr_after = mem.read32(nscr_addr).map_err(|_| TargetError::BusError)?;
+        if (cr_after & 0x01) != 0 {
+            return Err(TargetError::UnlockFailed);
+        }
+    }
+    Ok(())
+}
+
+pub fn h5_lock<M: TargetMemAccess>(mem: &mut M, desc: &TargetDescriptor) -> Result<(), TargetError> {
+    let nscr_addr = desc.reg_base + 0x28;
+    mem.write32(nscr_addr, 1 << 0).map_err(|_| TargetError::BusError)?;
+    Ok(())
+}
+
 pub fn h5_erase_sector<M: TargetMemAccess>(
     mem: &mut M,
     desc: &TargetDescriptor,
@@ -293,15 +314,9 @@ pub fn h5_erase_sector<M: TargetMemAccess>(
 ) -> Result<(), TargetError> {
     let nscr_addr = desc.reg_base + 0x28;
     let nssr_addr = desc.reg_base + 0x20;
-    let nskeyr_addr = desc.reg_base + 0x04;
     let nsccr_addr = desc.reg_base + 0x30;
 
-    // Unlock
-    let cr = mem.read32(nscr_addr).map_err(|_| TargetError::BusError)?;
-    if (cr & 0x01) != 0 {
-        mem.write32(nskeyr_addr, desc.keys.0).map_err(|_| TargetError::BusError)?;
-        mem.write32(nskeyr_addr, desc.keys.1).map_err(|_| TargetError::BusError)?;
-    }
+    h5_unlock(mem, desc)?;
     let _ = mem.write32(nsccr_addr, 0x001F0000);
 
     // Wait initial busy
@@ -312,8 +327,9 @@ pub fn h5_erase_sector<M: TargetMemAccess>(
         }
     }
 
-    let (snb, bksel) = if sector_addr >= (desc.flash_base + 0x10000) {
-        ((sector_addr - (desc.flash_base + 0x10000)) / desc.sector_size, 1u32 << 31)
+    let is_dual_bank = desc.flash_size > 128 * 1024;
+    let (snb, bksel) = if is_dual_bank && sector_addr >= (desc.flash_base + (desc.flash_size / 2)) {
+        ((sector_addr - (desc.flash_base + (desc.flash_size / 2))) / desc.sector_size, 1u32 << 31)
     } else {
         ((sector_addr - desc.flash_base) / desc.sector_size, 0u32)
     };
@@ -344,14 +360,9 @@ pub fn h5_program_page<M: TargetMemAccess>(
 ) -> Result<(), TargetError> {
     let nscr_addr = desc.reg_base + 0x28;
     let nssr_addr = desc.reg_base + 0x20;
-    let nskeyr_addr = desc.reg_base + 0x04;
     let nsccr_addr = desc.reg_base + 0x30;
 
-    let cr = mem.read32(nscr_addr).map_err(|_| TargetError::BusError)?;
-    if (cr & 0x01) != 0 {
-        mem.write32(nskeyr_addr, desc.keys.0).map_err(|_| TargetError::BusError)?;
-        mem.write32(nskeyr_addr, desc.keys.1).map_err(|_| TargetError::BusError)?;
-    }
+    h5_unlock(mem, desc)?;
     let _ = mem.write32(nsccr_addr, 0x001F0000);
 
     mem.write32(nscr_addr, 1 << 1).map_err(|_| TargetError::BusError)?; // PG=1

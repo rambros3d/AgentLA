@@ -74,6 +74,7 @@ with open("/dev/hidraw5", "r+b", buffering=0) as f:
 
         # 6. Clear Aborts & Power Up Debug
         resp = dap_transfer([(0x00, 0x0000001E), (0x04, 0x50000000)])
+        print(f"[*] Step 6 resp: count={resp[1]} ack=0x{resp[2]:02X}")
         assert resp[2] == 1, "Clear aborts and power up failed"
         resp = dap_transfer([(0x06, None)])
         ctrlstat = int.from_bytes(resp[3:7], "little")

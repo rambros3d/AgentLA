@@ -222,6 +222,9 @@ impl SwdTransport {
 
         sm.pinctrl().write(|w| {
             w.set_sideset_base(clk_pin as u8);
+            // With side_en=true (optional side-set), the side-set field width in PINCTRL must be 2:
+            // 1 bit for the side-set enable flag (MSB), and 1 bit for the SWCLK GPIO value.
+            // This drives exactly 1 pin (clk_pin) and leaves 3 bits (10:8) for instruction delay.
             w.set_sideset_count(2);
             w.set_out_base(dio_out_pin as u8);
             w.set_out_count(1);
@@ -484,7 +487,6 @@ impl SwdTransport {
         self.write_bits(8, request as u32);
         let raw_ack = self.read_bits((self.turnaround + 3) as u32);
         let ack = (raw_ack >> self.turnaround) as u8 & 0x07;
-
         let is_read = (request & (1 << 2)) != 0;
 
         if ack == SWD_ACK_OK {
@@ -493,22 +495,22 @@ impl SwdTransport {
                 let bit = self.read_bits(1) as u8;
                 let parity = (val.count_ones() & 1) as u8;
                 if parity != bit {
-                    self.hiz_clocks(self.turnaround as u32);
                     return SWD_ACK_PARITY_ERR;
                 }
                 *data = val;
-                self.hiz_clocks(self.turnaround as u32);
             } else {
-                self.hiz_clocks(self.turnaround as u32);
+                // Do not pulse an extra turnaround clock on write with single-pin SWDIO.
+                // Target has completed ACK bit 2 with SWCLK low.
+                // Directly initiating write_bits asserts pindirs=output and drives
+                // WDATA[0] while SWCLK is low, avoiding a 1-bit shift and parity fault.
                 let val = *data;
                 self.write_bits(32, val);
-                let parity = val.count_ones() & 1;
+                let parity = (val.count_ones() & 1) as u32;
                 self.write_bits(1, parity);
             }
 
-            if self.idle_cycles > 0 {
-                self.write_bits(self.idle_cycles as u32, 0);
-            }
+            let idle = core::cmp::max(self.idle_cycles, 2);
+            self.write_bits(idle as u32, 0);
             return SWD_ACK_OK;
         }
 
@@ -689,6 +691,106 @@ impl SwdTransport {
         }
         let _ = self.write_dp(DP_ABORT, 0x0000001E);
         Err(SwdError::Timeout)
+    }
+
+    pub fn mem_read_chunk(&mut self, apsel: u8, addr: u32, words: &mut [u32]) -> Result<(), SwdError> {
+        if words.is_empty() {
+            return Ok(());
+        }
+        self.write_ap_port(apsel, crate::swd::AP_TAR, addr)?;
+        let drw_read_req = Self::build_request(true, true, (crate::swd::AP_DRW >> 2) & 3);
+        let rdbuff_read_req = Self::build_request(false, true, (crate::swd::DP_RDBUFF >> 2) & 3);
+
+        let mut dummy = 0u32;
+        let mut ok = false;
+        for _ in 0..200 {
+            let ack = self.transfer_raw(drw_read_req, &mut dummy);
+            if ack == SWD_ACK_OK {
+                ok = true;
+                break;
+            } else if ack == SWD_ACK_WAIT {
+                delay_cycles(150);
+                continue;
+            } else if ack == SWD_ACK_FAULT {
+                let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                delay_cycles(150);
+                continue;
+            } else {
+                let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                return Err(SwdError::ProtocolError);
+            }
+        }
+        if !ok {
+            let _ = self.write_dp(DP_ABORT, 0x0000001E);
+            return Err(SwdError::Timeout);
+        }
+
+        for i in 0..words.len() {
+            let last = i + 1 == words.len();
+            let req = if last { rdbuff_read_req } else { drw_read_req };
+            let mut word_ok = false;
+            for _ in 0..200 {
+                let ack = self.transfer_raw(req, &mut words[i]);
+                if ack == SWD_ACK_OK {
+                    word_ok = true;
+                    break;
+                } else if ack == SWD_ACK_WAIT {
+                    delay_cycles(150);
+                    continue;
+                } else if ack == SWD_ACK_FAULT {
+                    let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                    delay_cycles(150);
+                    continue;
+                } else {
+                    let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                    return Err(SwdError::ProtocolError);
+                }
+            }
+            if !word_ok {
+                let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                return Err(SwdError::Timeout);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn mem_write_chunk(&mut self, apsel: u8, addr: u32, words: &[u32]) -> Result<(), SwdError> {
+        if words.is_empty() {
+            return Ok(());
+        }
+        self.write_ap_port(apsel, crate::swd::AP_TAR, addr)?;
+        let drw_write_req = Self::build_request(true, false, (crate::swd::AP_DRW >> 2) & 3);
+        let rdbuff_read_req = Self::build_request(false, true, (crate::swd::DP_RDBUFF >> 2) & 3);
+
+        for &val in words {
+            let mut word_val = val;
+            let mut word_ok = false;
+            for _ in 0..500 {
+                let ack = self.transfer_raw(drw_write_req, &mut word_val);
+                if ack == SWD_ACK_OK {
+                    word_ok = true;
+                    break;
+                } else if ack == SWD_ACK_WAIT {
+                    delay_cycles(150);
+                    continue;
+                } else if ack == SWD_ACK_FAULT {
+                    let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                    delay_cycles(150);
+                    continue;
+                } else {
+                    let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                    return Err(SwdError::ProtocolError);
+                }
+            }
+            if !word_ok {
+                let _ = self.write_dp(DP_ABORT, 0x0000001E);
+                return Err(SwdError::Timeout);
+            }
+        }
+
+        let mut dummy = 0u32;
+        let _ = self.transfer_raw(rdbuff_read_req, &mut dummy);
+        Ok(())
     }
 
     pub fn assert_reset(&mut self, assert: bool) {
@@ -1007,5 +1109,13 @@ impl Adiv5Access for SwdTransport {
 
     fn assert_reset(&mut self, assert: bool) -> Result<(), SwdError> {
         SwdIo::assert_reset(self, assert)
+    }
+
+    fn mem_read_chunk(&mut self, apsel: u8, addr: u32, words: &mut [u32]) -> Result<(), SwdError> {
+        SwdTransport::mem_read_chunk(self, apsel, addr, words)
+    }
+
+    fn mem_write_chunk(&mut self, apsel: u8, addr: u32, words: &[u32]) -> Result<(), SwdError> {
+        SwdTransport::mem_write_chunk(self, apsel, addr, words)
     }
 }

@@ -37,7 +37,7 @@ The system SHALL initialize SWD connection to target on DAP_Connect.
 - **THEN** system returns error (JTAG not supported)
 
 ### Requirement: DAP_Transfer Command
-The system SHALL perform SWD read/write operations via DAP_Transfer.
+The system SHALL perform SWD read/write operations via DAP_Transfer, supporting standard DP/AP transfers, posted read pipelines, and value matching (`MATCH_MASK` and `MATCH_VALUE`).
 
 #### Scenario: Read DP register
 - **WHEN** host sends DAP_Transfer to read DPIDR
@@ -46,6 +46,10 @@ The system SHALL perform SWD read/write operations via DAP_Transfer.
 #### Scenario: Write AP register
 - **WHEN** host sends DAP_Transfer to write AP register
 - **THEN** system performs SWD write and returns ACK status
+
+#### Scenario: Register value matching
+- **WHEN** host sends DAP_Transfer with `MATCH_MASK` and `MATCH_VALUE` flags set
+- **THEN** the system repeatedly polls the specified register until `(data & match_mask) == match_value` or the retry limit expires, consuming the 4-byte match payload without packet desynchronization
 
 ### Requirement: DAP_SWJ_Clock Command
 The system SHALL configure SWD clock frequency via DAP_SWJ_Clock.
@@ -69,7 +73,6 @@ The system SHALL send custom bit sequences via DAP_SWJ_Sequence.
 - **WHEN** host sends DAP_SWJ_Sequence with 0xE79E pattern
 - **THEN** system sends the JTAG-to-SWD switching sequence
 
-
 ### Requirement: CMSIS-DAP v2 WinUSB bulk interface
 The system SHALL provide a CMSIS-DAP v2 USB Bulk interface using Microsoft OS 2.0 WinUSB descriptors to support driverless zero-polling-latency communication.
 
@@ -91,3 +94,4 @@ The system SHALL support `DAP_TransferBlock` (command `0x06`) for contiguous blo
 #### Scenario: Contiguous block memory write
 - **WHEN** host issues `DAP_TransferBlock` writing $N$ words to target memory
 - **THEN** the system streams the data words via SWD with auto-incrementing TAR and returns the transfer count and ACK status
+
