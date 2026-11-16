@@ -834,6 +834,9 @@
         if (curPath.startsWith('/motor') || curPath.startsWith('/barefoc') || curPath.startsWith('/foc')) {
             var mBtn = document.getElementById('dock-app-motor');
             if (mBtn) mBtn.classList.add('active');
+        } else if (curPath.startsWith('/bareboot') || curPath.startsWith('/app/bareboot')) {
+            var bBtn = document.getElementById('dock-app-bareboot');
+            if (bBtn) bBtn.classList.add('active');
         } else if (curPath.startsWith('/terminal')) {
             var tBtn = document.getElementById('dock-app-terminal');
             if (tBtn) tBtn.classList.add('active');

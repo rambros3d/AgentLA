@@ -560,14 +560,14 @@
                         </div>
                     </section>
 
-                    <!-- Section 2: Installed LittleFS Applications -->
+                    <!-- Section 2: Applications (System & User) -->
                     <section class="launcher-section" id="section-installed-apps">
                         <div class="launcher-section-header">
                             <h2 class="launcher-section-title">
                                 <svg class="solar-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>
                                 </svg>
-                                Installed Applications (<span id="installed-count">0</span>)
+                                Applications (<span id="installed-count">0</span>)
                             </h2>
                         </div>
                         <div class="os-squircle-grid" id="installed-apps-grid">
@@ -1397,6 +1397,11 @@
                 targetUrl = isDemo ? 'barefoc.html' : '/motor';
                 appTitle = 'BareFOC Studio';
                 dockId = 'dock-app-motor';
+            } else if (hash === '#/bareboot' || hash === '#/app/bareboot') {
+                if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
+                targetUrl = isDemo ? 'apps/bareboot/index.html' : '/app/bareboot/';
+                appTitle = 'BareBoot Manager';
+                dockId = 'dock-app-bareboot';
             } else if (hash.startsWith('#/app/')) {
                 if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
                 const appId = decodeURIComponent(hash.substring(6));
@@ -1536,6 +1541,54 @@
         let deviceSystem = { chip: "RP2350B", board_name: "BakuProbe", flash_bytes: 8388608, firmware_version: "v2.0" };
         let currentBoardName = "BakuProbe";
         let installedApps = [];
+
+        // Built-in System Applications (Displayed in Applications alongside LittleFS user apps)
+        const SYSTEM_APPLICATIONS = [
+            {
+                id: 'barefoc',
+                name: 'BareFOC Studio',
+                title: 'BareFOC Studio',
+                version: '1.0.0 (ROM)',
+                category: 'Robotics',
+                subText: 'FOC Motor',
+                accent: 'accent-servo',
+                action: "openMotorApp()",
+                description: 'Field-Oriented Control (FOC) motor workbench with cascaded PID/LPF tuning, 60 FPS oscilloscope, and multi-protocol diagnostics.',
+                iconSvg: `<svg class="solar-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g opacity="0.45">
+                        <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18ZM15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" fill="currentColor"/>
+                    </g>
+                    <path d="M9.67217 17.5313L11.1967 14.8908C10.7001 14.7531 10.2553 14.491 9.89804 14.1401L8.37377 16.7802C8.77077 17.0818 9.2065 17.3351 9.67217 17.5313Z" fill="currentColor"/>
+                    <path d="M6.0464 12.7494H9.09446C9.0328 12.5097 9 12.2585 9 11.9996C9 11.7405 9.03283 11.4891 9.09456 11.2494H6.04644C6.01579 11.4951 6 11.7455 6 11.9996C6 12.2535 6.01577 12.5037 6.0464 12.7494Z" fill="currentColor"/>
+                    <path d="M8.37388 7.21886L9.89814 9.85896C10.2555 9.50807 10.7003 9.24594 11.1968 9.1083L9.6723 6.4678C9.20662 6.66399 8.77089 6.91726 8.37388 7.21886Z" fill="currentColor"/>
+                    <path d="M12.8031 9.10828L14.3276 6.46777C14.7933 6.66396 15.2291 6.91723 15.6261 7.21882L14.1018 9.85892C13.7445 9.50803 13.2997 9.24592 12.8031 9.10828Z" fill="currentColor"/>
+                    <path d="M14.9055 12.7494C14.9672 12.5097 15 12.2585 15 11.9996C15 11.7405 14.9672 11.4891 14.9054 11.2494H17.9536C17.9842 11.4951 18 11.7455 18 11.9996C18 12.2535 17.9842 12.5037 17.9536 12.7494H14.9055Z" fill="currentColor"/>
+                </svg>`,
+                isSystem: true
+            },
+            {
+                id: 'bareboot',
+                name: 'BareBoot Manager',
+                title: 'BareBoot Manager',
+                version: '1.0.0 (ROM)',
+                category: 'Bootloader',
+                subText: 'Bootloader',
+                accent: 'accent-adapter',
+                action: "openBarebootApp()",
+                description: 'Multi-bus bootloader workbench for STM32, CH32V, RP2350 over UART, I2C, I3C, and CAN. Bootstrap chip bootloaders via SWD and update target firmwares handsfree.',
+                iconSvg: `<svg class="solar-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g opacity="0.35">
+                        <rect x="5" y="5" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.75"/>
+                        <path d="M9 2V5M15 2V5M9 19V22M15 19V22M2 9H5M2 15H5M19 9H22M19 15H22" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+                    </g>
+                    <path d="M8.5 12H15.5M12 8.5L15.5 12L12 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="8.5" cy="8.5" r="1" fill="currentColor"/>
+                    <circle cx="8.5" cy="15.5" r="1" fill="currentColor"/>
+                </svg>`,
+                isSystem: true
+            }
+        ];
 
         const SYSTEM_APPS = [
             {
@@ -2362,6 +2415,10 @@
             navigateToRoute('#/motor');
         }
 
+        function openBarebootApp() {
+            navigateToRoute('#/bareboot');
+        }
+
         async function fetchInstalledApps() {
             try {
                 const res = await fetch('/api/v1/apps');
@@ -2373,7 +2430,6 @@
             } catch (e) {
                 installedApps = demoInstalledApps;
             }
-            document.getElementById('installed-count').innerText = installedApps.length;
             renderInstalledApps();
         }
 
@@ -2451,11 +2507,12 @@
             pinned.forEach(appId => {
                 if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].includes(appId)) return;
 
-                const installed = installedApps.find(a => (a.id || a.name) === appId);
+                const allAvailApps = [...SYSTEM_APPLICATIONS, ...installedApps];
+                const installed = allAvailApps.find(a => (a.id || a.name) === appId);
                 if (!installed) return;
                 const appName = installed.title || installed.name || appId;
 
-                let clickAction = `navigateToRoute('#/app/${encodeURIComponent(appId)}')`;
+                let clickAction = installed.action ? `${installed.action}` : `navigateToRoute('#/app/${encodeURIComponent(appId)}')`;
 
                 let iconSvg = '';
                 if (appId === 'servo' || appId === 'servo-master') {
@@ -2687,23 +2744,33 @@
             const grid = document.getElementById('installed-apps-grid');
             if (!grid) return;
 
-            let html = installedApps.map(app => {
+            const userApps = (installedApps || []).filter(a => {
+                const id = a.id || a.name;
+                return id !== 'barefoc' && id !== 'motor' && id !== 'bareboot';
+            });
+            const allApps = [...SYSTEM_APPLICATIONS, ...userApps];
+            const cntEl = document.getElementById('installed-count');
+            if (cntEl) cntEl.innerText = allApps.length;
+
+            let html = allApps.map(app => {
                 const appId = app.id || app.name;
                 const appDisplayName = app.title || app.name || appId;
                 const tagsList = Array.isArray(app.tags) ? app.tags : (app.category ? [app.category] : []);
-                let clickHandler = `onclick="navigateToRoute('#/app/${encodeURIComponent(appId)}')"`;
+                let clickHandler = app.action ? `onclick="${app.action}"` : `onclick="navigateToRoute('#/app/${encodeURIComponent(appId)}')"` ;
 
-                let accentClass = 'accent-app';
-                let subText = `v${app.version || '1.0'}`;
-                if (appId === 'servo' || appId === 'servo-master') {
-                    accentClass = 'accent-servo';
-                    subText = 'PWM Motion';
-                } else if (appId === 'canbus' || appId === 'can-sniffer') {
-                    accentClass = 'accent-adapter';
-                    subText = 'CAN-FD';
-                } else if (appId === 'neopixel' || appId === 'neopixel-control') {
-                    accentClass = 'accent-scope';
-                    subText = 'WS2812';
+                let accentClass = app.accent || 'accent-app';
+                let subText = app.subText || `v${app.version || '1.0'}`;
+                if (!app.subText) {
+                    if (appId === 'servo' || appId === 'servo-master') {
+                        accentClass = 'accent-servo';
+                        subText = 'PWM Motion';
+                    } else if (appId === 'canbus' || appId === 'can-sniffer') {
+                        accentClass = 'accent-adapter';
+                        subText = 'CAN-FD';
+                    } else if (appId === 'neopixel' || appId === 'neopixel-control') {
+                        accentClass = 'accent-scope';
+                        subText = 'WS2812';
+                    }
                 }
 
                 let iconContent = '';
@@ -2720,7 +2787,7 @@
                 }
 
                 return `
-                    <div class="os-squircle-tile ${accentClass}" ${clickHandler} data-name="${escapeHtml(appDisplayName)}" data-tags="${escapeHtml(tagsList.join(' '))}" data-desc="${escapeHtml(app.description || '')}" title="${escapeHtml(appDisplayName)} (v${escapeHtml(app.version || '1.0.0')})">
+                    <div class="os-squircle-tile ${accentClass}" ${clickHandler} data-name="${escapeHtml(appDisplayName)}" data-tags="${escapeHtml(tagsList.join(' '))}" data-desc="${escapeHtml(app.description || '')}" title="${escapeHtml(appDisplayName)} (${escapeHtml(app.version || '1.0.0')})">
                         <div class="os-squircle-icon">
                             ${iconContent}
                         </div>
