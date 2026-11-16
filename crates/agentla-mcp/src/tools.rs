@@ -172,13 +172,13 @@ pub const TOOL_WS2812_TRANSMIT: Tool = Tool::new(
 
 pub const TOOL_TARGET_DIAGNOSE: Tool = Tool::new(
     "target_diagnose",
-    "One-shot diagnostic inspecting target electrical rail voltage, pin continuity/pull-up state, CoreSight DPIDR/CPUID, and CPU HardFault register root-cause analysis",
+    "Diagnostic inspecting rail voltage, continuity, CoreSight DPIDR/CPUID, and fault registers",
     r#"{"type":"object","properties":{"port":{"type":"string","description":"Target port (bluepill, ch32v203, ch32v003)"}}}"#,
 );
 
 pub const TOOL_INSPECT_FIRMWARE: Tool = Tool::new(
     "inspect_firmware",
-    "Inspect vector table, validate Stack Pointer against SRAM bounds, and verify ARM Thumb mode invariant",
+    "Inspect vector table, validate Stack Pointer against SRAM bounds, and verify Thumb mode",
     r#"{"type":"object","properties":{"address":{"type":"integer","description":"Flash base address (default 0x08000000)"},"target":{"type":"string","description":"Target chip family name to lookup LittleFS FLM algorithm"}}}"#,
 );
 
@@ -190,14 +190,62 @@ pub const TOOL_SNIFF_BUS: Tool = Tool::new(
 
 pub const TOOL_PROGRAMMER_UNBRICK: Tool = Tool::new(
     "programmer_unbrick",
-    "Unbrick / mass-erase protected target microcontroller across STM32 RDP, Nordic APPROTECT, NXP MDM-AP, and Microchip SAMD",
+    "Unbrick / mass-erase protected target across STM32 RDP, Nordic APPROTECT, NXP, Microchip",
     r#"{"type":"object","properties":{"target":{"type":"string","description":"Target family or commercial part number"}}}"#,
 );
 
 pub const TOOL_CATALOG_LOOKUP: Tool = Tool::new(
     "catalog_lookup",
-    "Query universal target catalog by part number or DevID to inspect flash/RAM size and direct engine",
+    "Query universal target catalog by part number or DevID to inspect flash/RAM size",
     r#"{"type":"object","properties":{"query":{"type":"string","description":"Part number prefix (e.g. STM32F401, nRF52840, CH32V003)"}},"required":["query"]}"#,
+);
+
+pub const TOOL_APP_LIST: Tool = Tool::new(
+    "app_list",
+    "List installed LittleFS applications and storage capacity",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_APP_INSTALL: Tool = Tool::new(
+    "app_install",
+    "Install application from catalog into LittleFS",
+    r#"{"type":"object","properties":{"name":{"type":"string","description":"Catalog ID (e.g. barefoc, servo)"}},"required":["name"]}"#,
+);
+
+pub const TOOL_POWER_CONTROL: Tool = Tool::new(
+    "power_control",
+    "Control target power rail switch and output voltage",
+    r#"{"type":"object","properties":{"enabled":{"type":"boolean","description":"Enable target power rail"},"voltage_mv":{"type":"integer","description":"Target voltage in mV"}},"required":["enabled"]}"#,
+);
+
+pub const TOOL_POWER_CYCLE: Tool = Tool::new(
+    "power_cycle",
+    "Pulse target power rail off and on to reboot target",
+    r#"{"type":"object","properties":{"delay_ms":{"type":"integer","description":"Power-off duration in ms (default 100)"}}}"#,
+);
+
+pub const TOOL_EMERGENCY_SAFE_STATE: Tool = Tool::new(
+    "emergency_safe_state",
+    "Transition all pins to High-Z and cut target power",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_PROFILE_LIST: Tool = Tool::new(
+    "profile_list",
+    "Enumerate hardware profile slots (Slot 0 Safe State, Slots 1-7)",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_PROFILE_APPLY: Tool = Tool::new(
+    "profile_apply",
+    "Apply hardware profile slot (0-7) or ID",
+    r#"{"type":"object","properties":{"slot":{"type":"integer","description":"Slot index (0-7)"},"id":{"type":"string","description":"Profile ID"}}}"#,
+);
+
+pub const TOOL_SWO_READ: Tool = Tool::new(
+    "swo_read",
+    "Drain captured SWO/ITM trace buffer bytes",
+    r#"{"type":"object","properties":{"clear":{"type":"boolean","description":"Clear buffer after read (default true)"}}}"#,
 );
 
 /// Three composite AI Agent hardware tools.
@@ -207,13 +255,12 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (26 standard + 3 composite tools).
-pub static ALL_TOOLS: [Tool; 29] = [
+/// Full catalog of AgentLA tools (33 standard + 3 composite tools = 36 total).
+pub static ALL_TOOLS: [Tool; 36] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
     TOOL_SYSTEM_FIRMWARE_STATUS,
-    TOOL_PROFILE_STATUS,
     TOOL_SERVO_LIST,
     TOOL_LOGIC_ANALYZER_ARM,
     TOOL_LOGIC_ANALYZER_START,
@@ -238,6 +285,14 @@ pub static ALL_TOOLS: [Tool; 29] = [
     TOOL_TARGET_DIAGNOSE,
     TOOL_INSPECT_FIRMWARE,
     TOOL_SNIFF_BUS,
+    TOOL_APP_LIST,
+    TOOL_APP_INSTALL,
+    TOOL_POWER_CONTROL,
+    TOOL_POWER_CYCLE,
+    TOOL_EMERGENCY_SAFE_STATE,
+    TOOL_PROFILE_LIST,
+    TOOL_PROFILE_APPLY,
+    TOOL_SWO_READ,
 ];
 
 /// Trait for dispatching tool calls to the hardware engine.

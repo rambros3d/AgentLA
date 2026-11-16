@@ -52,6 +52,40 @@ fn test_tools_list() {
     assert!(res.contains(r#""address":{"type":"integer""#));
     assert!(res.contains(r#""protocol":{"type":"string","enum":["i2c","spi"]"#));
     assert!(res.contains(r#""port":{"type":"string""#));
+
+    // Verify newly added MCP tools
+    assert!(res.contains(r#""name":"app_list""#));
+    assert!(res.contains(r#""name":"app_install""#));
+    assert!(res.contains(r#""name":"power_control""#));
+    assert!(res.contains(r#""name":"power_cycle""#));
+    assert!(res.contains(r#""name":"emergency_safe_state""#));
+    assert!(res.contains(r#""name":"profile_list""#));
+    assert!(res.contains(r#""name":"profile_apply""#));
+    assert!(res.contains(r#""name":"swo_read""#));
+
+    // Verify app_uninstall is strictly omitted from tools list
+    assert!(!res.contains(r#""name":"app_uninstall""#));
+    assert!(!res.contains(r#""name":"app_delete""#));
+
+    // Verify exactly 36 tools in ALL_TOOLS
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 36);
+}
+
+#[test]
+fn test_app_uninstall_omission_returns_32601() {
+    let server = McpServer::new();
+
+    // 1. Calling tool app_uninstall via tools/call returns -32601
+    let req_tool = br#"{"jsonrpc":"2.0","id":50,"method":"tools/call","params":{"name":"app_uninstall"}}"#;
+    let res_tool = server.handle_request(req_tool);
+    assert!(res_tool.contains(r#""code":-32601"#));
+    assert!(res_tool.contains(r#"tool not found"#));
+
+    // 2. Calling method app_uninstall directly returns -32601
+    let req_method = br#"{"jsonrpc":"2.0","id":51,"method":"app_uninstall"}"#;
+    let res_method = server.handle_request(req_method);
+    assert!(res_method.contains(r#""code":-32601"#));
+    assert!(res_method.contains(r#"method not found"#));
 }
 
 #[test]

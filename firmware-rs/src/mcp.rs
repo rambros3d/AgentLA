@@ -41,7 +41,7 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             let snap = crate::telemetry::sample_telemetry();
             let _ = write!(
                 out,
-                r#"{{"clock_mhz":150,"tools":29,"vtarget_mv":{},"itarget_ma":{},"power_mw":{},"temp_c":{},"overcurrent":{},"active_profile":{},"status":"healthy"}}"#,
+                r#"{{"clock_mhz":150,"tools":36,"vtarget_mv":{},"itarget_ma":{},"power_mw":{},"temp_c":{},"overcurrent":{},"active_profile":{},"status":"healthy"}}"#,
                 snap.v_target_mv, snap.i_target_ma, snap.p_target_mw, snap.temp_c, snap.is_tripped, profile::active_slot()
             );
             false
@@ -431,6 +431,169 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
                     true
                 }
             }
+        }
+        "app_list" => {
+            let mut apps_buf = heapless::String::<1024>::new();
+            let ok = match crate::apps::list_apps_json(&mut apps_buf) {
+                Some(Ok(())) => true,
+                _ => {
+                    apps_buf.clear();
+                    let _ = apps_buf.push_str("[]");
+                    false
+                }
+            };
+            let (used, total) = crate::storage::user_fs_usage();
+            let free = total.saturating_sub(used);
+            let _ = write!(
+                out,
+                r#"{{"apps":{},"storage":{{"used_bytes":{},"total_bytes":{},"free_bytes":{}}},"success":{}}}"#,
+                apps_buf.as_str(), used, total, free, ok
+            );
+            !ok
+        }
+        "app_install" => {
+            if let Some(name) = extract_string_arg(body, "name") {
+                match crate::apps::install_catalog_package(name) {
+                    Ok(rep) => {
+                        let _ = write!(
+                            out,
+                            r#"{{"status":"ok","app":"{}","files":{},"bytes":{}}}"#,
+                            rep.app.as_str(), rep.files, rep.bytes
+                        );
+                        false
+                    }
+                    Err(e) => {
+                        let _ = write!(out, r#"{{"status":"error","app":"{}","error":"{:?}"}}"#, name, e);
+                        true
+                    }
+                }
+            } else {
+                let _ = out.push_str(r#"{"status":"error","error":"missing name parameter"}"#);
+                true
+            }
+        }
+        "power_control" => {
+            if let Some(enabled) = extract_bool_arg(body, "enabled") {
+                crate::profile::set_target_power(enabled);
+                if let Some(voltage_mv) = extract_u32_arg(body, "voltage_mv") {
+                    crate::telemetry::set_target_voltage_mv(voltage_mv);
+                }
+                let snap = crate::telemetry::sample_telemetry();
+                let v_set = crate::profile::get_target_voltage_setting_mv();
+                let _ = write!(
+                    out,
+                    r#"{{"status":"ok","power_enabled":{},"voltage_setting_mv":{},"vtarget_mv":{},"itarget_ma":{}}}"#,
+                    enabled, v_set, snap.v_target_mv, snap.i_target_ma
+                );
+                false
+            } else {
+                let _ = out.push_str(r#"{"status":"error","error":"missing enabled parameter"}"#);
+                true
+            }
+        }
+        "power_cycle" => {
+            let delay_ms = extract_u32_arg(body, "delay_ms").unwrap_or(100).clamp(10, 5000);
+            crate::profile::set_target_power(false);
+            embassy_time::block_for(embassy_time::Duration::from_millis(delay_ms as u64));
+            crate::profile::set_target_power(true);
+            let snap = crate::telemetry::sample_telemetry();
+            let _ = write!(
+                out,
+                r#"{{"status":"ok","power_cycled":true,"delay_ms":{},"vtarget_mv":{},"itarget_ma":{}}}"#,
+                delay_ms, snap.v_target_mv, snap.i_target_ma
+            );
+            false
+        }
+        "emergency_safe_state" => {
+            let _ = crate::profile::apply_profile_sync(crate::profile::SAFE_STATE_ID);
+            let _ = out.push_str(r#"{"status":"ok","safe_state":true,"pins_released":true,"power_enabled":false}"#);
+            false
+        }
+        "profile_list" => {
+            let aid = crate::profile::active_id();
+            let aslot = crate::profile::active_slot();
+            let _ = write!(
+                out,
+                r#"{{"active_slot":{},"active_id":"{}","slots":["#,
+                aslot, aid.as_str()
+            );
+            let slots = [
+                (0, "safe_state", "Safe State (Hi-Z)"),
+                (1, "logic_analyzer", "Logic Analyzer"),
+                (2, "can_sniffer", "CAN Bus Sniffer & Logger"),
+                (3, "uart_passthrough", "UART Passthrough"),
+                (4, "user_profile_4", "User Profile 4"),
+                (5, "user_profile_5", "User Profile 5"),
+                (6, "user_profile_6", "User Profile 6"),
+                (7, "user_profile_7", "User Profile 7"),
+            ];
+            for (i, (s_idx, s_id, s_desc)) in slots.iter().enumerate() {
+                if i > 0 { let _ = out.push(','); }
+                let is_act = *s_idx == aslot || *s_id == aid.as_str();
+                let _ = write!(
+                    out,
+                    r#"{{"slot":{},"id":"{}","description":"{}","active":{}}}"#,
+                    s_idx, s_id, s_desc, is_act
+                );
+            }
+            let _ = out.push_str("]}");
+            false
+        }
+        "profile_apply" => {
+            let slot_opt = extract_u32_arg(body, "slot");
+            let id_opt = extract_string_arg(body, "id");
+            let target_id = if let Some(id_str) = id_opt {
+                id_str
+            } else if let Some(slot) = slot_opt {
+                match slot {
+                    0 => "safe_state",
+                    1 => "logic_analyzer",
+                    2 => "can_sniffer",
+                    3 => "uart_passthrough",
+                    _ => "safe_state",
+                }
+            } else {
+                "safe_state"
+            };
+            match crate::profile::apply_profile_sync(target_id) {
+                Ok(name) => {
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","applied":true,"id":"{}","name":"{}"}}"#,
+                        target_id, name.as_str()
+                    );
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","id":"{}","error":"{:?}"}}"#, target_id, e);
+                    true
+                }
+            }
+        }
+        "swo_read" => {
+            let clear = extract_bool_arg(body, "clear").unwrap_or(true);
+            let mut buf = [0u8; 512];
+            let n = if clear {
+                crate::programmer::swo::drain_swo_bytes(&mut buf)
+            } else {
+                crate::programmer::swo::SWO_ENGINE.peek(&mut buf)
+            };
+            let mut trace_escaped = heapless::String::<1024>::new();
+            for &b in &buf[..n] {
+                if b.is_ascii_graphic() || b == b' ' {
+                    let _ = trace_escaped.push(b as char);
+                } else if b == b'\n' {
+                    let _ = trace_escaped.push_str("\\n");
+                } else if b == b'\r' {
+                    let _ = trace_escaped.push_str("\\r");
+                } else if b == b'\t' {
+                    let _ = trace_escaped.push_str("\\t");
+                } else {
+                    let _ = write!(trace_escaped, "\\x{:02X}", b);
+                }
+            }
+            let _ = write!(out, r#"{{"status":"ok","bytes":{},"data":"{}"}}"#, n, trace_escaped.as_str());
+            false
         }
         _ => {
             let _ = write!(out, "unknown tool: {}", name);

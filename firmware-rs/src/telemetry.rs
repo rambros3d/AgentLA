@@ -122,6 +122,10 @@ pub fn set_overcurrent_limit_ma(limit: u32) {
     OVERCURRENT_LIMIT_MA.store(limit, Ordering::SeqCst);
 }
 
+pub fn set_target_voltage_mv(mv: u32) {
+    crate::profile::set_target_voltage_mv(mv);
+}
+
 pub fn format_telemetry_json(out: &mut heapless::String<2048>) {
     let s = sample_telemetry();
     let alarm_str = if s.is_tripped { "overcurrent_trip" } else { "none" };

@@ -39,9 +39,35 @@ pub enum ProfileError {
 static ACTIVE_PROFILE_ID: Mutex<CriticalSectionRawMutex, String<32>> = Mutex::new(String::new());
 static ACTIVE_PROFILE_NAME: Mutex<CriticalSectionRawMutex, String<48>> = Mutex::new(String::new());
 
+static TARGET_POWER_ENABLED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+static TARGET_VOLTAGE_MV: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(3300);
+
+pub fn set_target_power(enabled: bool) {
+    TARGET_POWER_ENABLED.store(enabled, core::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn is_target_power_enabled() -> bool {
+    TARGET_POWER_ENABLED.load(core::sync::atomic::Ordering::SeqCst)
+}
+
+pub fn set_target_voltage_mv(mv: u32) {
+    TARGET_VOLTAGE_MV.store(mv, core::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn get_target_voltage_setting_mv() -> u32 {
+    TARGET_VOLTAGE_MV.load(core::sync::atomic::Ordering::SeqCst)
+}
+
 /// Backwards compatibility stub for MCP tools expecting integer slot ID.
 pub fn active_slot() -> u32 {
-    0
+    let aid = active_id();
+    match aid.as_str() {
+        SAFE_STATE_ID => 0,
+        "logic_analyzer" => 1,
+        "can_sniffer" => 2,
+        "uart_passthrough" => 3,
+        _ => 0,
+    }
 }
 
 /// Returns current active profile ID.
@@ -269,41 +295,61 @@ pub fn set_boot_default(id: &str) -> Result<(), ProfileError> {
     }).ok_or(ProfileError::FsError)?
 }
 
-/// Applies a hardware profile: quiesces pins, discharges rails, configures power and claims pins.
-pub async fn apply_profile(id: &str) -> Result<String<96>, ProfileError> {
+/// Applies a hardware profile synchronously: quiesces pins, discharges rails, configures power and claims pins.
+pub fn apply_profile_sync(id: &str) -> Result<String<96>, ProfileError> {
+    let resolved_id = match id {
+        "0" => SAFE_STATE_ID,
+        "1" => "logic_analyzer",
+        "2" => "can_sniffer",
+        "3" => "uart_passthrough",
+        other => other,
+    };
+
     // 1. Quiesce all flexible pin claims into safe High-Z
     crate::pin_owner::quiesce_and_reset();
 
     // 2. Rail discharge settle
-    embassy_time::Timer::after(embassy_time::Duration::from_millis(5)).await;
+    embassy_time::block_for(embassy_time::Duration::from_millis(5));
 
     // Handle Safe State baseline
-    if id == SAFE_STATE_ID || id.is_empty() {
+    if resolved_id == SAFE_STATE_ID || resolved_id.is_empty() {
         set_active(SAFE_STATE_ID, SAFE_STATE_NAME);
         crate::telemetry::set_overcurrent_limit_ma(500);
+        set_target_power(false);
         return Ok(String::try_from(SAFE_STATE_NAME).unwrap_or_default());
     }
 
     // 3. Read profile document
     let mut buf = [0u8; 1536];
-    let n = read_profile_doc(id, &mut buf)?;
+    let n = read_profile_doc(resolved_id, &mut buf)?;
     let Ok(json_str) = core::str::from_utf8(&buf[..n]) else {
         return Err(ProfileError::InvalidPayload);
     };
 
-    let name = find_json_str(json_str, "name").unwrap_or_else(|| String::try_from(id).unwrap_or_default());
+    let name = find_json_str(json_str, "name").unwrap_or_else(|| String::try_from(resolved_id).unwrap_or_default());
 
     // 4. Configure power settings if present
     if let Some(limit_ma) = find_json_u32(json_str, "overcurrent_limit_ma") {
         crate::telemetry::set_overcurrent_limit_ma(limit_ma);
     }
+    if let Some(v_en) = find_json_bool(json_str, "v_target_enabled") {
+        set_target_power(v_en);
+    }
+    if let Some(v_mv) = find_json_u32(json_str, "v_target_mv") {
+        set_target_voltage_mv(v_mv);
+    }
 
     // 5. Apply pin claims if present
     parse_and_claim_pins(json_str);
 
-    set_active(id, name.as_str());
-    defmt::info!("Applied hardware profile: {} ({})", id, name.as_str());
+    set_active(resolved_id, name.as_str());
+    defmt::info!("Applied hardware profile: {} ({})", resolved_id, name.as_str());
     Ok(name)
+}
+
+/// Applies a hardware profile: quiesces pins, discharges rails, configures power and claims pins.
+pub async fn apply_profile(id: &str) -> Result<String<96>, ProfileError> {
+    apply_profile_sync(id)
 }
 
 // ---------------------------------------------------------------------------

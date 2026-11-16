@@ -82,3 +82,8 @@ pub fn poll_swo_burst(pin: u32, baud: u32, max_bytes: usize) -> usize {
     }
     count
 }
+
+/// Drain captured SWO bytes from the global SWO engine into destination buffer.
+pub fn drain_swo_bytes(dst: &mut [u8]) -> usize {
+    SWO_ENGINE.read(dst)
+}

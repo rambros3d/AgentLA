@@ -294,7 +294,13 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
             }
             "tools/call" => {
                 let name = extract_tool_name(text).unwrap_or_default();
-                if let Some(ref handler) = self.handler {
+                if name.as_str() == "app_uninstall" || name.as_str() == "app_delete" {
+                    let _ = write!(
+                        out,
+                        r#"{{"jsonrpc":"2.0","id":{},"error":{{"code":-32601,"message":"tool not found"}}}}"#,
+                        id_frag
+                    );
+                } else if let Some(ref handler) = self.handler {
                     let mut tool_out = heapless::String::<1536>::new();
                     let is_error = handler.handle_tool(name.as_str(), text, &mut tool_out);
                     let mut escaped = heapless::String::<2048>::new();

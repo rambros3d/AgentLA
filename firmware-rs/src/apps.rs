@@ -983,6 +983,73 @@ pub async fn install_tarball<R: picoserve::io::Read>(
     })
 }
 
+/// Unpack a catalog package tarball stored in SYSTEM_FS (/packages/{name}.tar) into /apps/{name}.
+pub fn install_catalog_package(name_str: &str) -> Result<InstallReport, InstallError> {
+    let name: AppParams = match core::str::FromStr::from_str(name_str) {
+        Ok(n) => n,
+        Err(_) => return Err(InstallError::Failed(UnpackError::BadArchiveName)),
+    };
+
+    let mut unpacker = match TarUnpacker::new(&name) {
+        Ok(u) => u,
+        Err(UnpackError::NotMounted) => return Err(InstallError::NotMounted),
+        Err(e) => return Err(InstallError::Failed(e)),
+    };
+
+    let mut pkg_path = heapless::String::<64>::new();
+    let _ = write!(pkg_path, "/packages/{}.tar", name.as_str());
+    let path_buf = match PathBuf::try_from(pkg_path.as_str()) {
+        Ok(p) => p,
+        Err(_) => return Err(InstallError::Failed(UnpackError::BadArchiveName)),
+    };
+
+    let exists = storage::with_system_fs(|fs| fs.exists(&path_buf)).unwrap_or(false);
+    if !exists {
+        remove_app_dir_quiet(name.as_str());
+        return Err(InstallError::Failed(UnpackError::LittleFs(FsError::NO_SUCH_ENTRY)));
+    }
+
+    let mut pos = 0u32;
+    loop {
+        let chunk_opt = storage::with_system_fs(|fs| {
+            fs.read_chunk::<512>(&path_buf, OpenSeekFrom::Start(pos)).ok()
+        }).flatten();
+
+        match chunk_opt {
+            Some((chunk, _total_len)) => {
+                if chunk.is_empty() {
+                    break;
+                }
+                let len = chunk.len();
+                unpacker.feed(chunk.as_slice());
+                pos += len as u32;
+                if unpacker.state() == UnpackerState::Done {
+                    break;
+                }
+            }
+            None => break,
+        }
+    }
+
+    if unpacker.state() != UnpackerState::Done {
+        remove_app_dir_quiet(name.as_str());
+        return Err(InstallError::Incomplete);
+    }
+
+    defmt::info!(
+        "apps: installed catalog app {} ({} files, {} bytes)",
+        name.as_str(),
+        unpacker.total_files,
+        unpacker.total_bytes
+    );
+
+    Ok(InstallReport {
+        app: name.0.clone(),
+        files: unpacker.total_files,
+        bytes: unpacker.total_bytes,
+    })
+}
+
 /// WebUI update summary.
 pub struct WebUiUpdateReport {
     pub files: u32,
