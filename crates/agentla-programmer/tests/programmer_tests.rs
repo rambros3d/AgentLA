@@ -395,6 +395,59 @@ fn test_stlink_version_handshake() {
 }
 
 #[test]
+fn test_stlink_enter_swd_replies_without_target() {
+    // hybridlink's contract: ENTER_SWD reports success even when the target
+    // cannot be reached, so the host's command never times out.
+    let mock = MockSwd::new();
+    let mut handler = StLinkHandler::new(mock);
+    let mut resp = [0u8; 64];
+
+    let len = handler.execute(&[STLINK_DEBUG_COMMAND, 0x30, 0xA3], &mut resp);
+    assert_eq!(len, 2, "ENTER_SWD must always reply 2 bytes");
+    assert_eq!(resp[0], 0x80, "STLINK_OK");
+    assert_eq!(resp[1], 0);
+    // The mock transport returns 0 for every read, and the handler normalises
+    // an all-ones DPIDR to "no target". Either way the reply is unaffected.
+    assert_ne!(handler.idcode, 0xFFFF_FFFF, "all-ones DPIDR means no target");
+}
+
+#[test]
+fn test_stlink_enter_swd_rejects_non_swd() {
+    let mock = MockSwd::new();
+    let mut handler = StLinkHandler::new(mock);
+    let mut resp = [0u8; 64];
+
+    let len = handler.execute(&[STLINK_DEBUG_COMMAND, 0x30, 0x00], &mut resp);
+    assert_eq!(len, 2);
+    assert_eq!(resp[0], STLINK_NO_DEVICE);
+}
+
+#[test]
+fn test_stlink_core_debug_resets_ap_selector() {
+    // hybridlink's prologue: core debug commands run on AP 0 regardless of
+    // what a previous memory command selected.
+    let mock = MockSwd::new();
+    let mut handler = StLinkHandler::new(mock);
+    let mut resp = [0u8; 64];
+
+    handler.current_ap = 1;
+    handler.execute(&[STLINK_DEBUG_COMMAND, 0x09], &mut resp); // DBG_RUNCORE
+    assert_eq!(handler.current_ap, 0, "RUNCORE must select AP 0");
+}
+
+#[test]
+fn test_stlink_dap_commands_keep_ap_selector() {
+    // DAP-level commands manage their own AP state and must not be reset.
+    let mock = MockSwd::new();
+    let mut handler = StLinkHandler::new(mock);
+    let mut resp = [0u8; 64];
+
+    handler.current_ap = 1;
+    handler.execute(&[STLINK_DEBUG_COMMAND, 0x4B, 0x01], &mut resp); // INIT_AP
+    assert_eq!(handler.current_ap, 1, "INIT_AP must not reset the AP");
+}
+
+#[test]
 fn test_stlink_version_parsing_and_formatting() {
     use agentla_programmer::stlink::{format_version, parse_version};
 
@@ -463,6 +516,11 @@ fn test_stlink_mode_and_debug_entry() {
     let len = handler.execute(&[STLINK_GET_CURRENT_MODE], &mut resp);
     assert_eq!(len, 2);
     assert_eq!(resp[0], STLINK_MODE_DEBUG);
+
+    // IDCODEs are resolved after ENTER_SWD, matching a genuine ST-Link.
+    let len = handler.execute(&[STLINK_DEBUG_COMMAND, DBG_APIV2_READ_IDCODES], &mut resp);
+    assert_eq!(len, 12);
+    assert_eq!(resp[0], STLINK_OK);
 
     // Read Core ID
     let len = handler.execute(&[STLINK_DEBUG_COMMAND, DBG_READCOREID], &mut resp);

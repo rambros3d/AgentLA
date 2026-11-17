@@ -4,7 +4,9 @@
 //! Reports version `V2J48M35` (`0x2C23`) under USB VID `0x0483` / PID `0x3752`.
 
 use crate::delay::delay_cycles;
-use crate::swd::{Adiv5Access, Adiv5Engine, ADIV5_AP_CSW_DEFAULT, AP_CSW, AP_DRW, AP_TAR};
+use crate::swd::{
+    Adiv5Access, Adiv5Engine, ADIV5_AP_CSW_DEFAULT, AP_CSW, AP_DRW, AP_TAR, DP_DPIDR,
+};
 use crate::swo::{SwoEngine, SWO_DEFAULT_BAUD};
 use crate::traits::SwdIo;
 
@@ -303,39 +305,66 @@ impl<T: SwdIo> StLinkHandler<T> {
     }
 
     pub fn mem_read32(&mut self, addr: u32, val: &mut u32) -> u8 {
-        if self.engine.select_ap(self.current_ap, 0).is_err() {
-            return STLINK_SWD_AP_FAULT;
-        }
-        if self.engine.write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT | 0x02).is_err() {
-            return STLINK_SWD_AP_FAULT;
-        }
-        if self.engine.write_ap(AP_TAR, addr).is_err() {
-            return STLINK_SWD_AP_FAULT;
-        }
-        let mut dummy = 0u32;
-        if self.engine.read_ap(AP_DRW, &mut dummy).is_err() {
-            return STLINK_SWD_AP_FAULT;
-        }
-        if self.engine.read_ap(AP_DRW, val).is_err() {
-            return STLINK_SWD_AP_FAULT;
-        }
-        STLINK_OK
+        self.mem_access(addr, None, Some(val))
     }
 
+    /// Routed MEM-AP write. See `mem_access` for the AP selection rule.
     pub fn mem_write32(&mut self, addr: u32, val: u32) -> u8 {
-        if self.engine.select_ap(self.current_ap, 0).is_err() {
+        self.mem_access(addr, Some(val), None)
+    }
+
+    /// Single routed MEM-AP access honouring the ARMv8-M dual-AP layout.
+    ///
+    /// On STM32H5 the core private peripheral bus (DHCSR, DEMCR, ...) lives
+    /// behind AP 1 (AHB-AP), not AP 0 (APB-AP). Selecting AP 0 there returns
+    /// garbage, so a fixed-CSW access can never halt or inspect the core.
+    ///
+    /// An AHB-AP read is posted: the first DRW read returns the previous
+    /// address's value, the second returns this address's data. `out` receives
+    /// the second read.
+    fn mem_access(&mut self, addr: u32, write: Option<u32>, out: Option<&mut u32>) -> u8 {
+        let apsel = if (0xE000_0000..=0xE00F_FFFF).contains(&addr) {
+            1
+        } else {
+            self.current_ap
+        };
+        let csw = if apsel == 1 { 0x23000012 } else { ADIV5_AP_CSW_DEFAULT };
+
+        if self.engine.select_ap(apsel, 0).is_err() {
             return STLINK_SWD_AP_FAULT;
         }
-        if self.engine.write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT | 0x02).is_err() {
+        if self.engine.write_ap(AP_CSW, csw).is_err() {
             return STLINK_SWD_AP_FAULT;
         }
         if self.engine.write_ap(AP_TAR, addr).is_err() {
             return STLINK_SWD_AP_FAULT;
         }
-        if self.engine.write_ap(AP_DRW, val).is_err() {
-            return STLINK_SWD_AP_FAULT;
+
+        match write {
+            Some(v) => {
+                if self.engine.write_ap(AP_DRW, v).is_err() {
+                    return STLINK_SWD_AP_FAULT;
+                }
+                STLINK_OK
+            }
+            None => {
+                let mut dummy = 0u32;
+                if self.engine.read_ap(AP_DRW, &mut dummy).is_err() {
+                    return STLINK_SWD_AP_FAULT;
+                }
+                if out.is_none() {
+                    return STLINK_OK;
+                }
+                let mut v = 0u32;
+                if self.engine.read_ap(AP_DRW, &mut v).is_err() {
+                    return STLINK_SWD_AP_FAULT;
+                }
+                if let Some(slot) = out {
+                    *slot = v;
+                }
+                STLINK_OK
+            }
         }
-        STLINK_OK
     }
 
     pub fn core_read_reg(&mut self, regsel: u8, val: &mut u32) -> u8 {
@@ -723,6 +752,24 @@ impl<T: SwdIo> StLinkHandler<T> {
             return 2;
         }
 
+        // Core debug (halt, registers, reset, debug-register access) always
+        // runs on AP 0 with the default CSW, whatever a previous memory
+        // command left selected. The DAP-level commands manage their own AP
+        // state and are exempt. Mirrors hybridlink's debug_command prologue.
+        match cmd[1] {
+            DBG_APIV2_RW_MISC_IN
+            | DBG_APIV2_RW_MISC_OUT
+            | DBG_APIV2_INIT_AP
+            | DBG_APIV2_CLOSE_AP_DBG
+            | DBG_APIV2_READ_DAP_REG
+            | DBG_APIV2_WRITE_DAP_REG => {}
+            _ => {
+                // `mem_access` derives CSW from the address range, so only the
+                // cached AP selector needs resetting here.
+                self.current_ap = 0;
+            }
+        }
+
         match cmd[1] {
             DBG_APIV2_RW_MISC_IN => self.run_misc(resp),
 
@@ -732,16 +779,14 @@ impl<T: SwdIo> StLinkHandler<T> {
                     resp[1] = 0;
                     return 2;
                 }
+                // Reply immediately. A genuine ST-Link reports success here
+                // even with no target attached; the following IDCODE read
+                // tells the host whether one is present. Any target access
+                // before this return would overrun the host's 3 s command
+                // timeout when the DP is asleep, so detection is deferred to
+                // DBG_APIV2_READ_IDCODES / DBG_READCOREID.
                 self.mode = STLINK_MODE_DEBUG;
-                let _ = self.engine.transport.reset_sequence();
-                let _ = self.engine.transport.jtag_to_swd();
-                let mut id = 0u32;
-                if self.engine.read_dpidr_retry(&mut id).is_ok() {
-                    self.idcode = id;
-                    let _ = self.engine.power_up_debug();
-                } else {
-                    self.idcode = 0;
-                }
+                self.idcode = 0;
                 resp[0] = STLINK_OK;
                 resp[1] = 0;
                 2
@@ -760,6 +805,21 @@ impl<T: SwdIo> StLinkHandler<T> {
             }
 
             DBG_APIV2_READ_IDCODES => {
+                // Deferred target detection. hybridlink does the same: the
+                // host asks for IDCODEs once ENTER_SWD has already returned,
+                // so the DP probe can take as long as it needs without
+                // holding up the handshake.
+                if self.idcode == 0 {
+                    let _ = self.engine.select_ap(0, 0);
+                    let _ = self.engine.write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
+                    let mut id = 0u32;
+                    if self.engine.read_dp(DP_DPIDR, &mut id).is_ok()
+                        && id != 0
+                        && id != 0xFFFF_FFFF
+                    {
+                        self.idcode = id;
+                    }
+                }
                 resp[..12].fill(0);
                 let st = if self.idcode != 0 {
                     STLINK_OK

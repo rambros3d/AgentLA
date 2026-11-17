@@ -860,12 +860,29 @@ pub async fn stlink_usb_task(
                 } else {
                     let resp_len = handler.execute(cmd, &mut resp_buf);
                     if resp_len > 0 {
-                        let _ = cmd_in.write(&resp_buf[..resp_len]).await;
+                        // hybridlink always sends full 64-byte packets and
+                        // lets the host's requested length truncate the read.
+                        // A short packet here leaves the endpoint in a state
+                        // where the next read never completes.
+                        resp_buf[resp_len..64].fill(0);
+                        if let Err(e) = cmd_in.write(&resp_buf[..64]).await {
+                            defmt::warn!(
+                                "STLINK reply write failed ({} bytes): {:?}",
+                                resp_len,
+                                e
+                            );
+                        }
                     }
                 }
             }
+            Ok(0) => {
+                // A zero-length read is a ZLP, not a command. Log it: silently
+                // dropping it here is what made ENTER_SWD look like a hang.
+                defmt::warn!("STLINK zero-length command packet");
+            }
             Ok(_) => {}
-            Err(_) => {
+            Err(e) => {
+                defmt::warn!("STLINK command read failed: {:?}", e);
                 embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
             }
         }
