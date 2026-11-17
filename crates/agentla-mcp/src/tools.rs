@@ -308,6 +308,30 @@ pub const TOOL_SWO_READ: Tool = Tool::new(
     r#"{"type":"object","properties":{"clear":{"type":"boolean","description":"Clear buffer after read (default true)"}}}"#,
 );
 
+pub const TOOL_SENSOR_SCAN: Tool = Tool::new(
+    "sensor_scan",
+    "Scan I2C or SPI bus and return detected device addresses with identified sensor profiles",
+    r#"{"type":"object","properties":{"bus":{"type":"string","description":"Bus type: i2c (default) or spi"},"speed_khz":{"type":"integer","description":"Bus clock speed in kHz"},"cs_pin":{"type":"integer","description":"SPI Chip Select GPIO pin (default 17)"}}}"#,
+);
+
+pub const TOOL_SENSOR_READ_REG: Tool = Tool::new(
+    "sensor_read_reg",
+    "Read bytes from sensor register via I2C repeated-start or SPI transfer",
+    r#"{"type":"object","properties":{"addr":{"type":"integer","description":"I2C 7-bit device address or SPI dummy address"},"reg":{"type":"integer","description":"Starting register address"},"len":{"type":"integer","description":"Number of bytes to read (1-32, default 1)"},"bus":{"type":"string","description":"Bus type: i2c (default) or spi"},"cs_pin":{"type":"integer","description":"SPI Chip Select pin"}},"required":["addr","reg"]}"#,
+);
+
+pub const TOOL_SENSOR_WRITE_REG: Tool = Tool::new(
+    "sensor_write_reg",
+    "Write one or more bytes to sensor register via I2C or SPI",
+    r#"{"type":"object","properties":{"addr":{"type":"integer","description":"I2C 7-bit device address or SPI dummy address"},"reg":{"type":"integer","description":"Target register address"},"data":{"type":"string","description":"Hex-encoded bytes or decimal value to write"},"bus":{"type":"string","description":"Bus type: i2c (default) or spi"},"cs_pin":{"type":"integer","description":"SPI Chip Select pin"}},"required":["addr","reg","data"]}"#,
+);
+
+pub const TOOL_SENSOR_POLL: Tool = Tool::new(
+    "sensor_poll",
+    "Batch poll telemetry registers from recognized sensor (MPU6050, TMAG5273, BME280, AS5600, INA219) and return engineering units",
+    r#"{"type":"object","properties":{"addr":{"type":"integer","description":"I2C 7-bit device address"},"profile":{"type":"string","description":"Sensor profile (mpu6050, tmag5273, bme280, as5600, ina219, auto)"},"registers":{"type":"array","items":{"type":"integer"},"description":"Explicit register addresses to poll if profile not specified"}},"required":["addr"]}"#,
+);
+
 /// Three composite AI Agent hardware tools.
 pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_TARGET_DIAGNOSE,
@@ -315,8 +339,8 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (42 standard + 3 composite tools = 45 total).
-pub static ALL_TOOLS: [Tool; 45] = [
+/// Full catalog of AgentLA tools (46 standard + 3 composite tools = 49 total).
+pub static ALL_TOOLS: [Tool; 49] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
@@ -362,6 +386,10 @@ pub static ALL_TOOLS: [Tool; 45] = [
     TOOL_PROFILE_LIST,
     TOOL_PROFILE_APPLY,
     TOOL_SWO_READ,
+    TOOL_SENSOR_SCAN,
+    TOOL_SENSOR_READ_REG,
+    TOOL_SENSOR_WRITE_REG,
+    TOOL_SENSOR_POLL,
 ];
 
 /// Trait for dispatching tool calls to the hardware engine.

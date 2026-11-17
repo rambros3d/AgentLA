@@ -703,7 +703,7 @@
                 }
             }
         } catch (_) {}
-        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'];
+        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'];
     }
 
     function renderDockPinnedApps(container) {
@@ -711,7 +711,7 @@
         if (!container) return;
 
         var pinned = getPinnedApps();
-        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].forEach(function(sysId) {
+        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].forEach(function(sysId) {
             var el = document.getElementById('dock-app-' + sysId);
             if (el) {
                 el.style.display = pinned.indexOf(sysId) !== -1 ? 'inline-flex' : 'none';
@@ -720,7 +720,7 @@
         var html = '';
 
         pinned.forEach(function(appId) {
-            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].indexOf(appId) !== -1) return;
+            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].indexOf(appId) !== -1) return;
 
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
@@ -864,6 +864,14 @@
                     </svg>
                 </a>
 
+                <!-- Sensor (Sensor Studio) -->
+                <a href="${isDemo ? 'sensor.html' : '/sensor'}" class="dock-icon-btn" id="dock-app-sensor"${sysStyle('sensor')} data-dock-tooltip="Sensor Studio">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
+                        <path d="M11.1256 6.82338C11.846 6.70116 12.6041 6.72817 13.3586 6.93033C16.1585 7.68056 17.8201 10.5585 17.0699 13.3584C16.3196 16.1583 13.4417 17.8199 10.6418 17.0697C7.84187 16.3194 6.18028 13.4415 6.93051 10.6416C7.05878 10.1629 7.24878 9.7184 7.48934 9.31389L8.19792 9.8874C7.84968 10.5131 7.65108 11.2339 7.65108 12C7.65108 14.4019 9.59824 16.3491 12.0002 16.3491C14.4021 16.3491 16.3493 14.4019 16.3493 12C16.3493 9.59805 14.4021 7.65089 12.0002 7.65089C11.586 7.65089 11.2502 7.98668 11.2502 8.40089C11.2502 8.81511 11.586 9.15089 12.0002 9.15089C13.5737 9.15089 14.8493 10.4265 14.8493 12C14.8493 13.5735 13.5737 14.8491 12.0002 14.8491C10.4267 14.8491 9.15108 13.5735 9.15108 12C9.15108 11.5916 9.23669 11.2038 9.3911 10.8531L11.5283 12.583C11.8503 12.8436 12.3226 12.7938 12.5832 12.4718C12.8438 12.1499 12.794 11.6776 12.472 11.417L8.27423 8.01941C7.7127 7.56491 6.80868 7.60723 6.3558 8.29795C5.97114 8.8846 5.67251 9.54098 5.48162 10.2534C4.51698 13.8535 6.65344 17.5539 10.2535 18.5186C13.8536 19.4832 17.5541 17.3467 18.5187 13.7466C19.4834 10.1465 17.3469 6.44608 13.7468 5.48144C12.7798 5.22232 11.8035 5.18693 10.8747 5.34452C10.4664 5.41381 10.1915 5.80103 10.2608 6.20941C10.33 6.61779 10.7173 6.89267 11.1256 6.82338Z" fill="currentColor"/>
+                    </svg>
+                </a>
+
                 <!-- Console -->
                 <a href="${isDemo ? labUrl + '#console' : '/agent/'}" class="dock-icon-btn" id="dock-app-console"${sysStyle('console')} data-dock-tooltip="MCP Console">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -983,6 +991,9 @@
         } else if (curPath.startsWith('/neopixel') || curPath.startsWith('/led')) {
             var neoBtn = document.getElementById('dock-app-neopixel');
             if (neoBtn) neoBtn.classList.add('active');
+        } else if (curPath.startsWith('/sensor') || curPath.startsWith('/sensors') || curPath.startsWith('/bus')) {
+            var senBtn = document.getElementById('dock-app-sensor');
+            if (senBtn) senBtn.classList.add('active');
         } else if (curPath.startsWith('/bareboot') || curPath.startsWith('/app/bareboot')) {
             var bBtn = document.getElementById('dock-app-bareboot');
             if (bBtn) bBtn.classList.add('active');

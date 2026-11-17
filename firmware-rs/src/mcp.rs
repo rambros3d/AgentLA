@@ -12,9 +12,9 @@ pub use agentla_mcp::{
 use crate::profile;
 use crate::servo;
 
-pub const MAX_BODY: usize = 12288;
+pub const MAX_BODY: usize = 16384;
 
-pub fn handle_request(body: &[u8]) -> heapless::String<12288> {
+pub fn handle_request(body: &[u8]) -> heapless::String<16384> {
     let server = McpServer::with_handler(invoke_tool);
     server.handle_request(body)
 }
@@ -855,6 +855,246 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             }
             let _ = write!(out, r#"{{"status":"ok","bytes":{},"data":"{}"}}"#, n, trace_escaped.as_str());
             false
+        }
+        "sensor_scan" => {
+            let bus = extract_string_arg(body, "bus").unwrap_or("i2c");
+            if bus == "spi" {
+                let cs = extract_u32_arg(body, "cs_pin").unwrap_or(17);
+                let speed_khz = extract_u32_arg(body, "speed_khz").unwrap_or(1000);
+                let speed_hz = speed_khz.clamp(100, 20_000) * 1000;
+                // Probe JEDEC ID (0x9F)
+                let tx = [0x9Fu8, 0x00, 0x00, 0x00];
+                let mut rx = [0u8; 4];
+                crate::bridge::spi::spi_transfer_default(0, speed_hz, &tx, &mut rx);
+                let has_jedec = rx[1] != 0x00 && rx[1] != 0xFF;
+                let _ = write!(out, r#"{{"status":"ok","bus":"spi","cs_pin":{},"devices":["#, cs);
+                if has_jedec {
+                    let _ = write!(out, r#"{{"cs":{},"type":"jedec_flash","mfg_id":"0x{:02X}","dev_id":"0x{:02X}{:02X}"}}"#, cs, rx[1], rx[2], rx[3]);
+                }
+                let _ = out.push_str("]}");
+                false
+            } else {
+                let sda = crate::bridge::i2c::I2C_PINS[0];
+                let scl = crate::bridge::i2c::I2C_PINS[1];
+                let found = crate::bridge::i2c::hw_i2c_scan(sda, scl);
+                let _ = write!(out, r#"{{"status":"ok","bus":"i2c","count":{},"devices":["#, found.len());
+                for (i, &addr) in found.iter().enumerate() {
+                    if i > 0 { let _ = out.push(','); }
+                    let profile = match addr {
+                        0x68 | 0x69 => "MPU6050",
+                        0x35 => "TMAG5273",
+                        0x36 => "AS5600",
+                        0x76 | 0x77 => "BME280",
+                        0x40 | 0x41 | 0x44 | 0x45 => "INA219",
+                        0x18 | 0x19 => "LIS3DH",
+                        0x29 => "VL53L0X",
+                        _ => "Generic_I2C",
+                    };
+                    let _ = write!(out, r#"{{"addr":{},"hex":"0x{:02X}","profile":"{}"}}"#, addr, addr, profile);
+                }
+                let _ = out.push_str("]}");
+                false
+            }
+        }
+        "sensor_read_reg" => {
+            let bus = extract_string_arg(body, "bus").unwrap_or("i2c");
+            let addr = extract_u32_arg(body, "addr").unwrap_or(0x68) as u8;
+            let reg = extract_u32_arg(body, "reg").unwrap_or(0) as u8;
+            let len = (extract_u32_arg(body, "len").unwrap_or(1) as usize).clamp(1, 32);
+
+            if bus == "spi" {
+                let mut tx = [0u8; 33];
+                tx[0] = reg | 0x80; // read bit
+                let mut rx = [0u8; 33];
+                crate::bridge::spi::spi_transfer_default(0, 1_000_000, &tx[..len + 1], &mut rx[..len + 1]);
+                let _ = write!(out, r#"{{"status":"ok","bus":"spi","reg":{},"len":{},"hex":""#, reg, len);
+                for &b in &rx[1..len + 1] {
+                    let _ = write!(out, "{:02X}", b);
+                }
+                let _ = write!(out, r#"","bytes":["#);
+                for (i, &b) in rx[1..len + 1].iter().enumerate() {
+                    if i > 0 { let _ = out.push(','); }
+                    let _ = write!(out, "{}", b);
+                }
+                let _ = out.push_str("]}");
+                false
+            } else {
+                let sda = crate::bridge::i2c::I2C_PINS[0];
+                let scl = crate::bridge::i2c::I2C_PINS[1];
+                let mut rx_buf = [0u8; 32];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, reg, &mut rx_buf[..len]);
+                if ok {
+                    let _ = write!(out, r#"{{"status":"ok","bus":"i2c","addr":{},"reg":{},"len":{},"hex":""#, addr, reg, len);
+                    for &b in &rx_buf[..len] {
+                        let _ = write!(out, "{:02X}", b);
+                    }
+                    let _ = write!(out, r#"","bytes":["#);
+                    for (i, &b) in rx_buf[..len].iter().enumerate() {
+                        if i > 0 { let _ = out.push(','); }
+                        let _ = write!(out, "{}", b);
+                    }
+                    let _ = out.push_str("]}");
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"reg":{}}}"#, addr, reg);
+                    true
+                }
+            }
+        }
+        "sensor_write_reg" => {
+            let bus = extract_string_arg(body, "bus").unwrap_or("i2c");
+            let addr = extract_u32_arg(body, "addr").unwrap_or(0x68) as u8;
+            let reg = extract_u32_arg(body, "reg").unwrap_or(0) as u8;
+            let mut data_buf = [0u8; 32];
+            let mut data_len = 0usize;
+
+            if let Some(hex_str) = extract_string_arg(body, "data") {
+                let clean = hex_str.trim_start_matches("0x").trim_start_matches("0X");
+                data_len = decode_hex(clean, &mut data_buf);
+            }
+            if data_len == 0 {
+                if let Some(val) = extract_u32_arg(body, "data") {
+                    data_buf[0] = val as u8;
+                    data_len = 1;
+                }
+            }
+            if data_len == 0 {
+                data_len = 1;
+                data_buf[0] = 0;
+            }
+
+            if bus == "spi" {
+                let mut tx = [0u8; 33];
+                tx[0] = reg & 0x7F; // write bit
+                tx[1..data_len + 1].copy_from_slice(&data_buf[..data_len]);
+                let mut rx = [0u8; 33];
+                crate::bridge::spi::spi_transfer_default(0, 1_000_000, &tx[..data_len + 1], &mut rx[..data_len + 1]);
+                let _ = write!(out, r#"{{"status":"ok","bus":"spi","reg":{},"written":{}}}"#, reg, data_len);
+                false
+            } else {
+                let sda = crate::bridge::i2c::I2C_PINS[0];
+                let scl = crate::bridge::i2c::I2C_PINS[1];
+                let ok = crate::bridge::i2c::hw_i2c_write(sda, scl, addr, reg, &data_buf[..data_len]);
+                if ok {
+                    let _ = write!(out, r#"{{"status":"ok","bus":"i2c","addr":{},"reg":{},"written":{}}}"#, addr, reg, data_len);
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"reg":{}}}"#, addr, reg);
+                    true
+                }
+            }
+        }
+        "sensor_poll" => {
+            let addr = extract_u32_arg(body, "addr").unwrap_or(0x68) as u8;
+            let profile_str = extract_string_arg(body, "profile").unwrap_or("");
+            let sda = crate::bridge::i2c::I2C_PINS[0];
+            let scl = crate::bridge::i2c::I2C_PINS[1];
+
+            let is_mpu = profile_str == "mpu6050" || (profile_str.is_empty() && (addr == 0x68 || addr == 0x69));
+            let is_tmag = profile_str == "tmag5273" || (profile_str.is_empty() && addr == 0x35);
+            let is_as5600 = profile_str == "as5600" || (profile_str.is_empty() && addr == 0x36);
+            let is_bme = profile_str == "bme280" || (profile_str.is_empty() && (addr == 0x76 || addr == 0x77));
+            let is_ina = profile_str == "ina219" || (profile_str.is_empty() && (addr == 0x40 || addr == 0x41 || addr == 0x44 || addr == 0x45));
+
+            if is_mpu {
+                let mut buf = [0u8; 14];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, 0x3B, &mut buf);
+                if ok {
+                    let ax = i16::from_be_bytes([buf[0], buf[1]]);
+                    let ay = i16::from_be_bytes([buf[2], buf[3]]);
+                    let az = i16::from_be_bytes([buf[4], buf[5]]);
+                    let temp_raw = i16::from_be_bytes([buf[6], buf[7]]);
+                    let gx = i16::from_be_bytes([buf[8], buf[9]]);
+                    let gy = i16::from_be_bytes([buf[10], buf[11]]);
+                    let gz = i16::from_be_bytes([buf[12], buf[13]]);
+
+                    let ax_milli = (ax as i32 * 1000) / 16384;
+                    let ay_milli = (ay as i32 * 1000) / 16384;
+                    let az_milli = (az as i32 * 1000) / 16384;
+                    let temp_deg = (temp_raw as i32 * 10) / 340 + 365;
+
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","addr":{},"profile":"mpu6050","telemetry":{{"accel_x_g":{}.{:03},"accel_y_g":{}.{:03},"accel_z_g":{}.{:03},"temp_c":{}.{:01},"gyro_x_dps":{},"gyro_y_dps":{},"gyro_z_dps":{}}}}}"#,
+                        addr,
+                        ax_milli / 1000, (ax_milli % 1000).abs(),
+                        ay_milli / 1000, (ay_milli % 1000).abs(),
+                        az_milli / 1000, (az_milli % 1000).abs(),
+                        temp_deg / 10, (temp_deg % 10).abs(),
+                        (gx as i32) / 131,
+                        (gy as i32) / 131,
+                        (gz as i32) / 131
+                    );
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"profile":"mpu6050"}}"#, addr);
+                    true
+                }
+            } else if is_tmag {
+                let mut buf = [0u8; 4];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, 0x12, &mut buf);
+                if ok {
+                    let raw_angle = u16::from_be_bytes([buf[0], buf[1]]) >> 4;
+                    let deg = (raw_angle as u32 * 3600) / 4096;
+                    let _ = write!(out, r#"{{"status":"ok","addr":{},"profile":"tmag5273","telemetry":{{"angle_deg":{}.{:01},"raw":{}}}}}"#, addr, deg / 10, deg % 10, raw_angle);
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"profile":"tmag5273"}}"#, addr);
+                    true
+                }
+            } else if is_as5600 {
+                let mut buf = [0u8; 2];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, 0x0C, &mut buf);
+                if ok {
+                    let raw = u16::from_be_bytes([buf[0], buf[1]]) & 0x0FFF;
+                    let deg = (raw as u32 * 3600) / 4096;
+                    let _ = write!(out, r#"{{"status":"ok","addr":{},"profile":"as5600","telemetry":{{"angle_deg":{}.{:01},"raw":{}}}}}"#, addr, deg / 10, deg % 10, raw);
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"profile":"as5600"}}"#, addr);
+                    true
+                }
+            } else if is_bme {
+                let mut buf = [0u8; 6];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, 0xF7, &mut buf);
+                if ok {
+                    let press_raw = ((buf[0] as u32) << 12) | ((buf[1] as u32) << 4) | ((buf[2] as u32) >> 4);
+                    let temp_raw = ((buf[3] as u32) << 12) | ((buf[4] as u32) << 4) | ((buf[5] as u32) >> 4);
+                    let press_hpa = press_raw / 256;
+                    let temp_c = (temp_raw as i32 - 100000) / 5120;
+                    let _ = write!(out, r#"{{"status":"ok","addr":{},"profile":"bme280","telemetry":{{"press_hpa":{},"temp_c":{}}}}}"#, addr, press_hpa, temp_c);
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"profile":"bme280"}}"#, addr);
+                    true
+                }
+            } else if is_ina {
+                let mut buf = [0u8; 2];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, 0x02, &mut buf);
+                if ok {
+                    let raw_v = u16::from_be_bytes([buf[0], buf[1]]) >> 3;
+                    let mv = raw_v as u32 * 4;
+                    let _ = write!(out, r#"{{"status":"ok","addr":{},"profile":"ina219","telemetry":{{"voltage_mv":{},"voltage_v":{}.{:03}}}}}"#, addr, mv, mv / 1000, mv % 1000);
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{},"profile":"ina219"}}"#, addr);
+                    true
+                }
+            } else {
+                let mut buf = [0u8; 8];
+                let ok = crate::bridge::i2c::hw_i2c_read(sda, scl, addr, 0x00, &mut buf);
+                if ok {
+                    let _ = write!(out, r#"{{"status":"ok","addr":{},"profile":"generic","raw_hex":""#, addr);
+                    for &b in &buf {
+                        let _ = write!(out, "{:02X}", b);
+                    }
+                    let _ = out.push_str("\"}}");
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","addr":{}}}"#, addr);
+                    true
+                }
+            }
         }
         _ => {
             let _ = write!(out, "unknown tool: {}", name);

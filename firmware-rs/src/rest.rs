@@ -1301,14 +1301,19 @@ impl BridgeI3cOff {
 impl BridgeI2cScan {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
         let pins = &crate::bridge::i2c::I2C_PINS;
+        let sda = key_u32(query, &body, "sda").unwrap_or(pins[0]);
+        let scl = key_u32(query, &body, "scl").unwrap_or(pins[1]);
+        let scan_pins = [sda, scl];
         let mut claimed_slot: Option<pin_owner::SlotId> = None;
-        if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
-            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+        if pin_owner::has_claim(scan_pins[0]).is_none() && pin_owner::has_claim(scan_pins[1]).is_none() {
+            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, &scan_pins, pin_owner::CAP_I2C) {
                 claimed_slot = Some(slot);
             }
         }
-        let found = crate::bridge::i2c::hw_i2c_scan(pins[0], pins[1]);
+        let found = crate::bridge::i2c::hw_i2c_scan(sda, scl);
         if let Some(slot) = claimed_slot {
             let _ = pin_owner::release(slot);
         }

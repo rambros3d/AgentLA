@@ -14,19 +14,17 @@ pub const I2C_PINS: [u32; 2] = [
     ActiveBoard::ADAPTERS.default_i2c.scl,
 ];
 
+#[inline(always)]
 fn sda_high(sda_pin: u32) {
     unsafe {
         pac::SIO.gpio_oe(0).value_clr().write_value(1 << sda_pin);
         pac::PADS_BANK0.gpio(sda_pin as usize).modify(|w| {
-            w.set_iso(false);
-            w.set_ie(true);
             w.set_od(true);
-            w.set_pue(true);
-            w.set_pde(false);
         });
     }
 }
 
+#[inline(always)]
 fn sda_low(sda_pin: u32) {
     unsafe {
         pac::SIO.gpio_out(0).value_clr().write_value(1 << sda_pin);
@@ -37,10 +35,12 @@ fn sda_low(sda_pin: u32) {
     }
 }
 
+#[inline(always)]
 fn sda_read(sda_pin: u32) -> bool {
     unsafe { (pac::SIO.gpio_in(0).read() & (1 << sda_pin)) != 0 }
 }
 
+#[inline(always)]
 fn scl_read(scl_pin: u32) -> bool {
     unsafe { (pac::SIO.gpio_in(0).read() & (1 << scl_pin)) != 0 }
 }
@@ -53,30 +53,28 @@ pub fn scl_level() -> bool {
     scl_read(I2C_PINS[1])
 }
 
+#[inline(always)]
 fn scl_high(scl_pin: u32) {
     unsafe {
         pac::SIO.gpio_oe(0).value_clr().write_value(1 << scl_pin);
         pac::PADS_BANK0.gpio(scl_pin as usize).modify(|w| {
-            w.set_iso(false);
-            w.set_ie(true);
             w.set_od(true);
-            w.set_pue(true);
-            w.set_pde(false);
         });
     }
 }
 
 fn scl_high_wait(scl_pin: u32) -> bool {
     scl_high(scl_pin);
-    for _ in 0..20_000 {
+    for _ in 0..50_000 {
         if scl_read(scl_pin) {
             return true;
         }
-        cortex_m::asm::delay(15);
+        cortex_m::asm::delay(30);
     }
     false
 }
 
+#[inline(always)]
 fn scl_low(scl_pin: u32) {
     unsafe {
         pac::SIO.gpio_out(0).value_clr().write_value(1 << scl_pin);
@@ -89,7 +87,7 @@ fn scl_low(scl_pin: u32) {
 
 fn i2c_delay() {
     // 100 kHz bit rate: half-period ~5 µs at 150 MHz
-    cortex_m::asm::delay(250);
+    cortex_m::asm::delay(375);
 }
 
 pub fn hw_i2c_init(sda_pin: u32, scl_pin: u32) {
@@ -105,6 +103,7 @@ pub fn hw_i2c_init(sda_pin: u32, scl_pin: u32) {
                 w.set_pue(true);
                 w.set_pde(false);
             });
+            pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
             pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
         }
     }
@@ -192,6 +191,8 @@ pub fn hw_i2c_scan(sda: u32, scl: u32) -> heapless::Vec<u8, 32> {
             let _ = found.push(addr);
         }
     }
+    sda_high(sda);
+    scl_high(scl);
     found
 }
 

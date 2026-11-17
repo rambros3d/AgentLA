@@ -76,13 +76,17 @@ fn test_tools_list() {
     assert!(res.contains(r#""name":"neopixel_pattern""#));
     assert!(res.contains(r#""name":"neopixel_analyze""#));
     assert!(res.contains(r#""name":"neopixel_transmit""#));
+    assert!(res.contains(r#""name":"sensor_scan""#));
+    assert!(res.contains(r#""name":"sensor_read_reg""#));
+    assert!(res.contains(r#""name":"sensor_write_reg""#));
+    assert!(res.contains(r#""name":"sensor_poll""#));
 
     // Verify app_uninstall is strictly omitted from tools list
     assert!(!res.contains(r#""name":"app_uninstall""#));
     assert!(!res.contains(r#""name":"app_delete""#));
 
-    // Verify exactly 45 tools in ALL_TOOLS
-    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 45);
+    // Verify exactly 49 tools in ALL_TOOLS
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 49);
 }
 
 #[test]
@@ -494,4 +498,58 @@ fn test_neopixel_tools_dispatch() {
     let res = server.handle_request(req);
     assert!(res.contains(r#""isError":false"#));
     assert!(res.contains(r#"\"pixels_updated\":3"#));
+}
+
+#[test]
+fn test_sensor_tools_dispatch() {
+    let handler = |name: &str, _body: &str, out: &mut heapless::String<1536>| -> bool {
+        match name {
+            "sensor_scan" => {
+                let _ = write!(out, r#"{{"status":"ok","devices":[{{"addr":104,"hex":"0x68","name":"MPU6050"}}]}}"#);
+                false
+            }
+            "sensor_read_reg" => {
+                let _ = write!(out, r#"{{"status":"ok","addr":104,"reg":117,"bytes":["0x68"]}}"#);
+                false
+            }
+            "sensor_write_reg" => {
+                let _ = write!(out, r#"{{"status":"ok","addr":104,"reg":107,"written":1}}"#);
+                false
+            }
+            "sensor_poll" => {
+                let _ = write!(out, r#"{{"status":"ok","addr":104,"profile":"mpu6050","telemetry":{{"accel_x_g":0.02,"accel_y_g":-0.01,"accel_z_g":0.99}}}}"#);
+                false
+            }
+            _ => {
+                let _ = write!(out, "unknown");
+                true
+            }
+        }
+    };
+    let server = McpServer::with_handler(handler);
+
+    // Test sensor_scan
+    let req = br##"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"sensor_scan","arguments":{"bus":"i2c"}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"status\":\"ok\""#));
+    assert!(res.contains(r#"\"MPU6050\""#));
+
+    // Test sensor_read_reg
+    let req = br##"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"sensor_read_reg","arguments":{"addr":104,"reg":117,"len":1}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"0x68\""#));
+
+    // Test sensor_write_reg
+    let req = br##"{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"sensor_write_reg","arguments":{"addr":104,"reg":107,"data":"0x00"}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"written\":1"#));
+
+    // Test sensor_poll
+    let req = br##"{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"sensor_poll","arguments":{"addr":104,"profile":"mpu6050"}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"accel_z_g\":0.99"#));
 }

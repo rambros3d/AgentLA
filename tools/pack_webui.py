@@ -105,7 +105,7 @@ def pack_webui(
             asset_files.append((rel_path, full_path))
 
     # Also include packages from packages_dir or apps/packages if available
-    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home", "servo", "neopixel"}
+    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home", "servo", "neopixel", "sensor"}
     if include_user_apps:
         pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
         if pkg_dir.is_dir():
@@ -172,6 +172,8 @@ def pack_webui(
             try:
                 text = raw_data.decode("utf-8")
                 text = re.sub(r"<!--(?!\[if).*?-->", "", text, flags=re.DOTALL)
+                text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+                text = re.sub(r"^[ \t]*//.*$", "", text, flags=re.MULTILINE)
                 text = re.sub(r"[ \t]+", " ", text)
                 text = re.sub(r"\n\s*\n", "\n", text)
                 to_compress = text.encode("utf-8")
@@ -181,6 +183,7 @@ def pack_webui(
             try:
                 text = raw_data.decode("utf-8")
                 text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+                text = re.sub(r"^[ \t]*//.*$", "", text, flags=re.MULTILINE)
                 text = re.sub(r"[ \t]+", " ", text)
                 text = re.sub(r"\n\s*\n", "\n", text)
                 to_compress = text.encode("utf-8")

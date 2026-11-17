@@ -5347,6 +5347,18 @@ function openNeoPixelApp() {
     }
 }
 
+function openSensorApp() {
+    const isDemo = window.location.protocol === 'https:' || 
+                   window.location.hostname.includes('github.io') ||
+                   window.location.search.includes('demo=1') ||
+                   window.location.pathname.endsWith('.html');
+    if (isDemo) {
+        window.location.href = 'sensor.html';
+    } else {
+        window.location.href = '/sensor';
+    }
+}
+
 // Pinned Dock Apps Management (Persisted in localStorage & synced across tabs)
 const PINNED_DOCK_STORAGE_KEY = 'agentla_pinned_dock_apps';
 
@@ -5360,7 +5372,7 @@ function getPinnedApps() {
             }
         }
     } catch (_) {}
-    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'];
+    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'];
 }
 
 function renderDockPinnedApps() {
@@ -5371,7 +5383,7 @@ function renderDockPinnedApps() {
     const pinned = getPinnedApps();
 
     // Toggle visibility of system instruments in dock (dock-app-servo, dock-app-motor, etc.)
-    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].forEach(sysId => {
+    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].forEach(sysId => {
         const el = document.getElementById(`dock-app-${sysId}`);
         if (el) {
             el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -5384,7 +5396,7 @@ function renderDockPinnedApps() {
 
     let html = '';
     pinned.forEach(appId => {
-        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].includes(appId)) return;
+        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].includes(appId)) return;
         let appName = appId;
         let clickAction = '';
         let iconSvg = '';

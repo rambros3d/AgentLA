@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="nothing" data-style="industrial">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SENSOR_STUDIO // AgentLA</title>
+  <script>
+    (function() {
+      document.documentElement.setAttribute('data-style', 'industrial');
+      var savedMode = localStorage.getItem('agentla-theme-mode');
+      var saved = localStorage.getItem('agentla-theme');
+      var defaultDark = 'nothing';
+      var defaultLight = 'industrial-light';
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+        var isLight = (saved === 'industrial-light' || saved === 'emerald' || saved === 'caramellatte' || saved === 'light');
+        document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
+      } else if (savedMode === 'light') {
+        document.documentElement.setAttribute('data-theme', defaultLight);
+        document.documentElement.setAttribute('data-theme-scheme', 'light');
+      } else if (savedMode === 'dark') {
+        document.documentElement.setAttribute('data-theme', defaultDark);
+        document.documentElement.setAttribute('data-theme-scheme', 'dark');
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.setAttribute('data-theme', defaultLight);
+        document.documentElement.setAttribute('data-theme-scheme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', defaultDark);
+        document.documentElement.setAttribute('data-theme-scheme', 'dark');
+      }
+    })();
+  </script>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="alternate icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/daisyui.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/themes.css">
+  <script src="/agentla-bridge.js"></script>
+  <style>
+    html.is-embedded #top-bar,
+    html.is-embedded .app-nav-rail,
+    html.is-embedded #app-nav-rail,
+    html.is-embedded .floating-glass-dock,
+    html.is-embedded #floating-glass-dock {
+      display: none !important;
+    }
+    .radar-matrix {
+      display: grid;
+      grid-template-columns: repeat(16, minmax(0, 1fr));
+      gap: 3px;
+    }
+    .addr-chip {
+      font-family: monospace;
+      font-size: 10px;
+      padding: 4px 1px;
+      text-align: center;
+      border-radius: 3px;
+      background: hsl(var(--b3) / 0.5);
+      border: 1px solid hsl(var(--b3));
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .addr-chip:hover {
+      border-color: hsl(var(--p));
+      background: hsl(var(--p) / 0.15);
+    }
+    .addr-chip.detected {
+      background: hsl(var(--su) / 0.25);
+      border-color: hsl(var(--su));
+      color: hsl(var(--su));
+      font-weight: 700;
+    }
+    .addr-chip.selected {
+      outline: 2px solid hsl(var(--p));
+      background: hsl(var(--p) / 0.3);
+      color: hsl(var(--pc));
+    }
+    .addr-chip.scanning {
+      background: hsl(var(--wa) / 0.3);
+      border-color: hsl(var(--wa));
+      animation: pulse-scan 0.3s ease infinite alternate;
+    }
+    @keyframes pulse-scan {
+      from { opacity: 0.6; }
+      to { opacity: 1; }
+    }
+    .reg-grid {
+      display: grid;
+      grid-template-columns: repeat(16, minmax(0, 1fr));
+      gap: 2px;
+      font-family: monospace;
+      font-size: 10px;
+    }
+    .reg-cell {
+      padding: 3px 1px;
+      text-align: center;
+      border-radius: 2px;
+      background: hsl(var(--b2));
+      border: 1px solid hsl(var(--b3));
+      cursor: pointer;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .reg-cell:hover {
+      background: hsl(var(--p) / 0.2);
+      border-color: hsl(var(--p));
+    }
+    .reg-cell.selected {
+      background: hsl(var(--p));
+      color: hsl(var(--pc));
+      font-weight: bold;
+    }
+    .reg-cell.dirty {
+      background: hsl(var(--wa) / 0.4);
+      border-color: hsl(var(--wa));
+      animation: pulse-dirty 0.8s ease;
+    }
+    @keyframes pulse-dirty {
+      0% { transform: scale(1.1); background: hsl(var(--wa)); }
+      100% { transform: scale(1); }
+    }
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      height: 280px;
+      background: hsl(var(--b2) / 0.5);
+      border: 1px solid hsl(var(--b3));
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    canvas.telemetry-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* Strictly no CSS dot indicators on active tabs or buttons */
+    .nav-tab-btn::after,
+    .btn::after {
+      display: none !important;
+      content: none !important;
+    }
+    .nav-tab-btn.active {
+      background: hsl(var(--p) / 0.15);
+      color: hsl(var(--p));
+      border-bottom: 2px solid hsl(var(--p));
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
+
+  <!-- OS Top Bar -->
+  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-1.5 min-h-0 flex justify-between items-center z-30">
+    <div class="navbar-start flex items-center gap-2">
+      <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="AgentLA App Launcher">
+        <span class="start-menu-icon" aria-hidden="true"></span>
+        <span class="font-bold tracking-tight text-sm font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> Sensor Studio</span>
+      </a>
+    </div>
+
+    <!-- Canonical Top-Rail Navigation Header -->
+    <div class="navbar-center hidden sm:flex items-center gap-1 font-mono-tech text-xs">
+      <a href="/home" class="btn btn-ghost btn-xs font-mono-tech uppercase">Home</a>
+      <a href="/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase">Scope</a>
+      <a href="/terminal" class="btn btn-ghost btn-xs font-mono-tech uppercase">Terminal</a>
+      <a href="/files" class="btn btn-ghost btn-xs font-mono-tech uppercase">Files</a>
+      <a href="/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase">Motor</a>
+      <a href="/servo" class="btn btn-ghost btn-xs font-mono-tech uppercase">Servo</a>
+      <a href="/neopixel" class="btn btn-ghost btn-xs font-mono-tech uppercase">NeoPixel</a>
+      <a href="/sensor" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10">Sensor</a>
+    </div>
+
+    <div class="navbar-end flex items-center gap-2">
+      <!-- Target Power Rail Toggle Switch -->
+      <label class="power-toggle-widget cursor-pointer flex items-center gap-2 bg-base-200/90 hover:bg-base-300 border border-base-300 rounded-full px-3 py-1 transition-all select-none" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+        <svg class="solar-icon power-bolt-icon text-warning shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <span class="power-pill-label font-mono-tech text-xs font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">3.31V</span> · <span id="top-bar-current-val">14mA</span></span>
+        <input type="checkbox" class="toggle toggle-xs toggle-success" id="target-power-switch" checked />
+      </label>
+
+      <!-- Combined Emergency Safe State & Hardware Profile Split Button -->
+      <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+        <div class="join">
+          <button class="join-item btn btn-sm btn-error gap-1.5 font-bold text-xs uppercase tracking-wider text-error-content shadow-none border-r border-error-content/20" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>SAFE STATE</span>
+          </button>
+          <button class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+            <span class="profile-name-text" id="active-profile-name">Safe State</span>
+            <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
+          </button>
+        </div>
+        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+          <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+          <div class="profile-menu-slots" id="profile-menu-slots"></div>
+        </div>
+      </div>
+
+      <!-- Tri-State Theme Toggle -->
+      <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)" aria-label="Toggle Theme Mode">
+        <svg class="solar-icon icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="5"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- In-App Sub-Toolbar -->
+  <div class="border-b border-base-300 bg-base-200/95 backdrop-blur px-6 py-2 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-20">
+    <!-- Dual-Bus Mode Switcher -->
+    <div class="flex items-center gap-2">
+      <div class="join bg-base-300/60 p-0.5 rounded-lg border border-base-300">
+        <button id="tab-mode-i2c" class="join-item btn btn-xs btn-primary px-3 uppercase tracking-wider font-semibold">I2C Bus</button>
+        <button id="tab-mode-spi" class="join-item btn btn-xs btn-ghost px-3 uppercase tracking-wider font-semibold">SPI Bus</button>
+      </div>
+
+      <div class="h-4 w-px bg-base-300"></div>
+
+      <!-- Bus Clock Speed Selector -->
+      <div class="flex items-center gap-1.5 text-xs font-mono">
+        <span class="text-base-content/60">Speed:</span>
+        <select id="sel-bus-speed" class="select select-xs select-bordered font-mono">
+          <option value="100000" selected>100 kHz (Standard)</option>
+          <option value="400000">400 kHz (Fast)</option>
+          <option value="1000000">1.0 MHz (Fast Plus)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-3">
+      <!-- Live Polling Toggle -->
+      <label class="flex items-center gap-2 cursor-pointer text-xs font-mono select-none">
+        <span class="text-base-content/70">Live Poll</span>
+        <input type="checkbox" id="chk-auto-poll" class="toggle toggle-xs toggle-primary" />
+        <select id="sel-poll-rate" class="select select-xs select-bordered font-mono">
+          <option value="1000">1 Hz</option>
+          <option value="200" selected>5 Hz</option>
+          <option value="100">10 Hz</option>
+          <option value="50">20 Hz</option>
+        </select>
+      </label>
+
+      <div class="h-4 w-px bg-base-300"></div>
+
+      <button id="btn-scan-bus" class="btn btn-xs btn-primary gap-1.5 uppercase tracking-wider font-semibold">
+        <svg class="solar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path opacity="0.5" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
+          <path d="M11.1256 6.82338C11.846 6.70116 12.6041 6.72817 13.3586 6.93033C16.1585 7.68056 17.8201 10.5585 17.0699 13.3584C16.3196 16.1583 13.4417 17.8199 10.6418 17.0697C7.84187 16.3194 6.18028 13.4415 6.93051 10.6416C7.05878 10.1629 7.24878 9.7184 7.48934 9.31389L8.19792 9.8874C7.84968 10.5131 7.65108 11.2339 7.65108 12C7.65108 14.4019 9.59824 16.3491 12.0002 16.3491C14.4021 16.3491 16.3493 14.4019 16.3493 12C16.3493 9.59805 14.4021 7.65089 12.0002 7.65089C11.586 7.65089 11.2502 7.98668 11.2502 8.40089C11.2502 8.81511 11.586 9.15089 12.0002 9.15089C13.5737 9.15089 14.8493 10.4265 14.8493 12C14.8493 13.5735 13.5737 14.8491 12.0002 14.8491C10.4267 14.8491 9.15108 13.5735 9.15108 12C9.15108 11.5916 9.23669 11.2038 9.3911 10.8531L11.5283 12.583C11.8503 12.8436 12.3226 12.7938 12.5832 12.4718C12.8438 12.1499 12.794 11.6776 12.472 11.417L8.27423 8.01941C7.7127 7.56491 6.80868 7.60723 6.3558 8.29795C5.97114 8.8846 5.67251 9.54098 5.48162 10.2534C4.51698 13.8535 6.65344 17.5539 10.2535 18.5186C13.8536 19.4832 17.5541 17.3467 18.5187 13.7466C19.4834 10.1465 17.3469 6.44608 13.7468 5.48144C12.7798 5.22232 11.8035 5.18693 10.8747 5.34452C10.4664 5.41381 10.1915 5.80103 10.2608 6.20941C10.33 6.61779 10.7173 6.89267 11.1256 6.82338Z" fill="currentColor"/>
+        </svg>
+        <span id="lbl-scan-btn">Scan Bus</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Bento Grid Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 pb-[76px] grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-y-auto">
+
+    <!-- Left Bento Column: Bus Discovery & Radar (5 cols) -->
+    <div class="lg:col-span-5 flex flex-col gap-6">
+
+      <!-- I2C Radar Matrix Card -->
+      <div id="card-i2c-bus" class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
+        <div class="flex items-center justify-between border-b border-base-300 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-xs font-mono uppercase tracking-wider text-primary">I2C Address Matrix</span>
+            <span class="badge badge-xs badge-neutral font-mono" id="badge-i2c-pins">SDA:16 SCL:17</span>
+          </div>
+          <span class="text-xs font-mono text-base-content/60" id="lbl-detected-count">0 devices found</span>
+        </div>
+
+        <!-- 16-Column Hex Grid Labels -->
+        <div class="grid grid-cols-16 gap-1 text-[9px] font-mono text-center text-base-content/40 font-bold px-0.5">
+          <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+          <span>8</span><span>9</span><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span>
+        </div>
+
+        <!-- Radar 128 Address Grid (0x08..0x77) -->
+        <div id="radar-matrix-grid" class="radar-matrix"></div>
+
+        <!-- Detected Devices Legend -->
+        <div class="border-t border-base-300 pt-2 flex flex-col gap-1.5 text-xs font-mono">
+          <div class="text-[10px] text-base-content/50 uppercase font-bold tracking-wider">Detected Devices:</div>
+          <div id="detected-devices-list" class="flex flex-wrap gap-1.5">
+            <span class="text-xs text-base-content/40 italic">No devices active. Click 'Scan Bus' to probe.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SPI CS Probe Panel Card (Hidden in I2C Mode) -->
+      <div id="card-spi-bus" class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-4 hidden">
+        <div class="flex items-center justify-between border-b border-base-300 pb-2.5">
+          <span class="font-bold text-xs font-mono uppercase tracking-wider text-primary">SPI Device Probe</span>
+          <span class="badge badge-xs badge-neutral font-mono">SCK:18 MOSI:19 MISO:16</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+          <div>
+            <label class="text-base-content/60 block mb-1">Active CS Pin:</label>
+            <select id="sel-spi-cs" class="select select-sm select-bordered w-full font-mono">
+              <option value="17" selected>CS0 (GPIO 17)</option>
+              <option value="20">CS1 (GPIO 20)</option>
+              <option value="21">CS2 (GPIO 21)</option>
+              <option value="22">CS3 (GPIO 22)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-base-content/60 block mb-1">SPI Mode:</label>
+            <select id="sel-spi-mode" class="select select-sm select-bordered w-full font-mono">
+              <option value="0" selected>Mode 0 (CPOL=0, CPHA=0)</option>
+              <option value="1">Mode 1 (CPOL=0, CPHA=1)</option>
+              <option value="2">Mode 2 (CPOL=1, CPHA=0)</option>
+              <option value="3">Mode 3 (CPOL=1, CPHA=1)</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="btn-probe-spi" class="btn btn-sm btn-outline btn-primary w-full uppercase tracking-wider font-semibold">
+          Probe SPI Device
+        </button>
+
+        <div id="spi-probe-result" class="bg-base-300/40 p-3 rounded-lg border border-base-300 font-mono text-xs text-base-content/70">
+          Click 'Probe SPI Device' to query JEDEC ID and standard signatures on selected CS.
+        </div>
+      </div>
+
+      <!-- Active Silicon Profile Card -->
+      <div class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
+        <div class="flex items-center justify-between border-b border-base-300 pb-2">
+          <span class="font-bold text-xs font-mono uppercase tracking-wider text-base-content/70">Silicon Signature</span>
+          <span id="badge-device-addr" class="badge badge-sm badge-primary font-mono font-bold">ADDR: 0x68</span>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <span id="sensor-profile-name" class="font-bold text-base text-base-content">InvenSense MPU-6050</span>
+          <span id="sensor-profile-desc" class="text-xs text-base-content/60">6-Axis MotionTracking: 3-Axis Gyroscope + 3-Axis Accelerometer</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs font-mono bg-base-300/50 p-2.5 rounded-lg border border-base-300">
+          <div><span class="text-base-content/50">WHO_AM_I:</span> <span id="val-who-am-i" class="font-bold text-success">0x68 (MATCH)</span></div>
+          <div><span class="text-base-content/50">Silicon Family:</span> <span id="val-silicon-family">IMU / Motion</span></div>
+          <div><span class="text-base-content/50">Supply:</span> <span id="val-supply">3.3V VDD</span></div>
+          <div><span class="text-base-content/50">Comm Bus:</span> <span id="val-comm-bus">I2C Standard</span></div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button id="btn-sensor-init" class="btn btn-xs btn-outline btn-success flex-1 font-mono uppercase">Wake Sensor</button>
+          <button id="btn-sensor-reset" class="btn btn-xs btn-outline btn-warning flex-1 font-mono uppercase">Soft Reset</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Bento Column: Live Visualizer & Register Map (7 cols) -->
+    <div class="lg:col-span-7 flex flex-col gap-6">
+
+      <!-- Live Visualizer Bento Card -->
+      <div class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-xs font-mono uppercase tracking-wider text-primary">Real-Time Visualizer</span>
+            <span id="badge-fps" class="badge badge-xs badge-neutral font-mono">60 FPS</span>
+          </div>
+
+          <!-- Visualizer Mode Tabs -->
+          <div class="join bg-base-300/60 p-0.5 rounded-lg border border-base-300 text-xs font-mono">
+            <button id="vis-tab-imu" class="join-item btn btn-xs btn-primary px-2 font-mono">3D IMU</button>
+            <button id="vis-tab-angle" class="join-item btn btn-xs btn-ghost px-2 font-mono">Angle Dial</button>
+            <button id="vis-tab-env" class="join-item btn btn-xs btn-ghost px-2 font-mono">Climate</button>
+            <button id="vis-tab-power" class="join-item btn btn-xs btn-ghost px-2 font-mono">Power</button>
+            <button id="vis-tab-stream" class="join-item btn btn-xs btn-ghost px-2 font-mono">Waveform</button>
+          </div>
+        </div>
+
+        <!-- Pure HTML5 2D Canvas Container -->
+        <div class="canvas-container" id="visualizer-container">
+          <canvas id="telemetry-canvas" class="telemetry-canvas" width="640" height="280"></canvas>
+        </div>
+
+        <!-- Telemetry Numerical HUD -->
+        <div id="telemetry-hud-metrics" class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs font-mono bg-base-300/40 p-2 rounded-lg border border-base-300">
+          <div><div class="text-[10px] text-base-content/50">PITCH</div><div id="metric-pitch" class="font-bold text-primary">0.0 deg</div></div>
+          <div><div class="text-[10px] text-base-content/50">ROLL</div><div id="metric-roll" class="font-bold text-primary">0.0 deg</div></div>
+          <div><div class="text-[10px] text-base-content/50">YAW</div><div id="metric-yaw" class="font-bold text-primary">0.0 deg</div></div>
+          <div><div class="text-[10px] text-base-content/50">ACCEL X</div><div id="metric-ax" class="font-bold">0.00 g</div></div>
+          <div><div class="text-[10px] text-base-content/50">ACCEL Y</div><div id="metric-ay" class="font-bold">0.00 g</div></div>
+          <div><div class="text-[10px] text-base-content/50">ACCEL Z</div><div id="metric-az" class="font-bold">1.00 g</div></div>
+        </div>
+      </div>
+
+      <!-- 256-Byte Interactive Register Map Bento Card -->
+      <div class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-xs font-mono uppercase tracking-wider text-base-content/80">Interactive Register Map (256B)</span>
+            <span class="badge badge-xs badge-neutral font-mono">0x00..0xFF</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-read-all-regs" class="btn btn-xs btn-outline font-mono uppercase">Read Page (32B)</button>
+            <button id="btn-dump-all-regs" class="btn btn-xs btn-outline font-mono uppercase">Dump All (256B)</button>
+          </div>
+        </div>
+
+        <!-- 16x16 Hex Grid Table -->
+        <div id="reg-matrix-grid" class="reg-grid"></div>
+
+        <!-- Register Bitfield Inspector & Editor -->
+        <div class="bg-base-300/50 p-3 rounded-lg border border-base-300 flex flex-col gap-2.5 font-mono text-xs">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-base-content/60">Selected Register:</span>
+              <span id="inspect-reg-addr" class="font-bold text-primary">0x75 (WHO_AM_I)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-base-content/60">Value:</span>
+              <span id="inspect-reg-hex" class="font-bold text-success font-mono">0x68</span>
+              <span id="inspect-reg-dec" class="text-base-content/50">(104)</span>
+            </div>
+          </div>
+
+          <!-- Bitfield Toggles (Bit 7 down to Bit 0) -->
+          <div class="flex items-center justify-between gap-1 pt-1">
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b7</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="7">0</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b6</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="6">1</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b5</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="5">1</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b4</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="4">0</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b3</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="3">1</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b2</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="2">0</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b1</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="1">0</button>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[9px] text-base-content/50">b0</span>
+              <button class="btn btn-xs btn-outline w-full font-mono bit-btn" data-bit="0">0</button>
+            </div>
+          </div>
+
+          <!-- Write Register Action -->
+          <div class="flex items-center justify-between gap-3 pt-1">
+            <span id="inspect-reg-info" class="text-[11px] text-base-content/60 truncate flex-1">Read-only identification register.</span>
+            <button id="btn-write-register" class="btn btn-xs btn-primary uppercase font-mono tracking-wider font-semibold">Write Register</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    /* Sensor Studio Engine */
+    const SENSOR_PROFILES = {
+      0x68: { name: 'MPU-6050 / MPU-9250', family: 'IMU / Motion', desc: '6-Axis Accel + Gyroscope', whoAmIReg: 0x75, whoAmIExpected: [0x68, 0x71, 0x73], vis: 'imu_3d' },
+      0x69: { name: 'MPU-6050 / MPU-9250 (AD0 High)', family: 'IMU / Motion', desc: '6-Axis Accel + Gyroscope', whoAmIReg: 0x75, whoAmIExpected: [0x68, 0x71, 0x73], vis: 'imu_3d' },
+      0x35: { name: 'TI TMAG5273', family: 'Magnetic / Hall', desc: '3D Hall Effect Angle & Position', whoAmIReg: 0x0D, whoAmIExpected: [0x49, 0x54], vis: 'angle_dial' },
+      0x36: { name: 'ams AS5600', family: 'Rotary Encoder', desc: '12-bit Contactless Angle Encoder', whoAmIReg: 0x00, whoAmIExpected: [0x00, 0x01], vis: 'angle_dial' },
+      0x76: { name: 'Bosch BME280 / BMP280', family: 'Environmental', desc: 'Pressure, Temperature & Humidity', whoAmIReg: 0xD0, whoAmIExpected: [0x60, 0x58], vis: 'env_dashboard' },
+      0x77: { name: 'Bosch BME280 / BMP280 (Alt)', family: 'Environmental', desc: 'Pressure, Temperature & Humidity', whoAmIReg: 0xD0, whoAmIExpected: [0x60, 0x58], vis: 'env_dashboard' },
+      0x40: { name: 'TI INA219', family: 'Power Monitor', desc: 'Bidirectional Current & Voltage Monitor', whoAmIReg: 0x00, whoAmIExpected: [0x39, 0x38], vis: 'power_monitor' },
+      0x41: { name: 'TI INA219 (A0 High)', family: 'Power Monitor', desc: 'Bidirectional Current & Voltage Monitor', whoAmIReg: 0x00, whoAmIExpected: [0x39, 0x38], vis: 'power_monitor' },
+      0x18: { name: 'ST LIS3DH', family: 'Accelerometer', desc: 'Ultra-low-power 3-axis accelerometer', whoAmIReg: 0x0F, whoAmIExpected: [0x33], vis: 'imu_3d' },
+      0x29: { name: 'ST VL53L0X', family: 'Time-of-Flight', desc: 'Laser Ranging Distance Sensor', whoAmIReg: 0xC0, whoAmIExpected: [0xEE], vis: 'generic_stream' }
+    };
+
+    let activeBus = 'i2c'; // 'i2c' or 'spi'
+    let selectedAddr = 0x68;
+    let selectedReg = 0x75;
+    let detectedDevices = [];
+    let registers = new Uint8Array(256);
+    let dirtyBytes = new Set();
+    let currentVis = 'imu_3d';
+    let pollInterval = null;
+    let pitch = 0, roll = 0, yaw = 0;
+    let ax = 0, ay = 0, az = 1;
+    let angleDeg = 45.0;
+    let envTemp = 24.5, envPress = 1013.2, envHum = 48.0;
+    let pwrVolt = 3.31, pwrCurr = 14.2, pwrWatt = 0.047;
+    let streamHistory = [];
+
+    // Initialize 128-address radar grid
+    const radarGrid = document.getElementById('radar-matrix-grid');
+    for (let addr = 0x08; addr <= 0x77; addr++) {
+      const chip = document.createElement('div');
+      chip.className = 'addr-chip';
+      chip.id = `addr-chip-${addr}`;
+      chip.textContent = addr.toString(16).toUpperCase().padStart(2, '0');
+      chip.title = `Address: 0x${addr.toString(16).toUpperCase()} (${addr})`;
+      chip.addEventListener('click', () => selectAddress(addr));
+      radarGrid.appendChild(chip);
+    }
+
+    // Initialize 256-register grid
+    const regGrid = document.getElementById('reg-matrix-grid');
+    for (let r = 0; r < 256; r++) {
+      const cell = document.createElement('div');
+      cell.className = 'reg-cell';
+      cell.id = `reg-cell-${r}`;
+      cell.textContent = '00';
+      cell.title = `Reg 0x${r.toString(16).toUpperCase().padStart(2, '0')}`;
+      cell.addEventListener('click', () => selectRegister(r));
+      regGrid.appendChild(cell);
+    }
+
+    // Setup Bit buttons
+    document.querySelectorAll('.bit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const bit = parseInt(btn.dataset.bit, 10);
+        let cur = registers[selectedReg];
+        cur ^= (1 << bit);
+        registers[selectedReg] = cur;
+        btn.textContent = (cur & (1 << bit)) ? '1' : '0';
+        btn.classList.toggle('btn-primary', !!(cur & (1 << bit)));
+        updateRegisterInspect();
+      });
+    });
+
+    function selectAddress(addr) {
+      document.querySelectorAll('.addr-chip').forEach(c => c.classList.remove('selected'));
+      const chip = document.getElementById(`addr-chip-${addr}`);
+      if (chip) chip.classList.add('selected');
+      selectedAddr = addr;
+      document.getElementById('badge-device-addr').textContent = `ADDR: 0x${addr.toString(16).toUpperCase()}`;
+
+      const profile = SENSOR_PROFILES[addr] || {
+        name: `Generic I2C Device (0x${addr.toString(16).toUpperCase()})`,
+        family: 'I2C Slave',
+        desc: 'Unregistered Silicon Profile',
+        whoAmIReg: 0x00,
+        whoAmIExpected: [],
+        vis: 'generic_stream'
+      };
+
+      document.getElementById('sensor-profile-name').textContent = profile.name;
+      document.getElementById('sensor-profile-desc').textContent = profile.desc;
+      document.getElementById('val-silicon-family').textContent = profile.family;
+
+      // Select matching visualizer
+      switchVisualizer(profile.vis || 'generic_stream');
+
+      // Read initial page
+      readRegisterPage(0);
+    }
+
+    function selectRegister(r) {
+      document.querySelectorAll('.reg-cell').forEach(c => c.classList.remove('selected'));
+      const cell = document.getElementById(`reg-cell-${r}`);
+      if (cell) cell.classList.add('selected');
+      selectedReg = r;
+      updateRegisterInspect();
+    }
+
+    function updateRegisterInspect() {
+      const r = selectedReg;
+      const val = registers[r];
+      document.getElementById('inspect-reg-addr').textContent = `0x${r.toString(16).toUpperCase().padStart(2, '0')} (${r})`;
+      document.getElementById('inspect-reg-hex').textContent = `0x${val.toString(16).toUpperCase().padStart(2, '0')}`;
+      document.getElementById('inspect-reg-dec').textContent = `(${val})`;
+
+      // Update bit buttons
+      for (let bit = 0; bit < 8; bit++) {
+        const btn = document.querySelector(`.bit-btn[data-bit="${bit}"]`);
+        if (btn) {
+          const bitVal = (val >> bit) & 1;
+          btn.textContent = bitVal.toString();
+          btn.classList.toggle('btn-primary', bitVal === 1);
+        }
+      }
+    }
+
+    /* Bus Scanning */
+    async function scanI2CBus() {
+      const btn = document.getElementById('btn-scan-bus');
+      btn.disabled = true;
+      document.getElementById('lbl-scan-btn').textContent = 'Scanning...';
+
+      // Visual scanning wave
+      for (let addr = 0x08; addr <= 0x77; addr++) {
+        const chip = document.getElementById(`addr-chip-${addr}`);
+        if (chip) chip.classList.add('scanning');
+      }
+
+      detectedDevices = [];
+      try {
+        const res = await fetch('/api/v1/bridge/i2c/scan');
+        if (res.ok) {
+          const data = await res.json();
+          detectedDevices = data.addresses || [];
+        } else {
+          throw new Error('HTTP ' + res.status);
+        }
+      } catch (e) {
+        // Fallback demo devices if offline
+        detectedDevices = [0x68, 0x35, 0x76];
+      }
+
+      // Update UI
+      for (let addr = 0x08; addr <= 0x77; addr++) {
+        const chip = document.getElementById(`addr-chip-${addr}`);
+        if (chip) {
+          chip.classList.remove('scanning');
+          if (detectedDevices.includes(addr)) {
+            chip.classList.add('detected');
+          } else {
+            chip.classList.remove('detected');
+          }
+        }
+      }
+
+      document.getElementById('lbl-detected-count').textContent = `${detectedDevices.length} devices found`;
+      const listEl = document.getElementById('detected-devices-list');
+      listEl.innerHTML = '';
+
+      if (detectedDevices.length === 0) {
+        listEl.innerHTML = `<span class="text-xs text-base-content/40 italic">No devices responded. Check pull-up resistors and wiring.</span>`;
+      } else {
+        detectedDevices.forEach(addr => {
+          const prof = SENSOR_PROFILES[addr];
+          const badge = document.createElement('div');
+          badge.className = 'badge badge-sm badge-success gap-1 cursor-pointer font-mono font-bold';
+          badge.innerHTML = `0x${addr.toString(16).toUpperCase()} ${prof ? prof.name.split(' ')[0] : 'DEV'}`;
+          badge.onclick = () => selectAddress(addr);
+          listEl.appendChild(badge);
+        });
+
+        if (detectedDevices.includes(0x68)) {
+          selectAddress(0x68);
+        } else if (detectedDevices.length > 0) {
+          selectAddress(detectedDevices[0]);
+        }
+      }
+
+      btn.disabled = false;
+      document.getElementById('lbl-scan-btn').textContent = 'Scan Bus';
+    }
+
+    async function probeSPIDevice() {
+      const cs = document.getElementById('sel-spi-cs').value;
+      const mode = document.getElementById('sel-spi-mode').value;
+      const resEl = document.getElementById('spi-probe-result');
+      resEl.textContent = `Probing CS${cs} (Mode ${mode})...`;
+
+      try {
+        const res = await fetch('/api/v1/bridge/spi/transfer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: parseInt(mode, 10), data_hex: '9F000000' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          resEl.innerHTML = `<div><strong>JEDEC Probe Result:</strong> RX: <code>${data.rx_hex}</code></div>`;
+        } else {
+          throw new Error('HTTP ' + res.status);
+        }
+      } catch (e) {
+        resEl.innerHTML = `<div><strong>SPI Probe (Demo):</strong> CS${cs} JEDEC ID: <code>EF4018</code> (Winbond W25Q128 16MB Flash)</div>`;
+      }
+    }
+
+    /* Register Map Read/Write */
+    async function readRegisterPage(startReg = 0, count = 32) {
+      try {
+        const res = await fetch(`/api/v1/bridge/i2c/transfer?addr=${selectedAddr}&data=${startReg.toString(16).padStart(2,'0')}&read_len=${count}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.rx_hex) {
+            for (let i = 0; i < count && i * 2 < data.rx_hex.length; i++) {
+              const byteVal = parseInt(data.rx_hex.substr(i * 2, 2), 16);
+              const r = startReg + i;
+              if (registers[r] !== byteVal) {
+                registers[r] = byteVal;
+                markDirty(r);
+              }
+              const cell = document.getElementById(`reg-cell-${r}`);
+              if (cell) cell.textContent = byteVal.toString(16).toUpperCase().padStart(2, '0');
+            }
+          }
+        }
+      } catch (e) {
+        // Demo synthetic values
+        for (let i = 0; i < count; i++) {
+          const r = startReg + i;
+          let val = 0;
+          if (r === 0x75) val = 0x68; // WHO_AM_I
+          else if (r === 0x3B) val = Math.floor(Math.random() * 256);
+          registers[r] = val;
+          const cell = document.getElementById(`reg-cell-${r}`);
+          if (cell) cell.textContent = val.toString(16).toUpperCase().padStart(2, '0');
+        }
+      }
+      updateRegisterInspect();
+    }
+
+    function markDirty(r) {
+      const cell = document.getElementById(`reg-cell-${r}`);
+      if (cell) {
+        cell.classList.remove('dirty');
+        void cell.offsetWidth;
+        cell.classList.add('dirty');
+      }
+    }
+
+    async function writeRegister() {
+      const r = selectedReg;
+      const val = registers[r];
+      const hexStr = r.toString(16).padStart(2, '0') + val.toString(16).padStart(2, '0');
+      try {
+        await fetch(`/api/v1/bridge/i2c/transfer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addr: selectedAddr, data_hex: hexStr })
+        });
+      } catch (e) {}
+      markDirty(r);
+    }
+
+    /* Visualizer Tabs */
+    function switchVisualizer(type) {
+      currentVis = type;
+      ['imu', 'angle', 'env', 'power', 'stream'].forEach(t => {
+        const btn = document.getElementById(`vis-tab-${t}`);
+        if (btn) {
+          btn.className = (type === `vis_${t}` || type === `${t}_3d` || type === `${t}_dial` || type === `${t}_dashboard` || type === `${t}_monitor` || type === `generic_${t}` || type === t)
+            ? 'join-item btn btn-xs btn-primary px-2 font-mono'
+            : 'join-item btn btn-xs btn-ghost px-2 font-mono';
+        }
+      });
+    }
+
+    document.getElementById('vis-tab-imu').onclick = () => switchVisualizer('imu_3d');
+    document.getElementById('vis-tab-angle').onclick = () => switchVisualizer('angle_dial');
+    document.getElementById('vis-tab-env').onclick = () => switchVisualizer('env_dashboard');
+    document.getElementById('vis-tab-power').onclick = () => switchVisualizer('power_monitor');
+    document.getElementById('vis-tab-stream').onclick = () => switchVisualizer('generic_stream');
+
+    /* Pure HTML5 2D Canvas Visualizers */
+    const canvas = document.getElementById('telemetry-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function renderCanvas() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (currentVis === 'imu_3d') {
+        render3DPrism(ctx, w, h, pitch, roll, yaw);
+      } else if (currentVis === 'angle_dial') {
+        renderAngleDial(ctx, w, h, angleDeg);
+      } else if (currentVis === 'env_dashboard') {
+        renderClimateMeters(ctx, w, h, envTemp, envPress, envHum);
+      } else if (currentVis === 'power_monitor') {
+        renderPowerMeters(ctx, w, h, pwrVolt, pwrCurr, pwrWatt);
+      } else {
+        renderWaveformStream(ctx, w, h);
+      }
+
+      requestAnimationFrame(renderCanvas);
+    }
+
+    /* 3D Attitude Prism (Pure 2D Canvas Projection Math) */
+    function render3DPrism(c, w, h, p, r, y) {
+      c.save();
+      c.translate(w / 2, h / 2);
+
+      const radP = (p * Math.PI) / 180;
+      const radR = (r * Math.PI) / 180;
+      const radY = (y * Math.PI) / 180;
+
+      // 3D Cube Vertices
+      const s = 65;
+      const vertices = [
+        [-s, -s, -s], [s, -s, -s], [s, s, -s], [-s, s, -s],
+        [-s, -s, s],  [s, -s, s],  [s, s, s],  [-s, s, s]
+      ];
+
+      // Matrix Rotation
+      const cosP = Math.cos(radP), sinP = Math.sin(radP);
+      const cosR = Math.cos(radR), sinR = Math.sin(radR);
+      const cosY = Math.cos(radY), sinY = Math.sin(radY);
+
+      const projected = vertices.map(([vx, vy, vz]) => {
+        // Yaw (Z)
+        let x1 = vx * cosY - vy * sinY;
+        let y1 = vx * sinY + vy * cosY;
+        let z1 = vz;
+        // Pitch (X)
+        let x2 = x1;
+        let y2 = y1 * cosP - z1 * sinP;
+        let z2 = y1 * sinP + z1 * cosP;
+        // Roll (Y)
+        let x3 = x2 * cosR + z2 * sinR;
+        let y3 = y2;
+        let z3 = -x2 * sinR + z2 * cosR;
+
+        const fov = 350;
+        const scale = fov / (fov + z3);
+        return [x3 * scale, y3 * scale, z3];
+      });
+
+      // Faces definition [v0, v1, v2, v3, fill, label]
+      const faces = [
+        [4, 5, 6, 7, 'rgba(56, 189, 248, 0.45)', 'TOP'],
+        [0, 1, 2, 3, 'rgba(30, 41, 59, 0.65)', 'BOTTOM'],
+        [0, 1, 5, 4, 'rgba(168, 85, 247, 0.4)', 'FRONT'],
+        [2, 3, 7, 6, 'rgba(236, 72, 153, 0.4)', 'BACK'],
+        [1, 2, 6, 5, 'rgba(34, 197, 94, 0.45)', 'RIGHT'],
+        [0, 3, 7, 4, 'rgba(234, 179, 8, 0.4)', 'LEFT']
+      ];
+
+      // Sort faces back to front
+      faces.sort((a, b) => {
+        const zA = (projected[a[0]][2] + projected[a[1]][2] + projected[a[2]][2] + projected[a[3]][2]) / 4;
+        const zB = (projected[b[0]][2] + projected[b[1]][2] + projected[b[2]][2] + projected[b[3]][2]) / 4;
+        return zA - zB;
+      });
+
+      // Draw faces
+      faces.forEach(f => {
+        c.beginPath();
+        c.moveTo(projected[f[0]][0], projected[f[0]][1]);
+        c.lineTo(projected[f[1]][0], projected[f[1]][1]);
+        c.lineTo(projected[f[2]][0], projected[f[2]][1]);
+        c.lineTo(projected[f[3]][0], projected[f[3]][1]);
+        c.closePath();
+        c.fillStyle = f[4];
+        c.fill();
+        c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        c.lineWidth = 1.5;
+        c.stroke();
+      });
+
+      // Draw Coordinate Axes
+      c.lineWidth = 2.5;
+      c.beginPath(); c.moveTo(0,0); c.lineTo(90, 0); c.strokeStyle = '#ef4444'; c.stroke(); // X
+      c.beginPath(); c.moveTo(0,0); c.lineTo(0, -90); c.strokeStyle = '#22c55e'; c.stroke(); // Y
+      c.beginPath(); c.moveTo(0,0); c.lineTo(-60, 60); c.strokeStyle = '#3b82f6'; c.stroke(); // Z
+
+      c.restore();
+    }
+
+    /* Rotary Angle Compass Dial */
+    function renderAngleDial(c, w, h, deg) {
+      c.save();
+      c.translate(w / 2, h / 2);
+      const r = 95;
+
+      // Outer Ring
+      c.beginPath();
+      c.arc(0, 0, r, 0, Math.PI * 2);
+      c.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      c.lineWidth = 3;
+      c.stroke();
+
+      // Degree Graduation Ticks
+      for (let d = 0; d < 360; d += 10) {
+        const rad = (d * Math.PI) / 180;
+        const isMajor = d % 30 === 0;
+        const inner = isMajor ? r - 12 : r - 6;
+        c.beginPath();
+        c.moveTo(Math.cos(rad) * inner, Math.sin(rad) * inner);
+        c.lineTo(Math.cos(rad) * r, Math.sin(rad) * r);
+        c.strokeStyle = isMajor ? '#38bdf8' : 'rgba(255, 255, 255, 0.3)';
+        c.lineWidth = isMajor ? 2 : 1;
+        c.stroke();
+      }
+
+      // Pointer Needle
+      const needleRad = ((deg - 90) * Math.PI) / 180;
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(Math.cos(needleRad) * (r - 16), Math.sin(needleRad) * (r - 16));
+      c.strokeStyle = '#ef4444';
+      c.lineWidth = 3.5;
+      c.stroke();
+
+      // Center Hub
+      c.beginPath();
+      c.arc(0, 0, 7, 0, Math.PI * 2);
+      c.fillStyle = '#ef4444';
+      c.fill();
+
+      // Numerical Readout
+      c.font = 'bold 16px monospace';
+      c.fillStyle = '#ffffff';
+      c.textAlign = 'center';
+      c.fillText(`${deg.toFixed(1)} deg`, 0, r + 24);
+
+      c.restore();
+    }
+
+    /* Climate Meters */
+    function renderClimateMeters(c, w, h, t, p, hum) {
+      c.font = 'bold 12px monospace';
+      c.fillStyle = '#38bdf8';
+      c.textAlign = 'center';
+
+      const centers = [w * 0.2, w * 0.5, w * 0.8];
+      const labels = ['TEMPERATURE', 'PRESSURE', 'HUMIDITY'];
+      const values = [`${t.toFixed(1)} C`, `${p.toFixed(1)} hPa`, `${hum.toFixed(1)} %RH`];
+      const colors = ['#f97316', '#38bdf8', '#22c55e'];
+
+      centers.forEach((cx, idx) => {
+        c.beginPath();
+        c.arc(cx, h / 2, 45, 0, Math.PI * 2);
+        c.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        c.lineWidth = 6;
+        c.stroke();
+
+        c.beginPath();
+        c.arc(cx, h / 2, 45, -Math.PI / 2, Math.PI * 0.6);
+        c.strokeStyle = colors[idx];
+        c.lineWidth = 6;
+        c.stroke();
+
+        c.font = 'bold 14px monospace';
+        c.fillStyle = '#ffffff';
+        c.fillText(values[idx], cx, h / 2 + 5);
+
+        c.font = '10px monospace';
+        c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        c.fillText(labels[idx], cx, h / 2 + 65);
+      });
+    }
+
+    /* Power Monitor Meters */
+    function renderPowerMeters(c, w, h, v, i, p) {
+      c.textAlign = 'left';
+      c.font = 'bold 11px monospace';
+      c.fillStyle = '#ffffff';
+
+      const metrics = [
+        { label: 'BUS VOLTAGE', val: `${v.toFixed(3)} V`, max: 32, cur: v, color: '#38bdf8' },
+        { label: 'SHUNT CURRENT', val: `${i.toFixed(1)} mA`, max: 3200, cur: i, color: '#22c55e' },
+        { label: 'LOAD POWER', val: `${(p * 1000).toFixed(1)} mW`, max: 10000, cur: p * 1000, color: '#f59e0b' }
+      ];
+
+      metrics.forEach((m, idx) => {
+        const y = 45 + idx * 75;
+        c.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        c.fillText(m.label, 40, y);
+        c.fillStyle = m.color;
+        c.font = 'bold 18px monospace';
+        c.fillText(m.val, 40, y + 25);
+        c.font = 'bold 11px monospace';
+
+        // Progress bar
+        c.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        c.fillRect(40, y + 34, w - 80, 8);
+        const barW = Math.min((m.cur / m.max) * (w - 80), w - 80);
+        c.fillStyle = m.color;
+        c.fillRect(40, y + 34, Math.max(barW, 2), 8);
+      });
+    }
+
+    /* Waveform Strip Chart */
+    function renderWaveformStream(c, w, h) {
+      c.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      c.lineWidth = 1;
+      // Grid
+      for (let y = 30; y < h; y += 40) {
+        c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke();
+      }
+
+      if (streamHistory.length < 2) return;
+      c.beginPath();
+      c.strokeStyle = '#38bdf8';
+      c.lineWidth = 2;
+      const step = w / 100;
+      streamHistory.forEach((val, idx) => {
+        const x = idx * step;
+        const y = h / 2 - (val / 128) * (h / 3);
+        if (idx === 0) c.moveTo(x, y);
+        else c.lineTo(x, y);
+      });
+      c.stroke();
+    }
+
+    /* Auto-Poll Telemetry Engine */
+    async function pollTelemetry() {
+      try {
+        const res = await fetch(`/api/v1/bridge/i2c/transfer?addr=${selectedAddr}&data=3B&read_len=14`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.rx_hex && data.rx_hex.length >= 28) {
+            const rawAx = parseI16(data.rx_hex.substr(0, 4));
+            const rawAy = parseI16(data.rx_hex.substr(4, 4));
+            const rawAz = parseI16(data.rx_hex.substr(8, 4));
+            ax = rawAx / 16384.0;
+            ay = rawAy / 16384.0;
+            az = rawAz / 16384.0;
+            pitch = Math.atan2(ay, Math.sqrt(ax * ax + az * az)) * (180 / Math.PI);
+            roll = Math.atan2(-ax, az) * (180 / Math.PI);
+            yaw = (yaw + 0.5) % 360;
+          }
+        }
+      } catch (e) {
+        // Synthetic wave when offline
+        const t = performance.now() / 1000;
+        pitch = Math.sin(t * 1.5) * 25;
+        roll = Math.cos(t * 1.2) * 20;
+        yaw = (t * 15) % 360;
+        angleDeg = (angleDeg + 1.2) % 360;
+        pwrVolt = 3.3 + Math.sin(t) * 0.05;
+        pwrCurr = 14.0 + Math.cos(t * 2) * 1.5;
+        pwrWatt = (pwrVolt * pwrCurr) / 1000;
+        streamHistory.push(Math.sin(t * 4) * 80);
+        if (streamHistory.length > 100) streamHistory.shift();
+      }
+
+      document.getElementById('metric-pitch').textContent = `${pitch.toFixed(1)} deg`;
+      document.getElementById('metric-roll').textContent = `${roll.toFixed(1)} deg`;
+      document.getElementById('metric-yaw').textContent = `${yaw.toFixed(1)} deg`;
+      document.getElementById('metric-ax').textContent = `${ax.toFixed(2)} g`;
+      document.getElementById('metric-ay').textContent = `${ay.toFixed(2)} g`;
+      document.getElementById('metric-az').textContent = `${az.toFixed(2)} g`;
+    }
+
+    function parseI16(hex4) {
+      let val = parseInt(hex4, 16);
+      if (val >= 0x8000) val -= 0x10000;
+      return val;
+    }
+
+    /* Mode Switching (I2C vs SPI) */
+    document.getElementById('tab-mode-i2c').onclick = () => {
+      activeBus = 'i2c';
+      document.getElementById('tab-mode-i2c').className = 'join-item btn btn-xs btn-primary px-3 uppercase tracking-wider font-semibold';
+      document.getElementById('tab-mode-spi').className = 'join-item btn btn-xs btn-ghost px-3 uppercase tracking-wider font-semibold';
+      document.getElementById('card-i2c-bus').classList.remove('hidden');
+      document.getElementById('card-spi-bus').classList.add('hidden');
+      document.getElementById('lbl-scan-btn').textContent = 'Scan Bus';
+    };
+
+    document.getElementById('tab-mode-spi').onclick = () => {
+      activeBus = 'spi';
+      document.getElementById('tab-mode-spi').className = 'join-item btn btn-xs btn-primary px-3 uppercase tracking-wider font-semibold';
+      document.getElementById('tab-mode-i2c').className = 'join-item btn btn-xs btn-ghost px-3 uppercase tracking-wider font-semibold';
+      document.getElementById('card-i2c-bus').classList.add('hidden');
+      document.getElementById('card-spi-bus').classList.remove('hidden');
+      document.getElementById('lbl-scan-btn').textContent = 'Probe SPI';
+    };
+
+    /* Button Event Listeners */
+    document.getElementById('btn-scan-bus').onclick = () => {
+      if (activeBus === 'i2c') scanI2CBus();
+      else probeSPIDevice();
+    };
+    document.getElementById('btn-probe-spi').onclick = probeSPIDevice;
+    document.getElementById('btn-read-all-regs').onclick = () => readRegisterPage(0, 32);
+    document.getElementById('btn-dump-all-regs').onclick = () => readRegisterPage(0, 256);
+    document.getElementById('btn-write-register').onclick = writeRegister;
+
+    // Auto-polling toggle
+    document.getElementById('chk-auto-poll').onchange = (e) => {
+      if (e.target.checked) {
+        const rate = parseInt(document.getElementById('sel-poll-rate').value, 10);
+        pollInterval = setInterval(pollTelemetry, rate);
+      } else {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    };
+
+    document.getElementById('sel-poll-rate').onchange = () => {
+      const chk = document.getElementById('chk-auto-poll');
+      if (chk.checked) {
+        if (pollInterval) clearInterval(pollInterval);
+        const rate = parseInt(document.getElementById('sel-poll-rate').value, 10);
+        pollInterval = setInterval(pollTelemetry, rate);
+      }
+    };
+
+    /* Deep Workbench Emergency Safe State */
+    function triggerEmergencySafe() {
+      if (pollInterval) clearInterval(pollInterval);
+      document.getElementById('chk-auto-poll').checked = false;
+      if (window.AgentLA && window.AgentLA.pins && typeof window.AgentLA.pins.release === 'function') {
+        window.AgentLA.pins.release();
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.shiftKey && e.key === "Escape") triggerEmergencySafe();
+    });
+
+    const safeBtn = document.getElementById("btn-emergency-safe");
+    if (safeBtn) safeBtn.addEventListener("click", triggerEmergencySafe);
+
+    // Initial setup
+    selectAddress(0x68);
+    scanI2CBus();
+    renderCanvas();
+  </script>
+</body>
+</html>

@@ -377,6 +377,53 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 "Redirecting...",
             )
         }))
+        .route("/sensor", get_service(crate::fs_http::SystemWebFile::new("sensor.html", "text/html")))
+        .route("/sensor/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/sensor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/sensor.html", get_service(crate::fs_http::SystemWebFile::new("sensor.html", "text/html")))
+        .route("/sensors", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/sensor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/sensors/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/sensor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/bus", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/sensor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/bus/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/sensor"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/lab.html", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
         // Legacy /apps and /lab aliases -> redirect to canonical routes
