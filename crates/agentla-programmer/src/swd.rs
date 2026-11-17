@@ -153,7 +153,10 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
             s0.is_ok() as u32 | ((s1.is_ok() as u32) << 1) | ((s2.is_ok() as u32) << 2),
         );
         let mut last = 0u32;
-        for _ in 0..200 {
+        // The STM32H5 debug domain can take far longer than 2 ms to acknowledge
+        // power-up. Allow ~200 ms so connect_under_reset and ST-Link attach
+        // both succeed reliably.
+        for _ in 0..2000 {
             let mut val = 0u32;
             let r = self.read_dp(DP_CTRLSTAT, &mut val);
             last = val;
@@ -161,7 +164,7 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
                 crate::stlink::stlink_diag::set_ctrlstat(val);
                 return Ok(());
             }
-            crate::delay::delay_cycles(1500);
+            crate::delay::delay_cycles(15000);
         }
         crate::stlink::stlink_diag::set_ctrlstat(last);
         Err(SwdError::Timeout)

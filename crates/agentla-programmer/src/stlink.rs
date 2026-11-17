@@ -327,12 +327,25 @@ impl<T: SwdIo> StLinkHandler<T> {
     /// address's value, the second returns this address's data. `out` receives
     /// the second read.
     fn mem_access(&mut self, addr: u32, write: Option<u32>, out: Option<&mut u32>) -> u8 {
+        // STM32H5: the CoreSight PPB (SCS, DHCSR, CPUID at 0xE000_xxxx)
+        // and DBGMCU at 0xE00E_xxxx are mapped on AP 0 (APB-AP). The working
+        // CMSIS-DAP path reads DBGMCU_IDCODE via AP0 with CSW 0x80000012.
+        // Route all of 0xE000_0000..0xE00F_FFFF there, not AP1.
         let apsel = if (0xE000_0000..=0xE00F_FFFF).contains(&addr) {
-            1
+            0
         } else {
             self.current_ap
         };
-        let csw = if apsel == 1 { 0x23000012 } else { ADIV5_AP_CSW_DEFAULT };
+        // CSW for PPB access: the working CMSIS-DAP test uses 0x80000012
+        // for DBGMCU/PPB reads on STM32H5. ADIV5_AP_CSW_DEFAULT (0xA2000000)
+        // lacks the privileged/HPROT bits and the AHB-AP rejects the transfer.
+        let csw = if apsel == 1 {
+            0x23000012
+        } else if (0xE000_0000..=0xE00F_FFFF).contains(&addr) {
+            0x80000012
+        } else {
+            ADIV5_AP_CSW_DEFAULT
+        };
         stlink_diag::step(1); // entered
         if !self.dp_powered {
             // After ENTER_SWD's line reset the DP needs a short settle before

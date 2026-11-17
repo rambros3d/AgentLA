@@ -2207,7 +2207,7 @@ impl GlitchStatus {
     async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let st = crate::instruments::glitch::get_status();
-        let mut b = heapless::String::<384>::new();
+        let mut b = heapless::String::<512>::new();
         let _ = core::fmt::Write::write_fmt(
             &mut b,
             format_args!(
