@@ -260,6 +260,9 @@ pub struct StLinkHandler<T: SwdIo> {
     pub last_status: u8,
     pub idcode: u32,
     pub current_ap: u8,
+    /// DP power state. The ST-Link protocol has no explicit power-up command,
+    /// so the first target access must power the DP lazily.
+    pub dp_powered: bool,
     pub reported_version: u16,
     pub voltage_provider: Option<fn() -> u32>,
     misc_buf: [u8; 1024],
@@ -280,6 +283,7 @@ impl<T: SwdIo> StLinkHandler<T> {
             last_status: STLINK_OK,
             idcode: 0,
             current_ap: 0,
+            dp_powered: false,
             reported_version: STLINK_VER_REPORTED,
             voltage_provider: None,
             misc_buf: [0; 1024],
@@ -329,42 +333,66 @@ impl<T: SwdIo> StLinkHandler<T> {
             self.current_ap
         };
         let csw = if apsel == 1 { 0x23000012 } else { ADIV5_AP_CSW_DEFAULT };
+        stlink_diag::step(1); // entered
+        if !self.dp_powered {
+            if self.engine.power_up_debug().is_ok() {
+                self.dp_powered = true;
+            } else {
+                stlink_diag::fail(14);
+                return STLINK_SWD_AP_FAULT;
+            }
+        }
+        stlink_diag::step(15); // powered
 
         if self.engine.select_ap(apsel, 0).is_err() {
+            stlink_diag::fail(2);
             return STLINK_SWD_AP_FAULT;
         }
+        stlink_diag::step(3); // selected
         if self.engine.write_ap(AP_CSW, csw).is_err() {
+            stlink_diag::fail(4);
             return STLINK_SWD_AP_FAULT;
         }
+        stlink_diag::step(5); // csw
         if self.engine.write_ap(AP_TAR, addr).is_err() {
+            stlink_diag::fail(6);
             return STLINK_SWD_AP_FAULT;
         }
+        stlink_diag::step(7); // tar
 
-        match write {
+        let st = match write {
             Some(v) => {
                 if self.engine.write_ap(AP_DRW, v).is_err() {
+                    stlink_diag::fail(8);
                     return STLINK_SWD_AP_FAULT;
                 }
+                stlink_diag::step(9);
                 STLINK_OK
             }
             None => {
                 let mut dummy = 0u32;
                 if self.engine.read_ap(AP_DRW, &mut dummy).is_err() {
+                    stlink_diag::fail(10);
                     return STLINK_SWD_AP_FAULT;
                 }
+                stlink_diag::step(11);
                 if out.is_none() {
                     return STLINK_OK;
                 }
                 let mut v = 0u32;
                 if self.engine.read_ap(AP_DRW, &mut v).is_err() {
+                    stlink_diag::fail(12);
                     return STLINK_SWD_AP_FAULT;
                 }
+                stlink_diag::step(13);
                 if let Some(slot) = out {
                     *slot = v;
                 }
                 STLINK_OK
             }
-        }
+        };
+        stlink_diag::ok(st, addr);
+        st
     }
 
     pub fn core_read_reg(&mut self, regsel: u8, val: &mut u32) -> u8 {
@@ -779,12 +807,15 @@ impl<T: SwdIo> StLinkHandler<T> {
                     resp[1] = 0;
                     return 2;
                 }
-                // Reply immediately. A genuine ST-Link reports success here
-                // even with no target attached; the following IDCODE read
-                // tells the host whether one is present. Any target access
-                // before this return would overrun the host's 3 s command
-                // timeout when the DP is asleep, so detection is deferred to
-                // DBG_APIV2_READ_IDCODES / DBG_READCOREID.
+                // Bring up the SWD line before replying. A genuine ST-Link
+                // reports success even with no target attached; target
+                // detection (which can be slow) is deferred to the following
+                // IDCODE read. The line reset and JTAG-to-SWD switch are only
+                // a few dozen clock cycles, so they do not risk the host's
+                // 3 s command timeout.
+                let _ = self.engine.transport.ensure_initialized();
+                self.engine.transport.reset_sequence();
+                self.engine.transport.jtag_to_swd();
                 self.mode = STLINK_MODE_DEBUG;
                 self.idcode = 0;
                 resp[0] = STLINK_OK;
@@ -810,6 +841,7 @@ impl<T: SwdIo> StLinkHandler<T> {
                 // so the DP probe can take as long as it needs without
                 // holding up the handshake.
                 if self.idcode == 0 {
+                    let _ = self.engine.power_up_debug();
                     let _ = self.engine.select_ap(0, 0);
                     let _ = self.engine.write_ap(AP_CSW, ADIV5_AP_CSW_DEFAULT);
                     let mut id = 0u32;
@@ -1062,6 +1094,10 @@ impl<T: SwdIo> StLinkHandler<T> {
                 // Merely caching `current_ap` leaves the engine's SELECT/CSW
                 // state stale, so later accesses hit the wrong AP.
                 self.current_ap = ap;
+                // The DP is powered down after a fresh connect. Any AP access
+                // before power-up returns WAIT/FAULT, which the host reports
+                // as "READDEBUGREG access port fault".
+                let _ = self.engine.power_up_debug();
                 let mut idr = 0u32;
                 let st = self
                     .engine
@@ -1156,4 +1192,27 @@ impl<T: SwdIo> StLinkHandler<T> {
             }
         }
     }
+}
+
+/// Diagnostics for the ST-Link MEM-AP path. `step` records the last stage
+/// reached, `fail` the failing stage, `ok` the last successful address.
+pub mod stlink_diag {
+    use core::sync::atomic::{AtomicU32, Ordering};
+    pub static STEP: AtomicU32 = AtomicU32::new(0);
+    pub static FAIL: AtomicU32 = AtomicU32::new(0);
+    pub static LAST_OK: AtomicU32 = AtomicU32::new(0);
+    pub static LAST_ADDR: AtomicU32 = AtomicU32::new(0);
+    pub static CTRLSTAT: AtomicU32 = AtomicU32::new(0);
+    pub static WRITES: AtomicU32 = AtomicU32::new(0);
+    pub static LAST_ACK: AtomicU32 = AtomicU32::new(0);
+    pub fn step(s: u32) { STEP.store(s, Ordering::Relaxed); }
+    pub fn fail(s: u32) { FAIL.store(s, Ordering::Relaxed); }
+    pub fn ok(st: u8, addr: u32) {
+        if st == STLINK_OK { LAST_OK.store(1, Ordering::Relaxed); }
+        LAST_ADDR.store(addr, Ordering::Relaxed);
+    }
+    pub fn set_ctrlstat(v: u32) { CTRLSTAT.store(v, Ordering::Relaxed); }
+    pub fn set_writes(v: u32) { WRITES.store(v, Ordering::Relaxed); }
+    pub fn set_last_ack(a: u8, reg: u8) { LAST_ACK.store(((reg as u32)<<8)|a as u32, Ordering::Relaxed); }
+    use super::STLINK_OK;
 }

@@ -557,6 +557,7 @@ impl SwdTransport {
         let mut val = value;
         for _ in 0..200 {
             let ack = self.transfer_raw(req, &mut val);
+            crate::stlink::stlink_diag::set_last_ack(ack, reg);
             if ack == SWD_ACK_OK {
                 return Ok(());
             } else if ack == SWD_ACK_WAIT {
@@ -604,19 +605,28 @@ impl SwdTransport {
     }
 
     pub fn power_up_debug(&mut self) -> Result<(), SwdError> {
-        let _ = self.write_dp(DP_SELECT, 0);
+        let s0 = self.write_dp(DP_SELECT, 0);
         self.ap_select = 0;
-        let _ = self.write_dp(DP_ABORT, 0x0000001E);
-        let _ = self.write_dp(DP_CTRLSTAT, 0x50000000);
+        let s1 = self.write_dp(DP_ABORT, 0x0000001E);
+        let s2 = self.write_dp(DP_CTRLSTAT, 0x50000000);
+        crate::stlink::stlink_diag::set_writes(
+            s0.is_ok() as u32 | ((s1.is_ok() as u32) << 1) | ((s2.is_ok() as u32) << 2),
+        );
+        let mut last = 0u32;
+        let mut last_st = 0u32;
         for _ in 0..200 {
             let mut val = 0u32;
-            if self.read_dp(DP_CTRLSTAT, &mut val).is_ok() && (val & 0xA0000000) == 0xA0000000 {
+            if self.read_dp(DP_CTRLSTAT, &mut val).is_ok()
+                && (val & 0xA0000000) == 0xA0000000
+            {
                 let _ = self.write_dp(DP_SELECT, 0);
                 self.ap_select = 0;
                 return Ok(());
             }
+            last = val;
             delay_cycles(1500);
         }
+        crate::stlink::stlink_diag::set_ctrlstat(last);
         Err(SwdError::Timeout)
     }
 

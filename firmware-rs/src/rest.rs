@@ -870,12 +870,23 @@ impl ProgrammerStLinkVersion {
             let err = crate::usb::STLINK_DIAG.swap(0, portable_atomic::Ordering::Relaxed);
             let cmd = crate::usb::STLINK_DIAG_CMD.swap(0, portable_atomic::Ordering::Relaxed);
             let count = crate::usb::STLINK_DIAG_N.swap(0, portable_atomic::Ordering::Relaxed);
-            let mut resp = heapless::String::<160>::new();
+            let step = agentla_programmer::stlink::stlink_diag::STEP.swap(0, portable_atomic::Ordering::Relaxed);
+            let fail = agentla_programmer::stlink::stlink_diag::FAIL.swap(0, portable_atomic::Ordering::Relaxed);
+            let last = agentla_programmer::stlink::stlink_diag::LAST_ADDR.swap(0, portable_atomic::Ordering::Relaxed);
+            let mut resp = heapless::String::<256>::new();
             let _ = write!(
                 resp,
-                r#"{{"status":"ok","diag_exec_len":{},"diag_reply_ok":{},"diag_write_err":{},"diag_cmd":"0x{:08X}","diag_n":{}}}"#,
-                exec, reply, err, cmd, count
+                r#"{{"status":"ok","diag_exec_len":{},"diag_reply_ok":{},"diag_write_err":{},"diag_cmd":"0x{:08X}","diag_n":{},"step":{},"fail":{},"last":"0x{:08X}","ctrlstat":"0x{:08X}","writes":{},"ack":"0x{:08X}"}}"#,
+                exec, reply, err, cmd, count, step, fail, last, agentla_programmer::stlink::stlink_diag::CTRLSTAT.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::WRITES.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::LAST_ACK.load(portable_atomic::Ordering::Relaxed)
             );
+            return send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
+        }
+        if false {
+            let step = agentla_programmer::stlink::stlink_diag::STEP.swap(0, portable_atomic::Ordering::Relaxed);
+            let fail = agentla_programmer::stlink::stlink_diag::FAIL.swap(0, portable_atomic::Ordering::Relaxed);
+            let last = agentla_programmer::stlink::stlink_diag::LAST_ADDR.swap(0, portable_atomic::Ordering::Relaxed);
+            let mut resp = heapless::String::<160>::new();
+            let _ = write!(resp, r#"{{"status":"ok","step":{},"fail":{},"last":"0x{:08X}"}}"#, step, fail, last);
             return send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
         }
         if false {
@@ -2196,7 +2207,7 @@ impl GlitchStatus {
     async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let st = crate::instruments::glitch::get_status();
-        let mut b = heapless::String::<256>::new();
+        let mut b = heapless::String::<384>::new();
         let _ = core::fmt::Write::write_fmt(
             &mut b,
             format_args!(
