@@ -876,8 +876,8 @@ impl ProgrammerStLinkVersion {
             let mut resp = heapless::String::<256>::new();
             let _ = write!(
                 resp,
-                r#"{{"status":"ok","diag_exec_len":{},"diag_reply_ok":{},"diag_write_err":{},"diag_cmd":"0x{:08X}","diag_n":{},"step":{},"fail":{},"last":"0x{:08X}","ctrlstat":"0x{:08X}","writes":{},"ack":"0x{:08X}"}}"#,
-                exec, reply, err, cmd, count, step, fail, last, agentla_programmer::stlink::stlink_diag::CTRLSTAT.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::WRITES.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::LAST_ACK.load(portable_atomic::Ordering::Relaxed)
+                r#"{{"status":"ok","diag_exec_len":{},"diag_reply_ok":{},"diag_write_err":{},"diag_cmd":"0x{:08X}","diag_n":{},"step":{},"fail":{},"last":"0x{:08X}","ctrlstat":"0x{:08X}","writes":{},"ack":"0x{:08X}","req":"0x{:08X}","val":"0x{:08X}"}}"#,
+                exec, reply, err, cmd, count, step, fail, last, agentla_programmer::stlink::stlink_diag::CTRLSTAT.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::WRITES.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::LAST_ACK.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::LAST_REQ.load(portable_atomic::Ordering::Relaxed), agentla_programmer::stlink::stlink_diag::LAST_VAL.load(portable_atomic::Ordering::Relaxed)
             );
             return send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
         }

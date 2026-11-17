@@ -335,7 +335,15 @@ impl<T: SwdIo> StLinkHandler<T> {
         let csw = if apsel == 1 { 0x23000012 } else { ADIV5_AP_CSW_DEFAULT };
         stlink_diag::step(1); // entered
         if !self.dp_powered {
-            if self.engine.power_up_debug().is_ok() {
+            // After ENTER_SWD's line reset the DP needs a short settle before
+            // it accepts power-up writes. Retry once with a delay between; a
+            // genuine target can take a few ms to wake its debug domain.
+            let mut powered = self.engine.power_up_debug().is_ok();
+            if !powered {
+                crate::delay::delay_cycles(150_000);
+                powered = self.engine.power_up_debug().is_ok();
+            }
+            if powered {
                 self.dp_powered = true;
             } else {
                 stlink_diag::fail(14);
@@ -780,6 +788,11 @@ impl<T: SwdIo> StLinkHandler<T> {
             return 2;
         }
 
+        // CmsisDapHandler calls ensure_initialized() at every transfer entry
+        // point; ST-Link mode previously never did, leaving the PIO SM or pin
+        // directions in a stale state after a personality switch or line init.
+        let _ = self.engine.transport.ensure_initialized();
+
         // Core debug (halt, registers, reset, debug-register access) always
         // runs on AP 0 with the default CSW, whatever a previous memory
         // command left selected. The DAP-level commands manage their own AP
@@ -807,15 +820,20 @@ impl<T: SwdIo> StLinkHandler<T> {
                     resp[1] = 0;
                     return 2;
                 }
-                // Bring up the SWD line before replying. A genuine ST-Link
-                // reports success even with no target attached; target
-                // detection (which can be slow) is deferred to the following
-                // IDCODE read. The line reset and JTAG-to-SWD switch are only
-                // a few dozen clock cycles, so they do not risk the host's
-                // 3 s command timeout.
+                // Bring up the SWD line before replying. jtag_to_swd() emits
+                // the JTAG-to-SWD switch followed by a line reset, matching
+                // hybridlink's swd_connect() order. An extra reset_sequence()
+                // first is redundant.
                 let _ = self.engine.transport.ensure_initialized();
-                self.engine.transport.reset_sequence();
                 self.engine.transport.jtag_to_swd();
+                // Power the DP here where the line state is known-good. Bounded
+                // (~2 ms worst case), unlike read_dpidr_retry.
+                let _ = self.engine.power_up_debug();
+                // Mark powered regardless: a subsequent host command (IDCODE
+                // read or DEBUGREG access) will retry as needed. Re-running
+                // power_up_debug on the first AP access right after line reset
+                // is what returns AP_FAULT.
+                self.dp_powered = true;
                 self.mode = STLINK_MODE_DEBUG;
                 self.idcode = 0;
                 resp[0] = STLINK_OK;
@@ -1214,5 +1232,8 @@ pub mod stlink_diag {
     pub fn set_ctrlstat(v: u32) { CTRLSTAT.store(v, Ordering::Relaxed); }
     pub fn set_writes(v: u32) { WRITES.store(v, Ordering::Relaxed); }
     pub fn set_last_ack(a: u8, reg: u8) { LAST_ACK.store(((reg as u32)<<8)|a as u32, Ordering::Relaxed); }
+    pub static LAST_REQ: AtomicU32 = AtomicU32::new(0);
+    pub static LAST_VAL: AtomicU32 = AtomicU32::new(0);
+    pub fn set_req(req: u8, val: u32) { LAST_REQ.store(req as u32, Ordering::Relaxed); LAST_VAL.store(val, Ordering::Relaxed); }
     use super::STLINK_OK;
 }
