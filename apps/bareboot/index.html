@@ -788,20 +788,38 @@
       async exchange(frameBytes, transportType, params, timeoutMs = 1500) {
         if (transportType === 'i2c') {
           const hex = Array.from(frameBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-          const resp = await fetch('/api/v1/bus/i2c/transfer', {
+          const hdr = { 'Content-Type': 'application/json' };
+          // Write the frame and issue STOP so the target parses it and stages
+          // its response. A repeated-start read would return unstaged 0xFF.
+          const w = await fetch('/api/v1/bus/i2c/transfer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ addr: params.addr, data_hex: hex, read_len: 64 })
+            headers: hdr,
+            body: JSON.stringify({ addr: params.addr, data_hex: hex, read_len: 0 })
           });
-          if (!resp.ok) throw new Error(`I2C HTTP error: ${resp.status}`);
-          const json = await resp.json();
-          if (json.status !== 'ok' && json.rx_len === 0) {
+          if (!w.ok) throw new Error(`I2C HTTP error: ${w.status}`);
+          const wj = await w.json();
+          if (wj.status !== 'ok' || wj.bytes_written === 0) {
             throw new Error(`I2C NACK on address 0x${params.addr.toString(16)}`);
           }
-          if (!json.rx_hex) return null;
-          const rxBytes = new Uint8Array(json.rx_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-          this.appendRx(rxBytes);
-          return this.pollParsedFrame();
+          // Poll read-only transactions until a complete Katapult frame appears.
+          // Flash page erases can delay the response well past a single read.
+          const deadline = Date.now() + timeoutMs;
+          do {
+            await new Promise(r => setTimeout(r, 15));
+            const resp = await fetch('/api/v1/bus/i2c/transfer', {
+              method: 'POST',
+              headers: hdr,
+              body: JSON.stringify({ addr: params.addr, data_hex: '', read_len: 64 })
+            });
+            if (!resp.ok) continue;
+            const json = await resp.json();
+            if (json.rx_hex && json.rx_hex.length >= 16) {
+              const rxBytes = new Uint8Array(json.rx_hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+              const parsed = Katapult.scanFrame(rxBytes);
+              if (parsed && parsed.complete) return parsed;
+            }
+          } while (Date.now() < deadline);
+          return null;
         }
 
         if (transportType === 'i3c') {
