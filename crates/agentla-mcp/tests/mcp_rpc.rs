@@ -1,6 +1,6 @@
 use core::fmt::Write as _;
 use agentla_mcp::{
-    extract_string_arg, extract_tool_name, extract_u32_arg, McpServer,
+    extract_i32_arg, extract_string_arg, extract_tool_name, extract_u32_arg, McpServer,
 };
 
 #[test]
@@ -63,12 +63,18 @@ fn test_tools_list() {
     assert!(res.contains(r#""name":"profile_apply""#));
     assert!(res.contains(r#""name":"swo_read""#));
 
+    // Verify servo tools
+    assert!(res.contains(r#""name":"servo_attach""#));
+    assert!(res.contains(r#""name":"servo_write_angle""#));
+    assert!(res.contains(r#""name":"servo_write_us""#));
+    assert!(res.contains(r#""name":"servo_detach""#));
+
     // Verify app_uninstall is strictly omitted from tools list
     assert!(!res.contains(r#""name":"app_uninstall""#));
     assert!(!res.contains(r#""name":"app_delete""#));
 
-    // Verify exactly 36 tools in ALL_TOOLS
-    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 36);
+    // Verify exactly 40 tools in ALL_TOOLS
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 40);
 }
 
 #[test]
@@ -320,10 +326,74 @@ fn test_id_variants() {
 
 #[test]
 fn test_extractors() {
-    let body = r#"{"name": "sniff_bus", "arguments": {"protocol": "i2c", "duration_ms": 500, "address": 0x08000000}}"#;
+    let body = r#"{"name": "sniff_bus", "arguments": {"protocol": "i2c", "duration_ms": 500, "address": 0x08000000, "angle": -45}}"#;
 
     assert_eq!(extract_tool_name(body).unwrap().as_str(), "sniff_bus");
     assert_eq!(extract_string_arg(body, "protocol"), Some("i2c"));
     assert_eq!(extract_u32_arg(body, "duration_ms"), Some(500));
     assert_eq!(extract_u32_arg(body, "address"), Some(0x08000000));
+    assert_eq!(extract_i32_arg(body, "angle"), Some(-45));
+    assert_eq!(extract_i32_arg(r#"{"angle": 90}"#, "angle"), Some(90));
+    assert_eq!(extract_i32_arg(r#"{"angle": 0}"#, "angle"), Some(0));
+}
+
+#[test]
+fn test_servo_tools_dispatch() {
+    let handler = |name: &str, body: &str, out: &mut heapless::String<1536>| -> bool {
+        match name {
+            "servo_attach" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(0);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"continuous":false,"active":true}}"#, pin);
+                false
+            }
+            "servo_write_angle" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(0);
+                let angle = extract_i32_arg(body, "angle").unwrap_or(0);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"angle":{},"pulse_us":1500,"active":true}}"#, pin, angle);
+                false
+            }
+            "servo_write_us" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(0);
+                let pulse_us = extract_u32_arg(body, "pulse_us").unwrap_or(0);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"pulse_us":{},"active":true}}"#, pin, pulse_us);
+                false
+            }
+            "servo_detach" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(0);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"detached":true}}"#, pin);
+                false
+            }
+            _ => {
+                let _ = out.push_str(r#"{"status":"error","error":"unknown"}"#);
+                true
+            }
+        }
+    };
+
+    let server = McpServer::with_handler(handler);
+
+    // Test servo_attach
+    let req = br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"servo_attach","arguments":{"pin":16,"min_us":544,"max_us":2400,"continuous":false}}}"#;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"status\":\"ok\""#));
+    assert!(res.contains(r#"\"pin\":16"#));
+
+    // Test servo_write_angle
+    let req = br#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"servo_write_angle","arguments":{"pin":16,"angle":90}}}"#;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"angle\":90"#));
+
+    // Test servo_write_us
+    let req = br#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"servo_write_us","arguments":{"pin":16,"pulse_us":1500}}}"#;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"pulse_us\":1500"#));
+
+    // Test servo_detach
+    let req = br#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"servo_detach","arguments":{"pin":16}}}"#;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"detached\":true"#));
 }

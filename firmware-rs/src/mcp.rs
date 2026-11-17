@@ -5,16 +5,16 @@ use rp_pac as pac;
 
 #[allow(unused_imports)]
 pub use agentla_mcp::{
-    escape_json, extract_bool_arg, extract_method, extract_string_arg, extract_tool_name,
-    extract_u32_arg, McpServer,
+    escape_json, extract_bool_arg, extract_i32_arg, extract_method, extract_string_arg,
+    extract_tool_name, extract_u32_arg, McpServer,
 };
 
 use crate::profile;
 use crate::servo;
 
-pub const MAX_BODY: usize = 8192;
+pub const MAX_BODY: usize = 12288;
 
-pub fn handle_request(body: &[u8]) -> heapless::String<8192> {
+pub fn handle_request(body: &[u8]) -> heapless::String<12288> {
     let server = McpServer::with_handler(invoke_tool);
     server.handle_request(body)
 }
@@ -41,8 +41,8 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             let snap = crate::telemetry::sample_telemetry();
             let _ = write!(
                 out,
-                r#"{{"clock_mhz":150,"tools":36,"vtarget_mv":{},"itarget_ma":{},"power_mw":{},"temp_c":{},"overcurrent":{},"active_profile":{},"status":"healthy"}}"#,
-                snap.v_target_mv, snap.i_target_ma, snap.p_target_mw, snap.temp_c, snap.is_tripped, profile::active_slot()
+                r#"{{"clock_mhz":150,"tools":{},"vtarget_mv":{},"itarget_ma":{},"power_mw":{},"temp_c":{},"overcurrent":{},"active_profile":{},"status":"healthy"}}"#,
+                agentla_mcp::ALL_TOOLS.len(), snap.v_target_mv, snap.i_target_ma, snap.p_target_mw, snap.temp_c, snap.is_tripped, profile::active_slot()
             );
             false
         }
@@ -170,6 +170,133 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             let n = servo::servo_list().len();
             let _ = write!(out, "channels={}", n);
             false
+        }
+        "servo_attach" => {
+            let pin = extract_u32_arg(body, "pin");
+            if let Some(pin_num) = pin {
+                let min_us = extract_u32_arg(body, "min_us");
+                let max_us = extract_u32_arg(body, "max_us");
+                let continuous = extract_bool_arg(body, "continuous").unwrap_or(false);
+                match servo::servo_attach(pin_num, min_us, max_us, continuous) {
+                    Ok(ch) => {
+                        let _ = write!(
+                            out,
+                            r#"{{"status":"ok","pin":{},"continuous":{},"min_us":{},"max_us":{},"angle":{},"pulse_us":{},"active":{}}}"#,
+                            ch.pin, ch.continuous, ch.min_us, ch.max_us, ch.angle, ch.pulse_us, ch.active
+                        );
+                        false
+                    }
+                    Err(e) => {
+                        let err_msg = match e {
+                            servo::EngineError::PinConflict => "pin conflict: pin already claimed by another driver",
+                            servo::EngineError::SliceConflict => "slice conflict: adjacent pin on PWM slice running incompatible frequency",
+                            servo::EngineError::NotAvailable => "pin not available for PWM",
+                            servo::EngineError::ChannelsFull => "channel limit reached (maximum 8 servo channels)",
+                            servo::EngineError::ClaimRegFull => "pin claim registry full",
+                            servo::EngineError::RegistryBusy => "pin registry busy",
+                            servo::EngineError::InvalidPulse => "invalid pulse limit parameter",
+                            servo::EngineError::InvalidAngle => "invalid angle parameter",
+                            _ => "servo attach failed",
+                        };
+                        let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}","code":"{:?}"}}"#, pin_num, err_msg, e);
+                        true
+                    }
+                }
+            } else {
+                let _ = out.push_str(r#"{"status":"error","error":"missing pin parameter"}"#);
+                true
+            }
+        }
+        "servo_write_angle" => {
+            let pin = extract_u32_arg(body, "pin");
+            let angle = extract_i32_arg(body, "angle");
+            match (pin, angle) {
+                (Some(pin_num), Some(deg)) => {
+                    match servo::servo_write_angle(pin_num, deg) {
+                        Ok(ch) => {
+                            let _ = write!(
+                                out,
+                                r#"{{"status":"ok","pin":{},"angle":{},"pulse_us":{},"continuous":{},"active":{}}}"#,
+                                ch.pin, ch.angle, ch.pulse_us, ch.continuous, ch.active
+                            );
+                            false
+                        }
+                        Err(e) => {
+                            let err_msg = match e {
+                                servo::EngineError::NotAttached => "channel not attached as servo",
+                                servo::EngineError::InvalidAngle => "angle out of bounds (0-180 for standard, -100 to 100 for continuous)",
+                                _ => "servo write angle failed",
+                            };
+                            let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}","code":"{:?}"}}"#, pin_num, err_msg, e);
+                            true
+                        }
+                    }
+                }
+                (None, _) => {
+                    let _ = out.push_str(r#"{"status":"error","error":"missing pin parameter"}"#);
+                    true
+                }
+                (_, None) => {
+                    let _ = out.push_str(r#"{"status":"error","error":"missing angle parameter"}"#);
+                    true
+                }
+            }
+        }
+        "servo_write_us" => {
+            let pin = extract_u32_arg(body, "pin");
+            let pulse_us = extract_u32_arg(body, "pulse_us");
+            match (pin, pulse_us) {
+                (Some(pin_num), Some(us)) => {
+                    match servo::servo_write_us(pin_num, us) {
+                        Ok(ch) => {
+                            let _ = write!(
+                                out,
+                                r#"{{"status":"ok","pin":{},"pulse_us":{},"angle":{},"active":{}}}"#,
+                                ch.pin, ch.pulse_us, ch.angle, ch.active
+                            );
+                            false
+                        }
+                        Err(e) => {
+                            let err_msg = match e {
+                                servo::EngineError::NotAttached => "channel not attached as servo",
+                                _ => "servo write pulse width failed",
+                            };
+                            let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}","code":"{:?}"}}"#, pin_num, err_msg, e);
+                            true
+                        }
+                    }
+                }
+                (None, _) => {
+                    let _ = out.push_str(r#"{"status":"error","error":"missing pin parameter"}"#);
+                    true
+                }
+                (_, None) => {
+                    let _ = out.push_str(r#"{"status":"error","error":"missing pulse_us parameter"}"#);
+                    true
+                }
+            }
+        }
+        "servo_detach" => {
+            let pin = extract_u32_arg(body, "pin");
+            if let Some(pin_num) = pin {
+                match servo::detach(pin_num) {
+                    Ok(()) => {
+                        let _ = write!(out, r#"{{"status":"ok","pin":{},"detached":true}}"#, pin_num);
+                        false
+                    }
+                    Err(e) => {
+                        let err_msg = match e {
+                            servo::EngineError::NotAttached => "channel not attached",
+                            _ => "servo detach failed",
+                        };
+                        let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}","code":"{:?}"}}"#, pin_num, err_msg, e);
+                        true
+                    }
+                }
+            } else {
+                let _ = out.push_str(r#"{"status":"error","error":"missing pin parameter"}"#);
+                true
+            }
         }
         "logic_analyzer_arm" => {
             let samples = (extract_u32_arg(body, "samples").unwrap_or(1024)).clamp(64, 32768);

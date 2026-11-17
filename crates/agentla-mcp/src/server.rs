@@ -254,8 +254,8 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
         self.prompts = prompts;
     }
 
-    /// Handle a request and return an 8192-byte heapless string response.
-    pub fn handle_request(&self, body: &[u8]) -> heapless::String<8192> {
+    /// Handle a request and return a 12288-byte heapless string response.
+    pub fn handle_request(&self, body: &[u8]) -> heapless::String<12288> {
         let mut out = heapless::String::new();
         self.handle_request_into(body, &mut out);
         out

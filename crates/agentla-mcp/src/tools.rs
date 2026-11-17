@@ -62,6 +62,30 @@ pub const TOOL_SERVO_LIST: Tool = Tool::new(
     r#"{"type":"object","properties":{}}"#,
 );
 
+pub const TOOL_SERVO_ATTACH: Tool = Tool::new(
+    "servo_attach",
+    "Attach a GPIO pin as a 50 Hz PWM servo channel with optional pulse limits and continuous mode",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"min_us":{"type":"integer","description":"Minimum pulse width in microseconds (default 544)"},"max_us":{"type":"integer","description":"Maximum pulse width in microseconds (default 2400)"},"continuous":{"type":"boolean","description":"Continuous 360-degree rotation mode (default false)"}},"required":["pin"]}"#,
+);
+
+pub const TOOL_SERVO_WRITE_ANGLE: Tool = Tool::new(
+    "servo_write_angle",
+    "Command target angle (0 to 180 degrees) or continuous rotation throttle (-100% to +100%)",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"angle":{"type":"integer","description":"Target angle (0-180) or continuous throttle (-100 to 100)"}},"required":["pin","angle"]}"#,
+);
+
+pub const TOOL_SERVO_WRITE_US: Tool = Tool::new(
+    "servo_write_us",
+    "Command direct pulse duration in microseconds (clamped to channel limits)",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"pulse_us":{"type":"integer","description":"Pulse duration in microseconds"}},"required":["pin","pulse_us"]}"#,
+);
+
+pub const TOOL_SERVO_DETACH: Tool = Tool::new(
+    "servo_detach",
+    "Stop PWM generation and release GPIO pin back to pin arbiter",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"}},"required":["pin"]}"#,
+);
+
 pub const TOOL_LOGIC_ANALYZER_ARM: Tool = Tool::new(
     "logic_analyzer_arm",
     "Arm logic analyzer for capture",
@@ -255,13 +279,17 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (33 standard + 3 composite tools = 36 total).
-pub static ALL_TOOLS: [Tool; 36] = [
+/// Full catalog of AgentLA tools (37 standard + 3 composite tools = 40 total).
+pub static ALL_TOOLS: [Tool; 40] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
     TOOL_SYSTEM_FIRMWARE_STATUS,
     TOOL_SERVO_LIST,
+    TOOL_SERVO_ATTACH,
+    TOOL_SERVO_WRITE_ANGLE,
+    TOOL_SERVO_WRITE_US,
+    TOOL_SERVO_DETACH,
     TOOL_LOGIC_ANALYZER_ARM,
     TOOL_LOGIC_ANALYZER_START,
     TOOL_LOGIC_ANALYZER_STATUS,

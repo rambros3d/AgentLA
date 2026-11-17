@@ -244,6 +244,63 @@ pub fn extract_u32_arg(body: &str, arg: &str) -> Option<u32> {
     }
 }
 
+/// Extract i32 argument from JSON body by key (supports optional negative sign).
+pub fn extract_i32_arg(body: &str, arg: &str) -> Option<i32> {
+    let key = arg.trim_matches('"');
+    let mut cursor = body;
+    loop {
+        let idx = cursor.find(key)?;
+        let before = &cursor[..idx];
+        let after = &cursor[idx + key.len()..];
+
+        if before.ends_with('"') && after.starts_with('"') {
+            let tail = &after[1..].trim_start();
+            if tail.starts_with(':') {
+                let mut val_tail = tail[1..].trim_start();
+                if val_tail.starts_with('"') {
+                    val_tail = &val_tail[1..];
+                }
+                let mut negative = false;
+                if val_tail.starts_with('-') {
+                    negative = true;
+                    val_tail = &val_tail[1..].trim_start();
+                } else if val_tail.starts_with('+') {
+                    val_tail = &val_tail[1..].trim_start();
+                }
+
+                let mut num: i32 = 0;
+                let mut found = false;
+
+                if val_tail.starts_with("0x") || val_tail.starts_with("0X") {
+                    let hex_tail = &val_tail[2..];
+                    for c in hex_tail.chars() {
+                        if let Some(digit) = c.to_digit(16) {
+                            num = num.saturating_mul(16).saturating_add(digit as i32);
+                            found = true;
+                        } else if found {
+                            break;
+                        }
+                    }
+                } else {
+                    for c in val_tail.chars() {
+                        if c.is_ascii_digit() {
+                            num = num.saturating_mul(10).saturating_add((c as u8 - b'0') as i32);
+                            found = true;
+                        } else if found {
+                            break;
+                        }
+                    }
+                }
+
+                if found {
+                    return Some(if negative { -num } else { num });
+                }
+            }
+        }
+        cursor = after;
+    }
+}
+
 /// Extract bool argument from JSON body by key.
 pub fn extract_bool_arg(body: &str, arg: &str) -> Option<bool> {
     let key = arg.trim_matches('"');
