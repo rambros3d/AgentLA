@@ -1406,7 +1406,15 @@
                 if (isDemo) return { status: "ok", bytes_written: hexData.length / 2 };
                 const res = await AgentLA.mcp.call("programmer_flash", { address: addr, hex_data: hexData });
                 try {
-                    return JSON.parse(res.content[0].text);
+                    const data = JSON.parse(res.content[0].text);
+                    if (data && data.error === "http_flash_disabled") {
+                        return {
+                            status: "disabled",
+                            error: "http_flash_disabled",
+                            message: "HTTP flashing is disabled on this firmware. Use a USB SWD probe (CMSIS-DAP with probe-rs or pyOCD) to program the target.",
+                        };
+                    }
+                    return data;
                 } catch (_) {
                     return { status: "error" };
                 }
@@ -1420,7 +1428,15 @@
                 if (isDemo) return { status: "ok", target: target, mass_erased: true };
                 const res = await AgentLA.mcp.call("programmer_unbrick", { target: target || "stm32" });
                 try {
-                    return JSON.parse(res.content[0].text);
+                    const data = JSON.parse(res.content[0].text);
+                    if (data && data.error === "http_flash_disabled") {
+                        return {
+                            status: "disabled",
+                            error: "http_flash_disabled",
+                            message: "HTTP rescue is disabled on this firmware. Use a USB SWD probe (CMSIS-DAP with probe-rs or pyOCD) to recover the target.",
+                        };
+                    }
+                    return data;
                 } catch (_) {
                     return { status: "error" };
                 }

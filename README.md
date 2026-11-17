@@ -103,8 +103,8 @@ All probe features are fully accessible via structured JSON REST endpoints:
 | `/api/board/manifest` | `GET` | Dynamic board manifest, pinout matrix, and peripheral map |
 | `/api/v1/programmer/target` | `GET` | Auto-detect connected ARM/RISC-V microcontroller |
 | `/api/v1/programmer/read` | `GET` | Read target flash memory (`addr`, `len`) |
-| `/api/v1/programmer/erase` | `POST` | Erase target flash sectors or mass erase |
-| `/api/v1/programmer/flash` | `POST` | Program target flash memory with binary payload |
+| `/api/v1/programmer/erase` | `POST` | **Disabled** - returns 501 `http_flash_disabled`; use a USB SWD probe |
+| `/api/v1/programmer/flash` | `POST` | **Disabled** - returns 501 `http_flash_disabled`; use a USB SWD probe |
 | `/api/v1/oscilloscope/data` | `GET` | Acquire single-shot 4-channel oscilloscope frame |
 | `/api/v1/oscilloscope/stream` | `GET` | Continuous SSE waveform stream for oscilloscope |
 | `/api/v1/generator/configure` | `POST` | Configure signal generator frequency, duty, and burst |

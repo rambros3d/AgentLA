@@ -34,7 +34,8 @@ pub const USER_FS_OFFSET: u32 = SYSTEM_FS_END; // 0x00284000
 pub const FLASH_RESERVED_TRAIL_BYTES: usize = 16 * 1024; // 16 KB
 pub const USER_FS_END: u32 = (FLASH_SIZE_BYTES - FLASH_RESERVED_TRAIL_BYTES) as u32;
 pub const USER_FS_SIZE_BYTES: usize = (USER_FS_END - USER_FS_OFFSET) as usize;
-pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE; // 284 blocks (Pico 2) or 3340 blocks (BakuProbe)
+// Computed, not hard-coded: Pico 2 (4 MB) yields 376 blocks, BakuProbe (16 MB) 3340.
+pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE;
 
 // Backwards compatibility aliases
 pub const LITTLEFS_START_OFFSET: u32 = USER_FS_OFFSET;
@@ -98,11 +99,15 @@ impl<const BLOCKS: usize> Storage for FlashStorageGeneric<BLOCKS> {
             abs_off >= self.offset && (abs_off + data.len() as u32) <= limit,
             "littlefs write out of partition bounds"
         );
+        // Propagate the error. A blocking flash write can fail (XIP contention,
+        // write-protected sector); unwrapping turned that into a panic in the
+        // boot path, which with no watchdog running left the probe alive but
+        // with no HTTP server.
         flash_guard()
             .as_mut()
-            .unwrap()
+            .ok_or(littlefs2::io::Error::IO)?
             .blocking_write(abs_off, data)
-            .unwrap();
+            .map_err(|_| littlefs2::io::Error::IO)?;
         Ok(data.len())
     }
 
@@ -114,7 +119,11 @@ impl<const BLOCKS: usize> Storage for FlashStorageGeneric<BLOCKS> {
             from >= self.offset && to <= limit,
             "littlefs erase out of partition bounds"
         );
-        flash_guard().as_mut().unwrap().blocking_erase(from, to).unwrap();
+        flash_guard()
+            .as_mut()
+            .ok_or(littlefs2::io::Error::IO)?
+            .blocking_erase(from, to)
+            .map_err(|_| littlefs2::io::Error::IO)?;
         Ok(len)
     }
 }

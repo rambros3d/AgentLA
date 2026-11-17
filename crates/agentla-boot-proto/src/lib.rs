@@ -411,3 +411,57 @@ mod tests {
         assert_eq!(parsed.payload_crc, 0xAABBCCDD);
     }
 }
+
+#[cfg(test)]
+mod slot_detection_tests {
+    use super::*;
+
+    // Mirrors firmware-rs::boot::current_executing_slot bounds.
+    const SLOT_A_XIP: u32 = 0x1000_4000;
+    const SLOT_B_XIP: u32 = 0x1010_4000;
+    const SLOT_END: u32 = 0x1020_4000;
+
+    fn detect(vtor: u32, pc: u32) -> SlotId {
+        let vtor_is_slot_b = vtor >= SLOT_B_XIP && vtor < SLOT_END;
+        let pc_is_slot_b = pc >= SLOT_B_XIP && pc < SLOT_END;
+        let vtor_is_slot_a = vtor >= SLOT_A_XIP && vtor < SLOT_B_XIP;
+        let pc_is_slot_a = pc >= SLOT_A_XIP && pc < SLOT_B_XIP;
+
+        if vtor_is_slot_b || (!vtor_is_slot_a && pc_is_slot_b) {
+            SlotId::SlotB
+        } else if vtor_is_slot_a || pc_is_slot_a {
+            SlotId::SlotA
+        } else if pc >= SLOT_B_XIP {
+            SlotId::SlotB
+        } else {
+            SlotId::SlotA
+        }
+    }
+
+    #[test]
+    fn slot_a_vtor_and_pc() {
+        assert_eq!(detect(SLOT_A_XIP, SLOT_A_XIP + 0x100), SlotId::SlotA);
+    }
+
+    #[test]
+    fn slot_b_vtor_and_pc() {
+        assert_eq!(detect(SLOT_B_XIP, SLOT_B_XIP + 0x100), SlotId::SlotB);
+    }
+
+    #[test]
+    fn slot_a_vtor_with_slot_b_pc_is_slot_a() {
+        // VTOR is authoritative; a PC inside the other slot must not win.
+        assert_eq!(detect(SLOT_A_XIP, SLOT_B_XIP + 0x100), SlotId::SlotA);
+    }
+
+    #[test]
+    fn zero_vtor_falls_back_to_pc() {
+        assert_eq!(detect(0, SLOT_A_XIP + 0x100), SlotId::SlotA);
+        assert_eq!(detect(0, SLOT_B_XIP + 0x100), SlotId::SlotB);
+    }
+
+    #[test]
+    fn out_of_range_pc_defaults_to_slot_a() {
+        assert_eq!(detect(SLOT_A_XIP, 0x2000_0000), SlotId::SlotA);
+    }
+}

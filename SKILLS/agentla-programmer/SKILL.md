@@ -56,6 +56,7 @@ This skill equips an AI agent to safely flash, verify, and rescue microcontrolle
 1. **Target Rail Voltage Gate**: NEVER call `programmer_flash` if `vtarget_mv < 2700`. Flash charge pumps (which generate $12\text{--}18\text{ V}$ internally for floating gate tunneling) fail below $2.7\text{ V}$, causing permanent flash ECC errors or partial writes.
 2. **Sector Boundary Alignment**: Ensure write operations respect the target chip's minimum programming granularity (e.g., 32-bit words for STM32F1/F4, 64-bit for STM32G4/L4, 256-byte pages for SPI NOR on RP2040/RP2350).
 3. **Mandatory Post-Write Readback**: Never report flashing as complete without verifying at least the first 256 bytes (vector table) and a CRC32 check of the written payload.
+4. **HTTP Flash Disabled**: `programmer_flash`, `programmer_unbrick`, and the HTTP `flash`/`erase`/`reset-catch`/`rescue` routes are disabled in firmware. They return `{"status":"disabled","error":"http_flash_disabled","use":"usb","modes":["cmsis","stlink"]}`. If you receive that, switch to a USB SWD probe (CMSIS-DAP with probe-rs or pyOCD) and do not retry the HTTP route. `programmer_read` and `programmer_target` still work over HTTP.
 
 ---
 

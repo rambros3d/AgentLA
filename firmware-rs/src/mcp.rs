@@ -366,6 +366,10 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             }
         }
         "programmer_flash" => {
+            if !crate::rest::HTTP_FLASH_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_FLASH_DISABLED_BODY);
+                true
+            } else {
             let addr = extract_u32_arg(body, "address").unwrap_or(0x08000000);
             let hex = extract_string_arg(body, "hex_data").unwrap_or("");
             let mut buf = [0u8; 256];
@@ -385,12 +389,17 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
                     }
                 }
             }
+            }
         }
         "programmer_reset" => {
             let _ = write!(out, "programmer target reset completed");
             false
         }
         "programmer_unbrick" => {
+            if !crate::rest::HTTP_FLASH_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_FLASH_DISABLED_BODY);
+                true
+            } else {
             let target = extract_string_arg(body, "target").unwrap_or("stm32");
             if target.eq_ignore_ascii_case("nrf") || target.starts_with("nrf") || target.starts_with("nRF") || target.starts_with("NRF") {
                 match crate::programmer::target::nrf::rescue_nrf_global() {
@@ -414,6 +423,7 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
                         true
                     }
                 }
+            }
             }
         }
         "catalog_lookup" => {

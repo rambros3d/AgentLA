@@ -22,17 +22,37 @@ pub fn get_boot_state() -> (BootTable, u32) {
 }
 
 /// Detects the currently executing slot based on Vector Table Offset Register (VTOR) or PC.
+///
+/// Slot A XIP range is `0x1000_4000..0x1010_4000`, Slot B is
+/// `0x1010_4000..0x1020_4000`. The previous check only tested `>= Slot B`,
+/// which is fine for VTOR (a Slot A VTOR is below it) but the PC fallback needs
+/// an explicit upper bound so a Slot A PC is never read as Slot B.
 pub fn current_executing_slot() -> SlotId {
     let vtor = unsafe { (*cortex_m::peripheral::SCB::PTR).vtor.read() };
     let pc: u32;
     unsafe {
         core::arch::asm!("mov {}, pc", out(reg) pc);
     }
-    // Slot B starts at 0x10104000 (XIP)
-    if vtor >= 0x1010_4000 || (pc >= 0x1010_4000 && pc < 0x1020_4000) {
+    const SLOT_A_XIP: u32 = 0x1000_4000;
+    const SLOT_B_XIP: u32 = 0x1010_4000;
+    const SLOT_END: u32 = 0x1020_4000;
+
+    let vtor_is_slot_b = vtor >= SLOT_B_XIP && vtor < SLOT_END;
+    let pc_is_slot_b = pc >= SLOT_B_XIP && pc < SLOT_END;
+    let vtor_is_slot_a = vtor >= SLOT_A_XIP && vtor < SLOT_B_XIP;
+    let pc_is_slot_a = pc >= SLOT_A_XIP && pc < SLOT_B_XIP;
+
+    if vtor_is_slot_b || (!vtor_is_slot_a && pc_is_slot_b) {
         SlotId::SlotB
-    } else {
+    } else if vtor_is_slot_a || pc_is_slot_a {
         SlotId::SlotA
+    } else {
+        // Unknown VTOR (e.g. before the bootloader sets it): trust the PC.
+        if pc >= SLOT_B_XIP {
+            SlotId::SlotB
+        } else {
+            SlotId::SlotA
+        }
     }
 }
 

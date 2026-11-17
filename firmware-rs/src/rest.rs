@@ -12,6 +12,35 @@ use crate::pin_owner;
 use crate::profile;
 use crate::servo;
 use agentla_bsp::BoardProfile;
+
+/// Build-time gate for HTTP flash-shaped routes (`flash`, `erase`, `reset-catch`,
+/// `rescue/*`). Set to `true` only when the native flash engines and the Cortex-M
+/// debug session teardown are both considered trustworthy. While `false`, every
+/// flash-shaped route answers `501` with a pointer to the USB transport.
+pub const HTTP_FLASH_ENABLED: bool = false;
+
+/// `501` body returned by every flash-shaped route while `HTTP_FLASH_ENABLED` is `false`.
+pub const HTTP_FLASH_DISABLED_BODY: &str =
+    r#"{"status":"disabled","error":"http_flash_disabled","use":"usb","modes":["cmsis","stlink"]}"#;
+
+/// Answer a flash-shaped request with the disabled payload. Callers that need to
+/// consume the body first (`read_body_str`) may do so, then call this.
+async fn http_flash_disabled<R, W>(
+    request: Request<'_, R>,
+    response_writer: W,
+) -> Result<picoserve::ResponseSent, W::Error>
+where
+    R: Read,
+    W: ResponseWriter<Error = R::Error>,
+{
+    send_json(
+        request,
+        response_writer,
+        StatusCode::NOT_IMPLEMENTED,
+        HTTP_FLASH_DISABLED_BODY,
+    )
+    .await
+}
 pub use crate::fs_http::{FsEntry, FsList, FsMkdir, FsRead, FsRename, FsStat, FsWrite};
 
 // Minimal JSON/query helpers (no serde in no_std)
@@ -897,6 +926,9 @@ impl ProgrammerReset {
 impl ProgrammerResetCatch {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_FLASH_ENABLED {
+            return http_flash_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let port_str = key_str(query, &body, "port");
@@ -923,6 +955,9 @@ impl ProgrammerResetCatch {
 impl ProgrammerRescueStm32 {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_FLASH_ENABLED {
+            return http_flash_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::programmer::rescue_stm32_global() {
             Ok(()) => {
@@ -958,6 +993,9 @@ impl ProgrammerRescueStm32 {
 impl ProgrammerRescueNrf {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_FLASH_ENABLED {
+            return http_flash_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::programmer::rescue_nrf_global() {
             Ok(()) => {
@@ -985,6 +1023,9 @@ impl ProgrammerRescueNrf {
 impl ProgrammerErase {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_FLASH_ENABLED {
+            return http_flash_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let port_str = key_str(query, &body, "port");
@@ -1022,6 +1063,10 @@ impl picoserve::routing::MethodHandlerService<(), ()> for ProgrammerFlash {
     ) -> Result<picoserve::ResponseSent, W::Error> {
         if method != "POST" {
             return send_json(request, response_writer, StatusCode::METHOD_NOT_ALLOWED, r#"{"error":"method_not_allowed"}"#).await;
+        }
+
+        if !HTTP_FLASH_ENABLED {
+            return http_flash_disabled(request, response_writer).await;
         }
 
         let query = request.parts.query();

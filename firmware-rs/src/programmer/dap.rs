@@ -14,6 +14,10 @@ impl CmsisDapHandler {
     pub fn handle_packet(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
         self.0.handle_packet(req, resp)
     }
+
+    pub fn set_serial(&mut self, serial: Option<&'static str>) {
+        self.0.set_serial(serial)
+    }
 }
 
 impl Default for CmsisDapHandler {

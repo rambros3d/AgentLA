@@ -146,11 +146,24 @@ unsafe extern "C" fn strcspn(s: *const core::ffi::c_char, reject: *const core::f
 
 #[embassy_executor::task]
 async fn watchdog_task(mut watchdog: embassy_rp::watchdog::Watchdog) {
-    watchdog.start(embassy_time::Duration::from_secs(5));
+    // Long enough that a slow but progressing boot (LittleFS mount, profile
+    // apply) is not reset, short enough that a genuine hang reboots instead of
+    // leaving the probe reachable by ping but with no HTTP server.
+    watchdog.start(embassy_time::Duration::from_secs(8));
     loop {
-        embassy_time::Timer::after(embassy_time::Duration::from_secs(1)).await;
-        watchdog.feed(embassy_time::Duration::from_secs(5));
+        embassy_time::Timer::after(embassy_time::Duration::from_secs(2)).await;
+        watchdog.feed(embassy_time::Duration::from_secs(8));
     }
+}
+
+/// Applies the boot-default hardware profile off the critical boot path.
+///
+/// `profile::scan_boot_default` -> `apply_profile` -> `quiesce_and_reset` uses
+/// blocking delays. Awaiting it inline stalled the executor before the network
+/// stack was serving, which left the probe pingable with no HTTP listener.
+#[embassy_executor::task]
+async fn profile_boot_task() {
+    crate::profile::scan_boot_default().await;
 }
 
 #[embassy_executor::main]
@@ -158,6 +171,13 @@ async fn main(spawner: embassy_executor::Spawner) {
     let mut config = embassy_rp::config::Config::default();
     config.clocks.rosc = None;
     let p = embassy_rp::init(config);
+
+    // Start the watchdog before any blocking work. Previously it was spawned
+    // last, so a hang during LittleFS mount, profile apply, or the boot-table
+    // commit left the probe alive (ping works, USB works) with no HTTP server
+    // and no way to recover except power-cycling. Now a hang reboots.
+    let watchdog = embassy_rp::watchdog::Watchdog::new(p.WATCHDOG);
+    spawner.spawn(watchdog_task(watchdog).unwrap());
 
     // Read configured boot clock (check scratch4 first for warm reset, else BootTable in flash)
     let scratch4 = rp_pac::WATCHDOG.scratch4().read();
@@ -286,22 +306,27 @@ async fn main(spawner: embassy_executor::Spawner) {
         rest::init_settings_from_fs();
         usb::load_personality_from_fs();
         usb::load_stlink_version();
-        profile::scan_boot_default().await;
+        // Deferred: apply_profile() uses blocking delays and rewrites the pin
+        // pool. Running it inline stalled the executor before the network stack
+        // was serving, which is the Slot B HTTP failure. Spawn it instead.
+        spawner.spawn(profile_boot_task().unwrap());
     }
 
     // 3d. Dual-Slot Boot Confirmation
-    // If running in candidate mode, confirm slot as permanently active now that
-    // core USB, networking, and filesystems have started successfully.
-    if let Err(()) = boot::ota_confirm() {
-        defmt::error!("Failed to confirm candidate OTA slot");
+    // Only when the filesystem mounted: ota_confirm() erases a boot-table
+    // sector on the same FLASH peripheral XIP runs from, and doing that while
+    // the storage subsystem is half-initialised risks a fault that panics
+    // rather than degrading.
+    if mounted {
+        if let Err(()) = boot::ota_confirm() {
+            defmt::error!("Failed to confirm candidate OTA slot");
+        }
+    } else {
+        defmt::warn!("Skipping OTA candidate confirmation: filesystem not mounted");
     }
 
     // Initialize and tristate all programmer pins
     crate::programmer::pins::tristate_pins();
-
-    // 4. Hardware Watchdog Supervisor
-    let watchdog = embassy_rp::watchdog::Watchdog::new(p.WATCHDOG);
-    spawner.spawn(watchdog_task(watchdog).unwrap());
 
     // Spawn analyzer capture task (PIO0/DMA0) to fill bank.
     spawner.spawn(crate::analyzer::capture_task(pio0, dma0).unwrap());

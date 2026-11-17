@@ -39,6 +39,10 @@ pub struct CmsisDapHandler<T: SwdIo> {
     pub match_retry: u16,
     pub match_mask: u32,
     pub connected: bool,
+    /// DAP_Info(0x03) serial string. Defaults to the historic fixed value so
+    /// host tools that key on it keep working; the firmware sets it to match
+    /// the USB string descriptor via `set_serial`.
+    pub serial: Option<&'static str>,
 }
 
 impl<T: SwdIo> CmsisDapHandler<T> {
@@ -50,7 +54,14 @@ impl<T: SwdIo> CmsisDapHandler<T> {
             match_retry: 100,
             match_mask: 0,
             connected: false,
+            serial: None,
         }
+    }
+
+    /// Set the string returned by `DAP_Info(0x03)`. Pass `None` to keep the
+    /// default. Must be called before the USB task starts serving.
+    pub fn set_serial(&mut self, serial: Option<&'static str>) {
+        self.serial = serial;
     }
 
     pub fn handle_packet(&mut self, req: &[u8], resp: &mut [u8]) -> usize {
@@ -128,9 +139,9 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 2 + p.len()
             }
             0x03 => {
-                let s = b"00000001";
+                let s = self.serial.unwrap_or("00000001");
                 resp[1] = s.len() as u8;
-                resp[2..2 + s.len()].copy_from_slice(s);
+                resp[2..2 + s.len()].copy_from_slice(s.as_bytes());
                 2 + s.len()
             }
             0x04 => {

@@ -178,11 +178,27 @@ Drives hardware `nRST` and `BOOT0` control lines.
 
 ### `POST /api/v1/programmer/erase`
 Mass-erases or sector-erases target flash memory.
+
+> [!NOTE]
+> **Disabled in firmware.** Returns `501` with
+> `{"status":"disabled","error":"http_flash_disabled","use":"usb","modes":["cmsis","stlink"]}`.
+> Use a USB SWD probe (CMSIS-DAP with probe-rs or pyOCD) to erase the target.
+
 - Body: `{"mass": true}` or `{"addr": 134217728, "len": 4096}`
 
 ### `POST /api/v1/programmer/flash`
 Programs binary hex payload into target flash.
+
+> [!NOTE]
+> **Disabled in firmware.** Returns `501` with
+> `{"status":"disabled","error":"http_flash_disabled","use":"usb","modes":["cmsis","stlink"]}`.
+> Use a USB SWD probe (CMSIS-DAP with probe-rs or pyOCD) to program the target.
+
 - Body: `{"addr": 134217728, "hex": "00400020..."}`
+
+> [!NOTE]
+> `POST /api/v1/programmer/reset-catch`, `/api/v1/programmer/rescue/stm32`, and
+> `/api/v1/programmer/rescue/nrf` are disabled by the same flag.
 
 ### `GET /api/v1/programmer/read`
 Reads binary target flash using zero-RAM generator streaming.

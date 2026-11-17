@@ -274,6 +274,89 @@ impl ProgrammerPersonality {
 
 pub const SCRATCH_PERSONALITY_MAGIC: u32 = 0xA61A_0000;
 
+/// Build a 24-character hex USB serial string from the RP2350 public chip ID.
+///
+/// `stlink` host tools require exactly 24 hex characters (`STLINK_SERIAL_LENGTH`),
+/// derived from a 96-bit UID. A fixed short serial such as "00000001" is rejected
+/// by `stlink_serial()`, so every stlink tool reports the probe as unusable.
+///
+/// The 64-bit `CHIPID` is ECC-encoded, so we mask off the ECC bits and keep the
+/// payload, then append the personality code to reach 24 hex characters. Two
+/// probes with different personality modes never collide, and two probes with the
+/// same personality collide only if their chip IDs match.
+fn usb_serial_str(personality: ProgrammerPersonality) -> &'static str {
+    // The serial is a pure function of (chip ID, personality) and is only ever
+    // read after `create_composite_usb`, so it is built once under a critical
+    // section instead of using `static mut` + raw pointers.
+    use core::sync::atomic::{AtomicBool, Ordering};
+    static READY: AtomicBool = AtomicBool::new(false);
+
+    // Single-threaded firmware: the whole boot and USB path runs on one core
+    // under one executor, so no preemption can interleave the write below.
+    if READY.load(Ordering::Relaxed) {
+        // SAFETY: `READY` is only set after all 24 bytes are written, and
+        // nothing writes them again.
+        return unsafe { serial_str_from_buf() };
+    }
+
+    let cid = [
+        rp_pac::OTP_DATA_RAW.chipid0().read(),
+        rp_pac::OTP_DATA_RAW.chipid1().read(),
+        rp_pac::OTP_DATA_RAW.chipid2().read(),
+        rp_pac::OTP_DATA_RAW.chipid3().read(),
+    ];
+
+    // CHIPID0..3 hold a 64-bit public device ID, 27 payload bits per 32-bit row
+    // with ECC in bits 4:0. Collect all four rows and keep the payload.
+    let mut raw: u64 = 0;
+    for (i, row) in [cid[0], cid[1], cid[2], cid[3]].iter().enumerate() {
+        raw |= ((row & !0x1F) as u64) << (27 * i);
+    }
+    let tail = match personality {
+        ProgrammerPersonality::CmsisDap => 0x414D_0001u32,
+        ProgrammerPersonality::StLink => 0x3752_0001u32,
+        ProgrammerPersonality::WchLink => 0x0001_0001u32,
+    };
+
+    // 24 hex chars: 16 from the chip ID (unique per device) + 8 from the
+    // personality tag. `stlink_serial()` accepts exactly 24.
+    let mut buf = [0u8; 24];
+    for i in 0..16 {
+        let nib = ((raw >> (60 - 4 * i)) & 0xF) as u8;
+        buf[i] = if nib < 10 { b'0' + nib } else { b'A' + (nib - 10) };
+    }
+    for i in 0..8 {
+        let nib = ((tail >> (28 - 4 * i)) & 0xF) as u8;
+        buf[16 + i] = if nib < 10 { b'0' + nib } else { b'A' + (nib - 10) };
+    }
+
+    // Publish the buffer. `SERIAL_BUF` is written exactly once.
+    // SAFETY: single-threaded, and `READY` gates all subsequent reads. All
+    // accesses go through raw pointers, so no reference to the static exists.
+    unsafe {
+        let dst = core::ptr::addr_of_mut!(SERIAL_BUF) as *mut u8;
+        core::ptr::copy_nonoverlapping(buf.as_ptr(), dst, 24);
+    }
+    READY.store(true, Ordering::Relaxed);
+
+    // SAFETY: 24 ASCII hex characters, written once and never mutated.
+    unsafe { serial_str_from_buf() }
+}
+
+/// Storage for the one-time serial string. Written once inside a critical
+/// section by `usb_serial_str`, then read-only.
+static mut SERIAL_BUF: [u8; 24] = [b'0'; 24];
+
+/// Build a `&'static str` over `SERIAL_BUF`.
+///
+/// # Safety
+/// Caller must guarantee `SERIAL_BUF` has been fully initialised and that no
+/// further writes will occur.
+unsafe fn serial_str_from_buf() -> &'static str {
+    let ptr = core::ptr::addr_of!(SERIAL_BUF) as *const u8;
+    core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr, 24))
+}
+
 pub fn detect_boot_personality() -> ProgrammerPersonality {
     let scratch = rp_pac::WATCHDOG.scratch5().read();
     if (scratch & 0xFFFF_0000) == SCRATCH_PERSONALITY_MAGIC {
@@ -431,7 +514,11 @@ pub fn create_composite_usb(
     let mut config = embassy_usb::Config::new(vid, pid);
     config.manufacturer = Some(mfg_str);
     config.product = Some(product_str);
-    config.serial_number = Some("00000001");
+    let serial = usb_serial_str(personality);
+    config.serial_number = Some(serial);
+    // CMSIS-DAP DAP_Info(0x03) has its own serial field; keep it in sync with
+    // the USB descriptor so host tools see one identity.
+    set_dap_serial(serial);
     config.max_power = 500;
     config.max_packet_size_0 = 64;
     config.device_class = 0xEF;
@@ -555,6 +642,12 @@ static DAP_HANDLER: embassy_sync::blocking_mutex::Mutex<
 > = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(
     crate::programmer::dap::CmsisDapHandler::new(),
 ));
+
+/// Set the DAP_Info(0x03) serial from the USB string descriptor source.
+/// Call once at boot, before the USB tasks start serving.
+pub fn set_dap_serial(serial: &'static str) {
+    DAP_HANDLER.lock(|h| h.borrow_mut().set_serial(Some(serial)));
+}
 
 pub fn handle_dap_request(req: &[u8], resp: &mut [u8]) -> usize {
     DAP_HANDLER.lock(|h| h.borrow_mut().handle_packet(req, resp))
@@ -703,6 +796,10 @@ pub async fn stlink_usb_task(
     use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
     cmd_out.wait_enabled().await;
 
+    // NOTE: ST-Link mode is not yet interoperable with stlink host tools.
+    // `st-info` gets past USB enumeration and the serial check but times out on
+    // ENTER_SWD. Root cause not established. The CMSIS-DAP personality remains
+    // the verified transport; do not advertise ST-Link mode as supported.
     let transport = crate::programmer::swd::SwdTransport::new();
     let mut handler = agentla_programmer::stlink::StLinkHandler::with_swo(
         transport,
