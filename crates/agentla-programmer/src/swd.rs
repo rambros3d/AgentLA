@@ -117,11 +117,21 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
 
     fn read_dp(&mut self, reg: u8, value: &mut u32) -> Result<(), SwdError> {
         let req = build_request(false, true, (reg >> 2) & 3);
+        crate::stlink::stlink_diag::set_req(req, 0);
         for _ in 0..200 {
             match self.transport.transfer(req, None) {
-                Ok((SWD_ACK_OK, data)) => {
-                    *value = data;
-                    return Ok(());
+                Ok((ack, data)) => {
+                    crate::stlink::stlink_diag::set_last_ack(ack, reg);
+                    if ack == SWD_ACK_OK {
+                        *value = data;
+                        return Ok(());
+                    }
+                    if ack == SWD_ACK_WAIT { crate::delay::delay_cycles(300); continue; }
+                    return Err(match ack {
+                        SWD_ACK_FAULT => SwdError::AckFault,
+                        SWD_ACK_PARITY_ERR => SwdError::ParityError,
+                        _ => SwdError::ProtocolError,
+                    });
                 }
                 Ok((SWD_ACK_WAIT, _)) => {
                     delay_cycles(300);
