@@ -1056,10 +1056,19 @@ impl<T: SwdIo> StLinkHandler<T> {
             }
 
             DBG_APIV2_INIT_AP => {
-                if cmd.len() >= 3 {
-                    self.current_ap = cmd[2];
-                }
-                resp[0] = STLINK_OK;
+                let ap = if cmd.len() >= 3 { cmd[2] } else { 0 };
+                // hybridlink's mem_ap_init selects the AP, invalidates the
+                // cached CSW and reads the AP IDR to validate the selection.
+                // Merely caching `current_ap` leaves the engine's SELECT/CSW
+                // state stale, so later accesses hit the wrong AP.
+                self.current_ap = ap;
+                let mut idr = 0u32;
+                let st = self
+                    .engine
+                    .read_ap_port(ap, 0xFC, &mut idr)
+                    .map(|_| STLINK_OK)
+                    .unwrap_or(STLINK_SWD_AP_FAULT);
+                resp[0] = st;
                 resp[1] = 0;
                 2
             }
