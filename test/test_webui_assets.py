@@ -390,7 +390,13 @@ def test_html_and_js_syntax_integrity():
     if not node_bin:
         return
 
-    html_files = [HTML_DIR / "index.html", HTML_DIR / "lab.html", HTML_DIR / "terminal.html", HTML_DIR / "files.html"]
+    html_files = [
+        HTML_DIR / "index.html",
+        HTML_DIR / "lab.html",
+        HTML_DIR / "terminal.html",
+        HTML_DIR / "files.html",
+        HTML_DIR / "barefoc.html",
+    ]
     for html_file in html_files:
         content = html_file.read_text(encoding="utf-8")
         scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", content, re.DOTALL)
@@ -408,6 +414,46 @@ def test_html_and_js_syntax_integrity():
     for js_file in js_files:
         res = subprocess.run([node_bin, "-c", str(js_file)], capture_output=True, text=True)
         assert res.returncode == 0, f"Syntax error in {js_file.name}: {res.stderr}"
+
+
+
+def test_barefoc_studio_landscape_two_column_layout():
+    """Verify BareFOC Studio dashboard has responsive two-column wide-screen layout with zero emojis."""
+    barefoc_path = HTML_DIR / "barefoc.html"
+    assert barefoc_path.exists(), "webui/barefoc.html must exist"
+    content = barefoc_path.read_text(encoding="utf-8")
+
+    # Invariant 1: Zero emojis
+    emoji_matches = re.findall(r"[\U00010000-\U0010ffff]", content)
+    assert len(emoji_matches) == 0, f"Found emojis in barefoc.html: {set(emoji_matches)}"
+
+    # Invariant 2: Responsive 12-column dashboard layout
+    assert 'id="view-dashboard"' in content
+    assert "grid grid-cols-1 lg:grid-cols-12 gap-5 items-start" in content
+
+    # Invariant 3: Left column with lg:col-span-5 containing telemetry HUD and diagnostics
+    assert "lg:col-span-5 flex flex-col gap-4" in content
+    assert 'id="hud-angle-val"' in content
+    assert 'id="hud-vel-val"' in content
+    assert 'id="hud-target-val"' in content
+    assert 'id="hud-current-iq"' in content
+    assert 'id="hud-vbus-val"' in content
+    assert 'id="hud-rate-val"' in content
+    assert 'id="val-ua"' in content
+    assert 'id="val-theta-e"' in content
+    assert 'id="val-pwm-type"' in content
+
+    # Invariant 4: Right column with lg:col-span-7 containing motion modes and interactive setpoint dial
+    assert "lg:col-span-7 flex flex-col gap-4" in content
+    assert 'id="badge-active-mode"' in content
+    assert 'data-mode="angle"' in content
+    assert 'data-mode="velocity"' in content
+    assert 'data-mode="torque"' in content
+    assert 'data-torque="foc_current"' in content
+    assert 'id="foc-dial"' in content
+    assert 'id="range-target-slider"' in content
+    assert 'id="input-numeric-target"' in content
+    assert 'id="btn-send-numeric-target"' in content
 
 
 if __name__ == "__main__":

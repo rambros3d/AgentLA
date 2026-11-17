@@ -204,195 +204,201 @@
 
     <!-- VIEW 1: LIVE STUDIO & MULTI-MODE DASHBOARD -->
     <section id="view-dashboard" class="view-panel flex flex-col gap-6">
-      <!-- Top Telemetry Cards -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col">
-          <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold">Shaft Angle</span>
-          <span class="text-xl font-bold font-mono text-primary mt-1" id="hud-angle-val">0.00 rad</span>
-          <span class="text-[11px] font-mono text-base-content/50" id="hud-angle-deg">0.00 deg</span>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col">
-          <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold">Shaft Velocity</span>
-          <span class="text-xl font-bold font-mono text-accent mt-1" id="hud-vel-val">0.00 rad/s</span>
-          <span class="text-[11px] font-mono text-base-content/50" id="hud-vel-rpm">0.0 RPM</span>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col">
-          <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold">Target Setpoint</span>
-          <span class="text-xl font-bold font-mono text-info mt-1" id="hud-target-val">0.00</span>
-          <span class="text-[11px] font-mono text-base-content/50" id="hud-target-unit">rad</span>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col">
-          <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold">Current Iq / Id</span>
-          <span class="text-xl font-bold font-mono text-success mt-1" id="hud-current-iq">0.00 A</span>
-          <span class="text-[11px] font-mono text-base-content/50" id="hud-current-id">Id: 0.00 A</span>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col">
-          <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold">Bus Voltage / Power</span>
-          <span class="text-xl font-bold font-mono text-warning mt-1" id="hud-vbus-val">24.0 V</span>
-          <span class="text-[11px] font-mono text-base-content/50" id="hud-power-val">0.0 W</span>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col">
-          <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold">FOC Loop Rate</span>
-          <span class="text-xl font-bold font-mono text-secondary mt-1" id="hud-rate-val">25.0 kHz</span>
-          <span class="text-[11px] font-mono text-base-content/50" id="hud-temp-val">Temp: 31 C</span>
-        </div>
-      </div>
-
-      <!-- Mode Selector & Dial Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Left: Motion & Torque Modes -->
-        <div class="lg:col-span-5 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
-          <div class="flex items-center justify-between border-b border-base-300 pb-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">Motion Control Modes</h3>
-            <span class="badge badge-neutral badge-xs font-mono" id="badge-active-mode">Angle Closed-Loop</span>
+      <!-- Responsive 12-Column Dashboard Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <!-- Left Column: Telemetry HUD & Diagnostics Hub -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+          <!-- Primary Telemetry HUD Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2.5">
+            <div class="bg-base-200 border border-base-300 rounded-xl p-2.5 flex flex-col">
+              <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold truncate">Shaft Angle</span>
+              <span class="text-lg font-bold font-mono text-primary mt-0.5" id="hud-angle-val">0.00 rad</span>
+              <span class="text-[10px] font-mono text-base-content/50" id="hud-angle-deg">0.00 deg</span>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-2.5 flex flex-col">
+              <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold truncate">Shaft Velocity</span>
+              <span class="text-lg font-bold font-mono text-accent mt-0.5" id="hud-vel-val">0.00 rad/s</span>
+              <span class="text-[10px] font-mono text-base-content/50" id="hud-vel-rpm">0.0 RPM</span>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-2.5 flex flex-col">
+              <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold truncate">Target Setpoint</span>
+              <span class="text-lg font-bold font-mono text-info mt-0.5" id="hud-target-val">0.00</span>
+              <span class="text-[10px] font-mono text-base-content/50" id="hud-target-unit">rad</span>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-2.5 flex flex-col">
+              <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold truncate">Current Iq / Id</span>
+              <span class="text-lg font-bold font-mono text-success mt-0.5" id="hud-current-iq">0.00 A</span>
+              <span class="text-[10px] font-mono text-base-content/50" id="hud-current-id">Id: 0.00 A</span>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-2.5 flex flex-col">
+              <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold truncate">Bus Voltage / Power</span>
+              <span class="text-lg font-bold font-mono text-warning mt-0.5" id="hud-vbus-val">24.0 V</span>
+              <span class="text-[10px] font-mono text-base-content/50" id="hud-power-val">0.0 W</span>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-2.5 flex flex-col">
+              <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold truncate">FOC Loop Rate</span>
+              <span class="text-lg font-bold font-mono text-secondary mt-0.5" id="hud-rate-val">25.0 kHz</span>
+              <span class="text-[10px] font-mono text-base-content/50" id="hud-temp-val">Temp: 31 C</span>
+            </div>
           </div>
 
-          <div class="grid grid-cols-1 gap-2">
-            <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="angle">
-              <span class="w-2 h-2 rounded-full bg-primary"></span>
-              <div class="text-left">
-                <div class="font-bold text-xs uppercase">Angle Closed-Loop</div>
-                <div class="text-[10px] text-base-content/60 font-normal">Cascaded Position P -> Velocity PID -> Current Loop</div>
+          <!-- Vector & Diagnostics Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-2.5">
+            <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-base-content/70">Phase Voltages</span>
+              <div class="flex items-center justify-between text-xs font-mono pt-0.5">
+                <span>U_a:</span> <span class="font-bold text-primary" id="val-ua">0.00 V</span>
               </div>
-            </button>
-            <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="velocity">
-              <span class="w-2 h-2 rounded-full bg-accent"></span>
-              <div class="text-left">
-                <div class="font-bold text-xs uppercase">Velocity Closed-Loop</div>
-                <div class="text-[10px] text-base-content/60 font-normal">Velocity PID with Low-Pass Filtering &amp; Anti-Windup</div>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>U_b:</span> <span class="font-bold text-accent" id="val-ub">0.00 V</span>
               </div>
-            </button>
-            <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="torque">
-              <span class="w-2 h-2 rounded-full bg-success"></span>
-              <div class="text-left">
-                <div class="font-bold text-xs uppercase">Torque Mode</div>
-                <div class="text-[10px] text-base-content/60 font-normal">Direct current or voltage vector actuation</div>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>U_c:</span> <span class="font-bold text-secondary" id="val-uc">0.00 V</span>
               </div>
-            </button>
-            <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="velocity_openloop">
-              <span class="w-2 h-2 rounded-full bg-warning"></span>
-              <div class="text-left">
-                <div class="font-bold text-xs uppercase">Velocity Open-Loop</div>
-                <div class="text-[10px] text-base-content/60 font-normal">Sensorless rotating voltage vector (Stepping)</div>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-base-content/70">Electrical Angles</span>
+              <div class="flex items-center justify-between text-xs font-mono pt-0.5">
+                <span>Theta_e (Elec):</span> <span class="font-bold" id="val-theta-e">0.00 rad</span>
               </div>
-            </button>
-            <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="angle_openloop">
-              <span class="w-2 h-2 rounded-full bg-secondary"></span>
-              <div class="text-left">
-                <div class="font-bold text-xs uppercase">Angle Open-Loop</div>
-                <div class="text-[10px] text-base-content/60 font-normal">Absolute angular positioning without feedback</div>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>Theta_m (Mech):</span> <span class="font-bold" id="val-theta-m">0.00 rad</span>
               </div>
-            </button>
-          </div>
-
-          <!-- Torque Sub-Mode Selection -->
-          <div class="mt-2 pt-3 border-t border-base-300 flex flex-col gap-2">
-            <span class="text-xs font-semibold text-base-content/70">Torque Sub-Mode:</span>
-            <div class="join w-full">
-              <button class="btn btn-xs join-item flex-1 btn-torque-mode" data-torque="voltage">Voltage Mode</button>
-              <button class="btn btn-xs join-item flex-1 btn-torque-mode" data-torque="dc_current">DC Current</button>
-              <button class="btn btn-xs join-item flex-1 btn-torque-mode active btn-primary" data-torque="foc_current">FOC Current (Iq/Id)</button>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>Zero Angle Offset:</span> <span class="font-bold" id="val-zero-offset">1.84 rad</span>
+              </div>
+            </div>
+            <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-base-content/70">Modulation Mode</span>
+              <div class="flex items-center justify-between text-xs font-mono pt-0.5">
+                <span>PWM Type:</span> <span class="badge badge-sm badge-info font-mono" id="val-pwm-type">SpaceVectorPWM</span>
+              </div>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>Supply Voltage:</span> <span class="font-bold" id="val-vsupply">24.0 V</span>
+              </div>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>Voltage Limit:</span> <span class="font-bold" id="val-vlimit">12.0 V</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Center/Right: Interactive Target Dial & Setpoint Controls -->
-        <div class="lg:col-span-7 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col items-center justify-between gap-4">
-          <div class="w-full flex items-center justify-between border-b border-base-300 pb-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">Interactive Setpoint Control</h3>
-            <span class="text-xs font-mono text-base-content/60" id="dial-mode-label">Mode: ANGLE (rad)</span>
-          </div>
-
-          <!-- SVG Radial Dial Gauge -->
-          <div class="relative flex items-center justify-center p-2">
-            <svg class="foc-dial-svg" viewBox="0 0 200 200" id="foc-dial">
-              <!-- Outer track -->
-              <circle cx="100" cy="100" r="82" fill="none" stroke="currentColor" stroke-opacity="0.1" stroke-width="12" />
-              <!-- Target Arc -->
-              <circle id="dial-target-arc" cx="100" cy="100" r="82" fill="none" stroke="hsl(var(--p))" stroke-width="12" stroke-linecap="round" stroke-dasharray="515" stroke-dashoffset="380" transform="rotate(-90 100 100)" />
-              <!-- Feedback Arc -->
-              <circle id="dial-feedback-arc" cx="100" cy="100" r="70" fill="none" stroke="hsl(var(--a))" stroke-width="4" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="330" transform="rotate(-90 100 100)" opacity="0.8" />
-              <!-- Ticks -->
-              <g stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5">
-                <line x1="100" y1="12" x2="100" y2="20" />
-                <line x1="100" y1="180" x2="100" y2="188" />
-                <line x1="12" y1="100" x2="20" y2="100" />
-                <line x1="180" y1="100" x2="188" y2="100" />
-              </g>
-              <!-- Center Readout -->
-              <text x="100" y="93" text-anchor="middle" class="font-mono" font-size="24" font-weight="bold" fill="currentColor" id="dial-center-text">0.00</text>
-              <text x="100" y="112" text-anchor="middle" class="font-mono text-xs uppercase" fill="currentColor" fill-opacity="0.6" id="dial-center-unit">RAD</text>
-              <text x="100" y="128" text-anchor="middle" class="font-mono text-[10px]" fill="hsl(var(--a))" id="dial-feedback-subtext">Act: 0.00 rad</text>
-              <!-- Indicator Needle -->
-              <line id="dial-needle" x1="100" y1="100" x2="100" y2="28" stroke="hsl(var(--p))" stroke-width="3" stroke-linecap="round" />
-              <circle cx="100" cy="100" r="5" fill="hsl(var(--p))" />
-            </svg>
-          </div>
-
-          <!-- Fine Slider & Step Adjustments -->
-          <div class="w-full flex flex-col gap-3">
-            <div class="flex items-center gap-3">
-              <span class="text-xs font-mono text-base-content/60 w-12 text-right" id="slider-min-val">-3.14</span>
-              <input type="range" id="range-target-slider" min="-3.1415" max="3.1415" step="0.01" value="0" class="range range-xs range-primary flex-1" />
-              <span class="text-xs font-mono text-base-content/60 w-12" id="slider-max-val">+3.14</span>
+        <!-- Right Column: Interactive Control & Motion Modes -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+          <!-- Motion Control Modes Card -->
+          <div class="bg-base-200 border border-base-300 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5">
+            <div class="flex items-center justify-between border-b border-base-300 pb-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">Motion Control Modes</h3>
+              <span class="badge badge-neutral badge-xs font-mono" id="badge-active-mode">Angle Closed-Loop</span>
             </div>
 
-            <!-- Step Buttons -->
-            <div class="flex items-center justify-center gap-2 flex-wrap">
-              <button class="btn btn-xs btn-outline btn-step" data-step="-10">-10</button>
-              <button class="btn btn-xs btn-outline btn-step" data-step="-1">-1</button>
-              <button class="btn btn-xs btn-outline btn-step" data-step="-0.1">-0.1</button>
-              <button class="btn btn-xs btn-neutral btn-step font-bold" data-step="0">Zero (0)</button>
-              <button class="btn btn-xs btn-outline btn-step" data-step="0.1">+0.1</button>
-              <button class="btn btn-xs btn-outline btn-step" data-step="1">+1</button>
-              <button class="btn btn-xs btn-outline btn-step" data-step="10">+10</button>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">
+              <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="angle">
+                <span class="w-2 h-2 rounded-full bg-primary shrink-0"></span>
+                <div class="text-left truncate">
+                  <div class="font-bold text-xs uppercase">Angle Closed-Loop</div>
+                  <div class="text-[10px] text-base-content/60 font-normal truncate">Cascaded Position P -&gt; Velocity PID -&gt; Current Loop</div>
+                </div>
+              </button>
+              <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="velocity">
+                <span class="w-2 h-2 rounded-full bg-accent shrink-0"></span>
+                <div class="text-left truncate">
+                  <div class="font-bold text-xs uppercase">Velocity Closed-Loop</div>
+                  <div class="text-[10px] text-base-content/60 font-normal truncate">Velocity PID with Low-Pass Filtering &amp; Anti-Windup</div>
+                </div>
+              </button>
+              <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="torque">
+                <span class="w-2 h-2 rounded-full bg-success shrink-0"></span>
+                <div class="text-left truncate">
+                  <div class="font-bold text-xs uppercase">Torque Mode</div>
+                  <div class="text-[10px] text-base-content/60 font-normal truncate">Direct current or voltage vector actuation</div>
+                </div>
+              </button>
+              <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode" data-mode="velocity_openloop">
+                <span class="w-2 h-2 rounded-full bg-warning shrink-0"></span>
+                <div class="text-left truncate">
+                  <div class="font-bold text-xs uppercase">Velocity Open-Loop</div>
+                  <div class="text-[10px] text-base-content/60 font-normal truncate">Sensorless rotating voltage vector (Stepping)</div>
+                </div>
+              </button>
+              <button class="btn btn-sm btn-outline justify-start gap-3 btn-mode sm:col-span-2 lg:col-span-1 xl:col-span-2" data-mode="angle_openloop">
+                <span class="w-2 h-2 rounded-full bg-secondary shrink-0"></span>
+                <div class="text-left truncate">
+                  <div class="font-bold text-xs uppercase">Angle Open-Loop</div>
+                  <div class="text-[10px] text-base-content/60 font-normal truncate">Absolute angular positioning without feedback</div>
+                </div>
+              </button>
             </div>
 
-            <!-- Direct Numeric Input -->
-            <div class="join w-full max-w-sm mx-auto mt-1">
-              <input type="number" id="input-numeric-target" step="0.01" value="0.00" class="input input-bordered input-xs join-item flex-1 font-mono text-center" placeholder="Enter setpoint" />
-              <button id="btn-send-numeric-target" class="btn btn-xs btn-primary join-item uppercase font-bold">Apply</button>
+            <!-- Torque Sub-Mode Selection -->
+            <div class="pt-2 border-t border-base-300 flex flex-col gap-1.5">
+              <span class="text-xs font-semibold text-base-content/70">Torque Sub-Mode:</span>
+              <div class="join w-full">
+                <button class="btn btn-xs join-item flex-1 btn-torque-mode" data-torque="voltage">Voltage Mode</button>
+                <button class="btn btn-xs join-item flex-1 btn-torque-mode" data-torque="dc_current">DC Current</button>
+                <button class="btn btn-xs join-item flex-1 btn-torque-mode active btn-primary" data-torque="foc_current">FOC Current (Iq/Id)</button>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Phase Vector & Modulation HUD Card -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-base-200 border border-base-300 rounded-xl p-4 flex flex-col gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-base-content/70">Phase Voltages</span>
-          <div class="flex items-center justify-between text-xs font-mono pt-1">
-            <span>U_a:</span> <span class="font-bold text-primary" id="val-ua">0.00 V</span>
-          </div>
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span>U_b:</span> <span class="font-bold text-accent" id="val-ub">0.00 V</span>
-          </div>
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span>U_c:</span> <span class="font-bold text-secondary" id="val-uc">0.00 V</span>
-          </div>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-4 flex flex-col gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-base-content/70">Electrical Angles</span>
-          <div class="flex items-center justify-between text-xs font-mono pt-1">
-            <span>Theta_e (Elec):</span> <span class="font-bold" id="val-theta-e">0.00 rad</span>
-          </div>
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span>Theta_m (Mech):</span> <span class="font-bold" id="val-theta-m">0.00 rad</span>
-          </div>
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span>Zero Angle Offset:</span> <span class="font-bold" id="val-zero-offset">1.84 rad</span>
-          </div>
-        </div>
-        <div class="bg-base-200 border border-base-300 rounded-xl p-4 flex flex-col gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-base-content/70">Modulation Mode</span>
-          <div class="flex items-center justify-between text-xs font-mono pt-1">
-            <span>PWM Type:</span> <span class="badge badge-sm badge-info font-mono" id="val-pwm-type">SpaceVectorPWM</span>
-          </div>
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span>Supply Voltage:</span> <span class="font-bold" id="val-vsupply">24.0 V</span>
-          </div>
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span>Voltage Limit:</span> <span class="font-bold" id="val-vlimit">12.0 V</span>
+          <!-- Interactive Setpoint Control Card -->
+          <div class="bg-base-200 border border-base-300 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-between gap-3">
+            <div class="w-full flex items-center justify-between border-b border-base-300 pb-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">Interactive Setpoint Control</h3>
+              <span class="text-xs font-mono text-base-content/60" id="dial-mode-label">Mode: ANGLE (rad)</span>
+            </div>
+
+            <!-- SVG Radial Dial Gauge -->
+            <div class="relative flex items-center justify-center p-1">
+              <svg class="foc-dial-svg" viewBox="0 0 200 200" id="foc-dial">
+                <!-- Outer track -->
+                <circle cx="100" cy="100" r="82" fill="none" stroke="currentColor" stroke-opacity="0.1" stroke-width="12" />
+                <!-- Target Arc -->
+                <circle id="dial-target-arc" cx="100" cy="100" r="82" fill="none" stroke="hsl(var(--p))" stroke-width="12" stroke-linecap="round" stroke-dasharray="515" stroke-dashoffset="380" transform="rotate(-90 100 100)" />
+                <!-- Feedback Arc -->
+                <circle id="dial-feedback-arc" cx="100" cy="100" r="70" fill="none" stroke="hsl(var(--a))" stroke-width="4" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="330" transform="rotate(-90 100 100)" opacity="0.8" />
+                <!-- Ticks -->
+                <g stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5">
+                  <line x1="100" y1="12" x2="100" y2="20" />
+                  <line x1="100" y1="180" x2="100" y2="188" />
+                  <line x1="12" y1="100" x2="20" y2="100" />
+                  <line x1="180" y1="100" x2="188" y2="100" />
+                </g>
+                <!-- Center Readout -->
+                <text x="100" y="93" text-anchor="middle" class="font-mono" font-size="24" font-weight="bold" fill="currentColor" id="dial-center-text">0.00</text>
+                <text x="100" y="112" text-anchor="middle" class="font-mono text-xs uppercase" fill="currentColor" fill-opacity="0.6" id="dial-center-unit">RAD</text>
+                <text x="100" y="128" text-anchor="middle" class="font-mono text-[10px]" fill="hsl(var(--a))" id="dial-feedback-subtext">Act: 0.00 rad</text>
+                <!-- Indicator Needle -->
+                <line id="dial-needle" x1="100" y1="100" x2="100" y2="28" stroke="hsl(var(--p))" stroke-width="3" stroke-linecap="round" />
+                <circle cx="100" cy="100" r="5" fill="hsl(var(--p))" />
+              </svg>
+            </div>
+
+            <!-- Fine Slider & Step Adjustments -->
+            <div class="w-full flex flex-col gap-2.5">
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-mono text-base-content/60 w-12 text-right" id="slider-min-val">-3.14</span>
+                <input type="range" id="range-target-slider" min="-3.1415" max="3.1415" step="0.01" value="0" class="range range-xs range-primary flex-1" />
+                <span class="text-xs font-mono text-base-content/60 w-12" id="slider-max-val">+3.14</span>
+              </div>
+
+              <!-- Step Buttons -->
+              <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                <button class="btn btn-xs btn-outline btn-step" data-step="-10">-10</button>
+                <button class="btn btn-xs btn-outline btn-step" data-step="-1">-1</button>
+                <button class="btn btn-xs btn-outline btn-step" data-step="-0.1">-0.1</button>
+                <button class="btn btn-xs btn-neutral btn-step font-bold" data-step="0">Zero (0)</button>
+                <button class="btn btn-xs btn-outline btn-step" data-step="0.1">+0.1</button>
+                <button class="btn btn-xs btn-outline btn-step" data-step="1">+1</button>
+                <button class="btn btn-xs btn-outline btn-step" data-step="10">+10</button>
+              </div>
+
+              <!-- Direct Numeric Input -->
+              <div class="join w-full max-w-sm mx-auto mt-0.5">
+                <input type="number" id="input-numeric-target" step="0.01" value="0.00" class="input input-bordered input-xs join-item flex-1 font-mono text-center" placeholder="Enter setpoint" />
+                <button id="btn-send-numeric-target" class="btn btn-xs btn-primary join-item uppercase font-bold">Apply</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
