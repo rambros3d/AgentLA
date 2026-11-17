@@ -5335,6 +5335,18 @@ function openServoApp() {
     }
 }
 
+function openNeoPixelApp() {
+    const isDemo = window.location.protocol === 'https:' || 
+                   window.location.hostname.includes('github.io') ||
+                   window.location.search.includes('demo=1') ||
+                   window.location.pathname.endsWith('.html');
+    if (isDemo) {
+        window.location.href = 'neopixel.html';
+    } else {
+        window.location.href = '/neopixel';
+    }
+}
+
 // Pinned Dock Apps Management (Persisted in localStorage & synced across tabs)
 const PINNED_DOCK_STORAGE_KEY = 'agentla_pinned_dock_apps';
 
@@ -5348,7 +5360,7 @@ function getPinnedApps() {
             }
         }
     } catch (_) {}
-    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'];
+    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'];
 }
 
 function renderDockPinnedApps() {
@@ -5359,7 +5371,7 @@ function renderDockPinnedApps() {
     const pinned = getPinnedApps();
 
     // Toggle visibility of system instruments in dock (dock-app-servo, dock-app-motor, etc.)
-    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].forEach(sysId => {
+    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].forEach(sysId => {
         const el = document.getElementById(`dock-app-${sysId}`);
         if (el) {
             el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -5372,7 +5384,7 @@ function renderDockPinnedApps() {
 
     let html = '';
     pinned.forEach(appId => {
-        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].includes(appId)) return;
+        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].includes(appId)) return;
         let appName = appId;
         let clickAction = '';
         let iconSvg = '';

@@ -703,7 +703,7 @@
                 }
             }
         } catch (_) {}
-        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'];
+        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'];
     }
 
     function renderDockPinnedApps(container) {
@@ -711,7 +711,7 @@
         if (!container) return;
 
         var pinned = getPinnedApps();
-        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].forEach(function(sysId) {
+        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].forEach(function(sysId) {
             var el = document.getElementById('dock-app-' + sysId);
             if (el) {
                 el.style.display = pinned.indexOf(sysId) !== -1 ? 'inline-flex' : 'none';
@@ -720,7 +720,7 @@
         var html = '';
 
         pinned.forEach(function(appId) {
-            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].indexOf(appId) !== -1) return;
+            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel'].indexOf(appId) !== -1) return;
 
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
@@ -855,6 +855,15 @@
                     </svg>
                 </a>
 
+                <!-- NeoPixel (NeoPixel Control) -->
+                <a href="${isDemo ? 'neopixel.html' : '/neopixel'}" class="dock-icon-btn" id="dock-app-neopixel"${sysStyle('neopixel')} data-dock-tooltip="NeoPixel Control">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M17.5801 10.21C20.1272 10.9035 22 13.2332 22 16C21.9999 19.3136 19.3136 22 16 22C14.4633 22 13.0615 21.4218 12 20.4717C12.0032 20.4688 12.0056 20.4648 12.0088 20.4619C10.9461 21.4174 9.54152 22 8 22C4.68629 22 2 19.3137 2 16C2.00002 13.2331 3.87278 10.9034 6.41992 10.21C7.29998 12.4299 9.46679 14 12 14C12.5468 14 13.0767 13.9271 13.5801 13.79C15.4087 13.2922 16.89 11.9507 17.5801 10.21ZM13.9766 16.5117C13.9816 16.4517 13.9879 16.3916 13.9912 16.3311L13.9922 16.3086C13.9887 16.3767 13.9823 16.4443 13.9766 16.5117Z" fill="currentColor"/>
+                        <path d="M18 8C18 11.3137 15.3137 14 12 14C8.68629 14 6 11.3137 6 8C6 4.68629 8.68629 2 12 2C15.3137 2 18 4.68629 18 8Z" fill="currentColor"/>
+                        <path opacity="0.5" d="M13.5798 13.7899C13.0765 13.9269 12.5468 14 12 14C9.46679 14 7.30024 12.4302 6.42018 10.2102C3.87293 10.9036 2 13.2331 2 16C2 19.3138 4.68629 22 8 22C11.3137 22 14 19.3138 14 16C14 15.2195 13.851 14.4739 13.5798 13.7899Z" fill="currentColor"/>
+                    </svg>
+                </a>
+
                 <!-- Console -->
                 <a href="${isDemo ? labUrl + '#console' : '/agent/'}" class="dock-icon-btn" id="dock-app-console"${sysStyle('console')} data-dock-tooltip="MCP Console">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -971,6 +980,9 @@
         } else if (curPath.startsWith('/servo') || curPath.startsWith('/servomaster')) {
             var srvBtn = document.getElementById('dock-app-servo');
             if (srvBtn) srvBtn.classList.add('active');
+        } else if (curPath.startsWith('/neopixel') || curPath.startsWith('/led')) {
+            var neoBtn = document.getElementById('dock-app-neopixel');
+            if (neoBtn) neoBtn.classList.add('active');
         } else if (curPath.startsWith('/bareboot') || curPath.startsWith('/app/bareboot')) {
             var bBtn = document.getElementById('dock-app-bareboot');
             if (bBtn) bBtn.classList.add('active');

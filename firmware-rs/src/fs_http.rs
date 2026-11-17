@@ -14,7 +14,13 @@ use picoserve::routing::PathRouterService;
 use picoserve::ResponseSent;
 
 use crate::apps::{self, AppParams};
-use crate::storage::{with_fs, with_system_fs};
+use crate::storage::{
+    FsAccessError, with_fs, with_system_fs, with_system_fs_result, with_user_fs_result,
+};
+
+#[path = "fs_json.rs"]
+mod fs_json;
+use fs_json::{write_dir_entry, write_json_string};
 
 /// Size of a single LittleFS read/write chunk served or stored per lock hold.
 pub const FS_CHUNK: usize = 2048;
@@ -696,75 +702,93 @@ fn ensure_parent_dirs_user(
     }
 }
 
-/// Helper to serialize directory entries into a JSON array buffer.
-fn serialize_dir_entries<S: littlefs2::driver::Storage>(
+/// Why a directory listing could not be produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirListError {
+    /// The target directory does not exist or littlefs reported an I/O error.
+    Io,
+    /// The entry array does not fit in the response buffer. Never emit a
+    /// partial array in this case; the caller returns `listing_too_large`.
+    TooLarge,
+}
+
+/// Maximum size of a serialised directory listing. A single
+/// [`heapless::String`] buffer with checked writes is used instead of streaming
+/// because littlefs2 only exposes its directory iterator through a synchronous
+/// closure (see design.md, task 1.1). Overflow is reported, never truncated.
+const DIR_LIST_CAPACITY: usize = 8192;
+
+type DirListBuffer = heapless::String<DIR_LIST_CAPACITY>;
+
+/// Append every entry of `target` to `out` as JSON objects.
+///
+/// `first` tracks comma placement across calls. An overflow while writing any
+/// entry aborts the walk and is reported as [`DirListError::TooLarge`] so the
+/// response can fail explicitly rather than returning truncated JSON.
+fn append_dir_entries<S: littlefs2::driver::Storage>(
     fs: &littlefs2::fs::Filesystem<'static, S>,
-    path_str: &str,
-    out: &mut heapless::String<2048>,
-) -> Result<(), littlefs2::io::Error> {
-    let mut first = true;
-    let _ = out.push('[');
-
-    let target_path = if path_str == "/" || path_str.is_empty() {
-        PathBuf::try_from(".").map_err(|_| littlefs2::io::Error::IO)?
-    } else {
-        PathBuf::try_from(path_str).map_err(|_| littlefs2::io::Error::IO)?
-    };
-
-    let res = fs.read_dir_and_then(&target_path, |dir| {
+    target: &littlefs2::path::Path,
+    out: &mut DirListBuffer,
+    first: &mut bool,
+) -> Result<(), DirListError> {
+    let mut overflow = false;
+    let res = fs.read_dir_and_then(target, |dir| {
         for entry in dir.by_ref() {
             let Ok(entry) = entry else { continue };
             let name = entry.file_name().as_str();
             if name == "." || name == ".." {
                 continue;
             }
-            if !first {
-                let _ = out.push(',');
-            }
-            first = false;
             let m = entry.metadata();
             let is_dir = m.is_dir();
             let size = if is_dir { 0 } else { m.len() };
-            let _ = write!(
-                out,
-                r#"{{"name":"{}","is_dir":{},"size":{}}}"#,
-                name, is_dir, size
-            );
+            if write_dir_entry(out, first, name, is_dir, size).is_err() {
+                overflow = true;
+                break;
+            }
         }
         Ok(())
     });
 
-    if res.is_err() && (path_str == "/" || path_str.is_empty()) {
+    if overflow {
+        Err(DirListError::TooLarge)
+    } else {
+        res.map_err(|_| DirListError::Io)
+    }
+}
+
+/// Helper to serialize directory entries into a JSON array buffer.
+///
+/// The array is either complete or this returns an error. In particular, an
+/// exhausted buffer never produces a syntactically valid but truncated `]`.
+fn serialize_dir_entries<S: littlefs2::driver::Storage>(
+    fs: &littlefs2::fs::Filesystem<'static, S>,
+    path_str: &str,
+    out: &mut DirListBuffer,
+) -> Result<(), DirListError> {
+    let target_path = if path_str == "/" || path_str.is_empty() {
+        PathBuf::try_from(".").map_err(|_| DirListError::Io)?
+    } else {
+        PathBuf::try_from(path_str).map_err(|_| DirListError::Io)?
+    };
+
+    let mut first = true;
+    out.push('[').map_err(|_| DirListError::TooLarge)?;
+    let mut result = append_dir_entries(fs, &target_path, out, &mut first);
+
+    // Preserve the historical fallback: some drives reject "." but accept "/".
+    if matches!(result, Err(DirListError::Io)) && (path_str == "/" || path_str.is_empty()) {
         if let Ok(root_path) = PathBuf::try_from("/") {
             out.clear();
             first = true;
-            let _ = out.push('[');
-            let _ = fs.read_dir_and_then(&root_path, |dir| {
-                for entry in dir.by_ref() {
-                    let Ok(entry) = entry else { continue };
-                    let name = entry.file_name().as_str();
-                    if name == "." || name == ".." {
-                        continue;
-                    }
-                    if !first {
-                        let _ = out.push(',');
-                    }
-                    first = false;
-                    let m = entry.metadata();
-                    let is_dir = m.is_dir();
-                    let size = if is_dir { 0 } else { m.len() };
-                    let _ = write!(
-                        out,
-                        r#"{{"name":"{}","is_dir":{},"size":{}}}"#,
-                        name, is_dir, size
-                    );
-                }
-                Ok(())
-            });
+            out.push('[').map_err(|_| DirListError::TooLarge)?;
+            result = append_dir_entries(fs, &root_path, out, &mut first);
         }
     }
 
-    let _ = out.push(']');
+    // Only finalise a successful, complete array.
+    result?;
+    out.push(']').map_err(|_| DirListError::TooLarge)?;
     Ok(())
 }
 
@@ -785,6 +809,18 @@ impl picoserve::routing::MethodHandlerService<()> for FsStat {
                 StatusCode::METHOD_NOT_ALLOWED,
                 ("Content-Type", "application/json"),
                 "{\"error\":\"method_not_allowed\"}",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+
+        // A contended partition is a transient 503, not a cached-success or a
+        // not-mounted condition. Probe before the cached usage helpers below.
+        if crate::storage::system_fs_busy() || crate::storage::user_fs_busy() {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ("Content-Type", "application/json"),
+                "{\"error\":\"fs_busy\"}",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
@@ -855,19 +891,25 @@ impl picoserve::routing::MethodHandlerService<()> for FsList {
             }
         };
 
-        let mut out = heapless::String::<2048>::new();
+        let mut out = DirListBuffer::new();
         let is_system = root.as_str() == "system";
 
-        let outcome = if is_system {
-            with_system_fs(|fs| serialize_dir_entries(fs, clean_path.as_str(), &mut out))
+        let outcome: Result<Result<(), DirListError>, FsAccessError> = if is_system {
+            with_system_fs_result(|fs| serialize_dir_entries(fs, clean_path.as_str(), &mut out))
         } else {
-            crate::storage::with_user_fs(|fs| serialize_dir_entries(fs, clean_path.as_str(), &mut out))
+            with_user_fs_result(|fs| serialize_dir_entries(fs, clean_path.as_str(), &mut out))
         };
 
         let (code, body): (StatusCode, &str) = match outcome {
-            Some(Ok(())) => (StatusCode::OK, out.as_str()),
-            Some(Err(_)) => (StatusCode::NOT_FOUND, "{\"error\":\"directory_not_found\"}"),
-            None => (StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_not_mounted\"}"),
+            Ok(Ok(())) => (StatusCode::OK, out.as_str()),
+            Ok(Err(DirListError::Io)) => (StatusCode::NOT_FOUND, "{\"error\":\"directory_not_found\"}"),
+            Ok(Err(DirListError::TooLarge)) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"listing_too_large\"}")
+            }
+            Err(FsAccessError::Busy) => (StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_busy\"}"),
+            Err(FsAccessError::NotMounted) => {
+                (StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_not_mounted\"}")
+            }
         };
 
         (
@@ -951,8 +993,29 @@ impl picoserve::routing::MethodHandlerService<()> for FsRead {
         let mime = mime_for(clean_path.as_str());
 
         if is_system {
-            let exists = with_system_fs(|fs| fs.metadata(&pbuf).map(|m| m.is_file()).unwrap_or(false))
-                .unwrap_or(false);
+            let exists = match with_system_fs_result(|fs| {
+                fs.metadata(&pbuf).map(|m| m.is_file()).unwrap_or(false)
+            }) {
+                Ok(v) => v,
+                Err(FsAccessError::Busy) => {
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        ("Content-Type", "application/json"),
+                        "{\"error\":\"fs_busy\"}",
+                    )
+                        .write_to(request.body_connection.finalize().await?, response_writer)
+                        .await;
+                }
+                Err(FsAccessError::NotMounted) => {
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        ("Content-Type", "application/json"),
+                        "{\"error\":\"fs_not_mounted\"}",
+                    )
+                        .write_to(request.body_connection.finalize().await?, response_writer)
+                        .await;
+                }
+            };
             if !exists {
                 return (
                     StatusCode::NOT_FOUND,
@@ -971,8 +1034,29 @@ impl picoserve::routing::MethodHandlerService<()> for FsRead {
                 .await;
         }
 
-        let exists = crate::storage::with_user_fs(|fs| fs.metadata(&pbuf).map(|m| m.is_file()).unwrap_or(false))
-            .unwrap_or(false);
+        let exists = match with_user_fs_result(|fs| {
+            fs.metadata(&pbuf).map(|m| m.is_file()).unwrap_or(false)
+        }) {
+            Ok(v) => v,
+            Err(FsAccessError::Busy) => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"fs_busy\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+            Err(FsAccessError::NotMounted) => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"fs_not_mounted\"}",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
         if !exists {
             return (
                 StatusCode::NOT_FOUND,
@@ -1069,82 +1153,125 @@ impl picoserve::routing::MethodHandlerService<()> for FsWrite {
             }
         };
 
-        // Truncate/create file and ensure parent dirs exist
-        let init_res = crate::storage::with_user_fs(|fs| {
-            ensure_parent_dirs_user(fs, clean_path.as_str());
-            fs.write(&pbuf, &[])
-        });
-
-        match init_res {
-            Some(Ok(())) => {}
-            Some(Err(_)) => {
+        // Stage the full payload in a sibling temp file, then atomically rename
+        // it over the target. The original file stays byte-for-byte intact until
+        // every chunk has been persisted; a failed chunk never truncates it.
+        let mut temp_path = heapless::String::<192>::new();
+        {
+            let path = clean_path.as_str();
+            let (parent, name) = match path.rfind('/') {
+                Some(idx) => (&path[..=idx], &path[idx + 1..]),
+                None => ("/", path),
+            };
+            let _ = write!(temp_path, "{}.{}.tmp", parent, name);
+        }
+        let tmp_pbuf = match PathBuf::try_from(temp_path.as_str()) {
+            Ok(p) => p,
+            Err(_) => {
                 return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::BAD_REQUEST,
                     ("Content-Type", "application/json"),
-                    "{\"error\":\"fs_init_write_failed\"}",
+                    "{\"error\":\"path_too_long\"}",
                 )
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
             }
-            None => {
-                return (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    ("Content-Type", "application/json"),
-                    "{\"error\":\"fs_not_mounted\"}",
-                )
-                    .write_to(request.body_connection.finalize().await?, response_writer)
-                    .await;
+        };
+
+        // (status code, JSON body) of any failure that must abort the save.
+        let mut failure: Option<(StatusCode, &'static str)> = None;
+
+        match with_user_fs_result(|fs| {
+            ensure_parent_dirs_user(fs, clean_path.as_str());
+            fs.write(&tmp_pbuf, &[])
+        }) {
+            Ok(Ok(())) => {}
+            Ok(Err(_)) => {
+                failure = Some((StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"fs_init_write_failed\"}"));
+            }
+            Err(FsAccessError::Busy) => {
+                failure = Some((StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_busy\"}"));
+            }
+            Err(FsAccessError::NotMounted) => {
+                failure = Some((StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_not_mounted\"}"));
             }
         }
 
-        // Stream body chunks into LittleFS
-        let mut reader = request.body_connection.body().reader();
-        let mut buf = [0u8; 512];
         let mut pos: u32 = 0;
-        let mut write_err = false;
+        if failure.is_none() {
+            let mut reader = request.body_connection.body().reader();
+            let mut buf = [0u8; 512];
+            loop {
+                let n = match reader.read(&mut buf).await {
+                    Ok(0) => break,
+                    Ok(n) => n,
+                    Err(_) => {
+                        failure = Some((StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"fs_write_chunk_failed\"}"));
+                        break;
+                    }
+                };
 
-        loop {
-            let n = match reader.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => n,
-                Err(_) => {
-                    write_err = true;
-                    break;
-                }
-            };
-
-            let res = crate::storage::with_user_fs(|fs| {
-                fs.write_chunk(&pbuf, &buf[..n], OpenSeekFrom::Start(pos))
-            });
-
-            match res {
-                Some(Ok(())) => {
-                    pos += n as u32;
-                }
-                _ => {
-                    write_err = true;
-                    break;
+                match with_user_fs_result(|fs| {
+                    fs.write_chunk(&tmp_pbuf, &buf[..n], OpenSeekFrom::Start(pos))
+                }) {
+                    Ok(Ok(())) => pos += n as u32,
+                    Ok(Err(_)) => {
+                        failure = Some((StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"fs_write_chunk_failed\"}"));
+                        break;
+                    }
+                    Err(FsAccessError::Busy) => {
+                        failure = Some((StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_busy\"}"));
+                        break;
+                    }
+                    Err(FsAccessError::NotMounted) => {
+                        failure = Some((StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_not_mounted\"}"));
+                        break;
+                    }
                 }
             }
+        }
+
+        if failure.is_none() {
+            match with_user_fs_result(|fs| fs.rename(&tmp_pbuf, &pbuf)) {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    failure = Some((StatusCode::INTERNAL_SERVER_ERROR, "{\"error\":\"fs_rename_failed\"}"));
+                }
+                Err(FsAccessError::Busy) => {
+                    failure = Some((StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_busy\"}"));
+                }
+                Err(FsAccessError::NotMounted) => {
+                    failure = Some((StatusCode::SERVICE_UNAVAILABLE, "{\"error\":\"fs_not_mounted\"}"));
+                }
+            }
+        }
+
+        // On any error path the staged file must not linger.
+        if failure.is_some() {
+            let _ = with_user_fs_result(|fs| fs.remove(&tmp_pbuf));
         }
 
         let finalizer = request.body_connection.finalize().await?;
-        if write_err {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ("Content-Type", "application/json"),
-                "{\"error\":\"fs_write_chunk_failed\"}",
-            )
+        if let Some((code, body)) = failure {
+            return (code, ("Content-Type", "application/json"), body)
                 .write_to(finalizer, response_writer)
-                .await
-        } else {
-            let mut resp = heapless::String::<128>::new();
-            let _ = write!(
-                resp,
-                r#"{{"status":"ok","bytes_written":{},"path":"{}"}}"#,
-                pos,
-                clean_path.as_str()
-            );
+                .await;
+        }
+
+        {
+            let mut resp = heapless::String::<1024>::new();
+            let encoded = write!(resp, r#"{{"status":"ok","bytes_written":{},"path":"#, pos)
+                .and_then(|()| write_json_string(&mut resp, clean_path.as_str()))
+                .and_then(|()| resp.write_str("}"));
+            if encoded.is_err() {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ("Content-Type", "application/json"),
+                    "{\"error\":\"response_too_large\"}",
+                )
+                    .write_to(finalizer, response_writer)
+                    .await;
+            }
             (
                 StatusCode::OK,
                 [
@@ -1236,7 +1363,7 @@ impl picoserve::routing::MethodHandlerService<()> for FsEntry {
             }
         };
 
-        let outcome = crate::storage::with_user_fs(|fs| {
+        let outcome = with_user_fs_result(|fs| {
             let is_dir = fs.metadata(&pbuf).map(|m| m.is_dir()).unwrap_or(false);
             if is_dir {
                 fs.remove_dir_all(&pbuf)
@@ -1247,19 +1374,35 @@ impl picoserve::routing::MethodHandlerService<()> for FsEntry {
 
         let finalizer = request.body_connection.finalize().await?;
         match outcome {
-            Some(Ok(())) => {
-                let mut resp = heapless::String::<128>::new();
-                let _ = write!(resp, r#"{{"status":"deleted","path":"{}"}}"#, clean_path.as_str());
+            Ok(Ok(())) => {
+                let mut resp = heapless::String::<1024>::new();
+                let encoded = write!(resp, r#"{{"status":"deleted","path":""#)
+                    .and_then(|()| write_json_string(&mut resp, clean_path.as_str()))
+                    .and_then(|()| resp.write_str("}"));
+                if encoded.is_err() {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        ("Content-Type", "application/json"),
+                        "{\"error\":\"response_too_large\"}",
+                    )
+                        .write_to(finalizer, response_writer)
+                        .await;
+                }
                 (StatusCode::OK, ("Content-Type", "application/json"), resp.as_str())
                     .write_to(finalizer, response_writer)
                     .await
             }
-            Some(Err(_)) => {
+            Ok(Err(_)) => {
                 (StatusCode::NOT_FOUND, ("Content-Type", "application/json"), "{\"error\":\"entry_not_found\"}")
                     .write_to(finalizer, response_writer)
                     .await
             }
-            None => {
+            Err(FsAccessError::Busy) => {
+                (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_busy\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            Err(FsAccessError::NotMounted) => {
                 (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_not_mounted\"}")
                     .write_to(finalizer, response_writer)
                     .await
@@ -1344,23 +1487,39 @@ impl picoserve::routing::MethodHandlerService<()> for FsMkdir {
             }
         };
 
-        let outcome = crate::storage::with_user_fs(|fs| fs.create_dir_all(&pbuf));
+        let outcome = with_user_fs_result(|fs| fs.create_dir_all(&pbuf));
         let finalizer = request.body_connection.finalize().await?;
 
         match outcome {
-            Some(Ok(())) => {
-                let mut resp = heapless::String::<128>::new();
-                let _ = write!(resp, r#"{{"status":"created","path":"{}"}}"#, clean_path.as_str());
+            Ok(Ok(())) => {
+                let mut resp = heapless::String::<1024>::new();
+                let encoded = write!(resp, r#"{{"status":"created","path":""#)
+                    .and_then(|()| write_json_string(&mut resp, clean_path.as_str()))
+                    .and_then(|()| resp.write_str("}"));
+                if encoded.is_err() {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        ("Content-Type", "application/json"),
+                        "{\"error\":\"response_too_large\"}",
+                    )
+                        .write_to(finalizer, response_writer)
+                        .await;
+                }
                 (StatusCode::OK, ("Content-Type", "application/json"), resp.as_str())
                     .write_to(finalizer, response_writer)
                     .await
             }
-            Some(Err(_)) => {
+            Ok(Err(_)) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, ("Content-Type", "application/json"), "{\"error\":\"mkdir_failed\"}")
                     .write_to(finalizer, response_writer)
                     .await
             }
-            None => {
+            Err(FsAccessError::Busy) => {
+                (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_busy\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            Err(FsAccessError::NotMounted) => {
                 (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_not_mounted\"}")
                     .write_to(finalizer, response_writer)
                     .await
@@ -1484,31 +1643,44 @@ impl picoserve::routing::MethodHandlerService<()> for FsRename {
             }
         };
 
-        let outcome = crate::storage::with_user_fs(|fs| {
+        let outcome = with_user_fs_result(|fs| {
             ensure_parent_dirs_user(fs, clean_dst.as_str());
             fs.rename(&src_pbuf, &dst_pbuf)
         });
 
         let finalizer = request.body_connection.finalize().await?;
         match outcome {
-            Some(Ok(())) => {
-                let mut resp = heapless::String::<256>::new();
-                let _ = write!(
-                    resp,
-                    r#"{{"status":"renamed","src":"{}","dst":"{}"}}"#,
-                    clean_src.as_str(),
-                    clean_dst.as_str()
-                );
+            Ok(Ok(())) => {
+                let mut resp = heapless::String::<1024>::new();
+                let encoded = write!(resp, r#"{{"status":"renamed","src":""#)
+                    .and_then(|()| write_json_string(&mut resp, clean_src.as_str()))
+                    .and_then(|()| resp.write_str("\",\"dst\":\""))
+                    .and_then(|()| write_json_string(&mut resp, clean_dst.as_str()))
+                    .and_then(|()| resp.write_str("}"));
+                if encoded.is_err() {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        ("Content-Type", "application/json"),
+                        "{\"error\":\"response_too_large\"}",
+                    )
+                        .write_to(finalizer, response_writer)
+                        .await;
+                }
                 (StatusCode::OK, ("Content-Type", "application/json"), resp.as_str())
                     .write_to(finalizer, response_writer)
                     .await
             }
-            Some(Err(_)) => {
+            Ok(Err(_)) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, ("Content-Type", "application/json"), "{\"error\":\"rename_failed\"}")
                     .write_to(finalizer, response_writer)
                     .await
             }
-            None => {
+            Err(FsAccessError::Busy) => {
+                (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_busy\"}")
+                    .write_to(finalizer, response_writer)
+                    .await
+            }
+            Err(FsAccessError::NotMounted) => {
                 (StatusCode::SERVICE_UNAVAILABLE, ("Content-Type", "application/json"), "{\"error\":\"fs_not_mounted\"}")
                     .write_to(finalizer, response_writer)
                     .await

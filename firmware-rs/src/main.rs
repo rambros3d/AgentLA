@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![recursion_limit = "512"]
+#![recursion_limit = "1024"]
 
 use defmt_rtt as _;
 use embassy_rp::bind_interrupts;

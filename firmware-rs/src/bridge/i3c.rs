@@ -9,7 +9,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 
 /// I3C SDA/SCL share the I2C flexible pair.
-pub const I3C_PINS: [u32; 2] = [23, 24];
+pub const I3C_PINS: [u32; 2] = [10, 11];
 
 pub static I3C_INSTANCE: Mutex<CriticalSectionRawMutex, I3cBridge> = Mutex::new(I3cBridge::new());
 

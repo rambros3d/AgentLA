@@ -138,6 +138,7 @@
             <a href="#/files" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openFilesApp(); return false;">Files</a>
             <a href="#/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openMotorApp(); return false;">Motor</a>
             <a href="#/servo" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openServoApp(); return false;">Servo</a>
+            <a href="#/neopixel" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openNeoPixelApp(); return false;">NeoPixel</a>
         </div>
 
         <div class="bar-right navbar-end">
@@ -304,6 +305,15 @@
                         <path d="M12 19v-2"/>
                         <path d="M15 14h2"/>
                         <path d="M7 14h2"/>
+                    </svg>
+                </button>
+
+                <!-- NeoPixel Control -->
+                <button class="dock-icon-btn" id="dock-app-neopixel" data-dock-tooltip="NeoPixel Control" onclick="openNeoPixelApp()">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M17.5801 10.21C20.1272 10.9035 22 13.2332 22 16C21.9999 19.3136 19.3136 22 16 22C14.4633 22 13.0615 21.4218 12 20.4717C12.0032 20.4688 12.0056 20.4648 12.0088 20.4619C10.9461 21.4174 9.54152 22 8 22C4.68629 22 2 19.3137 2 16C2.00002 13.2331 3.87278 10.9034 6.41992 10.21C7.29998 12.4299 9.46679 14 12 14C12.5468 14 13.0767 13.9271 13.5801 13.79C15.4087 13.2922 16.89 11.9507 17.5801 10.21ZM13.9766 16.5117C13.9816 16.4517 13.9879 16.3916 13.9912 16.3311L13.9922 16.3086C13.9887 16.3767 13.9823 16.4443 13.9766 16.5117Z" fill="currentColor"/>
+                        <path d="M18 8C18 11.3137 15.3137 14 12 14C8.68629 14 6 11.3137 6 8C6 4.68629 8.68629 2 12 2C15.3137 2 18 4.68629 18 8Z" fill="currentColor"/>
+                        <path opacity="0.5" d="M13.5798 13.7899C13.0765 13.9269 12.5468 14 12 14C9.46679 14 7.30024 12.4302 6.42018 10.2102C3.87293 10.9036 2 13.2331 2 16C2 19.3138 4.68629 22 8 22C11.3137 22 14 19.3138 14 16C14 15.2195 13.851 14.4739 13.5798 13.7899Z" fill="currentColor"/>
                     </svg>
                 </button>
 
@@ -1515,6 +1525,11 @@
                 targetUrl = isDemo ? 'servo.html' : '/servo';
                 appTitle = 'Servo Master';
                 dockId = 'dock-app-servo';
+            } else if (hash === '#/neopixel' || hash === '#/led') {
+                if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
+                targetUrl = isDemo ? 'neopixel.html' : '/neopixel';
+                appTitle = 'NeoPixel Control';
+                dockId = 'dock-app-neopixel';
             } else if (hash === '#/bareboot' || hash === '#/app/bareboot') {
                 if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
                 targetUrl = isDemo ? 'apps/bareboot/index.html' : '/app/bareboot/';
@@ -1707,6 +1722,23 @@
                 isSystem: true
             },
             {
+                id: 'neopixel',
+                name: 'NeoPixel Control',
+                title: 'NeoPixel Control',
+                version: '1.0.0 (ROM)',
+                category: 'Lighting',
+                subText: 'Addressable LEDs',
+                accent: 'accent-primary',
+                action: "openNeoPixelApp()",
+                description: 'Multi-protocol addressable LED controller supporting WS2812, SK6812, and clocked SPI LEDs with real-time shaders and timing analysis.',
+                iconSvg: `<svg class="solar-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M17.5801 10.21C20.1272 10.9035 22 13.2332 22 16C21.9999 19.3136 19.3136 22 16 22C14.4633 22 13.0615 21.4218 12 20.4717C12.0032 20.4688 12.0056 20.4648 12.0088 20.4619C10.9461 21.4174 9.54152 22 8 22C4.68629 22 2 19.3137 2 16C2.00002 13.2331 3.87278 10.9034 6.41992 10.21C7.29998 12.4299 9.46679 14 12 14C12.5468 14 13.0767 13.9271 13.5801 13.79C15.4087 13.2922 16.89 11.9507 17.5801 10.21ZM13.9766 16.5117C13.9816 16.4517 13.9879 16.3916 13.9912 16.3311L13.9922 16.3086C13.9887 16.3767 13.9823 16.4443 13.9766 16.5117Z" fill="currentColor"/>
+                    <path d="M18 8C18 11.3137 15.3137 14 12 14C8.68629 14 6 11.3137 6 8C6 4.68629 8.68629 2 12 2C15.3137 2 18 4.68629 18 8Z" fill="currentColor"/>
+                    <path opacity="0.5" d="M13.5798 13.7899C13.0765 13.9269 12.5468 14 12 14C9.46679 14 7.30024 12.4302 6.42018 10.2102C3.87293 10.9036 2 13.2331 2 16C2 19.3138 4.68629 22 8 22C11.3137 22 14 19.3138 14 16C14 15.2195 13.851 14.4739 13.5798 13.7899Z" fill="currentColor"/>
+                </svg>`,
+                isSystem: true
+            },
+            {
                 id: 'bareboot',
                 name: 'BareBoot Manager',
                 title: 'BareBoot Manager',
@@ -1872,6 +1904,21 @@
                     <path d="M12 19v-2"/>
                     <path d="M15 14h2"/>
                     <path d="M7 14h2"/>
+                </svg>`
+            },
+            {
+                id: 'neopixel',
+                name: 'NeoPixel Control',
+                category: 'Lighting & Visual',
+                version: '1.0.0 (ROM)',
+                description: 'Multi-protocol addressable LED controller supporting WS2812, SK6812, and clocked SPI LEDs with real-time shaders and timing analysis.',
+                tags: ['System ROM', 'NeoPixel', 'WS2812', 'LED', 'Lighting'],
+                accent: 'accent-primary',
+                action: "openNeoPixelApp()",
+                iconSvg: `<svg class="solar-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M17.5801 10.21C20.1272 10.9035 22 13.2332 22 16C21.9999 19.3136 19.3136 22 16 22C14.4633 22 13.0615 21.4218 12 20.4717C12.0032 20.4688 12.0056 20.4648 12.0088 20.4619C10.9461 21.4174 9.54152 22 8 22C4.68629 22 2 19.3137 2 16C2.00002 13.2331 3.87278 10.9034 6.41992 10.21C7.29998 12.4299 9.46679 14 12 14C12.5468 14 13.0767 13.9271 13.5801 13.79C15.4087 13.2922 16.89 11.9507 17.5801 10.21ZM13.9766 16.5117C13.9816 16.4517 13.9879 16.3916 13.9912 16.3311L13.9922 16.3086C13.9887 16.3767 13.9823 16.4443 13.9766 16.5117Z" fill="currentColor"/>
+                    <path d="M18 8C18 11.3137 15.3137 14 12 14C8.68629 14 6 11.3137 6 8C6 4.68629 8.68629 2 12 2C15.3137 2 18 4.68629 18 8Z" fill="currentColor"/>
+                    <path opacity="0.5" d="M13.5798 13.7899C13.0765 13.9269 12.5468 14 12 14C9.46679 14 7.30024 12.4302 6.42018 10.2102C3.87293 10.9036 2 13.2331 2 16C2 19.3138 4.68629 22 8 22C11.3137 22 14 19.3138 14 16C14 15.2195 13.851 14.4739 13.5798 13.7899Z" fill="currentColor"/>
                 </svg>`
             }
         ];
@@ -2579,6 +2626,10 @@
 
         function openServoApp() {
             navigateToRoute('#/servo');
+        }
+
+        function openNeoPixelApp() {
+            navigateToRoute('#/neopixel');
         }
 
         function openBarebootApp() {

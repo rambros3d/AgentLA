@@ -190,8 +190,44 @@ pub const TOOL_PINS_RELEASE: Tool = Tool::new(
 
 pub const TOOL_WS2812_TRANSMIT: Tool = Tool::new(
     "ws2812_transmit",
-    "Transmit LED pattern",
+    "Transmit LED pattern (legacy stub, use neopixel_transmit)",
     r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_NEOPIXEL_FILL: Tool = Tool::new(
+    "neopixel_fill",
+    "Fill addressable LED pixels with a uniform color",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"color":{"type":"string","description":"Color as hex string (#RRGGBB) or named color"},"count":{"type":"integer","description":"Number of pixels to fill (1-64)"}},"required":["color"]}"#,
+);
+
+pub const TOOL_NEOPIXEL_SET: Tool = Tool::new(
+    "neopixel_set",
+    "Set a single addressable LED pixel color by index",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"index":{"type":"integer","description":"Pixel index (0-based)"},"color":{"type":"string","description":"Color as hex string (#RRGGBB) or named color"}},"required":["index","color"]}"#,
+);
+
+pub const TOOL_NEOPIXEL_CLEAR: Tool = Tool::new(
+    "neopixel_clear",
+    "Blank / power-off all addressable LED pixels",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"count":{"type":"integer","description":"Number of pixels to clear (default 64)"}}}"#,
+);
+
+pub const TOOL_NEOPIXEL_PATTERN: Tool = Tool::new(
+    "neopixel_pattern",
+    "Drive procedural LED pattern generator (rainbow, cylon, fire, meteor, pulse, plasma)",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"pattern":{"type":"string","description":"Pattern name (rainbow, cylon, fire, meteor, pulse, plasma, chase, solid)"},"count":{"type":"integer","description":"Number of pixels (default 16)"},"speed":{"type":"integer","description":"Speed percentage (1-100)"}},"required":["pattern"]}"#,
+);
+
+pub const TOOL_NEOPIXEL_ANALYZE: Tool = Tool::new(
+    "neopixel_analyze",
+    "Measure WS2812 signal timing margins and protocol compliance",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"}},"required":["pin"]}"#,
+);
+
+pub const TOOL_NEOPIXEL_TRANSMIT: Tool = Tool::new(
+    "neopixel_transmit",
+    "Transmit an arbitrary array of colors to addressable LED strip",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"colors":{"type":"array","items":{"type":"string"},"description":"Array of hex color strings (#RRGGBB)"}},"required":["colors"]}"#,
 );
 
 pub const TOOL_TARGET_DIAGNOSE: Tool = Tool::new(
@@ -279,8 +315,8 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (37 standard + 3 composite tools = 40 total).
-pub static ALL_TOOLS: [Tool; 40] = [
+/// Full catalog of AgentLA tools (42 standard + 3 composite tools = 45 total).
+pub static ALL_TOOLS: [Tool; 45] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
@@ -309,7 +345,12 @@ pub static ALL_TOOLS: [Tool; 40] = [
     TOOL_PINS_STATUS,
     TOOL_PINS_CLAIM,
     TOOL_PINS_RELEASE,
-    TOOL_WS2812_TRANSMIT,
+    TOOL_NEOPIXEL_FILL,
+    TOOL_NEOPIXEL_SET,
+    TOOL_NEOPIXEL_CLEAR,
+    TOOL_NEOPIXEL_PATTERN,
+    TOOL_NEOPIXEL_ANALYZE,
+    TOOL_NEOPIXEL_TRANSMIT,
     TOOL_TARGET_DIAGNOSE,
     TOOL_INSPECT_FIRMWARE,
     TOOL_SNIFF_BUS,

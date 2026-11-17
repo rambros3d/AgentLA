@@ -38,7 +38,19 @@ fn sda_low(sda_pin: u32) {
 }
 
 fn sda_read(sda_pin: u32) -> bool {
-    (pac::SIO.gpio_in(0).read() & (1 << sda_pin)) != 0
+    unsafe { (pac::SIO.gpio_in(0).read() & (1 << sda_pin)) != 0 }
+}
+
+fn scl_read(scl_pin: u32) -> bool {
+    unsafe { (pac::SIO.gpio_in(0).read() & (1 << scl_pin)) != 0 }
+}
+
+pub fn sda_level() -> bool {
+    sda_read(I2C_PINS[0])
+}
+
+pub fn scl_level() -> bool {
+    scl_read(I2C_PINS[1])
 }
 
 fn scl_high(scl_pin: u32) {
@@ -52,6 +64,17 @@ fn scl_high(scl_pin: u32) {
             w.set_pde(false);
         });
     }
+}
+
+fn scl_high_wait(scl_pin: u32) -> bool {
+    scl_high(scl_pin);
+    for _ in 0..20_000 {
+        if scl_read(scl_pin) {
+            return true;
+        }
+        cortex_m::asm::delay(15);
+    }
+    false
 }
 
 fn scl_low(scl_pin: u32) {
@@ -89,7 +112,7 @@ pub fn hw_i2c_init(sda_pin: u32, scl_pin: u32) {
 
 pub fn hw_i2c_start(sda: u32, scl: u32) {
     sda_high(sda);
-    scl_high(scl);
+    scl_high_wait(scl);
     i2c_delay();
     sda_low(sda);
     i2c_delay();
@@ -100,7 +123,7 @@ pub fn hw_i2c_start(sda: u32, scl: u32) {
 pub fn hw_i2c_stop(sda: u32, scl: u32) {
     sda_low(sda);
     i2c_delay();
-    scl_high(scl);
+    scl_high_wait(scl);
     i2c_delay();
     sda_high(sda);
     i2c_delay();
@@ -115,14 +138,14 @@ pub fn hw_i2c_write_byte(sda: u32, scl: u32, mut byte: u8) -> bool {
         }
         byte <<= 1;
         i2c_delay();
-        scl_high(scl);
+        scl_high_wait(scl);
         i2c_delay();
         scl_low(scl);
         i2c_delay();
     }
     sda_high(sda);
     i2c_delay();
-    scl_high(scl);
+    scl_high_wait(scl);
     i2c_delay();
     let ack = !sda_read(sda);
     scl_low(scl);
@@ -136,7 +159,7 @@ pub fn hw_i2c_read_byte(sda: u32, scl: u32, ack: bool) -> u8 {
     for _ in 0..8 {
         byte <<= 1;
         i2c_delay();
-        scl_high(scl);
+        scl_high_wait(scl);
         i2c_delay();
         if sda_read(sda) {
             byte |= 1;
@@ -150,7 +173,7 @@ pub fn hw_i2c_read_byte(sda: u32, scl: u32, ack: bool) -> u8 {
         sda_high(sda);
     }
     i2c_delay();
-    scl_high(scl);
+    scl_high_wait(scl);
     i2c_delay();
     scl_low(scl);
     sda_high(sda);

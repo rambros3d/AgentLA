@@ -235,11 +235,21 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
     match port {
         TargetPort::BluePill => {
             let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-            let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
+            let (dpidr, is_h5) = match swd_session.attach() {
+                Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
+                Ok(id) => (id, true),
+                Err(_) => {
+                    let mut cortex = CortexM::new(&mut swd_session.transport);
+                    let _ = cortex.connect_under_reset();
+                    let mut id = 0u32;
+                    let _ = cortex.swd.read_dpidr_retry(&mut id);
+                    (id, CortexM::is_armv8m_dpidr(id))
+                }
+            };
             let mut cortex = CortexM::new(&mut swd_session.transport);
-            if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
-                cortex.csw = 0xE3000012;
+            if is_h5 {
                 let _ = cortex.select_ap(1);
+                cortex.csw = 0x23000012;
                 let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
             }
             let res = cortex
@@ -328,15 +338,26 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                let dpidr = swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                let (dpidr, is_h5) = match swd_session.attach() {
+                    Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
+                    Ok(id) => (id, true),
+                    Err(_) => {
+                        let mut cortex = CortexM::new(&mut swd_session.transport);
+                        let _ = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                        let mut id = 0u32;
+                        let _ = cortex.swd.read_dpidr_retry(&mut id);
+                        (id, CortexM::is_armv8m_dpidr(id))
+                    }
+                };
                 let mut cortex = CortexM::new(&mut swd_session.transport);
-                let is_h5 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
                 if is_h5 {
+                    cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x23000012;
                     let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                } else {
+                    let _ = cortex.halt();
                 }
-                let _ = cortex.halt();
 
                 if is_h5 {
                     let sector_size = 8192u32;
@@ -471,15 +492,26 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
         match port {
             TargetPort::BluePill => {
                 let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-                let dpidr = swd_session.attach().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                let (dpidr, is_h5) = match swd_session.attach() {
+                    Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
+                    Ok(id) => (id, true),
+                    Err(_) => {
+                        let mut cortex = CortexM::new(&mut swd_session.transport);
+                        let _ = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                        let mut id = 0u32;
+                        let _ = cortex.swd.read_dpidr_retry(&mut id);
+                        (id, CortexM::is_armv8m_dpidr(id))
+                    }
+                };
                 let mut cortex = CortexM::new(&mut swd_session.transport);
-                let is_h5 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
                 if is_h5 {
+                    cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x23000012;
                     let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                } else {
+                    let _ = cortex.halt();
                 }
-                let _ = cortex.halt();
 
                 if is_h5 {
                     // STM32H5 Flash: 8 KB sectors, 128-bit (16-byte) quad-word programming

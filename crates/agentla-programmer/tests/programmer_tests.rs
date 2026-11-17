@@ -214,6 +214,24 @@ fn test_cortex_m_dual_ap_selection_and_memory_access() {
     assert_eq!(cortex.swd.transport.ap_regs.get(&ap0_tar_key).copied(), Some(0x20000000));
 }
 
+#[test]
+fn test_cortex_m33_connect_under_reset() {
+    let mut mock = MockSwd::new();
+    mock.dp_regs.insert(DP_DPIDR, 0x6BA02477);
+    let ap0_drw_key = ((0u32) << 8) | (AP_DRW as u32);
+    let ap1_drw_key = ((1u32) << 8) | (AP_DRW as u32);
+    mock.ap_regs.insert(ap0_drw_key, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_S_HALT | DHCSR_S_REGRDY);
+    mock.ap_regs.insert(ap1_drw_key, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_S_HALT | DHCSR_S_REGRDY);
+
+    let mut adiv5 = Adiv5Engine::new(mock);
+    let mut cortex = CortexM::new(&mut adiv5);
+
+    let res = cortex.connect_under_reset();
+    assert!(res.is_ok());
+    assert_eq!(cortex.apsel, 1);
+    assert_eq!(cortex.csw, 0x23000012);
+}
+
 
 #[test]
 fn test_target_identification() {

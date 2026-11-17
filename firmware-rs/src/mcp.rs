@@ -35,6 +35,32 @@ fn decode_hex(hex: &str, out: &mut [u8]) -> usize {
     count
 }
 
+fn parse_mcp_color(s: &str) -> (u8, u8, u8) {
+    let s = s.trim();
+    let hex = s.strip_prefix('#').unwrap_or(s);
+    if hex.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&hex[0..2], 16),
+            u8::from_str_radix(&hex[2..4], 16),
+            u8::from_str_radix(&hex[4..6], 16),
+        ) {
+            return (r, g, b);
+        }
+    }
+    match hex {
+        "red" => (255, 0, 0),
+        "green" => (0, 255, 0),
+        "blue" => (0, 0, 255),
+        "white" => (255, 255, 255),
+        "black" | "off" => (0, 0, 0),
+        "yellow" => (255, 255, 0),
+        "cyan" => (0, 255, 255),
+        "magenta" | "purple" => (255, 0, 255),
+        "orange" => (255, 128, 0),
+        _ => (255, 255, 255),
+    }
+}
+
 fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool {
     match name {
         "status" => {
@@ -526,10 +552,118 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             );
             false
         }
-        "ws2812_transmit" => {
-            let n = crate::bridge::ws2812::transmit_colors(&[(255, 0, 0), (0, 255, 0), (0, 0, 255)]).unwrap_or(0);
-            let _ = write!(out, "transmitted {} pixels", n);
-            false
+        "neopixel_fill" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+            let color_str = extract_string_arg(body, "color").unwrap_or("#FFFFFF");
+            let count = extract_u32_arg(body, "count").unwrap_or(16) as usize;
+            let (r, g, b) = parse_mcp_color(color_str);
+            match crate::instruments::ws2812::fill(pin, r, g, b, count) {
+                Ok(n) => {
+                    let _ = write!(out, r#"{{"status":"ok","pin":{},"count":{},"color":"{}"}}"#, pin, n, color_str);
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}"}}"#, pin, e);
+                    true
+                }
+            }
+        }
+        "neopixel_set" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+            let index = extract_u32_arg(body, "index").unwrap_or(0) as usize;
+            let color_str = extract_string_arg(body, "color").unwrap_or("#FFFFFF");
+            let (r, g, b) = parse_mcp_color(color_str);
+            match crate::instruments::ws2812::set_pixel(pin, index, r, g, b) {
+                Ok(_) => {
+                    let _ = write!(out, r#"{{"status":"ok","pin":{},"index":{},"color":"{}"}}"#, pin, index, color_str);
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}"}}"#, pin, e);
+                    true
+                }
+            }
+        }
+        "neopixel_clear" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+            let count = extract_u32_arg(body, "count").unwrap_or(64) as usize;
+            match crate::instruments::ws2812::clear(pin, count) {
+                Ok(_) => {
+                    let _ = write!(out, r#"{{"status":"ok","pin":{},"count":{},"cleared":true}}"#, pin, count);
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}"}}"#, pin, e);
+                    true
+                }
+            }
+        }
+        "neopixel_pattern" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+            let pattern = extract_string_arg(body, "pattern").unwrap_or("rainbow");
+            let count = extract_u32_arg(body, "count").unwrap_or(16) as usize;
+            let speed = extract_u32_arg(body, "speed").unwrap_or(50);
+            match crate::instruments::ws2812::drive_pattern(pin, pattern, count) {
+                Ok(_) => {
+                    let _ = write!(out, r#"{{"status":"ok","pin":{},"pattern":"{}","count":{},"speed":{}}}"#, pin, pattern, count, speed);
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}"}}"#, pin, e);
+                    true
+                }
+            }
+        }
+        "neopixel_analyze" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+            match crate::instruments::ws2812::analyze_timing(pin) {
+                Ok(rep) => {
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","pin":{},"t0h_ns":{},"t1h_ns":{},"t0l_ns":{},"t1l_ns":{},"reset_us":{},"passed":{}}}"#,
+                        rep.pin, rep.t0h_ns, rep.t1h_ns, rep.t0l_ns, rep.t1l_ns, rep.reset_us, rep.passed
+                    );
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}"}}"#, pin, e);
+                    true
+                }
+            }
+        }
+        "ws2812_transmit" | "neopixel_transmit" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+            let mut colors: heapless::Vec<(u8, u8, u8), 64> = heapless::Vec::new();
+            if let Some(pos) = body.find("\"colors\"") {
+                let rest = &body[pos..];
+                if let Some(start) = rest.find('[') {
+                    let arr_slice = &rest[start + 1..];
+                    if let Some(end) = arr_slice.find(']') {
+                        let inner = &arr_slice[..end];
+                        for item in inner.split(',') {
+                            let clean = item.trim().trim_matches('"');
+                            if !clean.is_empty() {
+                                let _ = colors.push(parse_mcp_color(clean));
+                            }
+                        }
+                    }
+                }
+            }
+            if colors.is_empty() {
+                let _ = colors.push((255, 0, 0));
+                let _ = colors.push((0, 255, 0));
+                let _ = colors.push((0, 0, 255));
+            }
+            match crate::instruments::ws2812::transmit_colors(pin, &colors) {
+                Ok(n) => {
+                    let _ = write!(out, r#"{{"status":"ok","pin":{},"pixels_updated":{}}}"#, pin, n);
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"status":"error","pin":{},"error":"{}"}}"#, pin, e);
+                    true
+                }
+            }
         }
         "target_diagnose" | "mcp_target_diagnose" => {
             let port = extract_string_arg(body, "port");

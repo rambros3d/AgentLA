@@ -348,6 +348,35 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
                 "Redirecting...",
             )
         }))
+        .route("/neopixel", get_service(crate::fs_http::SystemWebFile::new("neopixel.html", "text/html")))
+        .route("/neopixel/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/neopixel"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/neopixel.html", get_service(crate::fs_http::SystemWebFile::new("neopixel.html", "text/html")))
+        .route("/led", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/neopixel"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
+        .route("/led/", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/neopixel"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/index.html", get_service(crate::fs_http::SystemWebFile::new("index.html", "text/html")))
         .route("/lab.html", get_service(crate::fs_http::SystemWebFile::new("lab.html", "text/html")))
         // Legacy /apps and /lab aliases -> redirect to canonical routes

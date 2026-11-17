@@ -485,9 +485,14 @@ impl SwdTransport {
     pub fn transfer_raw(&self, request: u8, data: &mut u32) -> u8 {
         self.drain_rx_fifo();
         self.write_bits(8, request as u32);
-        let raw_ack = self.read_bits((self.turnaround + 3) as u32);
-        let ack = (raw_ack >> self.turnaround) as u8 & 0x07;
         let is_read = (request & (1 << 2)) != 0;
+        let ack_cycles = if is_read {
+            (self.turnaround + 3) as u32
+        } else {
+            (self.turnaround + 3 + self.turnaround) as u32
+        };
+        let raw_ack = self.read_bits(ack_cycles);
+        let ack = (raw_ack >> self.turnaround) as u8 & 0x07;
 
         if ack == SWD_ACK_OK {
             if is_read {
@@ -499,10 +504,9 @@ impl SwdTransport {
                 }
                 *data = val;
             } else {
-                // Do not pulse an extra turnaround clock on write with single-pin SWDIO.
-                // Target has completed ACK bit 2 with SWCLK low.
-                // Directly initiating write_bits asserts pindirs=output and drives
-                // WDATA[0] while SWCLK is low, avoiding a 1-bit shift and parity fault.
+                // Turnaround clock cycle was clocked by ack_cycles above with SWDIO as input.
+                // Target has completed releasing SWDIO with SWCLK low.
+                // Write 32-bit WDATA followed by 1-bit parity.
                 let val = *data;
                 self.write_bits(32, val);
                 let parity = (val.count_ones() & 1) as u32;
@@ -515,7 +519,9 @@ impl SwdTransport {
         }
 
         if ack == SWD_ACK_WAIT || ack == SWD_ACK_FAULT {
-            self.hiz_clocks(self.turnaround as u32);
+            if is_read {
+                self.hiz_clocks(self.turnaround as u32);
+            }
             return ack;
         }
 
@@ -598,6 +604,8 @@ impl SwdTransport {
     }
 
     pub fn power_up_debug(&mut self) -> Result<(), SwdError> {
+        let _ = self.write_dp(DP_SELECT, 0);
+        self.ap_select = 0;
         let _ = self.write_dp(DP_ABORT, 0x0000001E);
         let _ = self.write_dp(DP_CTRLSTAT, 0x50000000);
         for _ in 0..200 {

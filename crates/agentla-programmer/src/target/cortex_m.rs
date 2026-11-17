@@ -273,26 +273,33 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         // Step 1: Enable debug if not already enabled (ARMv8-M requirement)
         let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN);
         // Step 2: Request halt with debug enabled
-        self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT)?;
-        for _ in 0..1000 {
-            if let Ok(dhcsr) = self.mem_read32(DHCSR) {
-                if (dhcsr & DHCSR_S_HALT) != 0 {
-                    return Ok(());
+        let res = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+        let mut halted = false;
+        if res.is_ok() {
+            for _ in 0..1000 {
+                if let Ok(dhcsr) = self.mem_read32(DHCSR) {
+                    if (dhcsr & DHCSR_S_HALT) != 0 {
+                        halted = true;
+                        break;
+                    }
                 }
+                delay_cycles(1500); // 10 µs
             }
-            delay_cycles(1500); // 10 µs
         }
-        Err(CortexError::HaltFailed)
+        if halted {
+            Ok(())
+        } else {
+            Err(CortexError::HaltFailed)
+        }
     }
 
     pub fn resume(&mut self) -> Result<(), CortexError> {
-        self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN)?;
-        Ok(())
+        self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN)
     }
 
     pub fn is_halted(&mut self) -> Result<bool, CortexError> {
-        let dhcsr = self.mem_read32(DHCSR)?;
-        Ok((dhcsr & DHCSR_S_HALT) != 0)
+        let dhcsr = self.mem_read32(DHCSR);
+        Ok((dhcsr? & DHCSR_S_HALT) != 0)
     }
 
     pub fn read_core_reg(&mut self, reg: u8) -> Result<u32, CortexError> {
@@ -321,121 +328,106 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     }
 
     pub fn connect_under_reset(&mut self) -> Result<u32, CortexError> {
-        // 1. Try reset_and_catch first (clean hardware vector catch + reset pulse)
-        if let Ok(pc) = self.reset_and_catch() {
-            return Ok(pc);
-        }
-
-        // 2. Hardware connect under reset:
-        // Hold reset low
+        // Assert physical reset
         let _ = self.swd.assert_reset(true);
         delay_cycles(750_000); // 5 ms low
 
-        // Attach while reset is low
+        // Read DPIDR and power up debug while under reset
         let mut dpidr = 0u32;
         let _ = self.swd.read_dpidr_retry(&mut dpidr);
-        let is_m33 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
-        self.apsel = if is_m33 { 1 } else { 0 };
-        self.csw = 0x23000012;
         let _ = self.swd.power_up_debug();
-        let _ = self.select_ap(self.apsel);
+        let is_m33 = Self::is_armv8m_dpidr(dpidr);
 
         if is_m33 {
-            self.csw = 0xE3000012;
-            let _ = self.mem_write32(0x4402_4004, 0x06); // DBG_STOP | DBG_STANDBY
-            let _ = self.mem_write32(0x4402_4008, 0x1800); // DBG_WWDG_STOP | DBG_IWDG_STOP
+            // Under reset, configure DBGMCU via AP 0 (APB-AP, apsel=0)
+            self.apsel = 0;
+            self.csw = 0x80000012;
+            let _ = self.select_ap(0);
+            let _ = self.mem_write32(0xE00E_4004, 0x06);
+            let _ = self.mem_write32(0xE004_4004, 0x06);
+            let _ = self.mem_write32(0xE00E_4008, 0x1800);
+            let _ = self.mem_write32(0xE004_4008, 0x1800);
+
+            // Switch to AP 1 (AHB-AP, apsel=1) for DEMCR and DHCSR
+            self.apsel = 1;
             self.csw = 0x23000012;
+            let _ = self.select_ap(1);
+        } else {
+            self.apsel = 0;
+            self.csw = ADIV5_AP_CSW_DEFAULT;
+            let _ = self.select_ap(0);
         }
 
-        // Release reset
+        // Write DEMCR (VC_CORERESET = 0x01000001)
+        let _ = self.mem_write32(0xE000_EDFC, 0x0100_0001);
+
+        // Write DHCSR (0xA05F0003: C_DEBUGEN | C_HALT)
+        let _ = self.mem_write32(0xE000_EDF0, 0xA05F_0003);
+
+        // Release physical reset
         let _ = self.swd.assert_reset(false);
 
-        // Immediate burst write across reset rising edge
-        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
-        for _ in 0..10 {
-            let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-        }
+        // Delay ~10-20ms
+        delay_cycles(2_250_000); // 15 ms settling
 
         // Re-establish SWD sync and debug power after reset release
-        let _ = self.swd.read_dpidr_retry(&mut dpidr);
+        if self.swd.read_dpidr_retry(&mut dpidr).is_err() {
+            let _ = self.swd.recover_from_ack_error();
+        }
         let _ = self.swd.power_up_debug();
-        let _ = self.select_ap(self.apsel);
 
-        // Request halt
-        let _ = self.halt();
-        if let Ok(pc) = self.read_core_reg(15) {
-            return Ok(pc);
+        if is_m33 {
+            self.apsel = 1;
+            self.csw = 0x23000012;
+            let _ = self.select_ap(1);
+        } else {
+            self.apsel = 0;
+            self.csw = ADIV5_AP_CSW_DEFAULT;
+            let _ = self.select_ap(0);
         }
 
-        // Check if halted anyway
-        if let Ok(dhcsr) = self.mem_read32(DHCSR) {
-            if (dhcsr & DHCSR_S_HALT) != 0 {
-                let pc = self.read_core_reg(15).unwrap_or(0);
-                return Ok(pc);
+        // Read DHCSR to verify S_HALT
+        let mut halted = false;
+        for _ in 0..100 {
+            if let Ok(dhcsr) = self.mem_read32(0xE000_EDF0) {
+                if (dhcsr & DHCSR_S_HALT) != 0 {
+                    halted = true;
+                    break;
+                }
             }
-            return Err(CortexError::Diag(3, dpidr, dhcsr));
+            delay_cycles(150_000); // 1 ms
         }
 
-        Err(CortexError::Diag(1, dpidr, 0))
+        if !halted {
+            let _ = self.mem_write32(0xE000_EDF0, 0xA05F_0003);
+            for _ in 0..50 {
+                if let Ok(dhcsr) = self.mem_read32(0xE000_EDF0) {
+                    if (dhcsr & DHCSR_S_HALT) != 0 {
+                        halted = true;
+                        break;
+                    }
+                }
+                delay_cycles(150_000);
+            }
+            if !halted {
+                return Err(CortexError::ResetTimeout);
+            }
+        }
+
+        let pc = self.read_core_reg(15).unwrap_or(0);
+
+        // Ensure final AP state is AP 1 for Cortex-M33
+        if is_m33 {
+            self.apsel = 1;
+            self.csw = 0x23000012;
+            let _ = self.select_ap(1);
+        }
+
+        Ok(pc)
     }
 
     pub fn reset_and_catch(&mut self) -> Result<u32, CortexError> {
-        // Hold reset low
-        let _ = self.swd.assert_reset(true);
-        delay_cycles(750_000); // 5 ms low
-
-        let mut dpidr = 0u32;
-        let _ = self.swd.read_dpidr_retry(&mut dpidr);
-        let is_m33 = dpidr == 0x6BA02477 || dpidr == 0x0BE12477;
-        self.apsel = if is_m33 { 1 } else { 0 };
-        self.csw = 0x23000012;
-        let _ = self.swd.power_up_debug();
-        let _ = self.select_ap(self.apsel);
-
-        if is_m33 {
-            self.csw = 0xE3000012;
-            let _ = self.mem_write32(0x4402_4004, 0x06); // DBG_STOP | DBG_STANDBY
-            let _ = self.mem_write32(0x4402_4008, 0x1800); // DBG_WWDG_STOP | DBG_IWDG_STOP
-            self.csw = 0x23000012;
-        }
-
-        // Release hardware reset
-        let _ = self.swd.assert_reset(false);
-
-        // Immediate burst write across reset rising edge
-        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
-        for _ in 0..10 {
-            let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-        }
-
-        // Re-attach and re-power debug
-        let _ = self.swd.read_dpidr_retry(&mut dpidr);
-        let _ = self.swd.power_up_debug();
-        let _ = self.select_ap(self.apsel);
-
-        // 4. Poll DHCSR for halt
-        for i in 0..1000 {
-            if let Ok(dhcsr) = self.mem_read32(DHCSR) {
-                if (dhcsr & DHCSR_S_HALT) != 0 {
-                    let pc = self.read_core_reg(15).unwrap_or(0);
-                    return Ok(pc);
-                }
-            }
-            if i < 20 || i % 20 == 0 {
-                let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
-            }
-            delay_cycles(1500); // 10 µs
-        }
-
-        // 5. Explicit halt fallback
-        let _ = self.halt();
-        if let Ok(pc) = self.read_core_reg(15) {
-            return Ok(pc);
-        }
-
-        Err(CortexError::ResetTimeout)
+        self.connect_under_reset()
     }
 }
 

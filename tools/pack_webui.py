@@ -105,7 +105,7 @@ def pack_webui(
             asset_files.append((rel_path, full_path))
 
     # Also include packages from packages_dir or apps/packages if available
-    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home", "servo"}
+    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home", "servo", "neopixel"}
     if include_user_apps:
         pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
         if pkg_dir.is_dir():

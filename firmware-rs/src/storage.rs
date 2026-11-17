@@ -142,18 +142,55 @@ pub static USER_FS_WAS_FORMATTED: portable_atomic::AtomicBool = portable_atomic:
 /// Backward compatibility: `FS_WAS_FORMATTED` monitors the User partition format status.
 pub static FS_WAS_FORMATTED: &portable_atomic::AtomicBool = &USER_FS_WAS_FORMATTED;
 
+/// Why a filesystem could not be accessed by an FS REST endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FsAccessError {
+    /// The partition mutex is held by another task; retry later.
+    Busy,
+    /// The partition is not mounted.
+    NotMounted,
+}
+
+/// Like [`with_system_fs`] but distinguishes a contended mutex from an
+/// unmounted partition so callers can return `fs_busy` instead of misreporting
+/// `fs_not_mounted`.
+pub fn with_system_fs_result<R>(
+    f: impl FnOnce(&Filesystem<'static, SystemFlashStorage>) -> R,
+) -> Result<R, FsAccessError> {
+    let guard = SYSTEM_FS_MUTEX.try_lock().map_err(|_| FsAccessError::Busy)?;
+    let fs = guard.as_ref().ok_or(FsAccessError::NotMounted)?.filesystem();
+    Ok(f(fs))
+}
+
+/// Like [`with_user_fs`] but distinguishes a contended mutex from an unmounted
+/// partition.
+pub fn with_user_fs_result<R>(
+    f: impl FnOnce(&Filesystem<'static, UserFlashStorage>) -> R,
+) -> Result<R, FsAccessError> {
+    let guard = USER_FS_MUTEX.try_lock().map_err(|_| FsAccessError::Busy)?;
+    let fs = guard.as_ref().ok_or(FsAccessError::NotMounted)?.filesystem();
+    Ok(f(fs))
+}
+
+/// Non-blocking probe used by `/api/v1/fs/stat`, whose usage helpers keep a
+/// cached value on an unmounted partition but must still surface contention.
+pub fn system_fs_busy() -> bool {
+    SYSTEM_FS_MUTEX.try_lock().is_err()
+}
+
+/// Non-blocking probe used by `/api/v1/fs/stat`; see [`system_fs_busy`].
+pub fn user_fs_busy() -> bool {
+    USER_FS_MUTEX.try_lock().is_err()
+}
+
 /// Run `f` with the mounted SYSTEM_FS (WebUI partition), if available.
 pub fn with_system_fs<R>(f: impl FnOnce(&Filesystem<'static, SystemFlashStorage>) -> R) -> Option<R> {
-    let guard = SYSTEM_FS_MUTEX.try_lock().ok()?;
-    let fs = guard.as_ref()?.filesystem();
-    Some(f(fs))
+    with_system_fs_result(f).ok()
 }
 
 /// Run `f` with the mounted USER_FS (user apps and data partition), if available.
 pub fn with_user_fs<R>(f: impl FnOnce(&Filesystem<'static, UserFlashStorage>) -> R) -> Option<R> {
-    let guard = USER_FS_MUTEX.try_lock().ok()?;
-    let fs = guard.as_ref()?.filesystem();
-    Some(f(fs))
+    with_user_fs_result(f).ok()
 }
 
 static SYSTEM_USAGE_CACHE: portable_atomic::AtomicUsize = portable_atomic::AtomicUsize::new(155_599);

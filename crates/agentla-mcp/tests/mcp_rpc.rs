@@ -69,12 +69,20 @@ fn test_tools_list() {
     assert!(res.contains(r#""name":"servo_write_us""#));
     assert!(res.contains(r#""name":"servo_detach""#));
 
+    // Verify neopixel tools
+    assert!(res.contains(r#""name":"neopixel_fill""#));
+    assert!(res.contains(r#""name":"neopixel_set""#));
+    assert!(res.contains(r#""name":"neopixel_clear""#));
+    assert!(res.contains(r#""name":"neopixel_pattern""#));
+    assert!(res.contains(r#""name":"neopixel_analyze""#));
+    assert!(res.contains(r#""name":"neopixel_transmit""#));
+
     // Verify app_uninstall is strictly omitted from tools list
     assert!(!res.contains(r#""name":"app_uninstall""#));
     assert!(!res.contains(r#""name":"app_delete""#));
 
-    // Verify exactly 40 tools in ALL_TOOLS
-    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 40);
+    // Verify exactly 45 tools in ALL_TOOLS
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 45);
 }
 
 #[test]
@@ -396,4 +404,94 @@ fn test_servo_tools_dispatch() {
     let res = server.handle_request(req);
     assert!(res.contains(r#""isError":false"#));
     assert!(res.contains(r#"\"detached\":true"#));
+}
+
+#[test]
+fn test_neopixel_tools_dispatch() {
+    let handler = |name: &str, body: &str, out: &mut heapless::String<1536>| -> bool {
+        match name {
+            "neopixel_fill" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+                let count = extract_u32_arg(body, "count").unwrap_or(16);
+                let color = extract_string_arg(body, "color").unwrap_or("#FFFFFF");
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"count":{},"color":"{}"}}"#, pin, count, color);
+                false
+            }
+            "neopixel_set" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+                let index = extract_u32_arg(body, "index").unwrap_or(0);
+                let color = extract_string_arg(body, "color").unwrap_or("#FFFFFF");
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"index":{},"color":"{}"}}"#, pin, index, color);
+                false
+            }
+            "neopixel_clear" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+                let count = extract_u32_arg(body, "count").unwrap_or(64);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"count":{},"cleared":true}}"#, pin, count);
+                false
+            }
+            "neopixel_pattern" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+                let pattern = extract_string_arg(body, "pattern").unwrap_or("rainbow");
+                let count = extract_u32_arg(body, "count").unwrap_or(16);
+                let speed = extract_u32_arg(body, "speed").unwrap_or(50);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"pattern":"{}","count":{},"speed":{}}}"#, pin, pattern, count, speed);
+                false
+            }
+            "neopixel_analyze" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"t0h_ns":350,"t1h_ns":700,"t0l_ns":800,"t1l_ns":600,"reset_us":65,"passed":true}}"#, pin);
+                false
+            }
+            "neopixel_transmit" | "ws2812_transmit" => {
+                let pin = extract_u32_arg(body, "pin").unwrap_or(22);
+                let _ = write!(out, r#"{{"status":"ok","pin":{},"pixels_updated":3}}"#, pin);
+                false
+            }
+            _ => {
+                let _ = out.push_str(r#"{"status":"error","error":"unknown"}"#);
+                true
+            }
+        }
+    };
+
+    let server = McpServer::with_handler(handler);
+
+    // Test neopixel_fill
+    let req = br##"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"neopixel_fill","arguments":{"pin":22,"color":"#FF0000","count":8}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"status\":\"ok\""#));
+    assert!(res.contains(r#"\"pin\":22"#));
+    assert!(res.contains(r#"\"count\":8"#));
+
+    // Test neopixel_set
+    let req = br##"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"neopixel_set","arguments":{"pin":22,"index":3,"color":"#00FF00"}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"index\":3"#));
+
+    // Test neopixel_clear
+    let req = br##"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"neopixel_clear","arguments":{"pin":22,"count":16}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"cleared\":true"#));
+
+    // Test neopixel_pattern
+    let req = br##"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"neopixel_pattern","arguments":{"pin":22,"pattern":"rainbow","count":16,"speed":80}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"pattern\":\"rainbow\""#));
+
+    // Test neopixel_analyze
+    let req = br##"{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"neopixel_analyze","arguments":{"pin":22}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"passed\":true"#));
+
+    // Test neopixel_transmit
+    let req = br##"{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"neopixel_transmit","arguments":{"pin":22,"colors":["#FF0000","#00FF00","#0000FF"]}}}"##;
+    let res = server.handle_request(req);
+    assert!(res.contains(r#""isError":false"#));
+    assert!(res.contains(r#"\"pixels_updated\":3"#));
 }

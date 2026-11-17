@@ -1301,7 +1301,17 @@ impl BridgeI3cOff {
 impl BridgeI2cScan {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let found = crate::bridge::i2c::hw_i2c_scan(16, 17);
+        let pins = &crate::bridge::i2c::I2C_PINS;
+        let mut claimed_slot: Option<pin_owner::SlotId> = None;
+        if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
+            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+                claimed_slot = Some(slot);
+            }
+        }
+        let found = crate::bridge::i2c::hw_i2c_scan(pins[0], pins[1]);
+        if let Some(slot) = claimed_slot {
+            let _ = pin_owner::release(slot);
+        }
         let mut b = heapless::String::<256>::new();
         let _ = write!(b, r#"{{"status":"ok","count":{},"addresses":["#, found.len());
         for (i, &addr) in found.iter().enumerate() {
@@ -1322,7 +1332,17 @@ impl BridgeI2cRead {
         let reg = key_int(query, &body, "reg").unwrap_or(0) as u8;
         let len = (key_int(query, &body, "len").unwrap_or(1) as usize).min(32);
         let mut buf = [0u8; 32];
-        let ok = crate::bridge::i2c::hw_i2c_read(16, 17, addr, reg, &mut buf[..len]);
+        let pins = &crate::bridge::i2c::I2C_PINS;
+        let mut claimed_slot: Option<pin_owner::SlotId> = None;
+        if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
+            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+                claimed_slot = Some(slot);
+            }
+        }
+        let ok = crate::bridge::i2c::hw_i2c_read(pins[0], pins[1], addr, reg, &mut buf[..len]);
+        if let Some(slot) = claimed_slot {
+            let _ = pin_owner::release(slot);
+        }
         let mut hex = heapless::String::<64>::new();
         if ok {
             for &byte in &buf[..len] {
@@ -1344,7 +1364,17 @@ impl BridgeI2cWrite {
         let addr = key_int(query, &body, "addr").unwrap_or(0x3C) as u8;
         let reg = key_int(query, &body, "reg").unwrap_or(0) as u8;
         let val = key_int(query, &body, "val").unwrap_or(0) as u8;
-        let ok = crate::bridge::i2c::hw_i2c_write(16, 17, addr, reg, &[val]);
+        let pins = &crate::bridge::i2c::I2C_PINS;
+        let mut claimed_slot: Option<pin_owner::SlotId> = None;
+        if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
+            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+                claimed_slot = Some(slot);
+            }
+        }
+        let ok = crate::bridge::i2c::hw_i2c_write(pins[0], pins[1], addr, reg, &[val]);
+        if let Some(slot) = claimed_slot {
+            let _ = pin_owner::release(slot);
+        }
         let mut resp = heapless::String::<64>::new();
         let _ = write!(resp, r#"{{"status":"{}","bytes_written":{}}}"#, if ok { "ok" } else { "nack" }, if ok { 1 } else { 0 });
         send_json(request, response_writer, StatusCode::OK, resp.as_str()).await

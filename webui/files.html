@@ -90,6 +90,7 @@
       <a href="/files" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10">Files</a>
       <a href="/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase">Motor</a>
       <a href="/servo" class="btn btn-ghost btn-xs font-mono-tech uppercase">Servo</a>
+      <a href="/neopixel" class="btn btn-ghost btn-xs font-mono-tech uppercase">NeoPixel</a>
     </div>
 
     <div class="navbar-end flex items-center gap-2">
@@ -310,6 +311,13 @@
           <span class="text-xs text-base-content/60 mt-2 font-tech">Loading entries...</span>
         </div>
 
+        <!-- Listing Failure Banner (never mistaken for an empty directory) -->
+        <div id="listing-error-banner" class="alert alert-error text-xs py-2 px-3 mb-3 font-tech hidden">
+          <span class="font-dot font-bold">[ERR]</span>
+          <span id="listing-error-text">Directory listing unavailable.</span>
+          <button class="btn btn-ghost btn-xs" onclick="refreshDirectory()">Retry</button>
+        </div>
+
         <!-- Empty State Container -->
         <div id="empty-state" class="flex flex-col items-center justify-center h-64 text-center hidden">
           <div class="text-2xl font-dot opacity-40 mb-2">[EMPTY]</div>
@@ -474,74 +482,16 @@
     let currentPath = '/';
     let entries = [];
     let viewMode = localStorage.getItem('agentla-fs-view') || 'grid';
-    let isDemo = window.location.protocol === 'file:' || window.location.hostname === 'localhost' && window.location.port !== '80';
     let currentlyEditingPath = '';
+    let listingError = '';
+
+    // Editor boundary: only these text extensions may be opened, and only up
+    // to 256 KB. Binary, gzip and font/FLM assets are intentionally excluded.
+    const EDITABLE_EXTENSIONS = new Set(['json', 'toml', 'js', 'html', 'css', 'txt', 'csv']);
+    const MAX_EDIT_BYTES = 256 * 1024;
     let storageMetrics = {
       system: { total_bytes: 524288, used_bytes: 155599, read_only: true },
       user: { total_bytes: 2015232, used_bytes: 16384, read_only: false }
-    };
-
-    // Mock Filesystem for Static / Demo Fallback
-    const mockFilesystem = {
-      system: {
-        '/': [
-          { name: 'index.html.gz', is_dir: false, size: 48920 },
-          { name: 'lab.html.gz', is_dir: false, size: 76210 },
-          { name: 'terminal.html.gz', is_dir: false, size: 14350 },
-          { name: 'files.html.gz', is_dir: false, size: 16200 },
-          { name: 'daisyui.css.gz', is_dir: false, size: 38400 },
-          { name: 'style.css.gz', is_dir: false, size: 22100 },
-          { name: 'themes.css.gz', is_dir: false, size: 18450 },
-          { name: 'themes.json', is_dir: false, size: 12500 },
-          { name: 'fonts', is_dir: true, size: 0 },
-          { name: 'algo', is_dir: true, size: 0 },
-          { name: 'icons', is_dir: true, size: 0 }
-        ],
-        '/fonts': [
-          { name: 'ndot57.woff2', is_dir: false, size: 1304 }
-        ],
-        '/algo': [
-          { name: 'RP2350_RISCV.flm', is_dir: false, size: 16384 },
-          { name: 'RP2350_ARM.flm', is_dir: false, size: 16384 }
-        ],
-        '/icons': [
-          { name: 'favicon.ico', is_dir: false, size: 4286 },
-          { name: 'logo.svg', is_dir: false, size: 2150 }
-        ]
-      },
-      user: {
-        '/': [
-          { name: 'apps', is_dir: true, size: 0 },
-          { name: 'profiles', is_dir: true, size: 0 },
-          { name: 'captures', is_dir: true, size: 0 },
-          { name: 'system', is_dir: true, size: 0 },
-          { name: 'readme.txt', is_dir: false, size: 342 }
-        ],
-        '/apps': [
-          { name: 'servo-master', is_dir: true, size: 0 },
-          { name: 'can-sniffer', is_dir: true, size: 0 }
-        ],
-        '/apps/servo-master': [
-          { name: 'index.html', is_dir: false, size: 8420 },
-          { name: 'app.json', is_dir: false, size: 240 }
-        ],
-        '/apps/can-sniffer': [
-          { name: 'index.html', is_dir: false, size: 11250 },
-          { name: 'app.json', is_dir: false, size: 310 }
-        ],
-        '/profiles': [
-          { name: 'safe_state.json', is_dir: false, size: 512 },
-          { name: 'logic_analyzer.json', is_dir: false, size: 680 },
-          { name: 'can_sniffer.json', is_dir: false, size: 620 }
-        ],
-        '/captures': [
-          { name: 'spi_flash_read.vcd', is_dir: false, size: 24890 },
-          { name: 'i2c_sensor_burst.vcd', is_dir: false, size: 12450 }
-        ],
-        '/system': [
-          { name: 'settings.json', is_dir: false, size: 195 }
-        ]
-      }
     };
 
     // Helper: Format bytes
@@ -598,7 +548,9 @@
       const toast = document.createElement('div');
       const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';
       toast.className = `alert ${alertClass} shadow-lg text-xs py-2 px-3 font-tech pointer-events-auto`;
-      toast.innerHTML = `<span>${message}</span>`;
+      const label = document.createElement('span');
+      label.textContent = message;
+      toast.appendChild(label);
       container.appendChild(toast);
       setTimeout(() => {
         toast.style.opacity = '0';
@@ -639,17 +591,11 @@
 
       // Update segment switches
       const isUser = activeRoot === 'user';
-      const btnUser = document.getElementById('btn-part-user');
-      const btnSys = document.getElementById('btn-part-system');
       const btnUserM = document.getElementById('btn-part-user-m');
       const btnSysM = document.getElementById('btn-part-system-m');
       const btnUserTb = document.getElementById('btn-part-user-tb');
       const btnSysTb = document.getElementById('btn-part-system-tb');
 
-      if (btnUser && btnSys) {
-        btnUser.className = `join-item btn btn-xs font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
-        btnSys.className = `join-item btn btn-xs font-dot ${!isUser ? 'btn-primary' : 'btn-ghost'}`;
-      }
       if (btnUserM && btnSysM) {
         btnUserM.className = `join-item btn btn-xs flex-1 font-dot ${isUser ? 'btn-primary' : 'btn-ghost'}`;
         btnSysM.className = `join-item btn btn-xs flex-1 font-dot ${!isUser ? 'btn-primary' : 'btn-ghost'}`;
@@ -692,26 +638,51 @@
       fetchDirectory(currentPath);
     }
 
-    // Fetch Directory Entries from REST API
+    // Human-readable detail for a failed directory listing.
+    function describeListingError(reason) {
+      if (reason === 'listing_too_large') return 'Directory has too many entries to display';
+      if (reason === 'fs_busy') return 'Storage is busy, please retry';
+      if (reason === 'fs_not_mounted') return 'Storage partition is not mounted';
+      if (reason === 'directory_not_found') return 'Directory not found';
+      if (reason === 'malformed_json' || reason === 'not_an_array') return 'Listing response was malformed';
+      if (reason.startsWith('http_')) return `Server returned HTTP ${reason.slice(5)}`;
+      return 'Directory listing unavailable';
+    }
+
+    // Fetch Directory Entries from REST API. The listing is replaced only on a
+    // successful response that parses to an array. Any failure surfaces an
+    // explicit error state and keeps the previously rendered entries; mock
+    // data is never substituted on device firmware.
     async function fetchDirectory(path) {
       currentPath = path;
-      document.getElementById('canvas-loader').classList.remove('hidden');
+      const loader = document.getElementById('canvas-loader');
+      loader.classList.remove('hidden');
       renderBreadcrumbs();
 
       try {
         const res = await fetch(`/api/v1/fs/list?root=${activeRoot}&path=${encodeURIComponent(path)}`);
-        if (res.ok) {
-          entries = await res.json();
-        } else {
-          throw new Error('API unavailable');
+        if (!res.ok) {
+          let detail = '';
+          try { detail = (await res.json()).error || ''; } catch (_) {}
+          throw new Error(detail || `http_${res.status}`);
         }
-      } catch (_) {
-        // Fallback to mock filesystem for demo mode
-        const rootFs = mockFilesystem[activeRoot] || {};
-        entries = rootFs[path] || [];
+        let data;
+        try {
+          data = await res.json();
+        } catch (_) {
+          throw new Error('malformed_json');
+        }
+        if (!Array.isArray(data)) {
+          throw new Error('not_an_array');
+        }
+        entries = data;
+        listingError = '';
+      } catch (err) {
+        listingError = describeListingError((err && err.message) || 'request_failed');
+        showToast(`Directory listing unavailable: ${listingError}`, 'error');
       }
 
-      document.getElementById('canvas-loader').classList.add('hidden');
+      loader.classList.add('hidden');
       renderEntries(entries);
     }
 
@@ -722,7 +693,11 @@
 
       // Root segment
       const rootLi = document.createElement('li');
-      rootLi.innerHTML = `<a onclick="fetchDirectory('/')" class="font-bold text-primary font-dot">${activeRoot}:/</a>`;
+      const rootLink = document.createElement('a');
+      rootLink.className = 'font-bold text-primary font-dot';
+      rootLink.textContent = `${activeRoot}:/`;
+      rootLink.addEventListener('click', () => fetchDirectory('/'));
+      rootLi.appendChild(rootLink);
       list.appendChild(rootLi);
 
       const parts = currentPath.split('/').filter(Boolean);
@@ -732,11 +707,14 @@
         const targetPath = builtPath;
         const isLast = index === parts.length - 1;
         const li = document.createElement('li');
+        const seg = document.createElement(isLast ? 'span' : 'a');
         if (isLast) {
-          li.innerHTML = `<span class="opacity-80">${p}</span>`;
+          seg.className = 'opacity-80';
         } else {
-          li.innerHTML = `<a onclick="fetchDirectory('${targetPath}')">${p}</a>`;
+          seg.addEventListener('click', () => fetchDirectory(targetPath));
         }
+        seg.textContent = p;
+        li.appendChild(seg);
         list.appendChild(li);
       });
 
@@ -754,6 +732,31 @@
       renderEntries(filtered);
     }
 
+    // Static SVG markup used for row actions. These strings never contain
+    // filesystem-derived data.
+    const ICON_DOWNLOAD = '<svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>';
+    const ICON_RENAME = '<svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    const ICON_DELETE = '<svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+    // Build an action button without ever interpolating paths/names into HTML
+    // attributes. The handler closes over the captured values instead.
+    function iconButton(title, svg, handler, extraClass) {
+      const btn = document.createElement('button');
+      btn.className = (`btn btn-ghost btn-xs btn-square ${extraClass || ''}`).trim();
+      btn.title = title;
+      btn.innerHTML = svg;
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); handler(); });
+      return btn;
+    }
+
+    function textButton(label, handler, extraClass) {
+      const btn = document.createElement('button');
+      btn.className = (`btn btn-ghost btn-xs ${extraClass || ''}`).trim();
+      btn.textContent = label;
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); handler(); });
+      return btn;
+    }
+
     // Render Directory Entries
     function renderEntries(items) {
       const gridContainer = document.getElementById('view-grid-container');
@@ -761,10 +764,20 @@
       const emptyState = document.getElementById('empty-state');
       document.getElementById('status-item-count').textContent = `${items.length} items`;
 
+      // A failed listing is an explicit error, never a "Directory is empty".
+      const banner = document.getElementById('listing-error-banner');
+      if (listingError) {
+        document.getElementById('listing-error-text').textContent =
+          `${listingError}. Showing last known entries for ${activeRoot}:${currentPath}.`;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+
       gridContainer.innerHTML = '';
       tableBody.innerHTML = '';
 
-      if (items.length === 0) {
+      if (items.length === 0 && !listingError) {
         emptyState.classList.remove('hidden');
         return;
       }
@@ -778,78 +791,130 @@
 
       sorted.forEach(entry => {
         const fullItemPath = (currentPath === '/' ? '' : currentPath) + '/' + entry.name;
+        const isDir = !!entry.is_dir;
+        const ext = entry.name.split('.').pop().toUpperCase();
 
-        // 1. Grid Card
+        // 1. Grid Card. Names and paths are text nodes / captured values, never
+        // interpolated into innerHTML or inline onclick attributes.
         const card = document.createElement('div');
         card.className = 'file-card card bg-base-200 border border-base-300 p-3 flex flex-col justify-between cursor-pointer group';
-        card.onclick = () => onEntryClick(entry, fullItemPath);
+        card.addEventListener('click', () => onEntryClick(entry, fullItemPath));
 
-        card.innerHTML = `
-          <div class="flex items-start justify-between">
-            ${getFileIcon(entry)}
-            ${entry.is_dir ? '<span class="badge badge-xs badge-ghost font-tech">DIR</span>' : `<span class="text-[10px] opacity-50 font-tech">${formatBytes(entry.size)}</span>`}
-          </div>
-          <div class="mt-3">
-            <div class="font-semibold text-xs truncate font-tech" title="${entry.name}">${entry.name}</div>
-            <div class="text-[10px] opacity-40 font-tech mt-0.5">${entry.is_dir ? 'Folder' : entry.name.split('.').pop().toUpperCase() + ' File'}</div>
-          </div>
-          <div class="mt-2 pt-2 border-t border-base-300/40 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-            <button class="btn btn-ghost btn-xs btn-square" title="Download" onclick="event.stopPropagation(); downloadFile('${fullItemPath}')">
-              <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14M5 12l7 7 7-7"/>
-              </svg>
-            </button>
-            ${activeRoot === 'user' ? `
-              <div class="flex items-center gap-1">
-                <button class="btn btn-ghost btn-xs btn-square" title="Rename" onclick="event.stopPropagation(); openRenameModal('${fullItemPath}', '${entry.name}')">
-                  <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
-                <button class="btn btn-ghost btn-xs btn-square text-error" title="Delete" onclick="event.stopPropagation(); openDeleteModal('${fullItemPath}', '${entry.name}')">
-                  <svg class="solar-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </button>
-              </div>
-            ` : '<span class="text-[9px] opacity-30 font-tech">ROM</span>'}
-          </div>
-        `;
+        const cardTop = document.createElement('div');
+        cardTop.className = 'flex items-start justify-between';
+        const iconWrap = document.createElement('span');
+        iconWrap.innerHTML = getFileIcon(entry); // static SVG only
+        cardTop.appendChild(iconWrap);
+        if (isDir) {
+          const dirBadge = document.createElement('span');
+          dirBadge.className = 'badge badge-xs badge-ghost font-tech';
+          dirBadge.textContent = 'DIR';
+          cardTop.appendChild(dirBadge);
+        } else {
+          const sizeLabel = document.createElement('span');
+          sizeLabel.className = 'text-[10px] opacity-50 font-tech';
+          sizeLabel.textContent = formatBytes(entry.size);
+          cardTop.appendChild(sizeLabel);
+        }
+        card.appendChild(cardTop);
+
+        const cardInfo = document.createElement('div');
+        cardInfo.className = 'mt-3';
+        const nameLabel = document.createElement('div');
+        nameLabel.className = 'font-semibold text-xs truncate font-tech';
+        nameLabel.textContent = entry.name;
+        nameLabel.title = entry.name;
+        const typeLabel = document.createElement('div');
+        typeLabel.className = 'text-[10px] opacity-40 font-tech mt-0.5';
+        typeLabel.textContent = isDir ? 'Folder' : `${ext} File`;
+        cardInfo.appendChild(nameLabel);
+        cardInfo.appendChild(typeLabel);
+        card.appendChild(cardInfo);
+
+        const cardActions = document.createElement('div');
+        cardActions.className = 'mt-2 pt-2 border-t border-base-300/40 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity';
+        cardActions.appendChild(iconButton('Download', ICON_DOWNLOAD, () => downloadFile(fullItemPath)));
+        if (activeRoot === 'user') {
+          const group = document.createElement('div');
+          group.className = 'flex items-center gap-1';
+          group.appendChild(iconButton('Rename', ICON_RENAME, () => openRenameModal(fullItemPath, entry.name)));
+          group.appendChild(iconButton('Delete', ICON_DELETE, () => openDeleteModal(fullItemPath, entry.name), 'text-error'));
+          cardActions.appendChild(group);
+        } else {
+          const romLabel = document.createElement('span');
+          romLabel.className = 'text-[9px] opacity-30 font-tech';
+          romLabel.textContent = 'ROM';
+          cardActions.appendChild(romLabel);
+        }
+        card.appendChild(cardActions);
         gridContainer.appendChild(card);
 
         // 2. Table Row
         const tr = document.createElement('tr');
         tr.className = 'hover cursor-pointer';
-        tr.onclick = () => onEntryClick(entry, fullItemPath);
+        tr.addEventListener('click', () => onEntryClick(entry, fullItemPath));
 
-        tr.innerHTML = `
-          <td>${getFileIcon(entry)}</td>
-          <td class="font-semibold">${entry.name}</td>
-          <td class="text-xs opacity-60">${entry.is_dir ? 'Directory' : entry.name.split('.').pop().toUpperCase()}</td>
-          <td class="text-xs opacity-60">${entry.is_dir ? '--' : formatBytes(entry.size)}</td>
-          <td class="text-right" onclick="event.stopPropagation()">
-            <div class="flex items-center justify-end gap-1">
-              <button class="btn btn-ghost btn-xs" onclick="downloadFile('${fullItemPath}')">Download</button>
-              ${activeRoot === 'user' ? `
-                <button class="btn btn-ghost btn-xs" onclick="openRenameModal('${fullItemPath}', '${entry.name}')">Rename</button>
-                <button class="btn btn-ghost btn-xs text-error" onclick="openDeleteModal('${fullItemPath}', '${entry.name}')">Delete</button>
-              ` : ''}
-            </div>
-          </td>
-        `;
+        const iconCell = document.createElement('td');
+        iconCell.innerHTML = getFileIcon(entry); // static SVG only
+        tr.appendChild(iconCell);
+
+        const nameCell = document.createElement('td');
+        nameCell.className = 'font-semibold';
+        nameCell.textContent = entry.name;
+        tr.appendChild(nameCell);
+
+        const typeCell = document.createElement('td');
+        typeCell.className = 'text-xs opacity-60';
+        typeCell.textContent = isDir ? 'Directory' : ext;
+        tr.appendChild(typeCell);
+
+        const sizeCell = document.createElement('td');
+        sizeCell.className = 'text-xs opacity-60';
+        sizeCell.textContent = isDir ? '--' : formatBytes(entry.size);
+        tr.appendChild(sizeCell);
+
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'text-right';
+        actionsCell.addEventListener('click', (ev) => ev.stopPropagation());
+        const actionGroup = document.createElement('div');
+        actionGroup.className = 'flex items-center justify-end gap-1';
+        actionGroup.appendChild(textButton('Download', () => downloadFile(fullItemPath)));
+        if (activeRoot === 'user') {
+          actionGroup.appendChild(textButton('Rename', () => openRenameModal(fullItemPath, entry.name)));
+          actionGroup.appendChild(textButton('Delete', () => openDeleteModal(fullItemPath, entry.name), 'text-error'));
+        }
+        actionsCell.appendChild(actionGroup);
+        tr.appendChild(actionsCell);
         tableBody.appendChild(tr);
       });
+    }
+
+    // Return a rejection message when a file is not eligible for the text
+    // editor, or null when it may be opened.
+    function editorRejectionReason(entry) {
+      if (entry.is_dir) return 'Directories cannot be opened in the editor';
+      const ext = (entry.name.split('.').pop() || '').toLowerCase();
+      if (!EDITABLE_EXTENSIONS.has(ext)) {
+        return 'Only text files can be previewed or edited (json, toml, js, html, css, txt, csv)';
+      }
+      if (typeof entry.size === 'number' && entry.size > MAX_EDIT_BYTES) {
+        return 'Files above the 256 KB limit cannot be opened in the editor';
+      }
+      return null;
     }
 
     // Entry Click Handler
     function onEntryClick(entry, path) {
       if (entry.is_dir) {
         fetchDirectory(path);
-      } else {
-        openFileInEditor(path, entry);
+        return;
       }
+      const reason = editorRejectionReason(entry);
+      if (reason) {
+        showToast(reason, 'error');
+        return;
+      }
+      openFileInEditor(path, entry);
     }
 
     // Toggle View Mode (Grid vs List)
@@ -865,6 +930,13 @@
 
     // In-Place File Viewer & Editor Modal
     async function openFileInEditor(path, entry) {
+      // Enforce the same boundary here for direct calls as onEntryClick does.
+      const reason = editorRejectionReason(entry);
+      if (reason) {
+        showToast(reason, 'error');
+        return;
+      }
+
       currentlyEditingPath = path;
       const isRom = activeRoot === 'system';
       const modal = document.getElementById('modal-file-editor');
@@ -882,6 +954,13 @@
         const res = await fetch(`/api/v1/fs/read?root=${activeRoot}&path=${encodeURIComponent(path)}`);
         if (res.ok) {
           const text = await res.text();
+          // Re-check the real payload size, not just the reported size.
+          if (new TextEncoder().encode(text).length > MAX_EDIT_BYTES) {
+            modal.close();
+            textarea.value = '';
+            showToast('Files above the 256 KB limit cannot be opened in the editor', 'error');
+            return;
+          }
           textarea.value = text;
           updateEditorStats(text);
         } else {
@@ -910,6 +989,22 @@
         return;
       }
       const text = document.getElementById('editor-content').value;
+      const bytes = new TextEncoder().encode(text).length;
+      if (bytes > MAX_EDIT_BYTES) {
+        showToast('Files above the 256 KB limit cannot be saved', 'error');
+        return;
+      }
+      // Re-check the allow-list before posting the save.
+      const saveReason = editorRejectionReason({
+        name: currentlyEditingPath.split('/').pop() || '',
+        is_dir: false,
+        size: bytes
+      });
+      if (saveReason) {
+        showToast(saveReason, 'error');
+        return;
+      }
+
       const saveBtn = document.getElementById('editor-btn-save');
       saveBtn.disabled = true;
       saveBtn.textContent = 'Saving...';
@@ -1112,73 +1207,13 @@
       fetchDirectory(currentPath);
     }
 
-    // Industrial Theme Management
-    function applyFilesTheme(theme, mode) {
-      const activeTheme = theme || 'nothing';
-      document.documentElement.setAttribute('data-theme', activeTheme);
-      const isLight = (activeTheme === 'industrial-light' || activeTheme === 'emerald' || activeTheme === 'caramellatte' || activeTheme === 'light' || mode === 'light');
-      document.documentElement.setAttribute('data-theme-scheme', isLight ? 'light' : 'dark');
-      const label = document.getElementById('theme-btn-label');
-      if (label) {
-        label.textContent = isLight ? 'LIGHT' : 'DARK';
-      }
-    }
-
-    function toggleFilesTheme() {
-      const curTheme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('agentla-theme') || 'nothing';
-      const isCurrentlyLight = (curTheme === 'industrial-light' || curTheme === 'emerald' || curTheme === 'caramellatte' || curTheme === 'light');
-      const nextTheme = isCurrentlyLight ? 'nothing' : 'emerald';
-      const nextMode = isCurrentlyLight ? 'dark' : 'light';
-      try {
-        localStorage.setItem('agentla-theme', nextTheme);
-        localStorage.setItem('agentla-theme-mode', nextMode);
-      } catch (_) {}
-      applyFilesTheme(nextTheme, nextMode);
-      try {
-        if (typeof BroadcastChannel !== 'undefined') {
-          const bc = new BroadcastChannel('agentla-theme-channel');
-          bc.postMessage({ type: 'THEME_CHANGE', theme: nextTheme, mode: nextMode, scheme: nextMode });
-          bc.close();
-        }
-      } catch (_) {}
-      try {
-        fetch('/api/v1/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            theme_mode: nextMode,
-            default_light_theme: 'emerald',
-            default_dark_theme: 'nothing',
-            default_home_route: '/home',
-            active_profile: "Default Lab Bench"
-          })
-        }).catch(() => {});
-      } catch (_) {}
-      showToast(`Switched to ${nextMode.toUpperCase()} mode`);
-    }
-
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        const syncChannel = new BroadcastChannel('agentla-theme-channel');
-        syncChannel.onmessage = (event) => {
-          if (event.data && event.data.type === 'THEME_CHANGE') {
-            applyFilesTheme(event.data.theme, event.data.mode);
-          }
-        };
-      } catch (_) {}
-    }
-
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'agentla-theme' || e.key === 'agentla-theme-mode') {
-        applyFilesTheme(localStorage.getItem('agentla-theme') || 'nothing', localStorage.getItem('agentla-theme-mode') || 'dark');
-      }
-    });
+    // Theme authority lives solely in agentla-bridge.js (cycleThemeMode /
+    // syncTheme), which owns the toggle button, persistence, cross-tab sync
+    // and documentElement.style.colorScheme. This page intentionally defines
+    // no local theme toggle or storage/BroadcastChannel theme listener.
 
     // Initialization
     window.addEventListener('DOMContentLoaded', () => {
-      const savedTheme = localStorage.getItem('agentla-theme') || 'nothing';
-      const savedMode = localStorage.getItem('agentla-theme-mode') || 'dark';
-      applyFilesTheme(savedTheme, savedMode);
       setViewMode(viewMode);
       refreshStorageStats();
       fetchDirectory(currentPath);

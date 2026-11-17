@@ -41,12 +41,13 @@ with open("/dev/hidraw5", "r+b", buffering=0) as f:
         assert resp[0] == 0x11 and resp[1] == 0, f"Clock set {khz} kHz failed"
         print(f"[*] DAP_SWJ_Clock set to {khz} kHz: OK")
 
-    # 3. Assert nRESET low & verify pin state
+    # 3. Assert nRESET low & verify pin state, then release high
     resp = send_cmd(bytes([0x10, 0x00, 0x80]) + (10000).to_bytes(4, "little"))
     assert resp[0] == 0x10, "DAP_SWJ_Pins failed"
     pin_in = resp[1]
     nrst_low = (pin_in & 0x80) == 0
     print(f"[*] DAP_SWJ_Pins (assert nRST low): Pin state = 0x{pin_in:02X} (nRST low = {nrst_low})")
+    send_cmd(bytes([0x10, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00]))
 
     # 4. DAP_Connect
     resp = send_cmd(bytes([0x02, 0x01]))
