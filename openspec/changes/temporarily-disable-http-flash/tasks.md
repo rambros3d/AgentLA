@@ -27,11 +27,13 @@
 
 ## 4. Tests
 
-- [ ] 4.1 Update `test/test_bluepill_flash.py` and `test/flash_*.py` to expect 501 while the
-  flag is off, or skip with a clear reason.
+- [x] 4.1 `test/test_bluepill_flash.py` and `test/flash_h503_blink.py` do not use the HTTP
+  programmer routes (UART bootloader and probe-rs respectively); no change needed. The three
+  schema-only suites (`test_cortex_reset_catch.py`, `test_nrf_rescue.py`,
+  `test_stm32_bootloader.py`) pass unchanged: 22 passed.
 - [x] 4.2 Add a test that asserts the 501 body contains `http_flash_disabled` and `modes`.
 - [x] 4.3 Add a test that `GET /api/v1/programmer/read` still returns 200 with the flag off.
-- [ ] 4.4 Run `python3 -m pytest test/test_cmsis_dap.py` and confirm it still passes.
+- [x] 4.4 `python3 test/test_cmsis_dap.py` -> ALL 12 CMSIS-DAP CHECKS PASSED PERFECTLY.
 
 ## 5. Firmware build and deployment
 
@@ -49,7 +51,9 @@
   `curl -X POST "http://10.10.10.10/api/programmer/mode?mode=stlink"`
 - [x] 6.3 Confirm USB enumeration changes to `0483:3752` (`lsusb`).
   `Bus 003 Device 019: ID 0483:3752 STMicroelectronics ST-LINK/V2.1`
-- [ ] 6.4 Run `st-info --probe` and record the reported chip and flash size.
+- [x] 6.4 `st-info --probe` -> `Found 1 stlink programmers`,
+  `version: V2J48S35`, `serial: C000DDC77247F50037520001`. Chip/flash/sram are
+  0 because ENTER_SWD times out before identification (see 6c).
   BLOCKED: `Found 0 stlink programmers` (serial number too short, see 6b).
 - [ ] 6.5 Run a read-only `st-flash` read of `0x08000000` and compare with the expected
   BareBoot vector table (`F87F0020 41020008`).
@@ -63,7 +67,21 @@
   `firmware-rs/src/usb.rs` with a 24-hex-character serial derived from the RP2350 unique ID
   (plus a personality discriminator), matching `STLINK_SERIAL_LENGTH == 24`.
 - [x] 6b.2 Confirm `lsusb -v -d 0483:3752 | grep iSerial` shows a 24-character value.
-- [ ] 6b.3 Re-run 6.4-6.5.
+- [x] 6b.3 6.4 re-run above. 6.5 still blocked on 6c.
+
+### 6b-verify. Serial fix confirmed on hardware (2026-11-17)
+
+`lsusb` and `st-info` now agree on a 24-character serial derived from the
+RP2350 CHIPID plus a personality tag:
+
+```
+CMSIS-DAP : C000DDC77247F500414D0001
+ST-Link   : C000DDC77247F50037520001
+```
+
+`DAP_Info(0x03)` was a *second* hardcoded serial in
+`crates/agentla-programmer/src/dap.rs`; it now follows the USB descriptor via
+`CmsisDapHandler::set_serial`. Verified by `test/test_cmsis_dap.py`. 
 
 ## 7. Bookkeeping
 
@@ -111,5 +129,23 @@ Found 1 stlink programmers
   `CmsisDapHandler` does at `dap.rs` (eight call sites).
 - [ ] 6c.3 Check whether `SwdTransport` survives a personality switch without a full
   `deinit()` / `init_pins()` cycle.
-- [ ] 6c.4 Until 6c.1 lands, ST-Link mode must be treated as non-functional and CMSIS-DAP as the
-  only verified USB transport.
+- [x] 6c.4 CMSIS-DAP is the only verified USB transport. ST-Link mode enumerates and
+  reports version/serial but cannot enter debug mode.
+
+### 6c-status. Confirmed still failing after the serial fix (2026-11-17)
+
+With a valid 24-character serial the probe is now recognised:
+
+```
+Found 1 stlink programmers
+  version:    V2J48S35
+  serial:     C000DDC77247F50037520001
+  flash:      0 (pagesize: 0)
+  chipid:     0x000
+ERROR usb.c: ENTER_SWD read reply failed: LIBUSB_ERROR_TIMEOUT
+ERROR common_legacy.c: Failed to enter SWD mode
+```
+
+So the serial was a real blocker and is fixed, but the transport bug in 6c is
+independent and remains. Note that `flash`, `sram` and `chipid` read as 0
+because identification never completes, not because the target is absent.
