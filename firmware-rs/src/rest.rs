@@ -109,6 +109,31 @@ fn key_str(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key:
     }
     None
 }
+// Large-capacity variant for hex payloads (Katapult frames can exceed 64 chars).
+fn key_str_large(q: Option<picoserve::url_encoded::UrlEncodedString>, body: &str, key: &str) -> Option<heapless::String<512>> {
+    if let Some(v)=query_val(q,key){
+        let mut o=heapless::String::<512>::new();
+        let _=o.push_str(v.as_str());
+        return Some(o);
+    }
+    let mut pat = heapless::String::<64>::new();
+    let _ = pat.push('"'); let _ = pat.push_str(key); let _ = pat.push('"');
+    let pat_str = pat.as_str();
+    if let Some(i)=body.find(pat_str) {
+        let b=&body[i+pat_str.len()..];
+        if let Some(colon)=b.find(':') {
+            let tail=b[colon+1..].trim_start();
+            if tail.starts_with('"') {
+                if let Some(end)=tail[1..].find('"') {
+                    let mut o=heapless::String::<512>::new();
+                    let _=o.push_str(&tail[1..1+end]);
+                    return Some(o);
+                }
+            }
+        }
+    }
+    None
+}
 fn parse_bool(s: &str) -> bool { s=="true"||s=="1" }
 async fn read_body_str<R: Read>(request: &mut Request<'_, R>) -> heapless::String<512> {
     let mut reader = request.body_connection.body().reader();
@@ -1384,12 +1409,16 @@ impl BridgeI2cScan {
                 claimed_slot = Some(slot);
             }
         }
+        // Sample the raw line state before the scan starts. Both lines should
+        // read high when the bus is idle with external pull-ups fitted.
+        let idle_sda = crate::bridge::i2c::sda_level() as u8;
+        let idle_scl = crate::bridge::i2c::scl_level() as u8;
         let found = crate::bridge::i2c::hw_i2c_scan(sda, scl);
         if let Some(slot) = claimed_slot {
             let _ = pin_owner::release(slot);
         }
         let mut b = heapless::String::<256>::new();
-        let _ = write!(b, r#"{{"status":"ok","count":{},"addresses":["#, found.len());
+        let _ = write!(b, r#"{{"status":"ok","count":{},"idle_sda":{},"idle_scl":{},"addresses":["#, found.len(), idle_sda, idle_scl);
         for (i, &addr) in found.iter().enumerate() {
             if i > 0 { let _ = b.push(','); }
             let _ = write!(b, "{}", addr);
@@ -1408,10 +1437,13 @@ impl BridgeI2cRead {
         let reg = key_int(query, &body, "reg").unwrap_or(0) as u8;
         let len = (key_int(query, &body, "len").unwrap_or(1) as usize).min(32);
         let mut buf = [0u8; 32];
-        let pins = &crate::bridge::i2c::I2C_PINS;
+        let default_pins = &crate::bridge::i2c::I2C_PINS;
+        let sda = key_u32(query, &body, "sda").unwrap_or(default_pins[0]);
+        let scl = key_u32(query, &body, "scl").unwrap_or(default_pins[1]);
+        let pins = [sda, scl];
         let mut claimed_slot: Option<pin_owner::SlotId> = None;
         if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
-            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+            if let Ok(slot) = pin_owner::claim(pin_owner::Driver::Adapter, &pins, pin_owner::CAP_I2C) {
                 claimed_slot = Some(slot);
             }
         }
@@ -1467,7 +1499,7 @@ impl BridgeI2cTransfer {
 
         let mut tx_buf = [0u8; 256];
         let mut tx_len = 0usize;
-        if let Some(hex_str) = key_str(query, &body, "data_hex").or_else(|| key_str(query, &body, "tx_hex")).or_else(|| key_str(query, &body, "data")) {
+        if let Some(hex_str) = key_str_large(query, &body, "data_hex").or_else(|| key_str_large(query, &body, "tx_hex")).or_else(|| key_str_large(query, &body, "data")) {
             let bytes = hex_str.as_bytes();
             let mut i = 0;
             while i + 1 < bytes.len() && tx_len < tx_buf.len() {
@@ -1479,10 +1511,13 @@ impl BridgeI2cTransfer {
             }
         }
 
-        let pins = &crate::bridge::i2c::I2C_PINS;
+        let default_pins = &crate::bridge::i2c::I2C_PINS;
+        let sda = key_u32(query, &body, "sda").unwrap_or(default_pins[0]);
+        let scl = key_u32(query, &body, "scl").unwrap_or(default_pins[1]);
+        let pins = [sda, scl];
         let mut claimed_slot: Option<pin_owner::SlotId> = None;
         if pin_owner::has_claim(pins[0]).is_none() && pin_owner::has_claim(pins[1]).is_none() {
-            match pin_owner::claim(pin_owner::Driver::Adapter, pins, pin_owner::CAP_I2C) {
+            match pin_owner::claim(pin_owner::Driver::Adapter, &pins, pin_owner::CAP_I2C) {
                 Ok(slot) => { claimed_slot = Some(slot); }
                 Err(_) => {
                     return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
@@ -1533,7 +1568,7 @@ impl BridgeI3cTransfer {
 
         let mut tx_buf = [0u8; 256];
         let mut tx_len = 0usize;
-        if let Some(hex_str) = key_str(query, &body, "data_hex").or_else(|| key_str(query, &body, "tx_hex")).or_else(|| key_str(query, &body, "data")) {
+        if let Some(hex_str) = key_str_large(query, &body, "data_hex").or_else(|| key_str_large(query, &body, "tx_hex")).or_else(|| key_str_large(query, &body, "data")) {
             let bytes = hex_str.as_bytes();
             let mut i = 0;
             while i + 1 < bytes.len() && tx_len < tx_buf.len() {

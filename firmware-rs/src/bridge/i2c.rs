@@ -269,11 +269,15 @@ pub fn hw_i2c_transfer(sda: u32, scl: u32, addr: u8, tx_data: &[u8], rx_data: &m
             }
             written += 1;
         }
+        // Katapult-style I2C targets (e.g. BareBoot) only parse the frame and
+        // stage a response after seeing a STOP, so end the write transaction
+        // before starting the read instead of using a repeated START.
+        hw_i2c_stop(sda, scl);
         if rx_data.is_empty() {
-            hw_i2c_stop(sda, scl);
             return (true, written, 0);
         }
-        // Repeated start for read
+        // Give the target main loop time to process the frame and stage TX bytes.
+        cortex_m::asm::delay(150_000);
         hw_i2c_start(sda, scl);
     } else if !rx_data.is_empty() {
         hw_i2c_start(sda, scl);
