@@ -65,11 +65,16 @@ fn scl_high(scl_pin: u32) {
 
 fn scl_high_wait(scl_pin: u32) -> bool {
     scl_high(scl_pin);
-    for _ in 0..50_000 {
+    // Bound the clock-stretched wait. The previous 50_000 x 30 loop was ~10 ms
+    // per call, and hw_i2c_scan makes ~11 calls per address x 112 addresses,
+    // which turned an idle bus into a multi-second scan. 2_000 x 15 is roughly
+    // 0.2 ms - long enough for a legitimate stretch, short enough that a stuck
+    // or absent bus fails the address immediately.
+    for _ in 0..2_000 {
         if scl_read(scl_pin) {
             return true;
         }
-        cortex_m::asm::delay(30);
+        cortex_m::asm::delay(15);
     }
     false
 }
@@ -86,8 +91,8 @@ fn scl_low(scl_pin: u32) {
 }
 
 fn i2c_delay() {
-    // 100 kHz bit rate: half-period ~5 µs at 150 MHz
-    cortex_m::asm::delay(375);
+    // 100 kHz bit rate: half-period 5 us at 150 MHz = 750 cycles.
+    cortex_m::asm::delay(750);
 }
 
 pub fn hw_i2c_init(sda_pin: u32, scl_pin: u32) {
@@ -184,6 +189,11 @@ pub fn hw_i2c_scan(sda: u32, scl: u32) -> heapless::Vec<u8, 32> {
     let mut found = heapless::Vec::new();
     hw_i2c_init(sda, scl);
     for addr in 0x08..=0x77u8 {
+        // A target that stretches SCL during the address phase would block the
+        // whole scan, so abandon this address rather than the entire sweep.
+        if !scl_high_wait(scl) {
+            break;
+        }
         hw_i2c_start(sda, scl);
         let ack = hw_i2c_write_byte(sda, scl, addr << 1);
         hw_i2c_stop(sda, scl);
