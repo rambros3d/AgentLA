@@ -5,6 +5,20 @@ use agentla_boot_proto::{
 use embassy_rp::flash::FLASH_BASE;
 
 /// Zero-copy read of 64 bytes from XIP flash space.
+/// Build marker emitted by build.rs: git hash, link slot, dirty flag, UTC stamp.
+pub mod build_info {
+    include!(concat!(env!("OUT_DIR"), "/build_marker.rs"));
+}
+
+/// Raw contents of both boot-table ping-pong sectors, for diagnostics.
+pub fn dump_boot_sectors() -> ([u8; BootTable::SIZE], [u8; BootTable::SIZE]) {
+    let mut s0 = [0u8; BootTable::SIZE];
+    let mut s1 = [0u8; BootTable::SIZE];
+    read_sector_header(BOOT_SECTOR_0_OFFSET, &mut s0);
+    read_sector_header(BOOT_SECTOR_1_OFFSET, &mut s1);
+    (s0, s1)
+}
+
 fn read_sector_header(offset: u32, buf: &mut [u8; BootTable::SIZE]) {
     let ptr = (FLASH_BASE as usize + offset as usize) as *const u8;
     unsafe {

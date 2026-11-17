@@ -2212,6 +2212,20 @@ pub struct FirmwareStatus;
 pub struct FirmwareRollback;
 pub struct FirmwareOtaStream;
 
+/// Reads SCB.VTOR for diagnostics.
+fn current_vtor() -> u32 {
+    unsafe { (*cortex_m::peripheral::SCB::PTR).vtor.read() }
+}
+
+/// Reinterpret the first 4 bytes of a boot-table sector as its `magic`.
+fn vtor_or_zero(sec: &[u8]) -> u32 {
+    if sec.len() >= 4 {
+        u32::from_le_bytes([sec[0], sec[1], sec[2], sec[3]])
+    } else {
+        0
+    }
+}
+
 impl FirmwareStatus {
     async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
@@ -2223,11 +2237,13 @@ impl FirmwareStatus {
             Some(agentla_boot_proto::SlotId::SlotB) => "\"SlotB\"",
             None => "null",
         };
+        let (s0, s1) = crate::boot::dump_boot_sectors();
         let _ = core::fmt::Write::write_fmt(
             &mut b,
             format_args!(
-                r#"{{"active_slot":"{:?}","current_slot":"{:?}","candidate_slot":{},"state":"{:?}","boot_attempts":{},"slot_a_size":{},"slot_b_size":{},"firmware":"AgentLA v1.0.0-rust"}}"#,
-                bt.get_active_slot(), cur, cand, bt.get_state(), bt.boot_attempts, bt.slot_a_size, bt.slot_b_size
+                r#"{{"active_slot":"{:?}","current_slot":"{:?}","candidate_slot":{},"state":"{:?}","boot_attempts":{},"slot_a_size":{},"slot_b_size":{},"vtor":"0x{:08X}","sec0":"0x{:08X}","sec1":"0x{:08X}","build":"{}","firmware":"AgentLA v1.0.0-rust"}}"#,
+                bt.get_active_slot(), cur, cand, bt.get_state(), bt.boot_attempts, bt.slot_a_size, bt.slot_b_size,
+                current_vtor(), vtor_or_zero(&s0), vtor_or_zero(&s1), crate::boot::build_info::BUILD_MARKER
             ),
         );
         send_json(request, response_writer, StatusCode::OK, b.as_str()).await
@@ -2451,6 +2467,7 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
         let mut crc_val = 0xFFFF_FFFFu32;
 
         let mut chunk_buf = [0u8; 512];
+        let mut checked_vector = false;
         loop {
             let n = match reader.read(&mut chunk_buf).await {
                 Ok(0) => break,
@@ -2465,6 +2482,30 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
                     .await;
                 }
             };
+
+            // The image must be linked for the slot it is written into. The
+            // bootloader checks the reset vector against the target slot and
+            // silently boots the other slot on a mismatch, leaving the boot
+            // table and the running image disagreeing. Reject it here instead.
+            if !checked_vector && n >= 8 {
+                checked_vector = true;
+                let img_sp = u32::from_le_bytes(chunk_buf[0..4].try_into().unwrap());
+                let img_pc = u32::from_le_bytes(chunk_buf[4..8].try_into().unwrap());
+                let xip_base = 0x1000_0000u32 + slot_base;
+                let pc_ok = img_pc >= xip_base && img_pc < xip_base + 1024 * 1024;
+                let sp_ok = (0x2000_0000..=0x2008_2000).contains(&img_sp);
+                if !pc_ok || !sp_ok {
+                    let mut resp = heapless::String::<160>::new();
+                    let _ = core::fmt::Write::write_fmt(
+                        &mut resp,
+                        format_args!(
+                            r#"{{"status":"error","error":"slot_mismatch","expected_slot":"{:?}","img_sp":"0x{:08X}","img_pc":"0x{:08X}"}}"#,
+                            target_slot, img_sp, img_pc,
+                        ),
+                    );
+                    return send_json(request, response_writer, StatusCode::BAD_REQUEST, resp.as_str()).await;
+                }
+            }
 
             for &b in &chunk_buf[..n] {
                 // Erase 4 KB sector right before writing its first byte

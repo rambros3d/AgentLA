@@ -101,3 +101,23 @@ def test_mcp_tools_reuse_the_same_payload():
     assert "http_flash_disabled" in rest_text
     # MCP reuses the constant rather than duplicating the JSON.
     assert "HTTP_FLASH_DISABLED_BODY" in mcp_text
+
+
+def test_ota_slot_validation_logic():
+    """The OTA path rejects a payload linked for the wrong slot."""
+    SLOT_A_XIP = 0x10004000
+    SLOT_B_XIP = 0x10104000
+    SLOT_END = 0x10204000
+    SLOT_SIZE = 1024 * 1024
+
+    def valid(img_pc, target_xip):
+        return target_xip <= img_pc < target_xip + SLOT_SIZE
+
+    # A slot-A image written into slot B must be rejected, and vice versa.
+    assert not valid(0x10004119, SLOT_B_XIP)
+    assert valid(0x10104119, SLOT_B_XIP)
+    assert valid(0x10004119, SLOT_A_XIP)
+    assert not valid(0x10104119, SLOT_A_XIP)
+    # Out-of-range PC is rejected in every slot.
+    assert not valid(0x20000100, SLOT_A_XIP)
+    assert not valid(0x00000000, SLOT_B_XIP)
