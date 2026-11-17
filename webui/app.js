@@ -5209,6 +5209,9 @@ function applyHashMode() {
     } else if (path.startsWith('/agent')) {
         switchMode('console', false);
         return;
+    } else if (path.startsWith('/servo') || path.startsWith('/servomaster')) {
+        window.location.href = '/servo';
+        return;
     }
 
     // 2. Check URL hash parameter
@@ -5228,6 +5231,20 @@ function applyHashMode() {
         switchMode('pins', false);
     } else if (cleanHash === 'console' || cleanHash === 'repl' || cleanHash === 'shell' || cleanHash === 'command' || cleanHash === 'agent') {
         switchMode('console', false);
+    } else if (cleanHash === 'servo' || cleanHash === 'servomaster') {
+        const isDemo = window.location.protocol === 'https:' || 
+                       window.location.hostname.includes('github.io') ||
+                       window.location.search.includes('demo=1') ||
+                       window.location.pathname.endsWith('.html');
+        window.location.href = isDemo ? 'servo.html' : '/servo';
+        return;
+    } else if (cleanHash === 'motor' || cleanHash === 'barefoc') {
+        const isDemo = window.location.protocol === 'https:' || 
+                       window.location.hostname.includes('github.io') ||
+                       window.location.search.includes('demo=1') ||
+                       window.location.pathname.endsWith('.html');
+        window.location.href = isDemo ? 'barefoc.html' : '/motor';
+        return;
     }
 }
 window.addEventListener('hashchange', applyHashMode);
@@ -5306,6 +5323,18 @@ function openTerminalApp() {
     }
 }
 
+function openServoApp() {
+    const isDemo = window.location.protocol === 'https:' || 
+                   window.location.hostname.includes('github.io') ||
+                   window.location.search.includes('demo=1') ||
+                   window.location.pathname.endsWith('.html');
+    if (isDemo) {
+        window.location.href = 'servo.html';
+    } else {
+        window.location.href = '/servo';
+    }
+}
+
 // Pinned Dock Apps Management (Persisted in localStorage & synced across tabs)
 const PINNED_DOCK_STORAGE_KEY = 'agentla_pinned_dock_apps';
 
@@ -5319,7 +5348,7 @@ function getPinnedApps() {
             }
         }
     } catch (_) {}
-    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'];
+    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'];
 }
 
 function renderDockPinnedApps() {
@@ -5329,8 +5358,8 @@ function renderDockPinnedApps() {
     const container = document.getElementById('dock-pinned-apps');
     const pinned = getPinnedApps();
 
-    // Toggle visibility of system instruments in dock
-    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].forEach(sysId => {
+    // Toggle visibility of system instruments in dock (dock-app-servo, dock-app-motor, etc.)
+    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].forEach(sysId => {
         const el = document.getElementById(`dock-app-${sysId}`);
         if (el) {
             el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -5343,7 +5372,7 @@ function renderDockPinnedApps() {
 
     let html = '';
     pinned.forEach(appId => {
-        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal'].includes(appId)) return;
+        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].includes(appId)) return;
         let appName = appId;
         let clickAction = '';
         let iconSvg = '';

@@ -105,7 +105,7 @@ def pack_webui(
             asset_files.append((rel_path, full_path))
 
     # Also include packages from packages_dir or apps/packages if available
-    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home"}
+    SYSTEM_APPS = {"barefoc", "bareboot", "terminal", "files", "lab", "scope", "home", "servo"}
     if include_user_apps:
         pkg_dir = packages_dir.resolve() if packages_dir else (web_dir.parent / "apps" / "packages").resolve()
         if pkg_dir.is_dir():
@@ -167,10 +167,20 @@ def pack_webui(
 
     for rel_name, full_path in asset_files:
         raw_data = full_path.read_bytes()
-        # Normalize whitespace in HTML to maximize compression within 512KB ROM partition budget
+        # Normalize whitespace and comments in HTML, CSS, and JS to maximize compression within 512KB ROM partition budget
         if rel_name.endswith(".html"):
             try:
                 text = raw_data.decode("utf-8")
+                text = re.sub(r"<!--(?!\[if).*?-->", "", text, flags=re.DOTALL)
+                text = re.sub(r"[ \t]+", " ", text)
+                text = re.sub(r"\n\s*\n", "\n", text)
+                to_compress = text.encode("utf-8")
+            except Exception:
+                to_compress = raw_data
+        elif rel_name.endswith(".css") or rel_name.endswith(".js"):
+            try:
+                text = raw_data.decode("utf-8")
+                text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
                 text = re.sub(r"[ \t]+", " ", text)
                 text = re.sub(r"\n\s*\n", "\n", text)
                 to_compress = text.encode("utf-8")

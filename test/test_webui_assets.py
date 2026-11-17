@@ -396,6 +396,7 @@ def test_html_and_js_syntax_integrity():
         HTML_DIR / "terminal.html",
         HTML_DIR / "files.html",
         HTML_DIR / "barefoc.html",
+        HTML_DIR / "servo.html",
     ]
     for html_file in html_files:
         content = html_file.read_text(encoding="utf-8")
@@ -454,6 +455,68 @@ def test_barefoc_studio_landscape_two_column_layout():
     assert 'id="range-target-slider"' in content
     assert 'id="input-numeric-target"' in content
     assert 'id="btn-send-numeric-target"' in content
+
+
+def test_native_servo_system_app():
+    """Verify Servo Master native in-ROM system app integration, navigation, and zero-emoji compliance."""
+    servo_path = HTML_DIR / "servo.html"
+    assert servo_path.exists(), "webui/servo.html must exist as in-ROM system asset"
+    servo_content = servo_path.read_text(encoding="utf-8")
+
+    # Invariant 1: Zero emojis
+    emoji_matches = re.findall(r"[\U00010000-\U0010ffff]", servo_content)
+    assert len(emoji_matches) == 0, f"Found emojis in servo.html: {set(emoji_matches)}"
+
+    # Invariant 2: Zero CSS dot indicators
+    assert ".dock-icon-btn.active::after" not in servo_content
+    assert ".nav-tab-btn::after,\n    .btn::after {\n      display: none !important;" in servo_content
+
+    # Invariant 3: Canonical styles and bridge script
+    assert 'href="/daisyui.css"' in servo_content
+    assert 'href="/style.css"' in servo_content
+    assert 'href="/themes.css"' in servo_content
+    assert 'src="/agentla-bridge.js"' in servo_content
+    assert 'href="/logo.svg"' in servo_content
+
+    # Invariant 4: Canonical top navigation header includes Servo across all system pages
+    system_pages = [
+        HTML_DIR / "index.html",
+        HTML_DIR / "lab.html",
+        HTML_DIR / "terminal.html",
+        HTML_DIR / "files.html",
+        HTML_DIR / "barefoc.html",
+        HTML_DIR / "servo.html",
+    ]
+    for page in system_pages:
+        page_content = page.read_text(encoding="utf-8")
+        assert ('href="/servo"' in page_content or 'href="#/servo"' in page_content), f"{page.name} must link to /servo"
+        assert 'Servo' in page_content, f"{page.name} must contain Servo navigation item"
+
+    # Invariant 5: Floating dock includes dock-app-servo
+    index_content = (HTML_DIR / "index.html").read_text(encoding="utf-8")
+    lab_content = (HTML_DIR / "lab.html").read_text(encoding="utf-8")
+    bridge_content = (HTML_DIR / "agentla-bridge.js").read_text(encoding="utf-8")
+    app_js_content = (HTML_DIR / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="dock-app-servo"' in index_content
+    assert 'id="dock-app-servo"' in lab_content
+    assert 'id="dock-app-servo"' in bridge_content
+    assert 'dock-app-servo' in app_js_content
+
+    # Invariant 6: Deep linking and hash routes in app.js
+    assert "path.startsWith('/servo')" in app_js_content
+    assert "cleanHash === 'servo'" in app_js_content
+
+    # Invariant 7: Emergency safe state integration and Shift+Esc hotkey
+    assert "triggerEmergencySafe" in servo_content
+    assert "btn-emergency-safe" in servo_content
+    assert "Shift" in servo_content and "Escape" in servo_content
+
+    # Invariant 8: Firmware routing registered in web.rs
+    web_rs = (REPO_ROOT / "firmware-rs" / "src" / "web.rs").read_text(encoding="utf-8")
+    assert '.route("/servo", get_service(crate::fs_http::SystemWebFile::new("servo.html", "text/html")))' in web_rs
+    assert '.route("/servomaster"' in web_rs
+    assert '("Location", "/servo")' in web_rs
 
 
 if __name__ == "__main__":

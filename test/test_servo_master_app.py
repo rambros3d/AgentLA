@@ -104,6 +104,21 @@ def test_servo_master_html_capabilities():
     assert "/api/v1/servo/detach" in content
 
 
+def test_servo_master_in_rom_system_app():
+    html_file = Path("webui/servo.html")
+    assert html_file.exists(), "webui/servo.html must exist as in-ROM system app"
+    content = html_file.read_text(encoding="utf-8")
+    assert 'href="/daisyui.css"' in content
+    assert 'href="/style.css"' in content
+    assert 'href="/themes.css"' in content
+    assert 'src="/agentla-bridge.js"' in content
+    assert "/api/v1/servo/attach" in content
+    assert "/api/v1/servo/write" in content
+    assert "/api/v1/servo/detach" in content
+    assert "btn-emergency-safe" in content
+    assert "triggerEmergencySafe" in content
+
+
 def test_seed_apps_implementation():
     apps_rs = Path("firmware-rs/src/apps.rs")
     assert apps_rs.exists(), "firmware-rs/src/apps.rs must exist"

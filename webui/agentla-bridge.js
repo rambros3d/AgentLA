@@ -703,7 +703,7 @@
                 }
             }
         } catch (_) {}
-        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
+        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'];
     }
 
     function renderDockPinnedApps(container) {
@@ -711,7 +711,7 @@
         if (!container) return;
 
         var pinned = getPinnedApps();
-        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].forEach(function(sysId) {
+        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].forEach(function(sysId) {
             var el = document.getElementById('dock-app-' + sysId);
             if (el) {
                 el.style.display = pinned.indexOf(sysId) !== -1 ? 'inline-flex' : 'none';
@@ -720,7 +720,7 @@
         var html = '';
 
         pinned.forEach(function(appId) {
-            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'].indexOf(appId) !== -1) return;
+            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].indexOf(appId) !== -1) return;
 
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
@@ -842,6 +842,19 @@
                     </svg>
                 </a>
 
+                <!-- Servo (Servo Master) -->
+                <a href="${isDemo ? 'servo.html' : '/servo'}" class="dock-icon-btn" id="dock-app-servo"${sysStyle('servo')} data-dock-tooltip="Servo Master">
+                    <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="8" width="18" height="12" rx="2"/>
+                        <path d="M7 8V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3"/>
+                        <circle cx="12" cy="14" r="3"/>
+                        <path d="M12 11v-2"/>
+                        <path d="M12 19v-2"/>
+                        <path d="M15 14h2"/>
+                        <path d="M7 14h2"/>
+                    </svg>
+                </a>
+
                 <!-- Console -->
                 <a href="${isDemo ? labUrl + '#console' : '/agent/'}" class="dock-icon-btn" id="dock-app-console"${sysStyle('console')} data-dock-tooltip="MCP Console">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -955,6 +968,9 @@
         if (curPath.startsWith('/motor') || curPath.startsWith('/barefoc') || curPath.startsWith('/foc')) {
             var mBtn = document.getElementById('dock-app-motor');
             if (mBtn) mBtn.classList.add('active');
+        } else if (curPath.startsWith('/servo') || curPath.startsWith('/servomaster')) {
+            var srvBtn = document.getElementById('dock-app-servo');
+            if (srvBtn) srvBtn.classList.add('active');
         } else if (curPath.startsWith('/bareboot') || curPath.startsWith('/app/bareboot')) {
             var bBtn = document.getElementById('dock-app-bareboot');
             if (bBtn) bBtn.classList.add('active');
