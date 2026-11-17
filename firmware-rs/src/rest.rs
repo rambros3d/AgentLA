@@ -864,6 +864,21 @@ impl ProgrammerStLinkVersion {
     where R: Read, W: ResponseWriter<Error=R::Error> {
         let method = request.parts.method();
         if method == "GET" {
+            // Temporary diagnostics for the ST-Link interop investigation.
+            let exec = crate::usb::STLINK_DIAG_EXEC.swap(0, portable_atomic::Ordering::Relaxed);
+            let reply = crate::usb::STLINK_DIAG_REPLY.swap(0, portable_atomic::Ordering::Relaxed);
+            let err = crate::usb::STLINK_DIAG.swap(0, portable_atomic::Ordering::Relaxed);
+            let cmd = crate::usb::STLINK_DIAG_CMD.swap(0, portable_atomic::Ordering::Relaxed);
+            let count = crate::usb::STLINK_DIAG_N.swap(0, portable_atomic::Ordering::Relaxed);
+            let mut resp = heapless::String::<160>::new();
+            let _ = write!(
+                resp,
+                r#"{{"status":"ok","diag_exec_len":{},"diag_reply_ok":{},"diag_write_err":{},"diag_cmd":"0x{:08X}","diag_n":{}}}"#,
+                exec, reply, err, cmd, count
+            );
+            return send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
+        }
+        if false {
             let ver = crate::usb::get_stlink_version();
             let mut buf_cur = [0u8; 16];
             let cur_str = agentla_programmer::stlink::format_version(ver, &mut buf_cur);

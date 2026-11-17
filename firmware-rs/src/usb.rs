@@ -649,6 +649,16 @@ pub fn set_dap_serial(serial: &'static str) {
     DAP_HANDLER.lock(|h| h.borrow_mut().set_serial(Some(serial)));
 }
 
+/// Diagnostics for the ST-Link personality. Written by the USB task, read by
+/// the `/api/programmer/stlink/diag` endpoint.
+pub static STLINK_DIAG: portable_atomic::AtomicU32 = portable_atomic::AtomicU32::new(0);
+pub static STLINK_DIAG_REPLY: portable_atomic::AtomicU32 = portable_atomic::AtomicU32::new(0);
+pub static STLINK_DIAG_EXEC: portable_atomic::AtomicU32 = portable_atomic::AtomicU32::new(0);
+/// First 4 command bytes, packed little-endian, for diagnosing opcode corruption.
+pub static STLINK_DIAG_CMD: portable_atomic::AtomicU32 = portable_atomic::AtomicU32::new(0);
+/// Number of commands received.
+pub static STLINK_DIAG_N: portable_atomic::AtomicU32 = portable_atomic::AtomicU32::new(0);
+
 pub fn handle_dap_request(req: &[u8], resp: &mut [u8]) -> usize {
     DAP_HANDLER.lock(|h| h.borrow_mut().handle_packet(req, resp))
 }
@@ -808,7 +818,12 @@ pub async fn stlink_usb_task(
     handler.set_reported_version(get_stlink_version());
     handler.set_voltage_provider(crate::telemetry::get_target_voltage_mv);
 
-    let mut cmd_buf = [0u8; 64];
+    // The ST-Link protocol uses a fixed 16-byte command packet. Reading into a
+    // 64-byte buffer lets embassy-usb coalesce a short command with the
+    // leftover bytes of the previous exchange, which silently corrupts the
+    // opcode (observed: 0xF1 0x30 0xA3 instead of 0xF2 0x30 0xA3). Always read
+    // exactly 16 bytes so each transfer is one command.
+    let mut cmd_buf = [0u8; 16];
     let mut data_buf = [0u8; 1024];
     let mut resp_buf = [0u8; 1024];
 
@@ -816,6 +831,18 @@ pub async fn stlink_usb_task(
         match cmd_out.read(&mut cmd_buf).await {
             Ok(n) if n > 0 => {
                 let cmd = &cmd_buf[..n];
+                STLINK_DIAG_N.store(STLINK_DIAG_N.load(portable_atomic::Ordering::Relaxed) + 1, portable_atomic::Ordering::Relaxed);
+                if cmd.len() >= 4 {
+                    STLINK_DIAG_CMD.store(
+                        (cmd[0] as u32)
+                            | ((cmd[1] as u32) << 8)
+                            | ((cmd[2] as u32) << 16)
+                            | ((cmd[3] as u32) << 24),
+                        portable_atomic::Ordering::Relaxed,
+                    );
+                } else {
+                    STLINK_DIAG_CMD.store(0xFFFF_FFFF, portable_atomic::Ordering::Relaxed);
+                }
                 handler.set_reported_version(get_stlink_version());
                 if cmd.len() >= 2 && cmd[0] == agentla_programmer::stlink::STLINK_DEBUG_COMMAND {
                     if cmd[1] == agentla_programmer::stlink::DBG_APIV2_START_TRACE_RX {
@@ -859,18 +886,23 @@ pub async fn stlink_usb_task(
                     }
                 } else {
                     let resp_len = handler.execute(cmd, &mut resp_buf);
+                    STLINK_DIAG_EXEC.store(resp_len as u32, portable_atomic::Ordering::Relaxed);
                     if resp_len > 0 {
-                        // hybridlink always sends full 64-byte packets and
-                        // lets the host's requested length truncate the read.
-                        // A short packet here leaves the endpoint in a state
-                        // where the next read never completes.
-                        resp_buf[resp_len..64].fill(0);
-                        if let Err(e) = cmd_in.write(&resp_buf[..64]).await {
-                            defmt::warn!(
-                                "STLINK reply write failed ({} bytes): {:?}",
-                                resp_len,
-                                e
-                            );
+                        // Send exactly resp_len bytes: a short packet
+                        // terminates the transfer, which is what the host
+                        // expects for a fixed-size reply.
+                        match cmd_in.write(&resp_buf[..resp_len]).await {
+                            Ok(()) => {
+                                STLINK_DIAG_REPLY.store(1, portable_atomic::Ordering::Relaxed)
+                            }
+                            Err(e) => {
+                                STLINK_DIAG.store(e as u32, portable_atomic::Ordering::Relaxed);
+                                defmt::warn!(
+                                    "STLINK reply write failed ({} bytes): {:?}",
+                                    resp_len,
+                                    e
+                                );
+                            }
                         }
                     }
                 }
