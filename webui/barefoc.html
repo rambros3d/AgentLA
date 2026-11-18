@@ -997,38 +997,38 @@
                 </thead>
                 <tbody id="multibus-tbody">
                   <tr>
-                    <td>0x10</td>
-                    <td>MOTOR_ENABLE</td>
-                    <td>u8</td>
-                    <td id="mb-val-enable">1</td>
+                    <td>0x01</td>
+                    <td>TARGET</td>
+                    <td>f32</td>
+                    <td id="mb-val-target">0.000</td>
                   </tr>
                   <tr>
-                    <td>0x11</td>
+                    <td>0x04</td>
+                    <td>ENABLE</td>
+                    <td>u8</td>
+                    <td id="mb-val-enable">0</td>
+                  </tr>
+                  <tr>
+                    <td>0x05</td>
                     <td>CONTROL_MODE</td>
                     <td>u8</td>
                     <td id="mb-val-mode">2</td>
                   </tr>
                   <tr>
-                    <td>0x14</td>
-                    <td>TARGET_SETPOINT</td>
-                    <td>f32</td>
-                    <td id="mb-val-target">0.000</td>
-                  </tr>
-                  <tr>
-                    <td>0x18</td>
-                    <td>SHAFT_ANGLE</td>
+                    <td>0x09</td>
+                    <td>ANGLE</td>
                     <td>f32</td>
                     <td id="mb-val-angle">0.000</td>
                   </tr>
                   <tr>
-                    <td>0x1C</td>
-                    <td>SHAFT_VELOCITY</td>
+                    <td>0x11</td>
+                    <td>VELOCITY</td>
                     <td>f32</td>
                     <td id="mb-val-vel">0.000</td>
                   </tr>
                   <tr>
-                    <td>0x20</td>
-                    <td>CURRENT_IQ</td>
+                    <td>0x22</td>
+                    <td>CURRENT_Q</td>
                     <td>f32</td>
                     <td id="mb-val-iq">0.000</td>
                   </tr>
@@ -1978,28 +1978,40 @@
     }
 
     // MultiBus Descriptor Table Adapter (AgentLA Hardware Bus Bridges)
+    // Register addresses are the barefoc-multibus RegisterId values.
     class MultiBusAdapter extends BaseProtocolAdapter {
+      // barefoc-multibus RegisterId map
+      static REG = {
+        TARGET: 0x01, ENABLE: 0x04, CONTROL_MODE: 0x05,
+        ANGLE: 0x09, VELOCITY: 0x11, CURRENT_Q: 0x22,
+        VEL_PID_P: 0x30, VEL_PID_I: 0x31, VEL_PID_D: 0x32,
+        ANG_PID_P: 0x36, VOLTAGE_LIMIT: 0x50, VELOCITY_LIMIT: 0x52
+      };
+      // Standard barefoc MotionControlType codes (host protocol contract)
+      static MODE_CODE = {
+        torque: 0, velocity: 1, angle: 2,
+        velocity_openloop: 3, angle_openloop: 4
+      };
+
       constructor() {
         super();
-        this.i2cAddr = 0x40; // Default Miniata / SimpleFOC MultiBus address
+        this.i2cAddr = 0x40; // FishyServo / barefoc-multibus default address
         this.pollTimer = null;
-        this.simRegs = new Uint8Array(64);
-        // Defaults: 0x10 = enable, 0x11 = mode, 0x14 = target
-        this.simRegs[0x10] = 0;
-        this.simRegs[0x11] = 2; // angle mode
+        this.simRegs = new Uint8Array(128);
+        this.simRegs[MultiBusAdapter.REG.ENABLE] = 0;
+        this.simRegs[MultiBusAdapter.REG.CONTROL_MODE] = 2; // angle
       }
 
       async connect(transport, baud) {
         this.i2cAddr = state.canNodeId ? (0x40 + (state.canNodeId & 0x07)) : 0x40;
         if (this.onStatus) this.onStatus('connected');
-        if (this.onLog) this.onLog(`[MULTIBUS] Connecting to target at I2C address 0x${this.i2cAddr.toString(16)}...`);
+        if (this.onLog) this.onLog(`[MULTIBUS] Connecting to barefoc target at I2C 0x${this.i2cAddr.toString(16)}...`);
 
-        // Check AgentLA active bus bridge
         try {
           if (window.AgentLA && AgentLA.i2c && AgentLA.i2c.scan) {
             const devices = await AgentLA.i2c.scan();
             if (devices && devices.length > 0) {
-              if (this.onLog) this.onLog(`[MULTIBUS] Hardware I2C scan found devices: [${devices.map(d => '0x' + d.toString(16)).join(', ')}]`);
+              if (this.onLog) this.onLog(`[MULTIBUS] I2C scan: [${devices.map(d => '0x' + d.toString(16)).join(', ')}]`);
             }
           }
         } catch (_) {}
@@ -2011,110 +2023,117 @@
         const payload = new Uint8Array(1 + bytes.length);
         payload[0] = offset;
         payload.set(bytes, 1);
-        const hex = bytesToHex(payload);
-
-        // Update virtual bank
         for (let i = 0; i < bytes.length; i++) {
           if (offset + i < this.simRegs.length) this.simRegs[offset + i] = bytes[i];
         }
-
         try {
           if (window.AgentLA && AgentLA.i2c && AgentLA.i2c.write) {
             await AgentLA.i2c.write(this.i2cAddr, payload);
           } else {
-            await fetch('/api/v1/bridge/i2c/write', {
+            const hex = bytesToHex(payload);
+            await fetch('/api/v1/bus/i2c/transfer', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ addr: this.i2cAddr, data_hex: hex })
+              body: JSON.stringify({ addr: this.i2cAddr, data_hex: hex, read_len: 0 })
             });
           }
         } catch (_) {}
       }
 
+      // Latch the register pointer with a 1-byte write, then read `len` bytes.
       async readRegisters(offset, len) {
         try {
-          // Write register address pointer
-          const ptrPayload = new Uint8Array([offset]);
-          if (window.AgentLA && AgentLA.i2c && AgentLA.i2c.write) {
-            await AgentLA.i2c.write(this.i2cAddr, ptrPayload);
-          } else {
-            await fetch('/api/v1/bridge/i2c/write', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ addr: this.i2cAddr, data_hex: offset.toString(16).padStart(2, '0') })
-            });
+          if (window.AgentLA && AgentLA.i2c && AgentLA.i2c.transfer) {
+            return await AgentLA.i2c.transfer(this.i2cAddr, new Uint8Array([offset]), len);
           }
-
-          // Read len bytes
-          const res = await fetch(`/api/v1/bridge/i2c/read?addr=${this.i2cAddr}&len=${len}`);
-          const data = await res.json();
-          if (data && data.data_hex) return hexToBytes(data.data_hex);
-          if (data && data.bytes) return new Uint8Array(data.bytes);
+          const res = await fetch('/api/v1/bus/i2c/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              addr: this.i2cAddr,
+              data_hex: offset.toString(16).padStart(2, '0'),
+              read_len: len
+            })
+          });
+          const json = await res.json();
+          if (json.rx_hex) {
+            const out = new Uint8Array(json.rx_hex.length / 2);
+            for (let i = 0; i < json.rx_hex.length; i += 2) {
+              out[i / 2] = parseInt(json.rx_hex.substr(i, 2), 16);
+            }
+            return out;
+          }
         } catch (_) {}
-
-        // Fallback to internal bank
         return this.simRegs.subarray(offset, offset + len);
       }
 
       startRegisterPolling() {
+        const R = MultiBusAdapter.REG;
         this.pollTimer = setInterval(async () => {
-          // Read registers 0x10 to 0x24 (20 bytes)
-          const rx = await this.readRegisters(0x10, 20);
-          if (rx && rx.length >= 16) {
-            const enable = rx[0];
-            const mode = rx[1];
-            const target = bytesToFloat(rx, 4);
-            const angle = bytesToFloat(rx, 8);
-            const vel = bytesToFloat(rx, 12);
-            const iq = rx.length >= 20 ? bytesToFloat(rx, 16) : state.iq;
+          const enable = (await this.readRegisters(R.ENABLE, 1))[0];
+          const mode = (await this.readRegisters(R.CONTROL_MODE, 1))[0];
+          const target = bytesToFloat(await this.readRegisters(R.TARGET, 4), 0);
+          const angle = bytesToFloat(await this.readRegisters(R.ANGLE, 4), 0);
+          const vel = bytesToFloat(await this.readRegisters(R.VELOCITY, 4), 0);
+          const iq = bytesToFloat(await this.readRegisters(R.CURRENT_Q, 4), 0);
 
-            if (this.onTelemetry) {
-              this.onTelemetry({ angle, velocity: vel, iq });
-            }
+          if (this.onTelemetry) this.onTelemetry({ angle, velocity: vel, iq });
 
-            const elEn = document.getElementById('mb-val-enable');
-            if (elEn) elEn.textContent = `${enable}`;
-            const elMd = document.getElementById('mb-val-mode');
-            if (elMd) elMd.textContent = `${mode}`;
-            const elTg = document.getElementById('mb-val-target');
-            if (elTg) elTg.textContent = target.toFixed(3);
-            const elAg = document.getElementById('mb-val-angle');
-            if (elAg) elAg.textContent = state.actualAngle.toFixed(3);
-            const elVl = document.getElementById('mb-val-vel');
-            if (elVl) elVl.textContent = state.actualVelocity.toFixed(2);
-            const elIq = document.getElementById('mb-val-iq');
-            if (elIq) elIq.textContent = state.iq.toFixed(3);
-          }
-        }, 100);
+          const elEn = document.getElementById('mb-val-enable');
+          if (elEn) elEn.textContent = `${enable}`;
+          const elMd = document.getElementById('mb-val-mode');
+          if (elMd) elMd.textContent = `${mode}`;
+          const elTg = document.getElementById('mb-val-target');
+          if (elTg) elTg.textContent = target.toFixed(3);
+          const elAg = document.getElementById('mb-val-angle');
+          if (elAg) elAg.textContent = angle.toFixed(3);
+          const elVl = document.getElementById('mb-val-vel');
+          if (elVl) elVl.textContent = vel.toFixed(2);
+          const elIq = document.getElementById('mb-val-iq');
+          if (elIq) elIq.textContent = iq.toFixed(3);
+        }, 200);
       }
 
       sendTarget(val) {
-        if (this.onLog) this.onLog(`[MB WRITE] Addr 0x14 (TARGET) = ${val.toFixed(4)}`);
-        this.writeRegister(0x14, floatToBytes(val));
+        if (this.onLog) this.onLog(`[MB WRITE] TARGET (0x01) = ${val.toFixed(4)}`);
+        this.writeRegister(MultiBusAdapter.REG.TARGET, floatToBytes(val));
       }
 
       setMode(mode) {
-        const code = mode === 'angle' ? 2 : (mode === 'velocity' ? 1 : 0);
-        if (this.onLog) this.onLog(`[MB WRITE] Addr 0x11 (MODE) = ${code}`);
-        this.writeRegister(0x11, new Uint8Array([code]));
+        const code = MultiBusAdapter.MODE_CODE[mode] !== undefined
+          ? MultiBusAdapter.MODE_CODE[mode] : 2;
+        if (this.onLog) this.onLog(`[MB WRITE] CONTROL_MODE (0x05) = ${code} (${mode})`);
+        this.writeRegister(MultiBusAdapter.REG.CONTROL_MODE, new Uint8Array([code]));
       }
 
       setEnable(enable) {
-        if (this.onLog) this.onLog(`[MB WRITE] Addr 0x10 (ENABLE) = ${enable ? 1 : 0}`);
-        this.writeRegister(0x10, new Uint8Array([enable ? 1 : 0]));
+        if (this.onLog) this.onLog(`[MB WRITE] ENABLE (0x04) = ${enable ? 1 : 0}`);
+        this.writeRegister(MultiBusAdapter.REG.ENABLE, new Uint8Array([enable ? 1 : 0]));
       }
 
       writeGain(param, val) {
-        if (this.onLog) this.onLog(`[MB WRITE] Param ${param} = ${val}`);
+        const R = MultiBusAdapter.REG;
+        // Commander-style param strings from the gain sliders.
+        const map = {
+          'A P': R.ANG_PID_P,
+          'V P': R.VEL_PID_P, 'V I': R.VEL_PID_I, 'V D': R.VEL_PID_D
+        };
+        const reg = map[param];
+        if (reg !== undefined) {
+          if (this.onLog) this.onLog(`[MB WRITE] gain ${param} (0x${reg.toString(16)}) = ${val}`);
+          this.writeRegister(reg, floatToBytes(val));
+        } else if (this.onLog) {
+          this.onLog(`[MB WRITE] gain ${param} not mapped for MultiBus`);
+        }
       }
 
       async executeAlignmentStep(step) {
-        // Dispatches alignment sequence to control table
+        const R = MultiBusAdapter.REG;
         if (step === 1) {
-          await this.writeRegister(0x10, new Uint8Array([1]));
-          await this.writeRegister(0x14, floatToBytes(0.0));
+          await this.writeRegister(R.ENABLE, new Uint8Array([1]));
+          await this.writeRegister(R.TARGET, floatToBytes(0.0));
         } else if (step === 2) {
-          await this.writeRegister(0x14, floatToBytes(3.1415));
+          await this.writeRegister(R.TARGET, floatToBytes(3.1415));
         }
         await new Promise(r => setTimeout(r, 150));
         const zeroAngle = (state.actualAngle * state.polePairs) % (2 * Math.PI) || 1.842;
@@ -2122,8 +2141,9 @@
       }
 
       async applyAlignment(angle, dir) {
-        await this.writeRegister(0x28, floatToBytes(angle));
-        if (this.onLog) this.onLog(`[MULTIBUS] Saved zero_electric_angle = ${angle.toFixed(4)} rad to register 0x28.`);
+        // ZERO_ELECTRIC_ANGLE (0x60) on the barefoc-multibus map.
+        await this.writeRegister(0x60, floatToBytes(angle));
+        if (this.onLog) this.onLog(`[MULTIBUS] Saved zero_electric_angle = ${angle.toFixed(4)} rad to register 0x60.`);
       }
 
       disconnect() {

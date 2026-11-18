@@ -1323,12 +1323,35 @@
             write: async function(addr, bytes) {
                 if (isDemo) return { status: "ok" };
                 const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                const res = await fetch('/api/v1/bridge/i2c/write', {
+                // /bridge/i2c/write only parses {reg,val}; raw frames must go
+                // through the transfer endpoint (data_hex + STOP + optional read).
+                const res = await fetch('/api/v1/bus/i2c/transfer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ addr: addr, data_hex: hex })
+                    body: JSON.stringify({ addr: addr, data_hex: hex, read_len: 0 })
                 });
                 return res.json();
+            },
+            // Single transaction: write `bytes` (issues STOP), then read `readLen`.
+            // For a MultiBus register read, pass [reg] as bytes to latch the
+            // pointer and readLen as the payload width.
+            transfer: async function(addr, bytes, readLen) {
+                if (isDemo) return new Uint8Array(readLen || 1);
+                const hex = Array.from(bytes || []).map(b => b.toString(16).padStart(2, '0')).join('');
+                const res = await fetch('/api/v1/bus/i2c/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ addr: addr, data_hex: hex, read_len: readLen || 1 })
+                });
+                const json = await res.json();
+                if (json.rx_hex) {
+                    const out = new Uint8Array(json.rx_hex.length / 2);
+                    for (let i = 0; i < json.rx_hex.length; i += 2) {
+                        out[i / 2] = parseInt(json.rx_hex.substr(i, 2), 16);
+                    }
+                    return out;
+                }
+                return new Uint8Array(readLen || 1);
             }
         },
         spi: {
