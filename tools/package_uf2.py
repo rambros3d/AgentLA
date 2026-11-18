@@ -6,7 +6,7 @@ into one multi-segment UF2 file for RP2350 BOOTSEL drag-and-drop flashing.
 
 Flash layout (single slot, no backward compatibility):
   - 0x10000000: BareBoot RP2350 USB recovery bootloader, 32 KB
-                (bareBoot/targets/bareboot-rp2350/bareboot-rp2350.bin)
+                (bareBoot/targets/rp2350-usb/bareboot-rp2350.bin)
   - 0x10008000: application firmware, 1248 KB (flash 0x8000..0x140000)
 
 SYSTEM_FS starts at 0x140000 and USER_FS at 0x240000. The WebUI is
@@ -34,6 +34,19 @@ RP2040_FAMILY_ID = 0xE48BFF56
 
 DEFAULT_BOOTLOADER_ADDR = 0x10000000
 DEFAULT_FIRMWARE_ADDR = 0x10008000
+
+# BareBoot persistent commit-state sector (last 4 KB of the bootloader slot).
+# A factory-provisioned application is written by BOOTSEL directly, bypassing
+# BareBoot's COMPLETE handler, so the UF2 must include a VALID commit record.
+# Format matches targets/rp2350-usb/src/commit_state.rs:
+#   MAGIC (0x42425354), state VALID (1), !state, !MAGIC, all little-endian.
+COMMIT_STATE_ADDR = 0x10007000
+COMMIT_RECORD_VALID = (
+    (0x42425354).to_bytes(4, "little")
+    + (1).to_bytes(4, "little")
+    + (~1 & 0xFFFFFFFF).to_bytes(4, "little")
+    + (~0x42425354 & 0xFFFFFFFF).to_bytes(4, "little")
+)
 
 PAYLOAD_SIZE = 256
 BLOCK_SIZE = 512
@@ -123,6 +136,7 @@ def main():
     parser.add_argument("--firmware", help="Path to application firmware binary or ELF (default addr 0x10008000)")
     parser.add_argument("--firmware-addr", type=lambda x: int(x, 0), default=DEFAULT_FIRMWARE_ADDR, help="Firmware flash address (default 0x10008000)")
     parser.add_argument("--segment", nargs=2, action="append", metavar=("FILE", "ADDR"), help="Additional segment FILE and ADDR in hex (must stay below 0x140000)")
+    parser.add_argument("--commit-valid", action="store_true", help="Write a BareBoot VALID commit record at 0x10007000 so a factory-provisioned app boots without a Katapult COMPLETE")
     parser.add_argument("--family-id", type=lambda x: int(x, 0), default=RP2350_ARM_FAMILY_ID, help="UF2 family ID (default 0xe48bff59 for RP2350 ARM)")
 
     args = parser.parse_args()
@@ -138,6 +152,11 @@ def main():
         if len(data) > 0x138000:
             raise ValueError(f"Firmware size {len(data)} exceeds the 1248 KB single slot")
         segments.append((args.firmware_addr, data, f"Firmware ({os.path.basename(args.firmware)})"))
+
+    if args.commit_valid:
+        # Pad to one 256-byte UF2 payload block; trailing bytes stay erased.
+        record = COMMIT_RECORD_VALID.ljust(PAYLOAD_SIZE, b"\xff")
+        segments.append((COMMIT_STATE_ADDR, record, "BareBoot commit state (VALID)"))
 
     if args.segment:
         for file_path, addr_str in args.segment:

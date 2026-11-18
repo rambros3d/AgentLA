@@ -66,11 +66,11 @@ jobs:
         # Built in the bareBoot repository; the resulting 32 KB binary is
         # written to flash 0x00000000 (XIP 0x10000000).
         run: |
-          cd bareBoot/targets/bareboot-rp2350
+          cd bareBoot/targets/rp2350-usb
           cargo build --release --target thumbv8m.main-none-eabihf
           cd "${GITHUB_WORKSPACE}"
           arm-none-eabi-objcopy -O binary \
-            bareBoot/targets/bareboot-rp2350/target/thumbv8m.main-none-eabihf/release/bareboot-rp2350 \
+            bareBoot/targets/rp2350-usb/target/thumbv8m.main-none-eabihf/release/bareboot-rp2350 \
             build/bareboot-rp2350.bin
 
       - name: Build Application Firmware (single slot, Embassy)
@@ -106,6 +106,7 @@ jobs:
           python3 tools/package_uf2.py \
             --bootloader build/bareboot-rp2350.bin \
             --firmware target/thumbv8m.main-none-eabihf/release/firmware-rs \
+            --commit-valid \
             -o build/agentla-pico2.uf2
 
       - name: Publish GitHub Release
