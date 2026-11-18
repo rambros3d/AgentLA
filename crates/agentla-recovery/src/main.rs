@@ -480,12 +480,24 @@ fn jump_to_app(watchdog: Peri<'static, embassy_rp::peripherals::WATCHDOG>) -> ! 
     }
 
     unsafe {
-        // Mask all interrupts (including every NVIC line) before leaving.
+        // Mask interrupts while we reprogram VTOR/MSP so a pending IRQ cannot
+        // fire with a half-switched vector table.
         asm!("cpsid i");
+        // Clear all pending IRQs so nothing fires the instant we unmask.
+        let nvic = &*cortex_m::peripheral::NVIC::PTR;
+        for reg in nvic.icpr.iter() {
+            reg.write(0xFFFF_FFFF);
+        }
         (*SCB::PTR).vtor.write(APP_BASE_XIP);
         asm!("dsb sy", "isb sy");
+        // Load the app stack pointer first, then unmask interrupts, then branch.
+        // The application's startup expects PRIMASK clear on entry — leaving it
+        // set leaves USB/timers/executor dead (observed as no USB enumeration).
         asm!(
             "msr msp, {}",
+            "cpsie i",
+            "dsb sy",
+            "isb sy",
             "bx {}",
             in(reg) sp,
             in(reg) pc,
