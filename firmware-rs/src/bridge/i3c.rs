@@ -79,15 +79,19 @@ pub struct I3cResult {
     pub written: u8,
     pub rx: [u8; 64],
     pub rx_len: u8,
+    pub diag_d0: u32,   // raw arbitration-header phase-1 read
+    pub diag_d1: u32,   // raw arbitration-header phase-2 read
 }
 
 impl Default for I3cResult {
     fn default() -> Self {
-        Self { status: ST_OK, addr: 0, written: 0, rx: [0; 64], rx_len: 0 }
+        Self { status: ST_OK, addr: 0, written: 0, rx: [0; 64], rx_len: 0, diag_d0: 0, diag_d1: 0 }
     }
 }
 
 pub static I3C_CMD: Signal<CriticalSectionRawMutex, I3cCommand> = Signal::new();
+static ARB_D0: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+static ARB_D1: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
 pub static I3C_RESULT: Signal<CriticalSectionRawMutex, I3cResult> = Signal::new();
 
 pub static I3C_INSTANCE: Mutex<CriticalSectionRawMutex, I3cBridge> = Mutex::new(I3cBridge::new());
@@ -310,7 +314,10 @@ fn pinctrl_initial() {
         w.set_out_count(2); // initial SETDIR controls both SCL and SDA
         w.set_out_base(SDA as u8);
         w.set_in_base(SDA as u8);
-        w.set_sideset_count(1); // only drive SCL (avoid clobbering GP12)
+        // Program uses `.side_set 1 opt`: 1 side bit + 1 optional-delay bit.
+        // PINCTRL must reserve 2 sideset bits to match the instruction encoding;
+        // count=1 desynchronises all delayed instructions (the reference uses 2).
+        w.set_sideset_count(2);
         w.set_sideset_base(SCL as u8);
     });
 }
@@ -322,7 +329,7 @@ fn pinctrl_normal() {
         w.set_out_count(1);
         w.set_out_base(SDA as u8);
         w.set_in_base(SDA as u8);
-        w.set_sideset_count(1);
+        w.set_sideset_count(2); // `.side_set 1 opt` needs 2 bits (side + opt-delay)
         w.set_sideset_base(SCL as u8);
     });
 }
@@ -531,6 +538,7 @@ impl<'a> Hal<'a> {
         put32_no_check(c0);
         put32_no_check(opcode_scl0(self.p));
         let d0 = get32();
+        ARB_D0.store(d0, core::sync::atomic::Ordering::Relaxed);
         set_autopush(3);
         let (st, d1) = if d0 == 0x3f {
             put32_no_check(c1);
@@ -543,6 +551,7 @@ impl<'a> Hal<'a> {
             (ST_IBI, get32())
         };
         let arbdata = ((d0 << 2) | (d1 >> 1)) as u8;
+        ARB_D1.store(d1, core::sync::atomic::Ordering::Relaxed);
         (st, arbdata)
     }
 
@@ -696,6 +705,8 @@ fn execute(cmd: I3cCommand, p: &Programs) -> I3cResult {
             r.status = if (pac::SIO.gpio_in(0).read() & (1 << SDA)) == 0 { ST_IBI } else { ST_OK };
         }
     }
+    r.diag_d0 = ARB_D0.load(core::sync::atomic::Ordering::Relaxed);
+    r.diag_d1 = ARB_D1.load(core::sync::atomic::Ordering::Relaxed);
     r
 }
 
@@ -815,12 +826,17 @@ impl I3cBridge {
     }
 
     pub async fn ccc_broadcast_write(&mut self, data: &[u8]) -> Result<(), ()> {
-        if !self.active || data.len() > 64 { return Err(()); }
+        if self.ccc_broadcast_write_diag(data).await.0 { Ok(()) } else { Err(()) }
+    }
+
+    /// Returns (ok, arbhdr d0, arbhdr d1) for diagnosis.
+    pub async fn ccc_broadcast_write_diag(&mut self, data: &[u8]) -> (bool, u32, u32) {
+        if !self.active || data.len() > 64 { return (false, 0, 0); }
         let mut cmd = I3cCommand { kind: CmdKind::CccBroadcast, ..Default::default() };
         cmd.data_len = data.len() as u8;
         cmd.data[..data.len()].copy_from_slice(data);
         let r = self.call(cmd).await;
-        if r.status == ST_OK { Ok(()) } else { Err(()) }
+        (r.status == ST_OK, r.diag_d0, r.diag_d1)
     }
 
     pub async fn write(&mut self, addr: u8, data: &[u8]) -> Result<(), ()> {

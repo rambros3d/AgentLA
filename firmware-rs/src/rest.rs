@@ -1669,9 +1669,13 @@ impl BridgeI3cCcc {
             return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
         }
         let mut bridge = crate::bridge::i3c::I3C_INSTANCE.lock().await;
-        let ok = bridge.ccc_broadcast_write(&bytes[..len]).await.is_ok();
-        send_json(request, response_writer, if ok { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR },
-            if ok { r#"{"status":"ok","ccc":"broadcast_write"}"# } else { r#"{"status":"error","error":"ccc_failed"}"# }).await
+        let res = bridge.ccc_broadcast_write_diag(&bytes[..len]).await;
+        let ok = res.0;
+        let mut b = heapless::String::<128>::new();
+        let _ = core::fmt::Write::write_fmt(&mut b, format_args!(
+            r#"{{"status":"{}","ccc":"broadcast_write","d0":{},"d1":{}}}"#,
+            if ok { "ok" } else { "error" }, res.1, res.2));
+        send_json(request, response_writer, if ok { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR }, b.as_str()).await
     }
 }
 
