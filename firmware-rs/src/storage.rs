@@ -13,34 +13,29 @@ pub const FLASH_SIZE_BYTES: usize = 16 * 1024 * 1024;
 #[cfg(not(feature = "board-bakuprobe"))]
 pub const FLASH_SIZE_BYTES: usize = 4 * 1024 * 1024;
 
-/// Boot Switcher & Metadata Sector (16 KB)
-pub const BOOT_TABLE_OFFSET: u32 = 0x00000000;
-pub const BOOT_TABLE_SIZE_BYTES: usize = 16 * 1024;
+/// Recovery bootloader (BareBoot RP2350): flash 0x00000000..0x00008000, 32 KB.
+/// XIP 0x10000000. Never written by this firmware.
+pub const BOOTLOADER_OFFSET: u32 = 0x00000000;
+pub const BOOTLOADER_SIZE_BYTES: usize = 32 * 1024;
 
-/// Dual Firmware Execution Slots: 1,024 KB each
-pub const SLOT_A_OFFSET: u32 = 0x00004000;
-pub const SLOT_SIZE_BYTES: usize = 1024 * 1024; // 1,048,576 bytes (0x00100000)
-pub const SLOT_B_OFFSET: u32 = 0x00104000;
-pub const FIRMWARE_SLOTS_END: u32 = 0x00204000;
+/// Single application slot: flash 0x00008000..0x00140000 (XIP 0x10008000).
+/// Firmware is linked at 0x10008000. Nothing above APP_SLOT_END may ever be
+/// erased or programmed by an OTA operation.
+pub const APP_SLOT_OFFSET: u32 = 0x00008000;
+pub const APP_SLOT_SIZE: usize = 1248 * 1024; // 0x138000 bytes
+pub const APP_SLOT_END: u32 = 0x00140000;
 
-/// SYSTEM_FS partition: 512 KB (128 sectors of 4 KB). Fixed across all boards.
-pub const SYSTEM_FS_OFFSET: u32 = 0x00204000;
-pub const SYSTEM_FS_SIZE_BYTES: usize = 512 * 1024;
-pub const SYSTEM_BLOCK_COUNT: usize = SYSTEM_FS_SIZE_BYTES / BLOCK_SIZE; // 128 blocks
-pub const SYSTEM_FS_END: u32 = SYSTEM_FS_OFFSET + SYSTEM_FS_SIZE_BYTES as u32; // 0x00284000
+/// SYSTEM_FS partition: 1 MB (256 sectors of 4 KB). Fixed across all boards.
+pub const SYSTEM_FS_OFFSET: u32 = 0x00140000;
+pub const SYSTEM_FS_SIZE_BYTES: usize = 1024 * 1024;
+pub const SYSTEM_BLOCK_COUNT: usize = SYSTEM_FS_SIZE_BYTES / BLOCK_SIZE; // 256 blocks
+pub const SYSTEM_FS_END: u32 = 0x00240000;
 
-/// USER_FS partition: dynamically sized to `FLASH_END - 16KB`.
-pub const USER_FS_OFFSET: u32 = SYSTEM_FS_END; // 0x00284000
-pub const FLASH_RESERVED_TRAIL_BYTES: usize = 16 * 1024; // 16 KB
-pub const USER_FS_END: u32 = (FLASH_SIZE_BYTES - FLASH_RESERVED_TRAIL_BYTES) as u32;
+/// USER_FS partition: 1792 KB, ending at the 4 MB flash boundary on Pico 2.
+pub const USER_FS_OFFSET: u32 = 0x00240000;
+pub const USER_FS_END: u32 = 0x00400000;
 pub const USER_FS_SIZE_BYTES: usize = (USER_FS_END - USER_FS_OFFSET) as usize;
-// Computed, not hard-coded: Pico 2 (4 MB) yields 376 blocks, BakuProbe (16 MB) 3340.
-pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE;
-
-// Backwards compatibility aliases
-pub const LITTLEFS_START_OFFSET: u32 = USER_FS_OFFSET;
-pub const PARTITION_SIZE_BYTES: usize = USER_FS_SIZE_BYTES;
-pub const BLOCK_COUNT: usize = USER_BLOCK_COUNT;
+pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE; // 448 blocks
 
 /// The `FLASH` peripheral is a single instance: the physical flash object lives in this
 /// mutex from [`init_filesystem`] on, shared by LittleFS storage instances and the
@@ -276,7 +271,7 @@ pub fn init_filesystem(flash: FlashHandle) -> bool {
         *guard = Some(flash);
     }
 
-    // 1. Mount SYSTEM_FS (512 KB at 0x00270000)
+    // 1. Mount SYSTEM_FS (1 MB at 0x00140000)
     static SYS_ALLOC: StaticCell<Allocation<SystemFlashStorage>> = StaticCell::new();
     static SYS_STORAGE: StaticCell<SystemFlashStorage> = StaticCell::new();
 
@@ -315,7 +310,7 @@ pub fn init_filesystem(flash: FlashHandle) -> bool {
         }
     }
 
-    // 2. Mount USER_FS (~1.0 MB or ~13.0 MB at 0x002F0000)
+    // 2. Mount USER_FS (1792 KB at 0x00240000)
     static USER_ALLOC: StaticCell<Allocation<UserFlashStorage>> = StaticCell::new();
     static USER_STORAGE: StaticCell<UserFlashStorage> = StaticCell::new();
 
@@ -360,39 +355,19 @@ pub fn init_filesystem(flash: FlashHandle) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Bootloader & OTA primitives. The ONLY callers are in `crate::boot` and `crate::web`;
-// operations strictly enforce partition isolation.
+// OTA primitives. The only caller is the single-slot firmware stream handler
+// in `crate::rest`. Bounds are enforced here so an OTA can never reach the
+// BareBoot recovery bootloader below 0x8000 or SYSTEM_FS at/above 0x140000.
 // ---------------------------------------------------------------------------
 
-/// Commits a 256-byte page containing the BootTable into the specified ping-pong sector.
-pub fn flash_boot_sector_commit(offset: u32, page: &[u8; 256]) -> Result<(), ()> {
-    if offset != agentla_boot_proto::BOOT_SECTOR_0_OFFSET && offset != agentla_boot_proto::BOOT_SECTOR_1_OFFSET {
-        return Err(());
-    }
-
-    let mut guard = flash_guard();
-    let flash = guard.as_mut().unwrap();
-
-    // Erase the 4 KB sector
-    flash
-        .blocking_erase(offset, offset + BLOCK_SIZE as u32)
-        .map_err(|_| ())?;
-
-    // Program the 256-byte page
-    flash
-        .blocking_write(offset, page)
-        .map_err(|_| ())?;
-
-    Ok(())
-}
-
-/// Erases a block range inside an OTA firmware slot [from, to).
-/// Enforces that the target range is strictly inside the specified slot (Slot A or Slot B).
+/// Erases a 4 KB sector range inside the single application slot [from, to).
 pub fn flash_slot_erase(from: u32, to: u32) -> Result<(), ()> {
-    let valid_slot_a = from >= SLOT_A_OFFSET && to <= (SLOT_A_OFFSET + SLOT_SIZE_BYTES as u32);
-    let valid_slot_b = from >= SLOT_B_OFFSET && to <= (SLOT_B_OFFSET + SLOT_SIZE_BYTES as u32);
-
-    if !(valid_slot_a || valid_slot_b) || from >= to || (from % BLOCK_SIZE as u32 != 0) {
+    if from < APP_SLOT_OFFSET
+        || to > APP_SLOT_END
+        || from >= to
+        || from % BLOCK_SIZE as u32 != 0
+        || to % BLOCK_SIZE as u32 != 0
+    {
         return Err(());
     }
 
@@ -403,14 +378,10 @@ pub fn flash_slot_erase(from: u32, to: u32) -> Result<(), ()> {
         .map_err(|_| ())
 }
 
-/// Writes a page-aligned buffer into an OTA firmware slot.
-/// Enforces that the offset is strictly inside Slot A or Slot B.
+/// Writes a page-aligned buffer into the single application slot.
 pub fn flash_slot_write(offset: u32, data: &[u8]) -> Result<(), ()> {
     let to = offset + data.len() as u32;
-    let valid_slot_a = offset >= SLOT_A_OFFSET && to <= (SLOT_A_OFFSET + SLOT_SIZE_BYTES as u32);
-    let valid_slot_b = offset >= SLOT_B_OFFSET && to <= (SLOT_B_OFFSET + SLOT_SIZE_BYTES as u32);
-
-    if !(valid_slot_a || valid_slot_b) {
+    if offset < APP_SLOT_OFFSET || to > APP_SLOT_END || data.is_empty() {
         return Err(());
     }
 

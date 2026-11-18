@@ -103,21 +103,17 @@ def test_mcp_tools_reuse_the_same_payload():
     assert "HTTP_FLASH_DISABLED_BODY" in mcp_text
 
 
-def test_ota_slot_validation_logic():
-    """The OTA path rejects a payload linked for the wrong slot."""
-    SLOT_A_XIP = 0x10004000
-    SLOT_B_XIP = 0x10104000
-    SLOT_END = 0x10204000
-    SLOT_SIZE = 1024 * 1024
+def test_ota_vector_validation_logic():
+    """The OTA path only accepts an image linked for the single app slot."""
+    APP_XIP = 0x10008000
+    APP_SIZE = 1248 * 1024
 
-    def valid(img_pc, target_xip):
-        return target_xip <= img_pc < target_xip + SLOT_SIZE
+    def valid(img_pc):
+        return APP_XIP <= img_pc < APP_XIP + APP_SIZE
 
-    # A slot-A image written into slot B must be rejected, and vice versa.
-    assert not valid(0x10004119, SLOT_B_XIP)
-    assert valid(0x10104119, SLOT_B_XIP)
-    assert valid(0x10004119, SLOT_A_XIP)
-    assert not valid(0x10104119, SLOT_A_XIP)
-    # Out-of-range PC is rejected in every slot.
-    assert not valid(0x20000100, SLOT_A_XIP)
-    assert not valid(0x00000000, SLOT_B_XIP)
+    assert valid(APP_XIP + 0x198)          # normal reset handler
+    assert valid(APP_XIP + APP_SIZE - 1)   # last byte of the slot
+    assert not valid(0x10004000)           # below the app slot (bootloader region)
+    assert not valid(0x101C0000)           # first address past the app slot
+    assert not valid(0x20000100)           # SRAM, not XIP
+    assert not valid(0x00000000)           # bootloader region

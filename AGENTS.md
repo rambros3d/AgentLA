@@ -7,7 +7,9 @@
 - **Strict `#![no_std]`**: All firmware and protocol crates must remain `#![no_std]` and zero-heap unless explicitly scoped otherwise.
 - **Embassy Async Runtime**: Network, USB, timers, and background tasks run under the Embassy executor with cooperative async I/O.
 - **Pin Arbiter Contract**: Never drive or reconfigure pins directly without acquiring ownership from `pin_owner` / `agentla-pin-arbiter`.
-- **True A/B Dual-Slot OTA**: Firmware slots (Slot A at `0x10004000`, Slot B at `0x10104000`) and bootloader at `0x10000000` must never overwrite LittleFS partitions (`0x00204000+`).
+- **Single-Slot Flash Layout**: One recovery bootloader at flash `0x00000000` (XIP `0x10000000`, 32 KB, BareBoot RP2350) and one application slot at flash `0x00008000..0x00140000` (XIP `0x10008000`, 1248 KB). There is no A/B pair, boot table, candidate/confirm, or rollback. `SYSTEM_FS` is flash `0x140000..0x240000` (1 MB) and `USER_FS` is `0x240000..0x400000` (1792 KB).
+- **BareBoot RP2350 Recovery**: OTA writes only into the single app slot. After CRC verification the firmware writes `0x5984E3FA6CA1589B` to the mailbox derived from the bootloader's initial stack pointer (`read_volatile(0x10000000 as *const u32) as *mut u64`) and calls `SCB::sys_reset()`, which makes the BareBoot RP2350 target enter USB Katapult recovery. BOOTSEL/ROM UF2 remains the ultimate fallback.
+- **Never Overwrite LittleFS**: No OTA or packaging operation may write flash at or above `0x140000`. `SYSTEM_FS` is never touched by OTA; only the WebUI updater may write it.
 - **Zero Emojis**: Emojis shall not be used anywhere in this project under any circumstance. All UI text, logs, console output, code, comments, documentation, and tests must remain strictly emoji-free; use standard technical text labels instead.
 
 ## UI & Styling Standards

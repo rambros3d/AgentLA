@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 """
-AgentLA Multi-Segment UF2 Package Builder
-Packages bootloader, application firmware, and LittleFS WebUI partition
-into a single multi-segment UF2 file for RP2350 BOOTSEL drag-and-drop flashing.
+AgentLA Two-Segment UF2 Package Builder
+Packages the USB recovery bootloader and the single-slot application firmware
+into one multi-segment UF2 file for RP2350 BOOTSEL drag-and-drop flashing.
+
+Flash layout (single slot, no backward compatibility):
+  - 0x10000000: BareBoot RP2350 USB recovery bootloader, 32 KB
+                (bareBoot/targets/bareboot-rp2350/bareboot-rp2350.bin)
+  - 0x10008000: application firmware, 1248 KB (flash 0x8000..0x140000)
+
+SYSTEM_FS starts at 0x140000 and USER_FS at 0x240000. The WebUI is
+deliberately NOT packaged here: it is provisioned at runtime by the /device
+console, which fetches webui.tar from GitHub Releases and extracts it into
+SYSTEM_FS (XIP 0x10140000). Never put a segment at or above 0x140000.
 """
 
 import argparse
@@ -23,8 +33,7 @@ RP2350_RISCV_FAMILY_ID = 0xE48BFF5A
 RP2040_FAMILY_ID = 0xE48BFF56
 
 DEFAULT_BOOTLOADER_ADDR = 0x10000000
-DEFAULT_FIRMWARE_ADDR = 0x10004000
-DEFAULT_WEBUI_ADDR = 0x10204000
+DEFAULT_FIRMWARE_ADDR = 0x10008000
 
 PAYLOAD_SIZE = 256
 BLOCK_SIZE = 512
@@ -107,15 +116,13 @@ def build_multisegment_uf2(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Package multi-segment UF2 for AgentLA RP2350")
+    parser = argparse.ArgumentParser(description="Package two-segment UF2 for AgentLA RP2350 (BareBoot recovery + single-slot firmware)")
     parser.add_argument("-o", "--output", required=True, help="Output UF2 file path")
-    parser.add_argument("--bootloader", help="Path to bootloader binary or ELF (default addr 0x10000000)")
-    parser.add_argument("--bootloader-addr", type=lambda x: int(x, 0), default=DEFAULT_BOOTLOADER_ADDR, help="Bootloader flash address")
-    parser.add_argument("--firmware", help="Path to application firmware binary or ELF (default addr 0x10004000)")
-    parser.add_argument("--firmware-addr", type=lambda x: int(x, 0), default=DEFAULT_FIRMWARE_ADDR, help="Firmware flash address")
-    parser.add_argument("--webui", help="Path to LittleFS WebUI image (default addr 0x10204000)")
-    parser.add_argument("--webui-addr", type=lambda x: int(x, 0), default=DEFAULT_WEBUI_ADDR, help="WebUI flash address")
-    parser.add_argument("--segment", nargs=2, action="append", metavar=("FILE", "ADDR"), help="Additional segment FILE and ADDR in hex")
+    parser.add_argument("--bootloader", help="Path to bareboot-rp2350 binary or ELF (default addr 0x10000000, 32 KB)")
+    parser.add_argument("--bootloader-addr", type=lambda x: int(x, 0), default=DEFAULT_BOOTLOADER_ADDR, help="Bootloader flash address (default 0x10000000)")
+    parser.add_argument("--firmware", help="Path to application firmware binary or ELF (default addr 0x10008000)")
+    parser.add_argument("--firmware-addr", type=lambda x: int(x, 0), default=DEFAULT_FIRMWARE_ADDR, help="Firmware flash address (default 0x10008000)")
+    parser.add_argument("--segment", nargs=2, action="append", metavar=("FILE", "ADDR"), help="Additional segment FILE and ADDR in hex (must stay below 0x140000)")
     parser.add_argument("--family-id", type=lambda x: int(x, 0), default=RP2350_ARM_FAMILY_ID, help="UF2 family ID (default 0xe48bff59 for RP2350 ARM)")
 
     args = parser.parse_args()
@@ -126,19 +133,22 @@ def main():
         segments.append((args.bootloader_addr, data, f"Bootloader ({os.path.basename(args.bootloader)})"))
     if args.firmware:
         data = read_file_as_binary(args.firmware)
+        if args.firmware_addr != DEFAULT_FIRMWARE_ADDR:
+            raise ValueError(f"Firmware must be linked at 0x{DEFAULT_FIRMWARE_ADDR:08X}, got 0x{args.firmware_addr:08X}")
+        if len(data) > 0x138000:
+            raise ValueError(f"Firmware size {len(data)} exceeds the 1248 KB single slot")
         segments.append((args.firmware_addr, data, f"Firmware ({os.path.basename(args.firmware)})"))
-    if args.webui:
-        data = read_file_as_binary(args.webui)
-        segments.append((args.webui_addr, data, f"WebUI ({os.path.basename(args.webui)})"))
 
     if args.segment:
         for file_path, addr_str in args.segment:
             addr = int(addr_str, 0)
             data = read_file_as_binary(file_path)
+            if addr >= 0x140000 or addr + len(data) > 0x140000:
+                raise ValueError(f"Segment [{os.path.basename(file_path)}] would overwrite SYSTEM_FS at/above 0x140000")
             segments.append((addr, data, f"Custom ({os.path.basename(file_path)})"))
 
     if not segments:
-        print("ERROR: No segments provided. Specify --bootloader, --firmware, --webui, or --segment.", file=sys.stderr)
+        print("ERROR: No segments provided. Specify --bootloader, --firmware, or --segment.", file=sys.stderr)
         sys.exit(1)
 
     print(f"[+] Packaging multi-segment UF2 -> {args.output}")
@@ -148,7 +158,7 @@ def main():
 
     total_blocks = build_multisegment_uf2(segments, args.output, args.family_id)
     out_size = os.path.getsize(args.output)
-    print(f"[✓] Created {args.output}: {total_blocks} UF2 blocks ({out_size} bytes / {out_size / (1024 * 1024):.2f} MiB)")
+    print(f"[OK] Created {args.output}: {total_blocks} UF2 blocks ({out_size} bytes / {out_size / (1024 * 1024):.2f} MiB)")
 
 
 if __name__ == "__main__":

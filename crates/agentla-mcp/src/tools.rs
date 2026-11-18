@@ -44,12 +44,6 @@ pub const TOOL_READ_PINS: Tool = Tool::new(
     r#"{"type":"object","properties":{}}"#,
 );
 
-pub const TOOL_SYSTEM_FIRMWARE_STATUS: Tool = Tool::new(
-    "system_firmware_status",
-    "Query A/B firmware OTA slot status and boot state",
-    r#"{"type":"object","properties":{}}"#,
-);
-
 pub const TOOL_PROFILE_STATUS: Tool = Tool::new(
     "profile_status",
     "Active profile slot",
@@ -339,12 +333,11 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (46 standard + 3 composite tools = 49 total).
-pub static ALL_TOOLS: [Tool; 49] = [
+/// Full catalog of AgentLA tools (45 standard + 3 composite tools = 48 total).
+pub static ALL_TOOLS: [Tool; 48] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
-    TOOL_SYSTEM_FIRMWARE_STATUS,
     TOOL_SERVO_LIST,
     TOOL_SERVO_ATTACH,
     TOOL_SERVO_WRITE_ANGLE,

@@ -1,3 +1,5 @@
+> **SUPERSEDED / STALE (2026-11-18):** This archived change describes the removed A/B dual-slot boot-table design. The active layout is a single application slot at XIP `0x10008000` with BareBoot RP2350 USB recovery; see `openspec/specs/probe-firmware-ota/spec.md` and `openspec/specs/dual-littlefs-partitions/spec.md`. Kept for history only.
+
 ## 1. Boot Table Metadata & Geometry Layout
 
 - [x] 1.1 Shift partition offsets in `firmware-rs/src/storage.rs`: `PROFILE_WINDOW_START` to `0x00260000`, `SYSTEM_FS` to `0x00270000`, and `USER_FS` to `0x002F0000`

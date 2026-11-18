@@ -6,16 +6,20 @@ Provides physical and logical partition isolation in on-probe flash memory betwe
 ## Requirements
 
 ### Requirement: Independent Dual LittleFS Partitions
-The firmware SHALL initialize two separate, non-overlapping LittleFS filesystem instances in flash memory placed directly above the A/B dual firmware slots: Partition 1 (`SYSTEM_FS`) dedicated to the System WebUI starting at `0x00260000` (512 KB) and Partition 2 (`USER_FS`) starting at `0x002E0000` dedicated to user applications, hardware profiles, and data, falling back gracefully to the In-ROM interactive recovery interface whenever Partition 1 is uninitialized.
+The firmware SHALL initialize two separate, non-overlapping LittleFS filesystem instances in flash memory above the single application slot: `SYSTEM_FS` at flash `0x00140000` (1 MB, 256 sectors of 4096 bytes, XIP `0x10140000`) and `USER_FS` at flash `0x00240000` (1792 KB, ending at `0x00400000`), falling back gracefully to the In-ROM interactive recovery interface whenever `SYSTEM_FS` is uninitialized.
 
 #### Scenario: Partition boundary mapping
 - **WHEN** the storage subsystem initializes at boot
-- **THEN** `SYSTEM_FS` is mounted at offset `0x00260000` with fixed size `512 KB` (128 sectors of 4096 bytes) and `USER_FS` is mounted at offset `0x002E0000` extending dynamically to `FLASH_END - 16KB` (1136 KB on Pico 2).
+- **THEN** `SYSTEM_FS` is mounted at `0x00140000` with size 1 MB and `USER_FS` is mounted at `0x00240000` with size 1792 KB; the application slot ends at `0x00140000` and is never crossed.
 
 #### Scenario: User partition format isolation
 - **WHEN** a user or client issues a format command on user storage
-- **THEN** only sectors within Partition 2 (`USER_FS`) are erased and reformatted, while Partition 1 (`SYSTEM_FS`) remains completely unmodified and mounted.
+- **THEN** only sectors within `USER_FS` are erased and reformatted, while `SYSTEM_FS` remains completely unmodified and mounted.
 
 #### Scenario: Uninitialized system partition recovery
-- **WHEN** Partition 1 (`SYSTEM_FS`) is unformatted or empty
+- **WHEN** `SYSTEM_FS` is unformatted or empty
 - **THEN** the HTTP service responds with the In-ROM interactive recovery interface rather than unhandled errors or blank responses.
+
+#### Scenario: OTA never reaches filesystem flash
+- **WHEN** firmware OTA writes an image into the single application slot
+- **THEN** every erase/write bound check rejects any range at or above `0x00140000`, so neither LittleFS partition can be touched by OTA.

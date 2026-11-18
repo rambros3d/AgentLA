@@ -13,6 +13,82 @@ use crate::profile;
 use crate::servo;
 use agentla_bsp::BoardProfile;
 
+/// Minimal local parser for the 64-byte `AGLA_FW\0` OTA container header.
+///
+/// `agentla-boot-proto` was removed with the A/B boot-table design. This module
+/// keeps just the fields the single-slot stream handler needs. Layout (little
+/// endian): magic[0..8], board_id[8..16], version[16..32], target_slot[32],
+/// reserved[33..36], payload_size[36..40], payload_crc[40..44],
+/// reserved2[44..60], header_crc[60..64]. The CRC covers bytes 0..60 with the
+/// reflected IEEE 802.3 polynomial (0xEDB88320).
+mod fw_header {
+    pub const SIZE: usize = 64;
+    const MAGIC: &[u8; 8] = b"AGLA_FW\0";
+
+    pub struct Header {
+        pub board_id: [u8; 8],
+        pub payload_size: u32,
+        pub payload_crc: u32,
+    }
+
+    fn crc32(data: &[u8]) -> u32 {
+        let mut crc = 0xFFFF_FFFFu32;
+        for &byte in data {
+            crc ^= byte as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 {
+                    (crc >> 1) ^ 0xEDB8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+
+    pub fn parse(bytes: &[u8]) -> Option<Header> {
+        if bytes.len() < SIZE || &bytes[..8] != MAGIC {
+            return None;
+        }
+        let header_crc = u32::from_le_bytes(bytes[60..64].try_into().ok()?);
+        if crc32(&bytes[..60]) != header_crc {
+            return None;
+        }
+        let mut board_id = [0u8; 8];
+        board_id.copy_from_slice(&bytes[8..16]);
+        Some(Header {
+            board_id,
+            payload_size: u32::from_le_bytes(bytes[36..40].try_into().ok()?),
+            payload_crc: u32::from_le_bytes(bytes[40..44].try_into().ok()?),
+        })
+    }
+
+    impl Header {
+        pub fn matches_board(&self, expected: &[u8]) -> bool {
+            let len = expected.len().min(self.board_id.len());
+            &self.board_id[..len] == &expected[..len]
+        }
+    }
+}
+
+/// Build marker emitted by build.rs (git hash, dirty flag, UTC stamp).
+pub mod build_info {
+    include!(concat!(env!("OUT_DIR"), "/build_marker.rs"));
+}
+
+/// Ask BareBoot RP2350 to enter USB Katapult recovery, then reset.
+///
+/// BareBoot publishes its initial stack pointer in the first word of flash
+/// (XIP 0x10000000). The recovery mailbox is addressed from that SP value;
+/// writing the cookie there and resetting is the hand-off contract.
+fn request_recovery() {
+    const RECOVERY_COOKIE: u64 = 0x5984_E3FA_6CA1_589B;
+    let initial_sp = unsafe { core::ptr::read_volatile(0x1000_0000 as *const u32) };
+    let mailbox = initial_sp as *mut u64;
+    unsafe { core::ptr::write_volatile(mailbox, RECOVERY_COOKIE) };
+    cortex_m::peripheral::SCB::sys_reset();
+}
+
 /// Build-time gate for HTTP flash-shaped routes (`flash`, `erase`, `reset-catch`,
 /// `rescue/*`). Set to `true` only when the native flash engines and the Cortex-M
 /// debug session teardown are both considered trustworthy. While `false`, every
@@ -286,7 +362,7 @@ service!(ScopeData, "GET"); service!(ScopeStart, "POST"); service!(ScopeStop, "P
 service!(GeneratorStart, "POST"); service!(GeneratorStop, "POST"); service!(GeneratorStatus, "GET");
 service!(LedPattern, "POST"); service!(LedAnalyze, "GET");
 service!(GlitchArm, "POST"); service!(GlitchDisarm, "POST"); service!(GlitchStatus, "GET");
-service!(FirmwareStatus, "GET"); service!(FirmwareRollback, "POST");
+service!(FirmwareStatus, "GET");
 service!(SystemBootsel, "POST"); service!(SystemReboot, "POST"); service!(SystemPinsReleaseAll, "POST"); service!(SystemPinsToggle, "POST"); service!(SystemFsFormat, "POST");
 
 // ============ implementations ============
@@ -2351,66 +2427,26 @@ impl GlitchStatus {
 }
 
 pub struct FirmwareStatus;
-pub struct FirmwareRollback;
 pub struct FirmwareOtaStream;
 
-/// Reads SCB.VTOR for diagnostics.
+/// Reads SCB.VTOR for diagnostics. In the single-slot layout this is normally
+/// 0x10008000 (the application base) or 0x10000000 while BareBoot runs.
 fn current_vtor() -> u32 {
     unsafe { (*cortex_m::peripheral::SCB::PTR).vtor.read() }
-}
-
-/// Reinterpret the first 4 bytes of a boot-table sector as its `magic`.
-fn vtor_or_zero(sec: &[u8]) -> u32 {
-    if sec.len() >= 4 {
-        u32::from_le_bytes([sec[0], sec[1], sec[2], sec[3]])
-    } else {
-        0
-    }
 }
 
 impl FirmwareStatus {
     async fn run<R, W>(request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
-        let (bt, _) = crate::boot::get_boot_state();
-        let cur = crate::boot::current_executing_slot();
         let mut b = heapless::String::<256>::new();
-        let cand = match bt.get_candidate_slot() {
-            Some(agentla_boot_proto::SlotId::SlotA) => "\"SlotA\"",
-            Some(agentla_boot_proto::SlotId::SlotB) => "\"SlotB\"",
-            None => "null",
-        };
-        let (s0, s1) = crate::boot::dump_boot_sectors();
         let _ = core::fmt::Write::write_fmt(
             &mut b,
             format_args!(
-                r#"{{"active_slot":"{:?}","current_slot":"{:?}","candidate_slot":{},"state":"{:?}","boot_attempts":{},"slot_a_size":{},"slot_b_size":{},"vtor":"0x{:08X}","sec0":"0x{:08X}","sec1":"0x{:08X}","build":"{}","firmware":"AgentLA v1.0.0-rust"}}"#,
-                bt.get_active_slot(), cur, cand, bt.get_state(), bt.boot_attempts, bt.slot_a_size, bt.slot_b_size,
-                current_vtor(), vtor_or_zero(&s0), vtor_or_zero(&s1), crate::boot::build_info::BUILD_MARKER
+                r#"{{"status":"ok","layout":"single-slot","vtor":"0x{:08X}","build":"{}","firmware":"AgentLA v1.0.0-rust"}}"#,
+                current_vtor(), build_info::BUILD_MARKER
             ),
         );
         send_json(request, response_writer, StatusCode::OK, b.as_str()).await
-    }
-}
-
-impl FirmwareRollback {
-    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
-    where R: Read, W: ResponseWriter<Error=R::Error> {
-        let _ = read_body_str(&mut request).await;
-        let cur = crate::boot::current_executing_slot();
-        let target = cur.other();
-        let target_xip = target.xip_address();
-        let sp = unsafe { *(target_xip as *const u32) };
-        let pc = unsafe { *((target_xip + 4) as *const u32) };
-        let valid = (sp >= 0x2000_0000 && sp <= 0x2008_2000) && (pc >= target_xip && pc < target_xip + 1200 * 1024);
-        if !valid {
-            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"alternate_slot_empty_or_corrupt"}"#).await;
-        }
-        if crate::boot::ota_rollback().is_err() {
-            return send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"error":"rollback_failed"}"#).await;
-        }
-        let _ = send_json(request, response_writer, StatusCode::OK, r#"{"status":"rollback_initiated","rebooting":true}"#).await;
-        embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
-        cortex_m::peripheral::SCB::sys_reset()
     }
 }
 
@@ -2536,8 +2572,8 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .reader()
             .with_different_timeout(embassy_time::Duration::from_secs(60));
 
-        // 1. Read 64-byte FirmwareHeader
-        let mut hdr_bytes = [0u8; agentla_boot_proto::FirmwareHeader::SIZE];
+        // 1. Read the 64-byte AGLA_FW header (parsed locally, no boot-proto dep)
+        let mut hdr_bytes = [0u8; fw_header::SIZE];
         let mut hdr_read = 0;
         while hdr_read < hdr_bytes.len() {
             match reader.read(&mut hdr_bytes[hdr_read..]).await {
@@ -2565,7 +2601,7 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .await;
         }
 
-        let hdr = match agentla_boot_proto::FirmwareHeader::from_bytes(&hdr_bytes) {
+        let hdr = match fw_header::parse(&hdr_bytes) {
             Some(h) => h,
             None => {
                 return send_json(
@@ -2588,7 +2624,7 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .await;
         }
 
-        if hdr.payload_size as usize > crate::storage::SLOT_SIZE_BYTES {
+        if hdr.payload_size as usize > crate::storage::APP_SLOT_SIZE {
             return send_json(
                 request,
                 response_writer,
@@ -2598,9 +2634,9 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .await;
         }
 
-        let cur_slot = crate::boot::current_executing_slot();
-        let target_slot = cur_slot.other();
-        let slot_base = target_slot.flash_offset();
+        // Single application slot. The image must be linked for XIP 0x10008000;
+        // there is no alternate slot to select or stage into.
+        let slot_base = crate::storage::APP_SLOT_OFFSET;
 
         // 2. Stream payload chunks, erase 4 KB sectors on demand, write in 256-byte pages
         let mut page_buf = [0xFFu8; 256];
@@ -2609,6 +2645,9 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
         let mut crc_val = 0xFFFF_FFFFu32;
 
         let mut chunk_buf = [0u8; 512];
+        // The first 8 payload bytes (SP/PC) can be split across HTTP reads.
+        let mut vector_buf = [0u8; 8];
+        let mut vector_have = 0usize;
         let mut checked_vector = false;
         loop {
             let n = match reader.read(&mut chunk_buf).await {
@@ -2625,27 +2664,32 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
                 }
             };
 
-            // The image must be linked for the slot it is written into. The
-            // bootloader checks the reset vector against the target slot and
-            // silently boots the other slot on a mismatch, leaving the boot
-            // table and the running image disagreeing. Reject it here instead.
-            if !checked_vector && n >= 8 {
-                checked_vector = true;
-                let img_sp = u32::from_le_bytes(chunk_buf[0..4].try_into().unwrap());
-                let img_pc = u32::from_le_bytes(chunk_buf[4..8].try_into().unwrap());
-                let xip_base = 0x1000_0000u32 + slot_base;
-                let pc_ok = img_pc >= xip_base && img_pc < xip_base + 1024 * 1024;
-                let sp_ok = (0x2000_0000..=0x2008_2000).contains(&img_sp);
-                if !pc_ok || !sp_ok {
-                    let mut resp = heapless::String::<160>::new();
-                    let _ = core::fmt::Write::write_fmt(
-                        &mut resp,
-                        format_args!(
-                            r#"{{"status":"error","error":"slot_mismatch","expected_slot":"{:?}","img_sp":"0x{:08X}","img_pc":"0x{:08X}"}}"#,
-                            target_slot, img_sp, img_pc,
-                        ),
-                    );
-                    return send_json(request, response_writer, StatusCode::BAD_REQUEST, resp.as_str()).await;
+            // Reject an image linked for anything other than the single
+            // application slot early, before any flash is erased. BareBoot
+            // vectors the XIP image at 0x10008000.
+            if !checked_vector {
+                let take = n.min(8 - vector_have);
+                vector_buf[vector_have..vector_have + take].copy_from_slice(&chunk_buf[..take]);
+                vector_have += take;
+                if vector_have == 8 {
+                    checked_vector = true;
+                    let img_sp = u32::from_le_bytes(vector_buf[0..4].try_into().unwrap());
+                    let img_pc = u32::from_le_bytes(vector_buf[4..8].try_into().unwrap());
+                    let xip_base = 0x1000_0000u32 + slot_base;
+                    let pc_ok = img_pc >= xip_base
+                        && img_pc < xip_base + crate::storage::APP_SLOT_SIZE as u32;
+                    let sp_ok = (0x2000_0000..=0x2008_2000).contains(&img_sp);
+                    if !pc_ok || !sp_ok {
+                        let mut resp = heapless::String::<160>::new();
+                        let _ = core::fmt::Write::write_fmt(
+                            &mut resp,
+                            format_args!(
+                                r#"{{"status":"error","error":"vector_mismatch","expected_xip":"0x{:08X}","img_sp":"0x{:08X}","img_pc":"0x{:08X}"}}"#,
+                                xip_base, img_sp, img_pc,
+                            ),
+                        );
+                        return send_json(request, response_writer, StatusCode::BAD_REQUEST, resp.as_str()).await;
+                    }
                 }
             }
 
@@ -2710,7 +2754,7 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
         }
 
         let computed_crc = !crc_val;
-        if written_bytes != hdr.payload_size || computed_crc != hdr.payload_crc {
+        if !checked_vector || written_bytes != hdr.payload_size || computed_crc != hdr.payload_crc {
             return send_json(
                 request,
                 response_writer,
@@ -2720,30 +2764,22 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .await;
         }
 
-        // 4. Update Boot Table to stage candidate slot
-        if crate::boot::stage_candidate(target_slot, hdr.payload_size, hdr.payload_crc).is_err() {
-            return send_json(
-                request,
-                response_writer,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                r#"{"error":"boot_table_update_failed"}"#,
-            )
-            .await;
-        }
-
+        // 4. Hand off to BareBoot USB recovery. The cookie is written to the
+        // mailbox derived from the bootloader's initial SP, then the core
+        // resets into the recovery target.
         let mut resp = heapless::String::<128>::new();
         let _ = core::fmt::Write::write_fmt(
             &mut resp,
             format_args!(
-                r#"{{"status":"staged","slot":"{:?}","bytes":{},"crc":"0x{:08X}","rebooting":true}}"#,
-                target_slot, written_bytes, computed_crc
+                r#"{{"status":"staged","bytes":{},"crc":"0x{:08X}","rebooting":true}}"#,
+                written_bytes, computed_crc
             ),
         );
 
         let res = send_json(request, response_writer, StatusCode::OK, resp.as_str()).await;
 
         embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
-        cortex_m::peripheral::SCB::sys_reset();
+        request_recovery();
 
         res
     }
@@ -3271,12 +3307,9 @@ impl picoserve::routing::MethodHandlerService<()> for SystemClockHandler {
             // 2. Temporarily downclock in RAM to safe 150 MHz so RP2350 Bootrom flash erase/write is 100% stable
             let _ = crate::benchmark::apply_system_clock_in_ram(crate::benchmark::PROFILE_150);
 
-            // 3. Commit to BootTable in flash so it persists across hard power cycles
-            let (mut table, _) = crate::boot::get_boot_state();
-            table.set_boot_clock_mhz(mhz);
-            let _ = crate::boot::commit_boot_table(&mut table);
-
-            defmt::info!("Clock change committed: {} MHz. Resetting chip...", mhz);
+            // There is no boot table in the single-slot layout: scratch4 is
+            // consumed by main() on the warm reset that follows.
+            defmt::info!("Clock change staged for warm reset: {} MHz. Resetting chip...", mhz);
 
             embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
             cortex_m::peripheral::SCB::sys_reset();
@@ -3324,33 +3357,20 @@ impl picoserve::routing::MethodHandlerService<()> for SystemPartitionsHandler {
         request: Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        let current_slot = crate::boot::current_executing_slot();
-        let is_a = current_slot == agentla_boot_proto::SlotId::SlotA;
-        let slot_a_role = if is_a { "Active Firmware [Running]" } else { "Alternate Firmware [Standby]" };
-        let slot_b_role = if !is_a { "Active Firmware [Running]" } else { "Alternate Firmware [Standby]" };
-
         let mut buf = heapless::String::<1024>::new();
         let _ = core::fmt::Write::write_fmt(
             &mut buf,
             format_args!(
-                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"BOOT_TABLE","label":"BOOT","offset":{},"size":{},"type":"ROM","role":"Bootloader Switcher","active":false}},{{"name":"FW_SLOT_A","label":"SLOT_A","offset":{},"size":{},"type":"XIP_FLASH","role":"{}","active":{}}},{{"name":"FW_SLOT_B","label":"SLOT_B","offset":{},"size":{},"type":"XIP_FLASH","role":"{}","active":{}}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}},{{"name":"RESERVED_END","label":"END","offset":{},"size":{},"type":"ROM","role":"Reserved Trail","active":false}}]}}"#,
+                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"BOOTLOADER","label":"BOOTLOADER","offset":{},"size":{},"type":"ROM","role":"BareBoot RP2350 USB recovery","active":false}},{{"name":"FIRMWARE","label":"FIRMWARE","offset":{},"size":{},"type":"XIP_FLASH","role":"Single application slot [Running]","active":true}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}}]}}"#,
                 crate::storage::FLASH_SIZE_BYTES,
-                crate::storage::BOOT_TABLE_OFFSET,
-                crate::storage::BOOT_TABLE_SIZE_BYTES,
-                crate::storage::SLOT_A_OFFSET,
-                crate::storage::SLOT_SIZE_BYTES,
-                slot_a_role,
-                is_a,
-                crate::storage::SLOT_B_OFFSET,
-                crate::storage::SLOT_SIZE_BYTES,
-                slot_b_role,
-                !is_a,
+                crate::storage::BOOTLOADER_OFFSET,
+                crate::storage::BOOTLOADER_SIZE_BYTES,
+                crate::storage::APP_SLOT_OFFSET,
+                crate::storage::APP_SLOT_SIZE,
                 crate::storage::SYSTEM_FS_OFFSET,
                 crate::storage::SYSTEM_FS_SIZE_BYTES,
                 crate::storage::USER_FS_OFFSET,
                 crate::storage::USER_FS_SIZE_BYTES,
-                crate::storage::USER_FS_END,
-                crate::storage::FLASH_RESERVED_TRAIL_BYTES,
             ),
         );
         send_json(request, response_writer, StatusCode::OK, buf.as_str()).await

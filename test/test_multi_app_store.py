@@ -13,8 +13,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-LITTLEFS_START_OFFSET = 0x00190000  # 1.5625 MB (after profile slots)
-LITTLEFS_RESERVED_END_KB = 16
+# Single-slot layout: SYSTEM_FS at 0x140000 (1 MB), USER_FS follows at
+# 0x240000 and ends at 0x400000 (1792 KB) on all boards.
+USER_FS_OFFSET = 0x00240000
+USER_FS_END = 0x00400000
 FLASH_SECTOR_SIZE = 4096
 
 PICO2_FLASH_BYTES = 4 * 1024 * 1024      # 4MB
@@ -22,25 +24,16 @@ BAKUPROBE_FLASH_BYTES = 16 * 1024 * 1024  # 16MB
 
 
 def test_littlefs_partition_geometry():
-    """Verify LittleFS partition calculations for Pico 2 (4MB) and BakuProbe (16MB)."""
-    # 1. Pico 2 geometry
-    pico2_end = PICO2_FLASH_BYTES - (LITTLEFS_RESERVED_END_KB * 1024)
-    pico2_size = pico2_end - LITTLEFS_START_OFFSET
-    pico2_blocks = pico2_size // FLASH_SECTOR_SIZE
+    """Verify single-slot layout USER_FS geometry (fixed 0x240000..0x400000)."""
+    assert USER_FS_OFFSET % FLASH_SECTOR_SIZE == 0, "Start offset must be 4KB sector aligned"
+    assert USER_FS_END % FLASH_SECTOR_SIZE == 0, "End offset must be 4KB sector aligned"
+    size = USER_FS_END - USER_FS_OFFSET
+    blocks = size // FLASH_SECTOR_SIZE
 
-    assert LITTLEFS_START_OFFSET % FLASH_SECTOR_SIZE == 0, "Start offset must be 4KB sector aligned"
-    assert pico2_end % FLASH_SECTOR_SIZE == 0, "End offset must be 4KB sector aligned"
-    assert pico2_size == 2539520, f"Expected ~2.42MB (2539520 bytes), got {pico2_size}"
-    assert pico2_blocks == 620, f"Expected 620 blocks on Pico 2, got {pico2_blocks}"
-
-    # 2. BakuProbe geometry
-    baku_end = BAKUPROBE_FLASH_BYTES - (LITTLEFS_RESERVED_END_KB * 1024)
-    baku_size = baku_end - LITTLEFS_START_OFFSET
-    baku_blocks = baku_size // FLASH_SECTOR_SIZE
-
-    assert baku_end % FLASH_SECTOR_SIZE == 0, "BakuProbe end offset must be 4KB sector aligned"
-    assert baku_size == 15122432, f"Expected ~14.42MB (15122432 bytes), got {baku_size}"
-    assert baku_blocks == 3692, f"Expected 3692 blocks on BakuProbe, got {baku_blocks}"
+    assert size == 1792 * 1024, f"Expected 1792 KB (1835008 bytes), got {size}"
+    assert blocks == 448, f"Expected 448 blocks, got {blocks}"
+    assert USER_FS_END <= PICO2_FLASH_BYTES
+    assert USER_FS_END <= BAKUPROBE_FLASH_BYTES
 
 
 def test_streaming_tar_unpacker_header_parsing():

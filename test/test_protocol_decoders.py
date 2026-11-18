@@ -53,14 +53,12 @@ def test_firmware_rest_routes_and_handlers():
 def test_flash_and_sram_headroom_within_1mb_slot():
     """Verify flash memory geometry aligns to 1 MB (1,024 KiB) symmetric OTA slots."""
     flash_size = 4096 * 1024
-    boot_size = 16 * 1024
-    slot_a = 1024 * 1024
-    slot_b = 1024 * 1024
-    system_fs = 512 * 1024
-    user_fs = 1504 * 1024
-    trail = 16 * 1024
+    bootloader = 32 * 1024
+    app = 1248 * 1024
+    system_fs = 1024 * 1024
+    user_fs = 1792 * 1024
 
-    assert boot_size + slot_a + slot_b + system_fs + user_fs + trail == flash_size
-    assert 0x00004000 + slot_a == 0x00104000, "Slot B must start at 0x00104000"
-    assert 0x00104000 + slot_b == 0x00204000, "SYSTEM_FS must start at 0x00204000"
-    assert 0x00204000 + system_fs == 0x00284000, "USER_FS must start at 0x00284000"
+    assert bootloader + app + system_fs + user_fs == flash_size
+    assert 0x00000000 + bootloader == 0x00008000, "App slot must follow the bootloader"
+    assert 0x00008000 + app == 0x00140000, "SYSTEM_FS must start at 0x00140000"
+    assert 0x00140000 + system_fs == 0x00240000, "USER_FS must start at 0x00240000"

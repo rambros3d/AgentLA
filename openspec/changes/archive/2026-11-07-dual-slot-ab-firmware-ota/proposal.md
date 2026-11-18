@@ -1,3 +1,5 @@
+> **SUPERSEDED / STALE (2026-11-18):** This archived change describes the removed A/B dual-slot boot-table design. The active layout is a single application slot at XIP `0x10008000` with BareBoot RP2350 USB recovery; see `openspec/specs/probe-firmware-ota/spec.md` and `openspec/specs/dual-littlefs-partitions/spec.md`. Kept for history only.
+
 ## Why
 
 Updating the AgentLA probe currently requires manually rebooting into USB BOOTSEL mode and flashing raw binaries via `picotool` or UF2 drag-and-drop. This approach breaks remote headless workflows, terminates the CDC-NCM Ethernet session, and carries significant risk: flashing an oversized or incompatible binary overwrites the profile slots and LittleFS partitions, corrupting web assets and installed test tools. 

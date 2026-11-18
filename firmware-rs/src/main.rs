@@ -12,7 +12,6 @@ use static_cell::StaticCell;
 
 mod analyzer;
 pub mod board;
-pub mod boot;
 mod decoder;
 mod bridge;
 pub mod instruments;
@@ -24,6 +23,7 @@ mod pin_owner;
 mod rest;
 mod profile;
 mod servo;
+mod tar_io;
 mod storage;
 mod usb;
 mod web;
@@ -173,20 +173,21 @@ async fn main(spawner: embassy_executor::Spawner) {
     let p = embassy_rp::init(config);
 
     // Start the watchdog before any blocking work. Previously it was spawned
-    // last, so a hang during LittleFS mount, profile apply, or the boot-table
-    // commit left the probe alive (ping works, USB works) with no HTTP server
-    // and no way to recover except power-cycling. Now a hang reboots.
+    // last, so a hang during LittleFS mount or profile apply left the probe
+    // alive (ping works, USB works) with no HTTP server and no way to recover
+    // except power-cycling. Now a hang reboots.
     let watchdog = embassy_rp::watchdog::Watchdog::new(p.WATCHDOG);
     spawner.spawn(watchdog_task(watchdog).unwrap());
 
-    // Read configured boot clock (check scratch4 first for warm reset, else BootTable in flash)
+    // Read the boot clock requested for a warm reset from WATCHDOG.scratch4.
+    // There is no persistent boot table in the single-slot layout, so a cold
+    // boot always starts at the safe 150 MHz default.
     let scratch4 = rp_pac::WATCHDOG.scratch4().read();
     let boot_mhz = if (scratch4 & 0xFFFF_0000) == 0xC10C_0000 {
         rp_pac::WATCHDOG.scratch4().write_value(0);
         scratch4 & 0xFFFF
     } else {
-        let (table, _) = crate::boot::get_boot_state();
-        table.get_boot_clock_mhz()
+        150
     };
 
     let target_mhz = match boot_mhz {
@@ -291,11 +292,9 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(crate::programmer::gdb_server::gdb_server_task(stack).unwrap());
     spawner.spawn(crate::ols::ols_server_task(stack).unwrap());
 
-    // 3c. LittleFS partition on internal flash. Must complete before the
-    // watchdog task starts: a first-boot format erases 512 x 4 KiB sectors
-    // and can take seconds (the watchdog feeds on 5 s windows). The FLASH
-    // peripheral is shared from here on between LittleFS and profile ops
-    // (profile window 0x180000..0x190000, see storage.rs).
+    // 3c. LittleFS partitions on internal flash. The FLASH peripheral is
+    // shared from here on between SYSTEM_FS/USER_FS and profile ops. OTA and
+    // filesystem bounds in storage.rs keep every write above the app slot.
     let flash = Flash::new_blocking(p.FLASH);
 
     let mounted = storage::init_filesystem(flash);
@@ -310,21 +309,8 @@ async fn main(spawner: embassy_executor::Spawner) {
         usb::load_stlink_version();
         // Deferred: apply_profile() uses blocking delays and rewrites the pin
         // pool. Running it inline stalled the executor before the network stack
-        // was serving, which is the Slot B HTTP failure. Spawn it instead.
+        // was serving. Spawn it instead.
         spawner.spawn(profile_boot_task().unwrap());
-    }
-
-    // 3d. Dual-Slot Boot Confirmation
-    // Only when the filesystem mounted: ota_confirm() erases a boot-table
-    // sector on the same FLASH peripheral XIP runs from, and doing that while
-    // the storage subsystem is half-initialised risks a fault that panics
-    // rather than degrading.
-    if mounted {
-        if let Err(()) = boot::ota_confirm() {
-            defmt::error!("Failed to confirm candidate OTA slot");
-        }
-    } else {
-        defmt::warn!("Skipping OTA candidate confirmation: filesystem not mounted");
     }
 
     // Initialize and tristate all programmer pins

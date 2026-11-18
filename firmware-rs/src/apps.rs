@@ -135,9 +135,9 @@ pub enum TarTarget {
 /// Streaming ustar unpacker. Feed arbitrary byte chunks with [`Self::feed`];
 /// the state machine buffers partial 512-byte headers internally, so the
 /// caller may use any chunk size. Nothing is buffered beyond one block plus
-/// bookkeeping. File data is written through LittleFS in page-sized
-/// `write_chunk` calls (open/seek/write/close per chunk — no retained file
-/// handle, no `unsafe`).
+/// bookkeeping. File data is written through LittleFS in capped 512-byte
+/// page-sized `write_chunk` calls (open/seek/write/close per chunk — no
+/// retained file handle, no `unsafe`). See [`crate::tar_io`].
 pub struct TarUnpacker {
     target: TarTarget,
     app: String<32>,
@@ -248,8 +248,15 @@ impl TarUnpacker {
                     }
                 }
                 UnpackerState::Data => {
+                    // Cap every physical flash write to one tar block. The
+                    // old code forwarded up to a full 1 KiB HTTP read chunk
+                    // to `write_chunk`; multi-page chunks failed on the
+                    // RP2350 flash path and dropped the unpacker into Error
+                    // (surfaced as `incomplete_archive`). The remaining bytes
+                    // of this feed chunk are handled by the next loop pass,
+                    // so arbitrary feed sizes and partial file tails work.
                     let left = self.file_size - self.file_bytes_written;
-                    let take = data.len().min(left as usize);
+                    let take = crate::tar_io::data_chunk_len(left, data.len());
                     if take > 0 {
                         let chunk = &data[..take];
                         match self.write_file_chunk(chunk) {
@@ -257,7 +264,12 @@ impl TarUnpacker {
                                 self.file_bytes_written += take as u32;
                                 self.total_bytes += take as u32;
                             }
-                            Err(_) => {
+                            Err(e) => {
+                                defmt::error!(
+                                    "tar: write_chunk failed at offset {} ({})",
+                                    self.file_bytes_written,
+                                    e
+                                );
                                 self.state = UnpackerState::Error;
                                 break;
                             }

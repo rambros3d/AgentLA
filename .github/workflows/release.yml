@@ -23,6 +23,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Checkout BareBoot (RP2350 USB recovery bootloader)
+        uses: actions/checkout@v4
+        with:
+          repository: bareFOC/bareBoot
+          ref: main
+          path: bareBoot
+          fetch-depth: 1
+
       - name: Install ARM Embedded Toolchain & Clang
         run: |
           sudo apt-get update
@@ -54,13 +62,20 @@ jobs:
         run: |
           python3 tools/pack_webui.py
 
-      - name: Build Bootloader (RP2350 A/B Invariant)
+      - name: Build BareBoot RP2350 Recovery Bootloader
+        # Built in the bareBoot repository; the resulting 32 KB binary is
+        # written to flash 0x00000000 (XIP 0x10000000).
         run: |
-          cargo build --release --target thumbv8m.main-none-eabihf --bin agentla-bootloader
+          cd bareBoot/targets/bareboot-rp2350
+          cargo build --release --target thumbv8m.main-none-eabihf
+          cd "${GITHUB_WORKSPACE}"
+          arm-none-eabi-objcopy -O binary \
+            bareBoot/targets/bareboot-rp2350/target/thumbv8m.main-none-eabihf/release/bareboot-rp2350 \
+            build/bareboot-rp2350.bin
 
-      - name: Build Application Firmware (Embassy Async + Diagnostics)
+      - name: Build Application Firmware (single slot, Embassy)
         run: |
-          cargo build --release --target thumbv8m.main-none-eabihf --bin firmware-rs
+          cargo build --release -p firmware-rs --target thumbv8m.main-none-eabihf --no-default-features --features board-pico2
 
       - name: Extract Release Version
         id: get_version
@@ -83,12 +98,14 @@ jobs:
             --board PICO2 \
             --version "${{ steps.get_version.outputs.version }}"
 
-      - name: Package Multi-Segment All-in-One UF2
+      - name: Package Two-Segment BOOTSEL UF2
+        # Bootloader at 0x10000000 (32 KB) + single-slot firmware at
+        # 0x10008000. SYSTEM_FS/USER_FS are provisioned at runtime and never
+        # shipped in this UF2.
         run: |
           python3 tools/package_uf2.py \
-            --bootloader target/thumbv8m.main-none-eabihf/release/agentla-bootloader \
+            --bootloader build/bareboot-rp2350.bin \
             --firmware target/thumbv8m.main-none-eabihf/release/firmware-rs \
-            --webui build/webui.img \
             -o build/agentla-pico2.uf2
 
       - name: Publish GitHub Release

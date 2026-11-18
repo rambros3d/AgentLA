@@ -918,7 +918,6 @@ dependencies = [
  "agentla-analyzer",
  "agentla-board-bakuprobe",
  "agentla-board-pico2",
- "agentla-boot-proto",
  "agentla-bridges",
  "agentla-bsp",
  "agentla-debug-server",

@@ -175,19 +175,6 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
                 true
             }
         }
-        "system_firmware_status" => {
-            let (bt, _) = crate::boot::get_boot_state();
-            let cur = crate::boot::current_executing_slot();
-            let _ = write!(
-                out,
-                "current_slot={:?} active_slot={:?} state={:?} attempts={}",
-                cur,
-                bt.get_active_slot(),
-                bt.get_state(),
-                bt.boot_attempts
-            );
-            false
-        }
         "profile_status" => {
             let _ = write!(out, "active_slot={} active_name={}", profile::active_slot(), profile::active_name().as_str());
             false

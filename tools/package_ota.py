@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
 AgentLA Firmware OTA Package Builder
-Wraps raw application binary or ELF with the 64-byte AGLA_FW header for OTA delivery.
+Wraps the single-slot application binary or ELF with the 64-byte AGLA_FW
+header for OTA delivery. The payload MUST be linked for XIP 0x10008000
+(flash offset 0x00008000, size 1248 KB); the firmware endpoint validates
+the reset vector before writing it, then hands off to BareBoot RP2350 USB
+recovery. There is no slot selection and no boot table.
 """
 
 import sys
@@ -13,11 +17,14 @@ import os
 
 MAGIC = b"AGLA_FW\0"
 HEADER_FORMAT = "<8s8s16sBBBBII4II" # 8+8+16+1+3+4+4+16+4 = 64 bytes
+FIRMWARE_LINK_ADDR = 0x10008000
+SINGLE_SLOT = 0  # legacy header byte: 0 = no A/B slot selection
+
 
 def crc32(data: bytes) -> int:
     return binascii.crc32(data) & 0xFFFFFFFF
 
-def build_package(input_path: str, output_path: str, board_id: str = "PICO2", version: str = "1.0.0", target_slot: int = 0):
+def build_package(input_path: str, output_path: str, board_id: str = "PICO2", version: str = "1.0.0"):
     raw_bin_path = input_path
     temp_bin = False
 
@@ -51,13 +58,14 @@ def build_package(input_path: str, output_path: str, board_id: str = "PICO2", ve
     board_bytes = board_id.encode("utf-8")[:8].ljust(8, b"\0")
     version_bytes = version.encode("utf-8")[:16].ljust(16, b"\0")
 
-    # Header without header_crc (60 bytes)
+    # Header without header_crc (60 bytes). The target_slot byte is kept at
+    # its legacy "any" value; the new firmware ignores it entirely.
     partial_hdr = struct.pack(
         "<8s8s16sBBBBII4I",
         MAGIC,
         board_bytes,
         version_bytes,
-        target_slot,
+        SINGLE_SLOT,
         0, 0, 0, # reserved
         payload_size,
         payload_crc,
@@ -75,18 +83,17 @@ def build_package(input_path: str, output_path: str, board_id: str = "PICO2", ve
     print(f"[+] Packaged OTA Firmware: {output_path}")
     print(f"    Board:       {board_id}")
     print(f"    Version:     {version}")
-    print(f"    Target Slot: {'Any' if target_slot == 0 else ('Slot A' if target_slot == 1 else 'Slot B')}")
+    print(f"    Link addr:   0x{FIRMWARE_LINK_ADDR:08X} (flash 0x00008000, single slot)")
     print(f"    Size:        {payload_size} bytes ({payload_size / 1024:.1f} KiB)")
     print(f"    Payload CRC: 0x{payload_crc:08X}")
     print(f"    Header CRC:  0x{header_crc:08X}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Package AgentLA firmware for OTA updates")
-    parser.add_argument("input", help="Path to input ELF or .bin")
+    parser = argparse.ArgumentParser(description="Package AgentLA firmware for single-slot OTA updates")
+    parser.add_argument("input", help="Path to input ELF or .bin linked for 0x10008000")
     parser.add_argument("-o", "--output", required=True, help="Path to output .ota.bin")
     parser.add_argument("--board", default="PICO2", help="Target board identifier (default: PICO2)")
     parser.add_argument("--version", default="1.0.0", help="Firmware version string")
-    parser.add_argument("--slot", type=int, default=0, choices=[0, 1, 2], help="Target slot (0=Any, 1=A, 2=B)")
     args = parser.parse_args()
 
-    build_package(args.input, args.output, args.board, args.version, args.slot)
+    build_package(args.input, args.output, args.board, args.version)

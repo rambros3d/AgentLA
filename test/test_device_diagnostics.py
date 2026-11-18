@@ -48,7 +48,7 @@ def test_device_html_contains_required_sections_and_hooks():
     assert "coreChip" in content
     assert "coreType" in content
     assert "Power &amp; Thermal" in content
-    assert "Firmware (Dual A/B OTA)" in content
+    assert "Firmware (single slot)" in content
     assert "WebUI Storage (SYSTEM_FS)" in content
     assert "User Storage (USER_FS)" in content
     assert "Pin Diagnostics" in content
@@ -93,7 +93,7 @@ def test_device_html_contains_required_sections_and_hooks():
     assert "/api/v1/system/firmware/status" in content
     assert "/api/v1/system/firmware/ota" in content
     assert "/api/v1/system/webui/update" in content
-    assert "/api/v1/system/firmware/rollback" in content
+    assert "/api/v1/system/firmware/rollback" not in content  # single-slot: no rollback endpoint
     assert "/api/v1/system/bootsel" in content
     assert "/api/v1/system/reboot" in content
     assert "/api/v1/system/pins/release_all" in content
@@ -125,7 +125,7 @@ def test_device_html_contains_required_sections_and_hooks():
     # Local Flash & Slot controls placed in relevant cards
     assert "fileFw" in content
     assert "fileWeb" in content
-    assert "rollbackFw" in content
+    assert "rollbackFw" not in content  # single-slot: no rollback control
 
     # Redundant recovery banner eliminated
     assert "recoveryBanner" not in content

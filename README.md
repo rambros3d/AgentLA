@@ -146,13 +146,37 @@ probe-rs list
 # Recognizes: AgentLA RP2350 Probe (CMSIS-DAP)
 ```
 
+### 6. Flash layout and recovery
+
+AgentLA uses a single application slot (no A/B pair, boot table, or rollback):
+
+| Region | Flash range | XIP | Size |
+| :--- | :--- | :--- | :--- |
+| BareBoot recovery bootloader | `0x00000000..0x00008000` | `0x10000000` | 32 KB |
+| Application firmware | `0x00008000..0x00140000` | `0x10008000` | 1248 KB |
+| SYSTEM_FS (WebUI) | `0x00140000..0x00240000` | `0x10140000` | 1 MB |
+| USER_FS (apps, profiles, data) | `0x00240000..0x00400000` | `0x10140000 +` | 1792 KB |
+
+`agentla-pico2.uf2` contains only the bootloader and firmware segments.
+`webui.tar` is installed separately through `/device` or
+`POST /api/v1/system/webui/update`; `webui.uf2` is a standalone SYSTEM_FS image.
+OTA writes never reach flash `0x140000` or above.
+
+After a verified OTA the firmware writes the BareBoot recovery cookie to the
+mailbox derived from the bootloader's initial stack pointer and resets. The
+BareBoot RP2350 target then enters USB Katapult recovery, so a failed or
+incomplete application image can always be replaced over USB. Holding BOOTSEL
+and copying a UF2 to the `RPI-RP2` drive remains the ultimate fallback.
+
 ---
 
 ## Building from Source
 
 Prerequisites:
 * Stable Rust toolchain with `thumbv8m.main-none-eabihf` target.
-* `picotool` (v2.0+) for generating UF2 binaries.
+* Python 3 for `tools/package_uf2.py`, `tools/package_ota.py`, and `tools/pack_webui.py`.
+* The BareBoot RP2350 recovery binary at `build/bareboot-rp2350.bin` (built in the
+  `bareBoot` repository, `targets/bareboot-rp2350`).
 
 ```bash
 # Clone the repository
@@ -162,11 +186,14 @@ cd AgentLA-rust
 # Install target
 rustup target add thumbv8m.main-none-eabihf
 
-# Build release firmware
-cargo build --release --manifest-path firmware-rs/Cargo.toml
+# Build release firmware (single slot; no slot features exist)
+cargo build --release -p firmware-rs --target thumbv8m.main-none-eabihf --no-default-features --features board-pico2
 
-# Convert to UF2
-picotool uf2 convert firmware-rs/target/thumbv8m.main-none-eabihf/release/firmware-rs agentla-pico2.uf2 --family rp2350-arm-s
+# Package the two-segment UF2 with the BareBoot RP2350 recovery binary
+python3 tools/package_uf2.py \
+  --bootloader build/bareboot-rp2350.bin \
+  --firmware target/thumbv8m.main-none-eabihf/release/firmware-rs \
+  -o build/agentla-pico2.uf2
 ```
 
 ---

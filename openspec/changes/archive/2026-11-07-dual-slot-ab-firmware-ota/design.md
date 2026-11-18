@@ -1,3 +1,5 @@
+> **SUPERSEDED / STALE (2026-11-18):** This archived change describes the removed A/B dual-slot boot-table design. The active layout is a single application slot at XIP `0x10008000` with BareBoot RP2350 USB recovery; see `openspec/specs/probe-firmware-ota/spec.md` and `openspec/specs/dual-littlefs-partitions/spec.md`. Kept for history only.
+
 ## Context
 
 The AgentLA probe runs on the RP2350 microcontroller (4 MB flash on Raspberry Pi Pico 2, 16 MB flash on BakuProbe). The probe's on-chip SPI flash is currently partitioned into single-slot firmware (`0x00000000` to `0x00180000`), profile storage (`0x00180000` to `0x00190000`), `SYSTEM_FS` LittleFS (`0x00190000` to `0x00210000`), and `USER_FS` LittleFS (`0x00210000` to end of flash).

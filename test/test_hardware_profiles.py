@@ -27,28 +27,24 @@ def is_dut_reachable():
 # --- Unit Tests: Flash Partition Geometry ---
 
 def test_flash_memory_geometry():
-    """Verify 4MB RP2350 5-zone partition alignment without raw profile slice."""
-    flash_size = 4096 * 1024       # 4 MB
-    boot_size = 16 * 1024          # 16 KB (0x00000000..0x00004000)
-    slot_a_size = 1024 * 1024      # 1024 KB (0x00004000..0x00104000)
-    slot_b_size = 1024 * 1024      # 1024 KB (0x00104000..0x00204000)
-    system_fs_size = 512 * 1024    # 512 KB (0x00204000..0x00284000)
-    user_fs_size = 1504 * 1024     # 1504 KB (0x00284000..0x003FC000)
-    trail_size = 16 * 1024         # 16 KB (0x003FC000..0x00400000)
+    """Verify the single-slot 4MB RP2350 partition layout."""
+    flash_size = 4096 * 1024          # 4 MB
+    bootloader_size = 32 * 1024       # 32 KB (0x00000000..0x00008000)
+    app_size = 1248 * 1024            # 1248 KB (0x00008000..0x00140000)
+    system_fs_size = 1024 * 1024      # 1 MB (0x00140000..0x00240000)
+    user_fs_size = 1792 * 1024        # 1792 KB (0x00240000..0x00400000)
 
-    assert boot_size + slot_a_size + slot_b_size + system_fs_size + user_fs_size + trail_size == flash_size
+    assert bootloader_size + app_size + system_fs_size + user_fs_size == flash_size
 
     # Verify sector alignment
-    assert 0x00000000 % 4096 == 0
-    assert 0x00004000 % 4096 == 0
-    assert 0x00104000 % 4096 == 0
-    assert 0x00204000 % 4096 == 0
-    assert 0x00284000 % 4096 == 0
-    assert 0x003FC000 % 4096 == 0
+    for boundary in (0x00000000, 0x00008000, 0x00140000, 0x00240000, 0x00400000):
+        assert boundary % 4096 == 0
 
-    # Ensure USER_FS starts immediately after SYSTEM_FS (no gap)
-    system_fs_end = 0x00204000 + system_fs_size
-    assert system_fs_end == 0x00284000, "USER_FS must directly follow SYSTEM_FS"
+    # No gaps and no overlap
+    assert 0x00000000 + bootloader_size == 0x00008000
+    assert 0x00008000 + app_size == 0x00140000
+    assert 0x00140000 + system_fs_size == 0x00240000
+    assert 0x00240000 + user_fs_size == flash_size
 
 
 # --- Unit Tests: Declarative JSON Profile Schema & Safe State Contract ---

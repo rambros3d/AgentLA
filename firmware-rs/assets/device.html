@@ -123,7 +123,7 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
     <div class="rec-grid">
       <div class="rec-box">
-        <span class="lbl" style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">FIRMWARE (DUAL A/B OTA)</span>
+        <span class="lbl" style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--fg-dim)">FIRMWARE (SINGLE SLOT OTA)</span>
         <div class="d-list" style="margin:4px 0">
           <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVerInstalled">v1.0.0</span></div>
           <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwVerRemote">CHECK or NETWORK ERROR</span></div>
@@ -185,19 +185,18 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
   </div>
 
-  <!-- Card 3: Firmware (Dual A/B OTA) -->
+  <!-- Card 3: Firmware (single slot) -->
   <div class="card">
-    <div class="card-hdr"><span class="title">Firmware (Dual A/B OTA)</span><span class="tag" id="fwSlotTag">SLOT_A</span></div>
+    <div class="card-hdr"><span class="title">Firmware (single slot)</span><span class="tag" id="fwSlotTag">SINGLE</span></div>
     <div class="d-list">
-      <div class="row"><span class="lbl">ACTIVE_SLOT</span><span class="dots"></span><span class="val" id="fwSlots">SlotA / SlotA</span></div>
-      <div class="row"><span class="lbl">CANDIDATE</span><span class="dots"></span><span class="val" id="fwCandidate">None</span></div>
+      <div class="row"><span class="lbl">LAYOUT</span><span class="dots"></span><span class="val" id="fwSlots">single-slot</span></div>
+      <div class="row"><span class="lbl">VTOR</span><span class="dots"></span><span class="val" id="fwVtor">0x10008000</span></div>
       <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVersion">v1.0.0</span></div>
       <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwUpdate">CHECK or NETWORK ERROR</span></div>
     </div>
     <div class="status-msg" id="fwStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
       <button onclick="$('fileFw').click()">Upload .bin</button>
-      <button onclick="rollbackFw()">Rollback Slot</button>
       <button class="danger" onclick="triggerBootsel()">Force BOOTSEL</button>
       <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
     </div>
@@ -397,7 +396,7 @@ window.addEventListener('popstate', initView);
 const API_ENDPOINTS = [
   { m: 'GET', p: '/api/board/manifest', d: 'Board hardware manifest (MCU chip, clock, SRAM, flash, pinout)', s: 'manifest' },
   { m: 'GET', p: '/api/v1/system', d: 'MCU chip, core architecture, clock MHz, SRAM, and flash size', s: 'system_info' },
-  { m: 'GET', p: '/api/v1/system/partitions', d: 'Dual-slot firmware and LittleFS flash partition geometry and status', s: 'partitions' },
+  { m: 'GET', p: '/api/v1/system/partitions', d: 'Single-slot firmware and LittleFS flash partition geometry and status', s: 'partitions' },
   { m: 'GET', p: '/api/v1/system/telemetry', d: 'Voltages (V_SYS, V_TARGET), mA draw, core temp, SRAM, and flash size', s: 'telemetry' },
   { m: 'GET', p: '/api/v1/system/telemetry/stream', d: 'Live telemetry Server-Sent Events stream', s: 'telemetry_stream' },
   { m: 'POST', p: '/api/v1/system/reboot', d: 'Trigger immediate hardware system reset', b: '{}', s: 'reboot' },
@@ -409,8 +408,7 @@ const API_ENDPOINTS = [
   { m: 'POST', p: '/api/v1/system/pins/toggle', d: 'Drive or tri-state pin directly', b: '{"pin":0,"state":"high"}', s: 'toggle' },
   { m: 'GET', p: '/api/v1/profiles', d: 'List stored hardware pin profiles on USER_FS', s: 'profiles' },
   { m: 'POST', p: '/api/v1/profiles/apply', d: 'Apply declarative pin profile', b: '{"profile":"uart_bridge"}', s: 'prof_apply' },
-  { m: 'GET', p: '/api/v1/system/firmware/status', d: 'Dual-slot A/B state, active/candidate slots, version', s: 'fw_status' },
-  { m: 'POST', p: '/api/v1/system/firmware/rollback', d: 'Roll back active firmware boot pointer to standby slot', b: '{}', s: 'rollback' },
+  { m: 'GET', p: '/api/v1/system/firmware/status', d: 'Single-slot firmware state, VTOR, build marker, version', s: 'fw_status' },
   { m: 'POST', p: '/api/v1/system/fs/format', d: 'Format partition (SYSTEM_FS or USER_FS)', b: '{"partition":"user","confirm":true}', s: 'format' },
   { m: 'GET', p: '/api/v1/servo', d: 'List active servo attachments', s: 'servo' },
   { m: 'POST', p: '/api/v1/servo/write', d: 'Set servo angle (0-180 deg)', b: '{"pin":2,"angle":90}', s: 'servo_write' },
@@ -608,8 +606,8 @@ function fmtBarSub(p){
   const shortSize = p.size >= 1048576
     ? (p.size / 1048576).toFixed(1).replace(/\.0$/, '') + 'M'
     : Math.round(p.size / 1024) + 'K';
-  if(p.name === 'FW_SLOT_A' || p.name === 'FW_SLOT_B'){
-    return shortSize + ' ' + (p.active ? '[RUN]' : '[STANDBY]');
+  if(p.name === 'FIRMWARE'){
+    return shortSize + ' ' + (p.active ? '[RUN]' : '');
   }
   if(p.type === 'LITTLEFS2'){
     return shortSize + ' (LFS)';
@@ -750,14 +748,13 @@ async function loadManifest(){
 async function loadFirmwareStatus(){
   const fw = await fetchJSON('/api/v1/system/firmware/status');
   if(!fw) return;
-  const curSlot = fw.current_slot || 'SlotA';
-  $('fwSlots').textContent = (fw.active_slot || 'SlotA') + ' / ' + curSlot;
-  $('fwSlotTag').textContent = curSlot.toUpperCase();
+  $('fwSlots').textContent = fw.layout || 'single-slot';
+  $('fwSlotTag').textContent = 'SINGLE';
+  if($('fwVtor')) $('fwVtor').textContent = fw.vtor || '0x10008000';
   const rawFw = fw.firmware || 'AgentLA v1.0.0-rust';
   installedFwVer = extractVersion(rawFw);
   $('fwVersion').textContent = installedFwVer;
   if($('fwVerInstalled')) $('fwVerInstalled').textContent = installedFwVer;
-  $('fwCandidate').textContent = fw.candidate_slot ? fw.candidate_slot : 'None';
   await loadPartitions();
 }
 
@@ -946,8 +943,10 @@ async function uploadFile(url, data, isFw, noReload = false){
         if(b) b.style.width = '0%';
       }, 2000);
       if(!noReload){
-        if(isFw && await showConfirm('FIRMWARE STAGED', 'Firmware written to candidate slot. Reboot now to activate?', false)){
-          triggerReboot();
+        if(isFw){
+          // The OTA endpoint resets into BareBoot USB recovery after a verified
+          // write; no separate reboot confirmation is needed.
+          $('fwStatus').textContent = 'Firmware staged. BareBoot USB recovery active.';
         } else if(!isFw){
           setTimeout(() => location.reload(), 1500);
         }
@@ -1000,7 +999,7 @@ async function runFullSystemUpdate(){
     const fwResp = await fetch(fwAsset.browser_download_url);
     if(!fwResp.ok) throw new Error('Firmware download HTTP ' + fwResp.status);
     const fwBlob = await fwResp.blob();
-    if(s) s.textContent = '[2/2] Streaming ' + fwAsset.name + ' into candidate slot...';
+    if(s) s.textContent = '[2/2] Streaming ' + fwAsset.name + ' into the single app slot...';
     if(b) b.style.width = '90%';
     const fwOk = await uploadFile('/api/v1/system/firmware/ota', fwBlob, true, true);
     if(!fwOk) throw new Error('Failed to stage firmware OTA');
@@ -1039,15 +1038,6 @@ async function onlineUpdate(type){
 function uploadLocal(ep, file, isFw){
   if(!file) return;
   uploadFile(ep, file, isFw);
-}
-
-async function rollbackFw(){
-  if(!await showConfirm('FIRMWARE ROLLBACK', 'Revert bootloader active slot pointer to previous firmware slot?', true)) return;
-  const r = await fetch('/api/v1/system/firmware/rollback', { method: 'POST' });
-  if(r.ok){
-    $('fwStatus').textContent = 'Rollback committed. Rebooting...';
-    setTimeout(() => location.reload(), 2000);
-  }
 }
 
 async function releaseAllPins(){
@@ -1098,8 +1088,8 @@ function selectClockProfile(mhz){
 async function applyClockProfile(){
   const isExtreme = selectedClockMhz === 500;
   const msg = isExtreme
-    ? `Switch RP2350 sys_clk to 500 MHz (Extreme Boost @ 1.60V)? System will commit setting to flash BootTable and warm reboot immediately.`
-    : `Switch RP2350 sys_clk to ${selectedClockMhz} MHz? System will save setting and warm reboot.`;
+    ? `Switch RP2350 sys_clk to 500 MHz (Extreme Boost @ 1.60V)? The change applies to the warm reboot only (no flash persistence).`
+    : `Switch RP2350 sys_clk to ${selectedClockMhz} MHz? The change applies to the warm reboot only.`;
   if(!await showConfirm('APPLY OVERCLOCK & REBOOT', msg, isExtreme)) return;
   const btn = $('btnApplyClock');
   if(btn) btn.disabled = true;
