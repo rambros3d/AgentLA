@@ -16,7 +16,8 @@ use agentla_bsp::BoardProfile;
 /// Minimal local parser for the 64-byte `AGLA_FW\0` OTA container header.
 ///
 /// `agentla-boot-proto` was removed with the A/B boot-table design. This module
-/// keeps just the fields the single-slot stream handler needs. Layout (little
+/// keeps just the fields the legacy direct-flash OTA stream handler needs.
+/// The preferred update path stages the image into USER_FS instead. Layout (little
 /// endian): magic[0..8], board_id[8..16], version[16..32], target_slot[32],
 /// reserved[33..36], payload_size[36..40], payload_crc[40..44],
 /// reserved2[44..60], header_crc[60..64]. The CRC covers bytes 0..60 with the
@@ -2429,8 +2430,9 @@ impl GlitchStatus {
 pub struct FirmwareStatus;
 pub struct FirmwareOtaStream;
 
-/// Reads SCB.VTOR for diagnostics. In the single-slot layout this is normally
-/// 0x10008000 (the application base) or 0x10000000 while BareBoot runs.
+/// Reads SCB.VTOR for diagnostics. In the three-image layout this is normally
+/// 0x10048000 (the main application base), 0x10008000 while the recovery app
+/// runs, or 0x10000000 while Katapult stage-0 runs.
 fn current_vtor() -> u32 {
     unsafe { (*cortex_m::peripheral::SCB::PTR).vtor.read() }
 }
@@ -2442,7 +2444,7 @@ impl FirmwareStatus {
         let _ = core::fmt::Write::write_fmt(
             &mut b,
             format_args!(
-                r#"{{"status":"ok","layout":"single-slot","vtor":"0x{:08X}","build":"{}","firmware":"AgentLA v1.0.0-rust"}}"#,
+                r#"{{"status":"ok","layout":"3-image","vtor":"0x{:08X}","build":"{}","firmware":"AgentLA v1.0.0-rust"}}"#,
                 current_vtor(), build_info::BUILD_MARKER
             ),
         );
@@ -2547,6 +2549,11 @@ impl SystemFsFormat {
     }
 }
 
+/// Legacy/alternate in-place HTTP OTA endpoint (also at `/api/v1/firmware/ota`).
+/// It still writes the 1 MB main app slot directly and hands off to Katapult
+/// recovery. The preferred flow is to POST the image to
+/// `/api/v1/fs/write?root=user&path=/ota/update.bin` (USER_FS staging) and then
+/// reboot; the recovery app applies the staged image into this same slot.
 impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
     async fn call_method_handler_service<R: Read, W: ResponseWriter<Error = R::Error>>(
         &self,
@@ -2634,8 +2641,9 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
             .await;
         }
 
-        // Single application slot. The image must be linked for XIP 0x10008000;
-        // there is no alternate slot to select or stage into.
+        // Main application slot only. The image must be linked for XIP
+        // 0x10048000; no alternate slot exists and this path never touches the
+        // stage-0/recovery images below 0x48000 or the filesystems above.
         let slot_base = crate::storage::APP_SLOT_OFFSET;
 
         // 2. Stream payload chunks, erase 4 KB sectors on demand, write in 256-byte pages
@@ -2664,9 +2672,9 @@ impl picoserve::routing::MethodHandlerService<(), ()> for FirmwareOtaStream {
                 }
             };
 
-            // Reject an image linked for anything other than the single
+            // Reject an image linked for anything other than the main
             // application slot early, before any flash is erased. BareBoot
-            // vectors the XIP image at 0x10008000.
+            // vectors the XIP image at 0x10048000 (via the recovery app).
             if !checked_vector {
                 let take = n.min(8 - vector_have);
                 vector_buf[vector_have..vector_have + take].copy_from_slice(&chunk_buf[..take]);
@@ -3357,14 +3365,16 @@ impl picoserve::routing::MethodHandlerService<()> for SystemPartitionsHandler {
         request: Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        let mut buf = heapless::String::<1024>::new();
+        let mut buf = heapless::String::<1536>::new();
         let _ = core::fmt::Write::write_fmt(
             &mut buf,
             format_args!(
-                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"BOOTLOADER","label":"BOOTLOADER","offset":{},"size":{},"type":"ROM","role":"BareBoot RP2350 USB recovery","active":false}},{{"name":"FIRMWARE","label":"FIRMWARE","offset":{},"size":{},"type":"XIP_FLASH","role":"Single application slot [Running]","active":true}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}}]}}"#,
+                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"BOOTLOADER","label":"BOOTLOADER","offset":{},"size":{},"type":"ROM","role":"Katapult stage-0 (jumps to 0x10008000)","active":false}},{{"name":"RECOVERY","label":"RECOVERY","offset":{},"size":{},"type":"XIP_FLASH","role":"Recovery app (BareBoot USB Katapult)","active":false}},{{"name":"FIRMWARE","label":"FIRMWARE","offset":{},"size":{},"type":"XIP_FLASH","role":"Main application slot [Running]","active":true}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}}]}}"#,
                 crate::storage::FLASH_SIZE_BYTES,
                 crate::storage::BOOTLOADER_OFFSET,
                 crate::storage::BOOTLOADER_SIZE_BYTES,
+                crate::storage::RECOVERY_OFFSET,
+                crate::storage::RECOVERY_SIZE_BYTES,
                 crate::storage::APP_SLOT_OFFSET,
                 crate::storage::APP_SLOT_SIZE,
                 crate::storage::SYSTEM_FS_OFFSET,

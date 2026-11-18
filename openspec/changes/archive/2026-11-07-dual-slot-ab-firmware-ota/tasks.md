@@ -1,4 +1,4 @@
-> **SUPERSEDED / STALE (2026-11-18):** This archived change describes the removed A/B dual-slot boot-table design. The active layout is a single application slot at XIP `0x10008000` with BareBoot RP2350 USB recovery; see `openspec/specs/probe-firmware-ota/spec.md` and `openspec/specs/dual-littlefs-partitions/spec.md`. Kept for history only.
+> **SUPERSEDED / STALE (2026-11-18):** This archived change describes the removed A/B dual-slot boot-table design. The active layout is three images: Katapult stage-0 at `0x10000000`, recovery app at `0x10008000`, and the main application slot at XIP `0x10048000` (1 MB); see `openspec/specs/probe-firmware-ota/spec.md`, `openspec/specs/dual-littlefs-partitions/spec.md`, and `AGENTS.md`. Kept for history only.
 
 ## 1. Boot Table Metadata & Geometry Layout
 

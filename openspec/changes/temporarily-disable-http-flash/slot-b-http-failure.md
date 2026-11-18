@@ -1,6 +1,6 @@
 # Slot B HTTP failure: root cause and fix
 
-> **HISTORICAL / STALE (2026-11-18):** Slot B and the A/B boot table no longer exist. The watchdog-startup finding below still applies, but the slot offsets and candidate/rollback reasoning do not describe the current single-slot firmware.
+> **HISTORICAL / STALE (2026-11-18):** Slot B and the A/B boot table no longer exist. The watchdog-startup finding below still applies, but the slot offsets and candidate/rollback reasoning do not describe the current three-image layout (Katapult stage-0, recovery app, and a 1 MB main app slot at XIP `0x10048000`).
 
 ## Symptoms
 

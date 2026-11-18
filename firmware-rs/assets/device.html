@@ -185,19 +185,22 @@ select{background:#080808;border:1px solid var(--border-bright);color:var(--fg);
     </div>
   </div>
 
-  <!-- Card 3: Firmware (single slot) -->
+  <!-- Card 3: Firmware (main app slot of the 3-image layout) -->
   <div class="card">
-    <div class="card-hdr"><span class="title">Firmware (single slot)</span><span class="tag" id="fwSlotTag">SINGLE</span></div>
+    <div class="card-hdr"><span class="title">Firmware (app slot)</span><span class="tag" id="fwSlotTag">3-IMAGE</span></div>
     <div class="d-list">
-      <div class="row"><span class="lbl">LAYOUT</span><span class="dots"></span><span class="val" id="fwSlots">single-slot</span></div>
-      <div class="row"><span class="lbl">VTOR</span><span class="dots"></span><span class="val" id="fwVtor">0x10008000</span></div>
+      <div class="row"><span class="lbl">LAYOUT</span><span class="dots"></span><span class="val" id="fwSlots">3-image</span></div>
+      <div class="row"><span class="lbl">VTOR</span><span class="dots"></span><span class="val" id="fwVtor">0x10048000</span></div>
       <div class="row"><span class="lbl">INSTALLED</span><span class="dots"></span><span class="val" id="fwVersion">v1.0.0</span></div>
       <div class="row"><span class="lbl">UPDATE</span><span class="dots"></span><span class="val" id="fwUpdate">CHECK or NETWORK ERROR</span></div>
     </div>
     <div class="status-msg" id="fwStatus">Ready.</div>
     <div class="btn-group" style="margin-top:4px">
-      <button onclick="$('fileFw').click()">Upload .bin</button>
+      <button onclick="$('fileFwStage').click()" title="Preferred: stage the image into USER_FS, then reboot to apply">Stage .bin to USER_FS</button>
+      <button class="danger" onclick="rebootToApplyStagedFirmware()">Reboot to apply</button>
+      <button onclick="$('fileFw').click()" title="Legacy: write the image directly into the app slot over HTTP">Direct OTA .bin</button>
       <button class="danger" onclick="triggerBootsel()">Force BOOTSEL</button>
+      <input type="file" id="fileFwStage" accept=".bin" onchange="stageFirmwareUserFs(this.files[0])">
       <input type="file" id="fileFw" accept=".bin" onchange="uploadLocal('/api/v1/system/firmware/ota', this.files[0], true)">
     </div>
   </div>
@@ -748,9 +751,9 @@ async function loadManifest(){
 async function loadFirmwareStatus(){
   const fw = await fetchJSON('/api/v1/system/firmware/status');
   if(!fw) return;
-  $('fwSlots').textContent = fw.layout || 'single-slot';
-  $('fwSlotTag').textContent = 'SINGLE';
-  if($('fwVtor')) $('fwVtor').textContent = fw.vtor || '0x10008000';
+  $('fwSlots').textContent = fw.layout || '3-image';
+  $('fwSlotTag').textContent = '3-IMAGE';
+  if($('fwVtor')) $('fwVtor').textContent = fw.vtor || '0x10048000';
   const rawFw = fw.firmware || 'AgentLA v1.0.0-rust';
   installedFwVer = extractVersion(rawFw);
   $('fwVersion').textContent = installedFwVer;
@@ -963,6 +966,41 @@ async function uploadFile(url, data, isFw, noReload = false){
     if(s) s.textContent = ioMsg;
     if(cardStatus) cardStatus.textContent = ioMsg;
     return false;
+  }
+}
+
+// Preferred firmware update path: stage the selected .bin into USER_FS as the
+// LittleFS file /ota/update.bin. The recovery app consumes that file on the
+// next boot and installs it into the 1 MB main app slot. No direct flash write
+// is performed here; the direct OTA button below remains as a legacy path.
+async function stageFirmwareUserFs(file){
+  if(!file) return false;
+  const s = $('fwStatus');
+  if(s) s.textContent = 'STAGING FIRMWARE TO USER_FS...';
+  try{
+    const res = await fetch('/api/v1/fs/write?root=user&path=/ota/update.bin', { method: 'POST', body: file });
+    if(!res.ok){
+      if(s) s.textContent = 'STAGING FAILED: HTTP ' + res.status;
+      return false;
+    }
+    if(s) s.textContent = 'Firmware staged to USER_FS (/ota/update.bin). Press Reboot to apply.';
+    return true;
+  }catch(e){
+    if(s) s.textContent = 'STAGING ERROR: ' + e.message;
+    return false;
+  }
+}
+
+// Reboot so the recovery app applies the staged USER_FS image. This endpoint
+// only resets the core; OTA flash writes stay inside [0x48000, 0x148000).
+async function rebootToApplyStagedFirmware(){
+  if(!await showConfirm('APPLY STAGED FIRMWARE', 'Reboot now so the recovery app installs /ota/update.bin from USER_FS into the app slot?', true)) return;
+  const s = $('fwStatus');
+  if(s) s.textContent = 'REBOOTING TO APPLY STAGED FIRMWARE...';
+  try{
+    await fetch('/api/v1/system/reboot', { method: 'POST' });
+  }catch(e){
+    if(s) s.textContent = 'REBOOT ERROR: ' + e.message;
   }
 }
 

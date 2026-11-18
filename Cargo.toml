@@ -11,6 +11,7 @@ members = [
     "crates/agentla-targets",
     "crates/agentla-boot-proto",
     "crates/agentla-bootloader",
+    "crates/agentla-recovery",
     "crates/agentla-mcp",
     "boards/pico2",
     "boards/bakuprobe",

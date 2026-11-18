@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """
-AgentLA Two-Segment UF2 Package Builder
-Packages the USB recovery bootloader and the single-slot application firmware
-into one multi-segment UF2 file for RP2350 BOOTSEL drag-and-drop flashing.
+AgentLA Three-Segment UF2 Package Builder
+Packages the Katapult stage-0, the recovery application, and the main
+application firmware into one multi-segment UF2 file for RP2350 BOOTSEL
+drag-and-drop flashing.
 
-Flash layout (single slot, no backward compatibility):
-  - 0x10000000: BareBoot RP2350 USB recovery bootloader, 32 KB
+Flash layout (three images, no A/B pair):
+  - 0x10000000: Katapult stage-0, 32 KB
                 (bareBoot/targets/rp2350-usb/bareboot-rp2350.bin)
-  - 0x10008000: application firmware, 1248 KB (flash 0x8000..0x140000)
+                jumps to the recovery application at 0x10008000
+  - 0x10008000: recovery application, 256 KB (--recovery; built by the
+                agentla-recovery crate)
+  - 0x10048000: main application firmware, 1 MB (flash 0x48000..0x148000)
 
-SYSTEM_FS starts at 0x140000 and USER_FS at 0x240000. The WebUI is
+SYSTEM_FS starts at 0x148000 and USER_FS at 0x248000. The WebUI is
 deliberately NOT packaged here: it is provisioned at runtime by the /device
 console, which fetches webui.tar from GitHub Releases and extracts it into
-SYSTEM_FS (XIP 0x10140000). Never put a segment at or above 0x140000.
+SYSTEM_FS (XIP 0x10148000). The preferred OTA flow stages an image as a
+USER_FS file (/ota/update.bin) and reboots. Never put a UF2 segment at or
+above 0x148000.
 """
 
 import argparse
@@ -33,7 +39,8 @@ RP2350_RISCV_FAMILY_ID = 0xE48BFF5A
 RP2040_FAMILY_ID = 0xE48BFF56
 
 DEFAULT_BOOTLOADER_ADDR = 0x10000000
-DEFAULT_FIRMWARE_ADDR = 0x10008000
+DEFAULT_RECOVERY_ADDR = 0x10008000
+DEFAULT_FIRMWARE_ADDR = 0x10048000
 
 # BareBoot persistent commit-state sector (last 4 KB of the bootloader slot).
 # A factory-provisioned application is written by BOOTSEL directly, bypassing
@@ -129,13 +136,15 @@ def build_multisegment_uf2(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Package two-segment UF2 for AgentLA RP2350 (BareBoot recovery + single-slot firmware)")
+    parser = argparse.ArgumentParser(description="Package three-segment UF2 for AgentLA RP2350 (Katapult stage-0 + recovery + main firmware)")
     parser.add_argument("-o", "--output", required=True, help="Output UF2 file path")
-    parser.add_argument("--bootloader", help="Path to bareboot-rp2350 binary or ELF (default addr 0x10000000, 32 KB)")
-    parser.add_argument("--bootloader-addr", type=lambda x: int(x, 0), default=DEFAULT_BOOTLOADER_ADDR, help="Bootloader flash address (default 0x10000000)")
-    parser.add_argument("--firmware", help="Path to application firmware binary or ELF (default addr 0x10008000)")
-    parser.add_argument("--firmware-addr", type=lambda x: int(x, 0), default=DEFAULT_FIRMWARE_ADDR, help="Firmware flash address (default 0x10008000)")
-    parser.add_argument("--segment", nargs=2, action="append", metavar=("FILE", "ADDR"), help="Additional segment FILE and ADDR in hex (must stay below 0x140000)")
+    parser.add_argument("--bootloader", help="Path to Katapult stage-0 (bareboot-rp2350) binary or ELF (default addr 0x10000000, 32 KB)")
+    parser.add_argument("--bootloader-addr", type=lambda x: int(x, 0), default=DEFAULT_BOOTLOADER_ADDR, help="Stage-0 flash address (default 0x10000000)")
+    parser.add_argument("--recovery", help="Path to recovery application binary or ELF (default addr 0x10008000, 256 KB)")
+    parser.add_argument("--recovery-addr", type=lambda x: int(x, 0), default=DEFAULT_RECOVERY_ADDR, help="Recovery flash address (default 0x10008000)")
+    parser.add_argument("--firmware", help="Path to main application firmware binary or ELF (default addr 0x10048000)")
+    parser.add_argument("--firmware-addr", type=lambda x: int(x, 0), default=DEFAULT_FIRMWARE_ADDR, help="Firmware flash address (default 0x10048000)")
+    parser.add_argument("--segment", nargs=2, action="append", metavar=("FILE", "ADDR"), help="Additional segment FILE and ADDR in hex (must stay below 0x148000)")
     parser.add_argument("--commit-valid", action="store_true", help="Write a BareBoot VALID commit record at 0x10007000 so a factory-provisioned app boots without a Katapult COMPLETE")
     parser.add_argument("--family-id", type=lambda x: int(x, 0), default=RP2350_ARM_FAMILY_ID, help="UF2 family ID (default 0xe48bff59 for RP2350 ARM)")
 
@@ -144,13 +153,20 @@ def main():
     segments = []
     if args.bootloader:
         data = read_file_as_binary(args.bootloader)
-        segments.append((args.bootloader_addr, data, f"Bootloader ({os.path.basename(args.bootloader)})"))
+        segments.append((args.bootloader_addr, data, f"Katapult stage-0 ({os.path.basename(args.bootloader)})"))
+    if args.recovery:
+        data = read_file_as_binary(args.recovery)
+        if args.recovery_addr != DEFAULT_RECOVERY_ADDR:
+            raise ValueError(f"Recovery must be linked at 0x{DEFAULT_RECOVERY_ADDR:08X}, got 0x{args.recovery_addr:08X}")
+        if len(data) > 0x40000:
+            raise ValueError(f"Recovery size {len(data)} exceeds the 256 KB recovery slot")
+        segments.append((args.recovery_addr, data, f"Recovery ({os.path.basename(args.recovery)})"))
     if args.firmware:
         data = read_file_as_binary(args.firmware)
         if args.firmware_addr != DEFAULT_FIRMWARE_ADDR:
             raise ValueError(f"Firmware must be linked at 0x{DEFAULT_FIRMWARE_ADDR:08X}, got 0x{args.firmware_addr:08X}")
-        if len(data) > 0x138000:
-            raise ValueError(f"Firmware size {len(data)} exceeds the 1248 KB single slot")
+        if len(data) > 0x100000:
+            raise ValueError(f"Firmware size {len(data)} exceeds the 1 MB main app slot")
         segments.append((args.firmware_addr, data, f"Firmware ({os.path.basename(args.firmware)})"))
 
     if args.commit_valid:
@@ -162,12 +178,12 @@ def main():
         for file_path, addr_str in args.segment:
             addr = int(addr_str, 0)
             data = read_file_as_binary(file_path)
-            if addr >= 0x140000 or addr + len(data) > 0x140000:
-                raise ValueError(f"Segment [{os.path.basename(file_path)}] would overwrite SYSTEM_FS at/above 0x140000")
+            if addr >= 0x148000 or addr + len(data) > 0x148000:
+                raise ValueError(f"Segment [{os.path.basename(file_path)}] would overwrite SYSTEM_FS at/above 0x148000")
             segments.append((addr, data, f"Custom ({os.path.basename(file_path)})"))
 
     if not segments:
-        print("ERROR: No segments provided. Specify --bootloader, --firmware, or --segment.", file=sys.stderr)
+        print("ERROR: No segments provided. Specify --bootloader, --recovery, --firmware, or --segment.", file=sys.stderr)
         sys.exit(1)
 
     print(f"[+] Packaging multi-segment UF2 -> {args.output}")

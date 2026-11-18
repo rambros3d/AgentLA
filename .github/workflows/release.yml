@@ -73,7 +73,18 @@ jobs:
             bareBoot/targets/rp2350-usb/target/thumbv8m.main-none-eabihf/release/bareboot-rp2350 \
             build/bareboot-rp2350.bin
 
-      - name: Build Application Firmware (single slot, Embassy)
+      - name: Build Recovery Application
+        # Built from the in-tree agentla-recovery crate; the resulting binary
+        # is written to flash 0x00008000 (XIP 0x10008000, 256 KB).
+        run: |
+          cd crates/agentla-recovery
+          cargo build --release --target thumbv8m.main-none-eabihf
+          cd "${GITHUB_WORKSPACE}"
+          arm-none-eabi-objcopy -O binary \
+            target/thumbv8m.main-none-eabihf/release/agentla-recovery \
+            build/agentla-recovery.bin
+
+      - name: Build Application Firmware (main app slot, Embassy)
         run: |
           cargo build --release -p firmware-rs --target thumbv8m.main-none-eabihf --no-default-features --features board-pico2
 
@@ -98,13 +109,14 @@ jobs:
             --board PICO2 \
             --version "${{ steps.get_version.outputs.version }}"
 
-      - name: Package Two-Segment BOOTSEL UF2
-        # Bootloader at 0x10000000 (32 KB) + single-slot firmware at
-        # 0x10008000. SYSTEM_FS/USER_FS are provisioned at runtime and never
-        # shipped in this UF2.
+      - name: Package Three-Segment BOOTSEL UF2
+        # Katapult stage-0 at 0x10000000 (32 KB), recovery app at
+        # 0x10008000 (256 KB), and main firmware at 0x10048000 (1 MB).
+        # SYSTEM_FS/USER_FS are provisioned at runtime and never shipped here.
         run: |
           python3 tools/package_uf2.py \
             --bootloader build/bareboot-rp2350.bin \
+            --recovery build/agentla-recovery.bin \
             --firmware target/thumbv8m.main-none-eabihf/release/firmware-rs \
             --commit-valid \
             -o build/agentla-pico2.uf2

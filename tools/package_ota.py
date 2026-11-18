@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 AgentLA Firmware OTA Package Builder
-Wraps the single-slot application binary or ELF with the 64-byte AGLA_FW
-header for OTA delivery. The payload MUST be linked for XIP 0x10008000
-(flash offset 0x00008000, size 1248 KB); the firmware endpoint validates
-the reset vector before writing it, then hands off to BareBoot RP2350 USB
-recovery. There is no slot selection and no boot table.
+Wraps the main application binary or ELF with the 64-byte AGLA_FW header for
+OTA delivery. The payload MUST be linked for XIP 0x10048000 (flash offset
+0x00048000, size 1 MB): the main app slot of the three-image layout below the
+filesystems. The direct-flash firmware endpoint validates the reset vector
+before writing it, then hands off to Katapult recovery. The preferred delivery
+path stages this binary as a USER_FS file (/ota/update.bin) and reboots. There
+is no slot selection, A/B pair, or boot table.
 """
 
 import sys
@@ -17,7 +19,8 @@ import os
 
 MAGIC = b"AGLA_FW\0"
 HEADER_FORMAT = "<8s8s16sBBBBII4II" # 8+8+16+1+3+4+4+16+4 = 64 bytes
-FIRMWARE_LINK_ADDR = 0x10008000
+FIRMWARE_LINK_ADDR = 0x10048000
+FIRMWARE_SLOT_SIZE = 1024 * 1024  # 1 MB main app slot
 SINGLE_SLOT = 0  # legacy header byte: 0 = no A/B slot selection
 
 
@@ -49,8 +52,8 @@ def build_package(input_path: str, output_path: str, board_id: str = "PICO2", ve
         os.remove(raw_bin_path)
 
     payload_size = len(payload)
-    if payload_size > 1200 * 1024:
-        raise ValueError(f"Payload size {payload_size} exceeds 1.2 MB limit")
+    if payload_size > FIRMWARE_SLOT_SIZE:
+        raise ValueError(f"Payload size {payload_size} exceeds the 1 MB main app slot limit")
 
     payload_crc = crc32(payload)
 
@@ -83,14 +86,14 @@ def build_package(input_path: str, output_path: str, board_id: str = "PICO2", ve
     print(f"[+] Packaged OTA Firmware: {output_path}")
     print(f"    Board:       {board_id}")
     print(f"    Version:     {version}")
-    print(f"    Link addr:   0x{FIRMWARE_LINK_ADDR:08X} (flash 0x00008000, single slot)")
+    print(f"    Link addr:   0x{FIRMWARE_LINK_ADDR:08X} (flash 0x00048000, 1 MB main app slot)")
     print(f"    Size:        {payload_size} bytes ({payload_size / 1024:.1f} KiB)")
     print(f"    Payload CRC: 0x{payload_crc:08X}")
     print(f"    Header CRC:  0x{header_crc:08X}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Package AgentLA firmware for single-slot OTA updates")
-    parser.add_argument("input", help="Path to input ELF or .bin linked for 0x10008000")
+    parser = argparse.ArgumentParser(description="Package AgentLA firmware for three-image-layout OTA updates")
+    parser.add_argument("input", help="Path to input ELF or .bin linked for 0x10048000")
     parser.add_argument("-o", "--output", required=True, help="Path to output .ota.bin")
     parser.add_argument("--board", default="PICO2", help="Target board identifier (default: PICO2)")
     parser.add_argument("--version", default="1.0.0", help="Firmware version string")

@@ -2,12 +2,12 @@
 """
 AgentLA System WebUI Packager Utility
 Pre-compresses WebUI assets with gzip, builds a 512 KB LittleFS image for the
-first half of SYSTEM_FS (flash 0x140000, XIP 0x10140000), converts it to UF2
-at offset 0x10140000 for RP2350 flashing, and generates a streaming ustar
+first half of SYSTEM_FS (flash 0x148000, XIP 0x10148000), converts it to UF2
+at offset 0x10148000 for RP2350 flashing, and generates a streaming ustar
 tarball for live HTTP updates via POST /api/v1/system/webui/update.
 
-SYSTEM_FS occupies flash 0x140000..0x240000 (1 MB); USER_FS follows at
-0x240000. Never emit a WebUI segment at or above 0x240000.
+SYSTEM_FS occupies flash 0x148000..0x248000 (1 MB); USER_FS follows at
+0x248000. Never emit a WebUI segment at or above 0x248000.
 """
 
 import argparse
@@ -28,7 +28,7 @@ except ImportError:
 
 # RP2350 Family ID for UF2
 RP2350_ARM_FAMILY_ID = 0xe48bff59
-DEFAULT_FLASH_OFFSET = 0x10140000
+DEFAULT_FLASH_OFFSET = 0x10148000
 BLOCK_SIZE = 4096
 BLOCK_COUNT = 128
 PARTITION_SIZE = BLOCK_SIZE * BLOCK_COUNT  # 512 KB (524,288 bytes)

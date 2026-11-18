@@ -13,29 +13,39 @@ pub const FLASH_SIZE_BYTES: usize = 16 * 1024 * 1024;
 #[cfg(not(feature = "board-bakuprobe"))]
 pub const FLASH_SIZE_BYTES: usize = 4 * 1024 * 1024;
 
-/// Recovery bootloader (BareBoot RP2350): flash 0x00000000..0x00008000, 32 KB.
-/// XIP 0x10000000. Never written by this firmware.
+/// Katapult stage-0: flash 0x00000000..0x00008000, 32 KB (XIP 0x10000000).
+/// It jumps to the recovery application at XIP 0x10008000. Never written by
+/// this firmware.
 pub const BOOTLOADER_OFFSET: u32 = 0x00000000;
 pub const BOOTLOADER_SIZE_BYTES: usize = 32 * 1024;
 
-/// Single application slot: flash 0x00008000..0x00140000 (XIP 0x10008000).
-/// Firmware is linked at 0x10008000. Nothing above APP_SLOT_END may ever be
-/// erased or programmed by an OTA operation.
-pub const APP_SLOT_OFFSET: u32 = 0x00008000;
-pub const APP_SLOT_SIZE: usize = 1248 * 1024; // 0x138000 bytes
-pub const APP_SLOT_END: u32 = 0x00140000;
+/// Recovery application: flash 0x00008000..0x00048000, 256 KB
+/// (XIP 0x10008000). Built by the agentla-recovery crate and shipped in the
+/// UF2 alongside stage-0; never written by main-firmware OTA.
+pub const RECOVERY_OFFSET: u32 = 0x00008000;
+pub const RECOVERY_SIZE_BYTES: usize = 256 * 1024;
 
-/// SYSTEM_FS partition: 1 MB (256 sectors of 4 KB). Fixed across all boards.
-pub const SYSTEM_FS_OFFSET: u32 = 0x00140000;
+/// Main application slot: flash 0x00048000..0x00148000 (XIP 0x10048000, 1 MB).
+/// Firmware is linked at 0x10048000. Nothing below APP_SLOT_OFFSET (stage-0 +
+/// recovery) or at/above APP_SLOT_END (filesystems) may ever be erased or
+/// programmed by an OTA operation.
+pub const APP_SLOT_OFFSET: u32 = 0x00048000;
+pub const APP_SLOT_SIZE: usize = 1024 * 1024; // 0x100000 bytes
+pub const APP_SLOT_END: u32 = 0x00148000;
+
+/// SYSTEM_FS partition: 1 MB (256 sectors of 4 KB), flash 0x00148000..0x00248000.
+pub const SYSTEM_FS_OFFSET: u32 = 0x00148000;
 pub const SYSTEM_FS_SIZE_BYTES: usize = 1024 * 1024;
 pub const SYSTEM_BLOCK_COUNT: usize = SYSTEM_FS_SIZE_BYTES / BLOCK_SIZE; // 256 blocks
-pub const SYSTEM_FS_END: u32 = 0x00240000;
+pub const SYSTEM_FS_END: u32 = 0x00248000;
 
-/// USER_FS partition: 1792 KB, ending at the 4 MB flash boundary on Pico 2.
-pub const USER_FS_OFFSET: u32 = 0x00240000;
+/// USER_FS partition: 1760 KB (440 sectors of 4 KB), flash 0x00248000..0x00400000.
+/// Staged OTA images are written here as LittleFS files (e.g. /ota/update.bin),
+/// never via direct flash writes from the OTA endpoints.
+pub const USER_FS_OFFSET: u32 = 0x00248000;
 pub const USER_FS_END: u32 = 0x00400000;
 pub const USER_FS_SIZE_BYTES: usize = (USER_FS_END - USER_FS_OFFSET) as usize;
-pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE; // 448 blocks
+pub const USER_BLOCK_COUNT: usize = USER_FS_SIZE_BYTES / BLOCK_SIZE; // 440 blocks
 
 /// The `FLASH` peripheral is a single instance: the physical flash object lives in this
 /// mutex from [`init_filesystem`] on, shared by LittleFS storage instances and the
@@ -271,7 +281,7 @@ pub fn init_filesystem(flash: FlashHandle) -> bool {
         *guard = Some(flash);
     }
 
-    // 1. Mount SYSTEM_FS (1 MB at 0x00140000)
+    // 1. Mount SYSTEM_FS (1 MB at 0x00148000)
     static SYS_ALLOC: StaticCell<Allocation<SystemFlashStorage>> = StaticCell::new();
     static SYS_STORAGE: StaticCell<SystemFlashStorage> = StaticCell::new();
 
@@ -310,7 +320,7 @@ pub fn init_filesystem(flash: FlashHandle) -> bool {
         }
     }
 
-    // 2. Mount USER_FS (1792 KB at 0x00240000)
+    // 2. Mount USER_FS (1760 KB at 0x00248000)
     static USER_ALLOC: StaticCell<Allocation<UserFlashStorage>> = StaticCell::new();
     static USER_STORAGE: StaticCell<UserFlashStorage> = StaticCell::new();
 
@@ -355,12 +365,14 @@ pub fn init_filesystem(flash: FlashHandle) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// OTA primitives. The only caller is the single-slot firmware stream handler
-// in `crate::rest`. Bounds are enforced here so an OTA can never reach the
-// BareBoot recovery bootloader below 0x8000 or SYSTEM_FS at/above 0x140000.
+// OTA primitives. The only direct-flash caller is the legacy/alternate HTTP
+// stream handler in `crate::rest`. Bounds are enforced here so an OTA can never
+// reach the Katapult stage-0/recovery images below 0x48000 or the filesystems
+// at/above 0x148000. The preferred update flow stages the image as a USER_FS
+// file (/ota/update.bin) and lets the recovery app apply it.
 // ---------------------------------------------------------------------------
 
-/// Erases a 4 KB sector range inside the single application slot [from, to).
+/// Erases a 4 KB sector range inside the main application slot [from, to).
 pub fn flash_slot_erase(from: u32, to: u32) -> Result<(), ()> {
     if from < APP_SLOT_OFFSET
         || to > APP_SLOT_END
@@ -378,7 +390,7 @@ pub fn flash_slot_erase(from: u32, to: u32) -> Result<(), ()> {
         .map_err(|_| ())
 }
 
-/// Writes a page-aligned buffer into the single application slot.
+/// Writes a page-aligned buffer into the main application slot.
 pub fn flash_slot_write(offset: u32, data: &[u8]) -> Result<(), ()> {
     let to = offset + data.len() as u32;
     if offset < APP_SLOT_OFFSET || to > APP_SLOT_END || data.is_empty() {

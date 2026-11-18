@@ -22,7 +22,7 @@ impl FileExt for File {
     }
 }
 
-pub const SYSTEM_JSON: &str = r#"{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":150,"cores":2,"flash_bytes":4194304,"sram_bytes":532480,"littlefs_offset":"0x00140000","firmware":"AgentLA v1.0.0-rust","status":"healthy"}"#;
+pub const SYSTEM_JSON: &str = r#"{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":150,"cores":2,"flash_bytes":4194304,"sram_bytes":532480,"littlefs_offset":"0x00148000","firmware":"AgentLA v1.0.0-rust","status":"healthy"}"#;
 
 pub const PINS_JSON: &str = r#"{"status":"ok","count":30,"mcu":"RP2350A","pins":[{"pin":0,"name":"UART0_TX","mode":"UART"},{"pin":1,"name":"UART0_RX","mode":"UART"},{"pin":4,"name":"SWCLK","mode":"SWD"},{"pin":5,"name":"SWDIO","mode":"SWD"},{"pin":6,"name":"nRESET","mode":"GPIO"},{"pin":25,"name":"LED","mode":"OUTPUT"}]}"#;
 

@@ -1,0 +1,43 @@
+[package]
+name = "agentla-recovery"
+version = "0.1.0"
+edition = "2021"
+description = "Synchronous single-slot recovery bootloader that stages USER_FS updates into the main application slot"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "agentla-recovery"
+test = false
+bench = false
+
+[lib]
+name = "agentla_recovery"
+path = "src/lib.rs"
+test = true
+bench = false
+
+# Pure helpers used by the host-side unit tests. Keep this target free of any
+# architecture-specific crates so `cargo test --lib --target <host>` works.
+[dependencies]
+agentla-boot-proto = { path = "../agentla-boot-proto" }
+
+# Hardware-only dependencies. Gated on ARM so the lib can be tested on the host
+# without pulling in embassy-rp / cortex-m-rt.
+[target.'cfg(target_arch = "arm")'.dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.5"
+panic-halt = "0.2"
+defmt = "1.0.1"
+defmt-rtt = "1.0.1"
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "critical-section-impl", "defmt"] }
+embassy-sync = "0.8.0"
+embassy-time = "0.5.1"
+littlefs2 = { version = "0.8.1", default-features = false }
+static_cell = "2.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false

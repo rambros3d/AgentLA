@@ -8,11 +8,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn main() {
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
-    // Single-slot layout: the application is always linked at XIP 0x10008000.
-    // The recovery bootloader owns flash 0x00000000..0x00008000 and SYSTEM_FS
-    // starts at 0x00140000; neither may ever be touched by this binary.
+    // Three-image layout: Katapult stage-0 owns flash 0x00000000..0x00008000,
+    // the recovery app owns 0x00008000..0x00048000, and this main application
+    // is linked at XIP 0x10048000 (flash 0x00048000..0x00148000, 1 MB).
+    // SYSTEM_FS starts at 0x00148000; none of the other images or filesystems
+    // may ever be touched by this binary.
     let memory_x = r#"MEMORY {
-    FLASH : ORIGIN = 0x10008000, LENGTH = 1248K
+    FLASH : ORIGIN = 0x10048000, LENGTH = 1024K
     RAM   : ORIGIN = 0x20000000, LENGTH = 520K
 }
 "#;
@@ -24,8 +26,8 @@ fn main() {
 
     // Build marker: a short hash of the working tree plus the dirty flag and a
     // UTC timestamp. Emitted as a Rust constant so FirmwareStatus can report
-    // exactly which binary is running. There is only one slot now, so the
-    // marker identifies the single application image rather than a slot pair.
+    // exactly which binary is running. The marker identifies the single main
+    // application image; the recovery app is built from a separate crate.
     let git_hash = Command::new("git")
         .args(["rev-parse", "--short=8", "HEAD"])
         .output()

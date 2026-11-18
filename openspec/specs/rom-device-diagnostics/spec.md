@@ -1,7 +1,7 @@
 # rom-device-diagnostics Specification
 
 ## Purpose
-Provides a standalone, self-contained Flash ROM diagnostics and recovery interface (`device.html`) on `/device` and `/device.html`. The page operates with zero dependencies on LittleFS partitions, presenting live board telemetry, single-slot firmware status, a browser-mediated update checker with independent firmware and WebUI flashers, a visual Flash partition map, dedicated `SYSTEM_FS` and `USER_FS` storage controls, and an in-page Neo-Industrial confirmation modal for developer recovery tools (hands-free BOOTSEL reboot, pin arbiter emergency releases, pin probing, and partition formatting).
+Provides a standalone, self-contained Flash ROM diagnostics and recovery interface (`device.html`) on `/device` and `/device.html`. The page operates with zero dependencies on LittleFS partitions, presenting live board telemetry, main-app-slot firmware status in the three-image layout, a browser-mediated update checker with independent firmware and WebUI flashers (preferred USER_FS staging plus a legacy direct OTA path), a visual Flash partition map, dedicated `SYSTEM_FS` and `USER_FS` storage controls, and an in-page Neo-Industrial confirmation modal for developer recovery tools (hands-free BOOTSEL reboot, pin arbiter emergency releases, pin probing, and partition formatting).
 
 ## Requirements
 
@@ -24,11 +24,11 @@ The diagnostics page SHALL query `/api/board/manifest` and `/api/v1/system/telem
 - **THEN** it renders MCU specifications, supply voltages, current consumption, temperature, and a visual matrix of GPIO 0 to 29 showing whether each pin is `free` or claimed by an active subsystem.
 
 ### Requirement: Visual Flash Partition Map & Dedicated Partition Cards
-The diagnostics page SHALL display a proportional segmented linear memory bar and geometry table representing the Flash layout (`BOOTLOADER`, `FIRMWARE`, `SYSTEM_FS`, `USER_FS`), with dedicated cards for `WebUI & Storage (SYSTEM_FS)` and `User Storage (USER_FS)` containing in-place formatting controls.
+The diagnostics page SHALL display a proportional segmented linear memory bar and geometry table representing the Flash layout (`BOOTLOADER`, `RECOVERY`, `FIRMWARE`, `SYSTEM_FS`, `USER_FS`), with dedicated cards for `WebUI & Storage (SYSTEM_FS)` and `User Storage (USER_FS)` containing in-place formatting controls.
 
 #### Scenario: Viewing memory geometry and partition state
 - **WHEN** the diagnostics page loads
-- **THEN** it highlights the single active `FIRMWARE` region in the segmented linear bar and displays offset boundaries and LittleFS headroom for both `SYSTEM_FS` (1 MB at `0x00140000`) and `USER_FS` (1792 KB at `0x00240000`).
+- **THEN** it highlights the single active `FIRMWARE` region in the segmented linear bar and displays offset boundaries and LittleFS headroom for both `SYSTEM_FS` (1 MB at `0x00148000`) and `USER_FS` (1760 KB at `0x00248000`).
 
 ### Requirement: In-Page Action Confirmation Modal
 Destructive developer actions (reboot, BOOTSEL entry, pin release, partition format) SHALL prompt the user via an in-page Neo-Industrial confirmation modal dialog rather than standard browser dialogs (`confirm()` / `alert()`).
@@ -38,7 +38,7 @@ Destructive developer actions (reboot, BOOTSEL entry, pin release, partition for
 - **THEN** an in-page modal dialog appears with an action description and high-contrast `[ CANCEL ]` and `[ EXECUTE ACTION ]` buttons, awaiting explicit user confirmation before issuing the REST call.
 
 ### Requirement: Unified System Update Hero Card in Hardware View
-The In-ROM diagnostics console (`device.html`) SHALL render a full-width System Update Hero Card (`#cardSystemUpdate`) positioned directly at the top of the `[ HARDWARE ]` view panel. The card SHALL present a unified release management interface combining single-slot firmware status, WebUI asset status, GitHub release version comparison, a single-click 2-phase full system update runner, and manual local file staging pickers.
+The In-ROM diagnostics console (`device.html`) SHALL render a full-width System Update Hero Card (`#cardSystemUpdate`) positioned directly at the top of the `[ HARDWARE ]` view panel. The card SHALL present a unified release management interface combining main-app-slot firmware status, WebUI asset status, GitHub release version comparison, a single-click 2-phase full system update runner, and manual local file staging pickers (preferred USER_FS staging with reboot to apply, plus a clearly labeled legacy direct OTA button).
 
 #### Scenario: Displaying unified system update card on hardware tab
 - **WHEN** the user opens `http://<host>/device`
@@ -62,8 +62,12 @@ The diagnostics page SHALL provide an in-browser update checker that queries the
 - **WHEN** the user opens the diagnostics page while connected to the internet
 - **THEN** client JavaScript queries `https://api.github.com/repos/rambros3d/AgentLA/releases/latest`, compares the installed firmware version (from `/api/v1/system/firmware/status`) and WebUI asset manifest against the latest GitHub release, and updates the release tag badge and update status.
 
-#### Scenario: Individual firmware update
-- **WHEN** the user initiates a firmware update via 1-click download or file picker
+#### Scenario: Individual firmware update (preferred staged flow)
+- **WHEN** the user picks a firmware `.bin` in the "Stage .bin to USER_FS" file picker
+- **THEN** the client POSTs the binary to `/api/v1/fs/write?root=user&path=/ota/update.bin`, reports that the image is staged, and offers a "Reboot to apply" button that POSTs `/api/v1/system/reboot` so the recovery app installs it into the app slot.
+
+#### Scenario: Individual firmware update (legacy direct OTA)
+- **WHEN** the user picks a firmware `.bin` in the clearly labeled "Direct OTA .bin" file picker
 - **THEN** the client streams the firmware binary to `POST /api/v1/system/firmware/ota`, displays upload progress, and reports the BareBoot USB recovery hand-off after the verified write.
 
 #### Scenario: Individual WebUI update
