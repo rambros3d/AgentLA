@@ -1199,8 +1199,17 @@ impl picoserve::routing::MethodHandlerService<()> for FsWrite {
 
         let mut pos: u32 = 0;
         if failure.is_none() {
-            let mut reader = request.body_connection.body().reader();
-            let mut buf = [0u8; 512];
+            // The default picoserve read_request timeout is 3s and stays active
+            // for the whole handler. Streaming a large file through LittleFS in
+            // small chunks exceeds it, so extend it for the body read. Use a
+            // full 4096-byte block per write_chunk to minimize metadata commits
+            // (each write_chunk reopens the file and commits).
+            let mut reader = request
+                .body_connection
+                .body()
+                .reader()
+                .with_different_timeout(embassy_time::Duration::from_secs(120));
+            let mut buf = [0u8; 4096];
             loop {
                 let n = match reader.read(&mut buf).await {
                     Ok(0) => break,
