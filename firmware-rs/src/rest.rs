@@ -236,6 +236,7 @@ pub struct BridgeI2cTransfer;
 pub struct BridgeI3cTransfer;
 pub struct BridgeI3cInit;
 pub struct BridgeI3cCcc;
+pub struct BridgeI3cEntDaa;
 pub struct BridgeI3cRstdaa;
 pub struct BridgeI3cTargetReset;
 pub struct BridgeLedTransmit;
@@ -278,7 +279,7 @@ macro_rules! service {
 
 service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET"); service!(ProgrammerSwoStatus, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
-service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeI2cTransfer, "POST"); service!(BridgeI3cTransfer, "POST"); service!(BridgeI3cInit, "POST"); service!(BridgeI3cCcc, "POST"); service!(BridgeI3cRstdaa, "POST"); service!(BridgeI3cTargetReset, "POST"); service!(BridgeLedTransmit, "POST");
+service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeI2cTransfer, "POST"); service!(BridgeI3cTransfer, "POST"); service!(BridgeI3cInit, "POST"); service!(BridgeI3cCcc, "POST"); service!(BridgeI3cEntDaa, "POST"); service!(BridgeI3cRstdaa, "POST"); service!(BridgeI3cTargetReset, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
 service!(BridgeUartOn, "POST"); service!(BridgeUartOff, "POST"); service!(BridgeUartWrite, "POST"); service!(BridgeUartRead, "GET");
 service!(ScopeData, "GET"); service!(ScopeStart, "POST"); service!(ScopeStop, "POST");
@@ -1676,6 +1677,28 @@ impl BridgeI3cCcc {
             r#"{{"status":"{}","ccc":"broadcast_write","d0":{},"d1":{}}}"#,
             if ok { "ok" } else { "error" }, res.1, res.2));
         send_json(request, response_writer, if ok { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR }, b.as_str()).await
+    }
+}
+
+impl BridgeI3cEntDaa {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let proposed = key_int(query, &body, "addr").unwrap_or(0x40) as u8;
+        if crate::bridge::i3c_on().is_err() {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+        }
+        let (assigned, pid) = crate::bridge::i3c::I3C_INSTANCE.lock().await.entdaa_diag(proposed).await;
+        let mut pid_hex = heapless::String::<16>::new();
+        for &b in &pid { let _ = write!(pid_hex, "{:02X}", b); }
+        let mut resp = heapless::String::<128>::new();
+        let _ = write!(resp,
+            r#"{{"status":"{}","assigned_addr":{},"uid_hex":"{}","bcr":"{:02X}","dcr":"{:02X}"}}"#,
+            if assigned != 0 { "ok" } else { "error" }, assigned,
+            &pid_hex.as_str()[..12], pid[6], pid[7]);
+        let code = if assigned != 0 { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR };
+        send_json(request, response_writer, code, resp.as_str()).await
     }
 }
 

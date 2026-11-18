@@ -625,26 +625,35 @@ fn do_ccc_broadcast(h: &Hal, data: &[u8]) -> i8 {
     st
 }
 
-fn do_entdaa(h: &Hal, proposed: u8) -> (i8, u8) {
+/// Dynamic address assignment (ENTDAA), following `i3c_hl_entdaa()`.
+///
+/// Returns `(status, assigned_address)`.  The first tuple element is a status
+/// code, never an address; the second is the assigned address on success.
+/// `pid` receives the 6-byte provisioned ID followed by BCR and DCR.
+fn do_entdaa(h: &Hal, proposed: u8, pid: &mut [u8; 8]) -> (i8, u8) {
     h.start();
     let (st, _) = h.arbhdr();
     if st != ST_OK {
         h.stop();
         return (st, 0);
     }
-    h.sdr_write(0x07); // ENTDAA CCC
+    h.sdr_write(0x07); // ENTDAA broadcast CCC
     h.restart();
-    let a_st = h.sdr_write_addr((0x7e << 1) | 1); // 0x7E broadcast, read
+    // 0x7E read: every unassigned target drives its 48-bit PID + BCR + DCR;
+    // the lowest value wins arbitration.
+    let a_st = h.sdr_write_addr((0x7e << 1) | 1);
     if a_st != ST_OK {
         h.stop();
         return (a_st, 0);
     }
-    for _ in 0..8 { let _ = h.od_read8(); } // 48-bit PID + BCR + DCR
-    let shifted = proposed << 1;
-    let tbit = ((shifted.count_ones() & 1) ^ 1) as u8;
-    let assigned = h.sdr_write_addr(shifted | tbit);
+    for b in pid.iter_mut() { *b = h.od_read8(); }
+    // 7-bit address + R/W=0 (shifted) followed by odd parity (PAR). The
+    // winning target ACKs only when PAR is valid; defer to its ACK slot.
+    let shifted = (proposed as u32) << 1;
+    let par = (shifted.count_ones() & 1) ^ 1;
+    let w_st = h.sdr_write_addr((shifted | par) as u8);
     h.stop();
-    (assigned, if assigned == ST_OK { proposed } else { 0 })
+    if w_st == ST_OK { (ST_OK, proposed) } else { (w_st, 0) }
 }
 
 fn do_rstdaa(h: &Hal) -> i8 {
@@ -683,9 +692,13 @@ fn execute(cmd: I3cCommand, p: &Programs) -> I3cResult {
             r.status = do_ccc_broadcast(&h, &cmd.data[..len]);
         }
         CmdKind::EntDaa => {
-            let (st, assigned) = do_entdaa(&h, cmd.addr);
+            let mut pid = [0u8; 8];
+            let (st, assigned) = do_entdaa(&h, cmd.addr, &mut pid);
             r.status = st;
             r.addr = assigned;
+            // Expose the captured PID/BCR/DCR for diagnosis; rx_len stays 0 so
+            // normal transfers are unaffected.
+            r.rx[..8].copy_from_slice(&pid);
         }
         CmdKind::RstDaa => r.status = do_rstdaa(&h),
         CmdKind::TargetReset => h.target_reset(),
@@ -804,13 +817,29 @@ impl I3cBridge {
     }
 
     pub async fn entdaa(&mut self) -> u8 {
-        if !self.active { return 0; }
-        let r = self.call(I3cCommand { kind: CmdKind::EntDaa, addr: 0x08, ..Default::default() }).await;
+        // Propose the target's static address (0x40) as its dynamic address so
+        // the already-wired Katapult endpoint keeps working after DAA.
+        self.entdaa_with_addr(0x40).await
+    }
+
+    /// Perform ENTDAA proposing `proposed` as the dynamic address. Returns the
+    /// assigned address (0 on failure).
+    pub async fn entdaa_with_addr(&mut self, proposed: u8) -> u8 {
+        self.entdaa_diag(proposed).await.0
+    }
+
+    /// Full ENTDAA result: `(assigned_address, pid)` where `pid` is the
+    /// 6-byte provisioned ID followed by BCR and DCR of the winning target.
+    pub async fn entdaa_diag(&mut self, proposed: u8) -> (u8, [u8; 8]) {
+        if !self.active { return (0, [0; 8]); }
+        let r = self.call(I3cCommand { kind: CmdKind::EntDaa, addr: proposed, ..Default::default() }).await;
+        let mut pid = [0u8; 8];
+        pid.copy_from_slice(&r.rx[..8]);
         if r.status == ST_OK && r.addr != 0 {
             if !self.devices.contains(&r.addr) { let _ = self.devices.push(r.addr); }
-            r.addr
+            (r.addr, pid)
         } else {
-            0
+            (0, pid)
         }
     }
 

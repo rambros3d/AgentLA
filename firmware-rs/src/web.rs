@@ -888,6 +888,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/bus/i3c/transfer", crate::rest::BridgeI3cTransfer)
         .route_service("/api/v1/bus/i3c/init", crate::rest::BridgeI3cInit)
         .route_service("/api/v1/bus/i3c/ccc", crate::rest::BridgeI3cCcc)
+        .route_service("/api/v1/bus/i3c/entdaa", crate::rest::BridgeI3cEntDaa)
         .route_service("/api/v1/bus/i3c/rstdaa", crate::rest::BridgeI3cRstdaa)
         .route_service("/api/v1/bus/i3c/targetreset", crate::rest::BridgeI3cTargetReset)
         .route_service("/api/v1/bridge/spi/on", crate::rest::BridgeSpiOn)
