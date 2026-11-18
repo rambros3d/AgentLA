@@ -221,9 +221,11 @@ async fn main(spawner: embassy_executor::Spawner) {
     let mut led = embassy_rp::gpio::Output::new(p.PIN_25, embassy_rp::gpio::Level::High);
     led.set_high();
 
-    // Pre-take PIO0/DMA0 for the analyzer capture task.
+    // Pre-take PIO0/DMA0 for the analyzer capture task and PIO2 for the
+    // I3C SDR master. PIO1 remains available for other adapter roles.
     let pio0 = p.PIO0;
     let dma0 = p.DMA_CH0;
+    let pio2 = p.PIO2;
 
     defmt::info!("AgentLA RP2350 booting at 150 MHz...");
 
@@ -330,6 +332,8 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     // Spawn analyzer capture task (PIO0/DMA0) to fill bank.
     spawner.spawn(crate::analyzer::capture_task(pio0, dma0).unwrap());
+    // Spawn the I3C SDR master task (PIO2, GP10=SDA / GP11=SCL).
+    spawner.spawn(crate::bridge::i3c::i3c_task(pio2).unwrap());
     let _ = crate::decoder::swd_decode(&crate::decoder::SWD_TEST_SAMPLE, 1_000_000, 0, 1, 0);
 defmt::info!("SWD KAT: port smoke");
 defmt::info!("All AgentLA subsystems initialized and running.");

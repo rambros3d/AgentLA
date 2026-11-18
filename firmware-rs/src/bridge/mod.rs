@@ -41,6 +41,13 @@ pub fn i2c_on() -> Result<(), &'static str> { i2c_enable().map_err(|_| "pin conf
 pub fn i2c_off() { i2c_disable() }
 pub fn i2c_enable() -> Result<(), ClaimError> {
     unsafe {
+        // I2C and I3C share GP10/11. Release the I3C claim so switching modes
+        // never collides at the pin arbiter (single owner per mode).
+        if let Some(slot) = slot_read!(I3C_SLOT) {
+            let _ = pin_owner::release(slot);
+            slot_write!(I3C_SLOT, None);
+            if let Some(mut bridge) = i3c::I3C_INSTANCE.try_lock().ok() { bridge.disable(); }
+        }
         if slot_read!(I2C_SLOT).is_none() {
             let slot = pin_owner::claim(Driver::Adapter, &i2c::I2C_PINS, pin_owner::CAP_I2C)?;
             slot_write!(I2C_SLOT, Some(slot));
@@ -124,11 +131,18 @@ pub fn i3c_on() -> Result<(), &'static str> { i3c_enable().map_err(|_| "pin conf
 pub fn i3c_off() { i3c_disable() }
 pub fn i3c_enable() -> Result<(), ClaimError> {
     unsafe {
+        // I3C and I2C share GP10/11. I3C_SLOT is the single owner for the
+        // I3C side; I3cBridge::enable() is software-only (no second claim).
+        if let Some(slot) = slot_read!(I2C_SLOT) {
+            let _ = pin_owner::release(slot);
+            slot_write!(I2C_SLOT, None);
+        }
         if slot_read!(I3C_SLOT).is_none() {
             let slot = pin_owner::claim(Driver::Adapter, &i3c::I3C_PINS, pin_owner::CAP_PIO)?;
             slot_write!(I3C_SLOT, Some(slot));
         }
     }
+    if let Some(mut bridge) = i3c::I3C_INSTANCE.try_lock().ok() { let _ = bridge.enable(); }
     set_active(Mode::I3c);
     Ok(())
 }
@@ -139,6 +153,7 @@ pub fn i3c_disable() {
             slot_write!(I3C_SLOT, None);
         }
     }
+    if let Some(mut bridge) = i3c::I3C_INSTANCE.try_lock().ok() { bridge.disable(); }
     if active() == Mode::I3c { set_active(Mode::Idle); }
 }
 

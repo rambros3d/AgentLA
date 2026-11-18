@@ -234,6 +234,10 @@ pub struct BridgeI2cRead;
 pub struct BridgeI2cWrite;
 pub struct BridgeI2cTransfer;
 pub struct BridgeI3cTransfer;
+pub struct BridgeI3cInit;
+pub struct BridgeI3cCcc;
+pub struct BridgeI3cRstdaa;
+pub struct BridgeI3cTargetReset;
 pub struct BridgeLedTransmit;
 pub struct BridgeSpiOn;
 pub struct BridgeSpiOff;
@@ -274,7 +278,7 @@ macro_rules! service {
 
 service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET"); service!(ProgrammerSwoStatus, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
-service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeI2cTransfer, "POST"); service!(BridgeI3cTransfer, "POST"); service!(BridgeLedTransmit, "POST");
+service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeI2cTransfer, "POST"); service!(BridgeI3cTransfer, "POST"); service!(BridgeI3cInit, "POST"); service!(BridgeI3cCcc, "POST"); service!(BridgeI3cRstdaa, "POST"); service!(BridgeI3cTargetReset, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
 service!(BridgeUartOn, "POST"); service!(BridgeUartOff, "POST"); service!(BridgeUartWrite, "POST"); service!(BridgeUartRead, "GET");
 service!(ScopeData, "GET"); service!(ScopeStart, "POST"); service!(ScopeStop, "POST");
@@ -1564,7 +1568,7 @@ impl BridgeI3cTransfer {
         let body = read_body_str(&mut request).await;
         let addr = key_int(query, &body, "addr").unwrap_or(0x08) as u8;
         let entdaa = key_str(query, &body, "entdaa").map(|s| s == "true" || s == "1").unwrap_or(false);
-        let read_len = (key_int(query, &body, "read_len").or_else(|| key_int(query, &body, "len")).unwrap_or(0) as usize).min(256);
+        let read_len = (key_int(query, &body, "read_len").or_else(|| key_int(query, &body, "len")).unwrap_or(0) as usize).min(64);
 
         let mut tx_buf = [0u8; 256];
         let mut tx_len = 0usize;
@@ -1580,29 +1584,19 @@ impl BridgeI3cTransfer {
             }
         }
 
-        let mut bridge = crate::bridge::i3c::I3C_INSTANCE.lock().await;
-        let mut was_inactive = false;
-        if !bridge.active() {
-            if bridge.enable().is_err() {
-                return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
-            }
-            was_inactive = true;
+        // Single claim owner: bridge::i3c_on() (I3C_SLOT). Do not call
+        // I3cBridge::enable() here, that would claim GP10/11 a second time.
+        let was_inactive = !crate::bridge::i3c::I3C_INSTANCE.lock().await.active();
+        if was_inactive && crate::bridge::i3c_on().is_err() {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
         }
+        let mut bridge = crate::bridge::i3c::I3C_INSTANCE.lock().await;
 
-        let assigned_addr = if entdaa {
-            bridge.entdaa()
-        } else {
-            addr
-        };
-
-        let target_addr = if entdaa { assigned_addr } else { addr };
+        let assigned_addr = if entdaa { bridge.entdaa().await } else { addr };
+        let target_addr = if entdaa && assigned_addr != 0 { assigned_addr } else { addr };
 
         let mut rx_buf = [0u8; 256];
-        let transfer_res = bridge.transfer(target_addr, &tx_buf[..tx_len], &mut rx_buf[..read_len]);
-
-        if was_inactive {
-            bridge.disable();
-        }
+        let transfer_res = bridge.transfer(target_addr, &tx_buf[..tx_len], &mut rx_buf[..read_len]).await;
 
         match transfer_res {
             Ok((written, read_count)) => {
@@ -1627,6 +1621,81 @@ impl BridgeI3cTransfer {
                 send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, r#"{"status":"error","error":"transfer_failed"}"#).await
             }
         }
+    }
+}
+
+impl BridgeI3cInit {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let freq_khz = key_int(query, &body, "freq_khz").or_else(|| key_int(query, &body, "freq")).unwrap_or(1000) as u32;
+        if crate::bridge::i3c_on().is_err() {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+        }
+        let mut bridge = crate::bridge::i3c::I3C_INSTANCE.lock().await;
+        let ok = bridge.init(freq_khz).await;
+        let mut resp = heapless::String::<128>::new();
+        let _ = write!(resp, r#"{{"status":"{}","freq_khz":{}}}"#,
+            if ok { "ok" } else { "error" }, freq_khz);
+        send_json(request, response_writer, if ok { StatusCode::OK } else { StatusCode::BAD_REQUEST }, resp.as_str()).await
+    }
+}
+
+impl BridgeI3cCcc {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let mut bytes = [0u8; 64];
+        let mut len = 0usize;
+        for key in ["ccc_hex", "data_hex", "data"] {
+            if let Some(hex) = key_str_large(query, &body, key) {
+                let b = hex.as_bytes();
+                let mut i = 0;
+                while i + 1 < b.len() && len < bytes.len() {
+                    if let (Some(h), Some(l)) = (hex_nibble(b[i]), hex_nibble(b[i+1])) {
+                        bytes[len] = (h << 4) | l;
+                        len += 1;
+                    }
+                    i += 2;
+                }
+            }
+        }
+        if len == 0 {
+            return send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"error":"empty_ccc"}"#).await;
+        }
+        if crate::bridge::i3c_on().is_err() {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+        }
+        let mut bridge = crate::bridge::i3c::I3C_INSTANCE.lock().await;
+        let ok = bridge.ccc_broadcast_write(&bytes[..len]).await.is_ok();
+        send_json(request, response_writer, if ok { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR },
+            if ok { r#"{"status":"ok","ccc":"broadcast_write"}"# } else { r#"{"status":"error","error":"ccc_failed"}"# }).await
+    }
+}
+
+impl BridgeI3cRstdaa {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        if crate::bridge::i3c_on().is_err() {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+        }
+        crate::bridge::i3c::I3C_INSTANCE.lock().await.rstdaa().await;
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","ccc":"rstdaa"}"#).await
+    }
+}
+
+impl BridgeI3cTargetReset {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let _ = read_body_str(&mut request).await;
+        if crate::bridge::i3c_on().is_err() {
+            return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
+        }
+        crate::bridge::i3c::I3C_INSTANCE.lock().await.target_reset().await;
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"ok","cmd":"targetreset"}"#).await
     }
 }
 

@@ -737,17 +737,16 @@
           await this.sendUartRaw(new TextEncoder().encode(tokenStr), params.baud || 115200);
           return true;
         } else if (type === 'i2c') {
-          // Register-based handsfree trigger: write 0xF0 to register 0xF0.
-          // The N20 app's multibus write hook on 0xF0 writes the Katapult
-          // REQUEST_CANBOOT cookie and resets into BareBoot.
+          // Canonical raw handsfree trigger: send byte 0xF0 to the target
+          // address via the raw I2C transfer endpoint (Katapult BareBoot token).
           const res = await fetch('/api/v1/bus/i2c/transfer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ addr: params.addr || 0x40, data_hex: 'F0F0', read_len: 0 })
+            body: JSON.stringify({ addr: params.addr || 0x40, data_hex: 'F0', read_len: 0 })
           });
           return res.ok;
         } else if (type === 'i3c') {
-          // Byte 0xF0 to target address via I3C
+          // Canonical raw handsfree trigger: byte 0xF0 to target address via I3C
           const res = await fetch('/api/v1/bus/i3c/transfer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: I3C Controller State Machine and Clock Rate Configuration
-The system SHALL initialize an I3C controller engine on RP2350 PIO2 using dedicated Adapter domain pins (GPIO 10 for SCL, GPIO 11 for SDA). The system SHALL compute clock dividers dynamically based on the active system clock (`clock_get_hz(clk_sys)`) to support clock frequencies from 100 kHz up to 12.5 MHz SDR.
+The system SHALL initialize an I3C controller engine on RP2350 PIO2 using dedicated Adapter domain pins (GPIO 10 for SDA, GPIO 11 for SCL). The system SHALL compute clock dividers dynamically based on the active system clock (`clock_get_hz(clk_sys)`) to support clock frequencies from 100 kHz up to 12.5 MHz SDR.
 
 #### Scenario: Successful initialization on Adapter pins
 - **WHEN** the host issues `I3C_INIT` command with clock rate 12500 kHz
