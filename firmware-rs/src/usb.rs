@@ -354,7 +354,7 @@ static mut SERIAL_BUF: [u8; 24] = [b'0'; 24];
 /// further writes will occur.
 unsafe fn serial_str_from_buf() -> &'static str {
     let ptr = core::ptr::addr_of!(SERIAL_BUF) as *const u8;
-    core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr, 24))
+    unsafe { core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr, 24)) }
 }
 
 pub fn detect_boot_personality() -> ProgrammerPersonality {

@@ -292,8 +292,10 @@ pub struct ProgrammerRescueNrf;
 pub struct ProgrammerErase;
 pub struct ProgrammerFlash;
 pub struct ProgrammerRead;
+pub struct ProgrammerWrite;
 pub struct ProgrammerRttStatus;
 pub struct ProgrammerRttStream;
+pub struct ProgrammerRttWrite;
 pub struct ProgrammerSwoStatus;
 pub struct BridgeState;
 pub struct BridgeI2cOn;
@@ -354,7 +356,7 @@ macro_rules! service {
     };
 }
 
-service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET"); service!(ProgrammerSwoStatus, "GET");
+service!(ProfilesList, "GET"); service!(ProfilesApply, "POST"); service!(ProfilesBoot, "POST"); service!(ProfilesSave, "POST"); service!(ProfilesDelete, "POST"); service!(PinsClaim, "POST"); service!(PinsRelease, "POST"); service!(ServoList, "GET"); service!(ServoAttach, "POST"); service!(ServoWrite, "POST"); service!(ServoWriteUs, "POST"); service!(ServoDetach, "POST"); service!(PwmList, "GET"); service!(PwmClaim, "POST"); service!(PwmSet, "POST"); service!(PwmRelease, "POST"); service!(LogicAnalyzerArm, "POST"); service!(LogicAnalyzerStart, "POST"); service!(LogicAnalyzerStop, "POST"); service!(LogicAnalyzerStatus, "GET"); service!(LogicAnalyzerConfig, "POST"); service!(LogicAnalyzerData, "GET"); service!(LogicAnalyzerVcd, "GET"); service!(ProgrammerReset, "POST"); service!(ProgrammerResetCatch, "POST"); service!(ProgrammerRescueStm32, "POST"); service!(ProgrammerRescueNrf, "POST"); service!(ProgrammerErase, "POST"); service!(ProgrammerRead, "GET"); service!(ProgrammerWrite, "POST"); service!(ProgrammerRttStatus, "GET"); service!(ProgrammerRttStream, "GET"); service!(ProgrammerRttWrite, "POST"); service!(ProgrammerSwoStatus, "GET");
 service!(BridgeState, "GET"); service!(BridgeI2cOn, "POST"); service!(BridgeI2cOff, "POST"); service!(BridgeCanOn, "POST"); service!(BridgeCanOff, "POST"); service!(BridgeCan, "GET"); service!(BridgeCanTermination, "POST"); service!(BridgeLedOn, "POST"); service!(BridgeLedOff, "POST"); service!(BridgeI3cOn, "POST"); service!(BridgeI3cOff, "POST");
 service!(BridgeI2cScan, "GET"); service!(BridgeI2cRead, "GET"); service!(BridgeI2cWrite, "POST"); service!(BridgeI2cTransfer, "POST"); service!(BridgeI3cTransfer, "POST"); service!(BridgeI3cInit, "POST"); service!(BridgeI3cCcc, "POST"); service!(BridgeI3cEntDaa, "POST"); service!(BridgeI3cRstdaa, "POST"); service!(BridgeI3cTargetReset, "POST"); service!(BridgeLedTransmit, "POST");
 service!(BridgeSpiOn, "POST"); service!(BridgeSpiOff, "POST"); service!(BridgeSpiTransfer, "POST");
@@ -1303,6 +1305,41 @@ impl ProgrammerRead {
     }
 }
 
+impl ProgrammerWrite {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let port_str = key_str(query, &body, "port");
+        let port = match port_str.as_ref().map(|s| s.as_str()) {
+            Some("ch32v203") => crate::programmer::TargetPort::Ch32v203,
+            Some("ch32v003") => crate::programmer::TargetPort::Ch32v003,
+            _ => crate::programmer::TargetPort::BluePill,
+        };
+        let addr = key_u32(query, &body, "addr").unwrap_or(0x20000000);
+        let val = key_u32(query, &body, "val").or_else(|| key_u32(query, &body, "data"));
+
+        if let Some(v) = val {
+            let bytes = v.to_le_bytes();
+            let res = crate::programmer::write_mem_port_global(port, addr, &bytes);
+            match res {
+                Ok(_) => {
+                    let mut resp = heapless::String::<128>::new();
+                    let _ = write!(resp, r#"{{"status":"ok","addr":{},"val":{}}}"#, addr, v);
+                    send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+                }
+                Err(e) => {
+                    let mut resp = heapless::String::<128>::new();
+                    let _ = write!(resp, r#"{{"status":"error","error":"{:?}"}}"#, e);
+                    send_json(request, response_writer, StatusCode::INTERNAL_SERVER_ERROR, resp.as_str()).await
+                }
+            }
+        } else {
+            send_json(request, response_writer, StatusCode::BAD_REQUEST, r#"{"status":"error","message":"missing val/data"}"#).await
+        }
+    }
+}
+
 impl ProgrammerRttStatus {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
@@ -1338,6 +1375,45 @@ impl ProgrammerRttStream {
             }
             Err(_) => {
                 send_json(request, response_writer, StatusCode::OK, r#"{"status":"error","message":"ERR RTT NOT FOUND"}"#).await
+            }
+        }
+    }
+}
+
+impl ProgrammerRttWrite {
+    async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
+    where R: Read, W: ResponseWriter<Error=R::Error> {
+        let query = request.parts.query();
+        let body = read_body_str(&mut request).await;
+        let cmd = key_str(query, &body, "cmd")
+            .or_else(|| key_str(query, &body, "data"));
+
+        let res = if let Some(c) = cmd {
+            let mut payload = heapless::Vec::<u8, 128>::new();
+            let _ = payload.extend_from_slice(c.as_bytes());
+            if !c.ends_with('\n') {
+                let _ = payload.push(b'\n');
+            }
+            crate::programmer::rtt::rtt_write_down_global(&payload)
+        } else if !body.is_empty() {
+            let mut payload = heapless::Vec::<u8, 128>::new();
+            let _ = payload.extend_from_slice(body.as_bytes());
+            if !body.ends_with('\n') {
+                let _ = payload.push(b'\n');
+            }
+            crate::programmer::rtt::rtt_write_down_global(&payload)
+        } else {
+            Err(crate::programmer::rtt::RttError::BufferCorrupt)
+        };
+
+        match res {
+            Ok(n) => {
+                let mut resp = heapless::String::<128>::new();
+                let _ = write!(resp, r#"{{"status":"ok","bytes_written":{}}}"#, n);
+                send_json(request, response_writer, StatusCode::OK, resp.as_str()).await
+            }
+            Err(_) => {
+                send_json(request, response_writer, StatusCode::OK, r#"{"status":"error","message":"ERR RTT WRITE FAILED"}"#).await
             }
         }
     }

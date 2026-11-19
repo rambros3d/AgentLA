@@ -47,6 +47,11 @@ pub fn rtt_scan_global() -> Result<RttControlBlock, RttError> {
     let _ = swd.power_up_debug();
 
     let mut cortex = CortexM::new(&mut swd);
+    if CortexM::is_armv8m_dpidr(dpidr) {
+        let _ = cortex.select_ap(1);
+        cortex.csw = 0x23000012;
+        let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+    }
     let cb = scan_rtt(&mut cortex, DEFAULT_SRAM_START, DEFAULT_SRAM_SIZE)?;
 
     RTT_ENGINE.lock(|engine| {
@@ -85,6 +90,11 @@ pub fn rtt_drain_global(out: &mut [u8]) -> Result<usize, RttError> {
     let _ = swd.power_up_debug();
 
     let mut cortex = CortexM::new(&mut swd);
+    if CortexM::is_armv8m_dpidr(dpidr) {
+        let _ = cortex.select_ap(1);
+        cortex.csw = 0x23000012;
+        let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+    }
     let n = drain_rtt_up(&mut cortex, &mut cb, out)?;
 
     if n > 0 {
@@ -108,6 +118,60 @@ pub fn rtt_drain_global(out: &mut [u8]) -> Result<usize, RttError> {
     }
 
     Ok(n)
+}
+
+/// Global write helper into RTT Down Buffer 0
+pub fn rtt_write_down_global(data: &[u8]) -> Result<usize, RttError> {
+    let cb = RTT_ENGINE.lock(|engine| {
+        let state = engine.borrow();
+        if !state.found {
+            None
+        } else {
+            Some(state.cb)
+        }
+    });
+
+    let mut cb = match cb {
+        Some(c) => c,
+        None => rtt_scan_global()?,
+    };
+
+    let mut swd = SwdTransport::new();
+    swd.init(4000);
+    swd.jtag_to_swd();
+    let mut dpidr = 0u32;
+    let _ = swd.read_dpidr_retry(&mut dpidr);
+    let _ = swd.power_up_debug();
+
+    let mut cortex = CortexM::new(&mut swd);
+    if CortexM::is_armv8m_dpidr(dpidr) {
+        let _ = cortex.select_ap(1);
+        cortex.csw = 0x23000012;
+        let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+    }
+
+    // Down Buffer 0 is at cb.cb_addr + 48
+    let buf_ptr = cortex.mem_read32(cb.cb_addr + 48 + 4).map_err(|_| RttError::SwdError)?;
+    let size = cortex.mem_read32(cb.cb_addr + 48 + 8).map_err(|_| RttError::SwdError)?;
+    let wr_off = cortex.mem_read32(cb.cb_addr + 48 + 12).map_err(|_| RttError::SwdError)?;
+    let rd_off = cortex.mem_read32(cb.cb_addr + 48 + 16).map_err(|_| RttError::SwdError)?;
+    if size == 0 {
+        return Err(RttError::BufferCorrupt);
+    }
+
+    let mut cur_wr = wr_off % size;
+    let mut written = 0;
+    for &b in data {
+        let next_wr = (cur_wr + 1) % size;
+        if next_wr == (rd_off % size) {
+            break;
+        }
+        cortex.mem_write_block(buf_ptr + cur_wr, &[b]).map_err(|_| RttError::SwdError)?;
+        cur_wr = next_wr;
+        written += 1;
+    }
+    cortex.mem_write32(cb.cb_addr + 48 + 12, cur_wr).map_err(|_| RttError::SwdError)?;
+    Ok(written)
 }
 
 /// Status JSON formatter

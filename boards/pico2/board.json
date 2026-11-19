@@ -49,7 +49,7 @@
       "name": "Flexible Multiplexed Pool",
       "gpio_range": [10, 25],
       "channels_count": 16,
-      "default_i2c": [10, 11],
+      "default_i2c": [11, 10],
       "default_spi": [14, 15, 16, 17]
     },
     "analog_scope": {

@@ -847,8 +847,10 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route_service("/api/v1/programmer/rescue/nrf", crate::rest::ProgrammerRescueNrf)
         .route_service("/api/v1/programmer/erase", crate::rest::ProgrammerErase)
         .route_service("/api/v1/programmer/read", crate::rest::ProgrammerRead)
+        .route_service("/api/v1/programmer/write", crate::rest::ProgrammerWrite)
         .route_service("/api/v1/programmer/rtt/status", crate::rest::ProgrammerRttStatus)
         .route_service("/api/v1/programmer/rtt/stream", crate::rest::ProgrammerRttStream)
+        .route_service("/api/v1/programmer/rtt/write", crate::rest::ProgrammerRttWrite)
         .route_service("/api/v1/programmer/swo/status", crate::rest::ProgrammerSwoStatus)
         .route_service("/api/v1/logic-analyzer/arm", crate::rest::LogicAnalyzerArm)
         .route_service("/api/v1/logic-analyzer/start", crate::rest::LogicAnalyzerStart)
@@ -933,21 +935,30 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
 #[embassy_executor::task]
 pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
     let app = make_app();
-    static CONFIG: PicoserveConfig = PicoserveConfig::const_default().keep_connection_alive();
+    static CONFIG: PicoserveConfig = PicoserveConfig::const_default().close_connection_after_response();
 
     let mut http_buf_0 = [0u8; 2048];
     let mut tcp_rx_buf_0 = [0u8; 1536];
     let mut tcp_tx_buf_0 = [0u8; 1536];
-    let server_0 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_0);
 
     let mut http_buf_1 = [0u8; 2048];
     let mut tcp_rx_buf_1 = [0u8; 1536];
     let mut tcp_tx_buf_1 = [0u8; 1536];
-    let server_1 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_1);
 
     defmt::info!("HTTP server listening on TCP :80 with 2 concurrent worker sockets");
-    embassy_futures::join::join(
-        server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0),
-        server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1),
-    ).await;
+    let worker_0 = async {
+        loop {
+            let server_0 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_0);
+            let _ = server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0).await;
+            defmt::warn!("HTTP worker 0 finished, restarting listener");
+        }
+    };
+    let worker_1 = async {
+        loop {
+            let server_1 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_1);
+            let _ = server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1).await;
+            defmt::warn!("HTTP worker 1 finished, restarting listener");
+        }
+    };
+    embassy_futures::join::join(worker_0, worker_1).await;
 }

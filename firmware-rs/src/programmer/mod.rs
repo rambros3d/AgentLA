@@ -250,11 +250,45 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
             if is_h5 {
                 let _ = cortex.select_ap(1);
                 cortex.csw = 0x23000012;
-                let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
             }
-            let res = cortex
-                .mem_read_block(addr, buf)
-                .map_err(|_| TargetError::ProtocolError);
+            let res = if is_h5 {
+                let mut offset = 0usize;
+                let mut ok = true;
+                let mut first_err = 0u32;
+                while offset < buf.len() {
+                    let to_read = (buf.len() - offset).min(4);
+                    match cortex.mem_read32(addr + offset as u32) {
+                        Ok(w) => {
+                            let bytes = w.to_le_bytes();
+                            buf[offset..offset + to_read].copy_from_slice(&bytes[..to_read]);
+                            offset += to_read;
+                        }
+                        Err(e) => {
+                            ok = false;
+                            first_err = match e {
+                                target::cortex_m::CortexError::SwdError => 1,
+                                target::cortex_m::CortexError::Timeout => 2,
+                                target::cortex_m::CortexError::HaltFailed => 3,
+                                target::cortex_m::CortexError::NotHalted => 4,
+                                target::cortex_m::CortexError::ResetTimeout => 5,
+                                _ => 99,
+                            };
+                            break;
+                        }
+                    }
+                }
+                if ok {
+                    Ok(())
+                } else {
+                    let mut ctrlstat = 0u32;
+                    let _ = cortex.swd.read_dp(crate::programmer::swd::DP_CTRLSTAT, &mut ctrlstat);
+                    Err(TargetError::Diag(1, first_err, ctrlstat))
+                }
+            } else {
+                cortex
+                    .mem_read_block(addr, buf)
+                    .map_err(|_| TargetError::ProtocolError)
+            };
             *pins = swd_session.release();
             res
         }
@@ -329,6 +363,65 @@ pub fn read_flash_port_global(port: TargetPort, addr: u32, buf: &mut [u8]) -> Re
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
         read_flash_port_internal(&mut *pins, port, addr, buf)
+    })
+}
+
+pub fn write_mem_port_internal(pins: &mut ProgrammerPins, port: TargetPort, addr: u32, data: &[u8]) -> Result<(), TargetError> {
+    match port {
+        TargetPort::BluePill => {
+            let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+            let (_dpidr, is_h5) = match swd_session.attach() {
+                Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
+                Ok(id) => (id, true),
+                Err(_) => {
+                    let mut cortex = CortexM::new(&mut swd_session.transport);
+                    let _ = cortex.connect_under_reset();
+                    let mut id = 0u32;
+                    let _ = cortex.swd.read_dpidr_retry(&mut id);
+                    (id, CortexM::is_armv8m_dpidr(id))
+                }
+            };
+            let mut cortex = CortexM::new(&mut swd_session.transport);
+            if is_h5 {
+                let _ = cortex.select_ap(1);
+                cortex.csw = 0x23000012;
+                let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+            }
+            let res = if is_h5 {
+                let mut offset = 0usize;
+                let mut ok = true;
+                while offset < data.len() {
+                    let to_write = (data.len() - offset).min(4);
+                    let mut chunk = [0u8; 4];
+                    chunk[..to_write].copy_from_slice(&data[offset..offset + to_write]);
+                    let val = u32::from_le_bytes(chunk);
+                    match cortex.mem_write32(addr + offset as u32, val) {
+                        Ok(()) => {
+                            offset += to_write;
+                        }
+                        Err(_) => {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                if ok { Ok(()) } else { Err(TargetError::ProtocolError) }
+            } else {
+                cortex
+                    .mem_write_block(addr, data)
+                    .map_err(|_| TargetError::ProtocolError)
+            };
+            *pins = swd_session.release();
+            res
+        }
+        _ => Err(TargetError::ProtocolError),
+    }
+}
+
+pub fn write_mem_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Result<(), TargetError> {
+    PROGRAMMER_PINS.lock(|cell| {
+        let mut pins = cell.borrow_mut();
+        write_mem_port_internal(&mut *pins, port, addr, data)
     })
 }
 
