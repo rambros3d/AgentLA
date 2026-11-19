@@ -64,8 +64,26 @@
       border-bottom-color: hsl(var(--p));
       background-color: hsl(var(--p) / 0.08);
     }
+    .motor-tab-btn {
+      position: relative;
+      transition: all 0.15s ease-in-out;
+      border-bottom: 2px solid transparent;
+      color: hsl(var(--bc) / 0.7);
+    }
+    .motor-tab-btn:hover {
+      background-color: hsl(var(--bc) / 0.08);
+      color: hsl(var(--bc));
+    }
+    .motor-tab-btn.active {
+      color: hsl(var(--p));
+      border-bottom-color: hsl(var(--p));
+      background-color: hsl(var(--p) / 0.12);
+      font-weight: 700;
+    }
     /* Strictly no dot indicators below buttons or tabs */
     .nav-tab-btn::after,
+    .motor-tab-btn::after,
+    .studio-dash-tab::after,
     .btn::after {
       display: none !important;
       content: none !important;
@@ -276,6 +294,18 @@
       <button class="nav-tab-btn px-3 py-1.5 rounded text-xs font-semibold" data-view="view-console">
         5. Diagnostics &amp; Console
       </button>
+      <button class="nav-tab-btn px-3 py-1.5 rounded text-xs font-semibold" data-view="view-kinematics">
+        6. Kinematics &amp; Calib
+      </button>
+    </div>
+
+    <!-- Multi-Motor Selector Tabs (0x70 MotorSelect) -->
+    <div id="multi-motor-tabs" class="flex items-center gap-1 bg-base-300/60 p-0.5 rounded-lg border border-base-300 text-xs font-mono">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-base-content/60 px-1.5">Motor:</span>
+      <button class="motor-tab-btn px-2.5 py-1 rounded text-xs font-semibold active" data-motor="0">Motor 0</button>
+      <button class="motor-tab-btn px-2.5 py-1 rounded text-xs font-semibold" data-motor="1">Motor 1</button>
+      <button class="motor-tab-btn px-2.5 py-1 rounded text-xs font-semibold" data-motor="2">Motor 2</button>
+      <button class="motor-tab-btn px-2.5 py-1 rounded text-xs font-semibold" data-motor="3">Motor 3</button>
     </div>
 
     <!-- Motor Master Enable / Quick Status -->
@@ -1145,6 +1175,458 @@
       </div>
     </section>
 
+    <!-- VIEW 6: ROBOTIC KINEMATICS & ACTUATOR CALIBRATION -->
+    <section id="view-kinematics" class="view-panel hidden flex flex-col gap-6">
+      <!-- Header Banner -->
+      <div class="flex flex-wrap items-center justify-between gap-4 bg-base-200/80 p-4 rounded-xl border border-base-300">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-sm font-bold uppercase tracking-wider">Robotic Kinematics &amp; Actuator Calibration</h2>
+            <span class="badge badge-primary badge-xs font-mono">0x70..0xBF</span>
+          </div>
+          <p class="text-xs text-base-content/60 mt-0.5">Multi-Motor Selection, Joint Transmission Dynamics, 2D Pitch/Roll Gauges, 2x2 Coupling, Non-linear LUT, and NVM Flash</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono text-base-content/70 font-semibold" id="kin-active-motor-label">Active: Motor 0</span>
+          <button id="btn-sync-kinematics" class="btn btn-xs btn-outline btn-primary uppercase font-bold tracking-wider">Sync From Target</button>
+          <button id="btn-kin-back-studio" class="btn btn-xs btn-ghost uppercase font-bold tracking-wider">Return to Studio</button>
+        </div>
+      </div>
+
+      <!-- Main Kinematics Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Top Left: Transmission & Dynamics (0x81..0x84) -->
+        <div class="lg:col-span-6 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="border-b border-base-300 pb-2 flex items-center justify-between">
+            <div>
+              <span class="badge badge-accent badge-xs font-mono uppercase">Joint Model</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider mt-1">Transmission &amp; Compliance</h3>
+            </div>
+            <span class="text-[10px] font-mono text-base-content/50">Regs 0x81-0x84</span>
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <!-- Gear Ratio (0x81) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-xs font-mono">
+                <span class="font-semibold text-base-content/80">Gear Ratio (0x81):</span>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="num-gear-ratio" min="0.1" max="100.0" step="0.1" value="1.0" class="input input-bordered input-xs font-mono w-20 text-right" />
+                  <span class="text-base-content/50">: 1</span>
+                </div>
+              </div>
+              <input type="range" id="range-gear-ratio" min="0.1" max="100.0" step="0.1" value="1.0" class="range range-xs range-accent" />
+            </div>
+
+            <!-- Backlash Delta (0x82) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-xs font-mono">
+                <span class="font-semibold text-base-content/80">Backlash Delta (0x82):</span>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="num-backlash-delta" min="0.0" max="1.0" step="0.005" value="0.02" class="input input-bordered input-xs font-mono w-20 text-right" />
+                  <span class="text-base-content/50">rad</span>
+                </div>
+              </div>
+              <input type="range" id="range-backlash-delta" min="0.0" max="1.0" step="0.005" value="0.02" class="range range-xs range-accent" />
+            </div>
+
+            <!-- Omega Thresh (0x83) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-xs font-mono">
+                <span class="font-semibold text-base-content/80">Omega Threshold (0x83):</span>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="num-omega-thresh" min="0.0" max="50.0" step="0.1" value="0.5" class="input input-bordered input-xs font-mono w-20 text-right" />
+                  <span class="text-base-content/50">rad/s</span>
+                </div>
+              </div>
+              <input type="range" id="range-omega-thresh" min="0.0" max="50.0" step="0.1" value="0.5" class="range range-xs range-accent" />
+            </div>
+
+            <!-- Torsional Stiffness (0x84) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-xs font-mono">
+                <span class="font-semibold text-base-content/80">Torsional Stiffness (0x84):</span>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="num-torsional-stiffness" min="1.0" max="1000.0" step="1.0" value="100.0" class="input input-bordered input-xs font-mono w-20 text-right" />
+                  <span class="text-base-content/50">N*m/rad</span>
+                </div>
+              </div>
+              <input type="range" id="range-torsional-stiffness" min="1.0" max="1000.0" step="1.0" value="100.0" class="range range-xs range-accent" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Right: 2D Pitch & Roll Joint Angle Telemetry & Setpoints (0x87..0x8A) -->
+        <div class="lg:col-span-6 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="border-b border-base-300 pb-2 flex items-center justify-between">
+            <div>
+              <span class="badge badge-primary badge-xs font-mono uppercase">Joint Observer</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider mt-1">2D Pitch &amp; Roll Joint Dials</h3>
+            </div>
+            <span class="text-[10px] font-mono text-base-content/50">Regs 0x87-0x8A</span>
+          </div>
+
+          <!-- Dual Dials Display -->
+          <div class="grid grid-cols-2 gap-4 items-center justify-items-center py-1">
+            <!-- Alpha Dial (Pitch) -->
+            <div class="flex flex-col items-center">
+              <span class="text-xs font-mono font-bold uppercase tracking-wider text-primary">Pitch (Alpha)</span>
+              <div class="relative w-36 h-36 flex items-center justify-center">
+                <svg viewBox="0 0 160 160" class="w-36 h-36" id="svg-dial-alpha">
+                  <!-- Outer Track -->
+                  <circle cx="80" cy="80" r="65" fill="none" stroke="currentColor" stroke-opacity="0.15" stroke-width="8" />
+                  <!-- Target Arc -->
+                  <circle id="dial-alpha-target-arc" cx="80" cy="80" r="65" fill="none" stroke="hsl(var(--p))" stroke-width="8" stroke-linecap="round" stroke-dasharray="408" stroke-dashoffset="300" transform="rotate(-90 80 80)" />
+                  <!-- Needle -->
+                  <line id="dial-alpha-needle" x1="80" y1="80" x2="80" y2="22" stroke="hsl(var(--p))" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="80" cy="80" r="5" fill="hsl(var(--p))" />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-7">
+                  <span class="text-xs font-mono font-bold" id="val-joint-alpha-rad">0.000 rad</span>
+                  <span class="text-[10px] font-mono text-base-content/60" id="val-joint-alpha-deg">0.0 deg</span>
+                </div>
+              </div>
+              <span class="text-[10px] font-mono text-base-content/50 mt-1">Measured (0x89)</span>
+            </div>
+
+            <!-- Beta Dial (Roll) -->
+            <div class="flex flex-col items-center">
+              <span class="text-xs font-mono font-bold uppercase tracking-wider text-accent">Roll (Beta)</span>
+              <div class="relative w-36 h-36 flex items-center justify-center">
+                <svg viewBox="0 0 160 160" class="w-36 h-36" id="svg-dial-beta">
+                  <!-- Outer Track -->
+                  <circle cx="80" cy="80" r="65" fill="none" stroke="currentColor" stroke-opacity="0.15" stroke-width="8" />
+                  <!-- Target Arc -->
+                  <circle id="dial-beta-target-arc" cx="80" cy="80" r="65" fill="none" stroke="hsl(var(--a))" stroke-width="8" stroke-linecap="round" stroke-dasharray="408" stroke-dashoffset="300" transform="rotate(-90 80 80)" />
+                  <!-- Needle -->
+                  <line id="dial-beta-needle" x1="80" y1="80" x2="80" y2="22" stroke="hsl(var(--a))" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="80" cy="80" r="5" fill="hsl(var(--a))" />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-7">
+                  <span class="text-xs font-mono font-bold" id="val-joint-beta-rad">0.000 rad</span>
+                  <span class="text-[10px] font-mono text-base-content/60" id="val-joint-beta-deg">0.0 deg</span>
+                </div>
+              </div>
+              <span class="text-[10px] font-mono text-base-content/50 mt-1">Measured (0x8A)</span>
+            </div>
+          </div>
+
+          <!-- Joint Setpoint Targets Inputs -->
+          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-base-300">
+            <!-- Target Alpha (0x87) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-xs font-mono">
+                <span class="font-semibold text-primary">Target Alpha (0x87):</span>
+                <span id="txt-joint-target-alpha" class="font-bold">0.00</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="range" id="range-joint-target-alpha" min="-3.1415" max="3.1415" step="0.01" value="0.0" class="range range-xs range-primary flex-1" />
+                <input type="number" id="num-joint-target-alpha" min="-3.1415" max="3.1415" step="0.01" value="0.0" class="input input-bordered input-xs font-mono w-16 text-right" />
+              </div>
+            </div>
+
+            <!-- Target Beta (0x88) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-xs font-mono">
+                <span class="font-semibold text-accent">Target Beta (0x88):</span>
+                <span id="txt-joint-target-beta" class="font-bold">0.00</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="range" id="range-joint-target-beta" min="-3.1415" max="3.1415" step="0.01" value="0.0" class="range range-xs range-accent flex-1" />
+                <input type="number" id="num-joint-target-beta" min="-3.1415" max="3.1415" step="0.01" value="0.0" class="input input-bordered input-xs font-mono w-16 text-right" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Middle Full: Cascaded Outer Position PID Controllers (0x90..0x99) -->
+        <div class="lg:col-span-8 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="border-b border-base-300 pb-2 flex items-center justify-between">
+            <div>
+              <span class="badge badge-info badge-xs font-mono uppercase">Cascaded Outer Loops</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider mt-1">Outer Position PID Controllers</h3>
+            </div>
+            <span class="text-[10px] font-mono text-base-content/50">Regs 0x90-0x99</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Alpha Axis Outer PID (0x90..0x94) -->
+            <div class="flex flex-col gap-3 bg-base-100/50 p-3.5 rounded-xl border border-base-300/60">
+              <div class="flex items-center justify-between border-b border-base-300/60 pb-1.5">
+                <span class="text-xs font-bold font-mono text-primary uppercase">Axis Alpha (Pitch) PID</span>
+                <span class="text-[10px] font-mono text-base-content/50">0x90-0x94</span>
+              </div>
+
+              <!-- P -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Proportional P (0x90):</span>
+                  <span id="txt-outer-alpha-p" class="font-bold">10.0</span>
+                </div>
+                <input type="range" id="range-outer-alpha-p" min="0.1" max="100.0" step="0.1" value="10.0" class="range range-xs range-primary" />
+              </div>
+              <!-- I -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Integral I (0x91):</span>
+                  <span id="txt-outer-alpha-i" class="font-bold">0.10</span>
+                </div>
+                <input type="range" id="range-outer-alpha-i" min="0.0" max="50.0" step="0.05" value="0.10" class="range range-xs range-primary" />
+              </div>
+              <!-- D -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Derivative D (0x92):</span>
+                  <span id="txt-outer-alpha-d" class="font-bold">0.05</span>
+                </div>
+                <input type="range" id="range-outer-alpha-d" min="0.0" max="5.0" step="0.01" value="0.05" class="range range-xs range-primary" />
+              </div>
+              <!-- Ramp -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Ramp Limit (0x93):</span>
+                  <span id="txt-outer-alpha-ramp" class="font-bold">100.0</span>
+                </div>
+                <input type="range" id="range-outer-alpha-ramp" min="1.0" max="1000.0" step="5.0" value="100.0" class="range range-xs range-primary" />
+              </div>
+              <!-- Limit -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Output Limit (0x94):</span>
+                  <span id="txt-outer-alpha-lim" class="font-bold">50.0</span>
+                </div>
+                <input type="range" id="range-outer-alpha-lim" min="1.0" max="250.0" step="1.0" value="50.0" class="range range-xs range-primary" />
+              </div>
+            </div>
+
+            <!-- Beta Axis Outer PID (0x95..0x99) -->
+            <div class="flex flex-col gap-3 bg-base-100/50 p-3.5 rounded-xl border border-base-300/60">
+              <div class="flex items-center justify-between border-b border-base-300/60 pb-1.5">
+                <span class="text-xs font-bold font-mono text-accent uppercase">Axis Beta (Roll) PID</span>
+                <span class="text-[10px] font-mono text-base-content/50">0x95-0x99</span>
+              </div>
+
+              <!-- P -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Proportional P (0x95):</span>
+                  <span id="txt-outer-beta-p" class="font-bold">8.0</span>
+                </div>
+                <input type="range" id="range-outer-beta-p" min="0.1" max="100.0" step="0.1" value="8.0" class="range range-xs range-accent" />
+              </div>
+              <!-- I -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Integral I (0x96):</span>
+                  <span id="txt-outer-beta-i" class="font-bold">0.10</span>
+                </div>
+                <input type="range" id="range-outer-beta-i" min="0.0" max="50.0" step="0.05" value="0.10" class="range range-xs range-accent" />
+              </div>
+              <!-- D -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Derivative D (0x97):</span>
+                  <span id="txt-outer-beta-d" class="font-bold">0.05</span>
+                </div>
+                <input type="range" id="range-outer-beta-d" min="0.0" max="5.0" step="0.01" value="0.05" class="range range-xs range-accent" />
+              </div>
+              <!-- Ramp -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Ramp Limit (0x98):</span>
+                  <span id="txt-outer-beta-ramp" class="font-bold">100.0</span>
+                </div>
+                <input type="range" id="range-outer-beta-ramp" min="1.0" max="1000.0" step="5.0" value="100.0" class="range range-xs range-accent" />
+              </div>
+              <!-- Limit -->
+              <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs font-mono">
+                  <span>Output Limit (0x99):</span>
+                  <span id="txt-outer-beta-lim" class="font-bold">50.0</span>
+                </div>
+                <input type="range" id="range-outer-beta-lim" min="1.0" max="250.0" step="1.0" value="50.0" class="range range-xs range-accent" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Middle Right: 2x2 Differential Coupling Matrix Editor (0x9A..0x9D) -->
+        <div class="lg:col-span-4 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="border-b border-base-300 pb-2 flex items-center justify-between">
+            <div>
+              <span class="badge badge-secondary badge-xs font-mono uppercase">Differential Kinematics</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider mt-1">2x2 Coupling Matrix</h3>
+            </div>
+            <span class="text-[10px] font-mono text-base-content/50">Regs 0x9A-0x9D</span>
+          </div>
+
+          <p class="text-[11px] text-base-content/60">Coupling transformation from motor space [M1, M2] to joint space [Alpha, Beta].</p>
+
+          <!-- Presets -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[10px] font-mono uppercase font-semibold text-base-content/50">Presets:</span>
+            <button id="btn-matrix-symmetric" class="btn btn-xs btn-outline font-mono text-[10px]">Symmetric</button>
+            <button id="btn-matrix-direct" class="btn btn-xs btn-outline font-mono text-[10px]">Direct</button>
+            <button id="btn-matrix-invert" class="btn btn-xs btn-outline font-mono text-[10px]">Inverted</button>
+          </div>
+
+          <!-- 2x2 Input Grid -->
+          <div class="grid grid-cols-2 gap-3 p-3 bg-base-100/60 rounded-xl border border-base-300/60">
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] font-mono font-bold text-base-content/70">T11 (0x9A)</label>
+              <input type="number" id="inp-diff-t11" step="0.05" value="0.5" class="input input-bordered input-xs font-mono text-center" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] font-mono font-bold text-base-content/70">T12 (0x9B)</label>
+              <input type="number" id="inp-diff-t12" step="0.05" value="0.5" class="input input-bordered input-xs font-mono text-center" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] font-mono font-bold text-base-content/70">T21 (0x9C)</label>
+              <input type="number" id="inp-diff-t21" step="0.05" value="0.5" class="input input-bordered input-xs font-mono text-center" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] font-mono font-bold text-base-content/70">T22 (0x9D)</label>
+              <input type="number" id="inp-diff-t22" step="0.05" value="-0.5" class="input input-bordered input-xs font-mono text-center" />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <button id="btn-read-matrix" class="btn btn-xs btn-outline font-mono text-[10px]">Read Target</button>
+            <button id="btn-apply-matrix" class="btn btn-xs btn-primary uppercase font-bold text-[10px]">Apply Matrix</button>
+          </div>
+        </div>
+
+        <!-- Bottom Left: Non-Linear LUT Curve Tool (0xA0..0xA5) -->
+        <div class="lg:col-span-7 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="border-b border-base-300 pb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="badge badge-warning badge-xs font-mono uppercase">Transmission Curve</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider mt-1">Non-Linear LUT Curve Streaming</h3>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-mono text-base-content/60 uppercase">Monotonicity:</span>
+              <div id="badge-lut-status" class="badge badge-success badge-sm font-mono py-2 font-semibold">
+                MONOTONIC [PASS]
+              </div>
+            </div>
+          </div>
+
+          <!-- Canvas Visualizer -->
+          <div class="relative bg-black rounded-xl p-2 border border-base-300/40">
+            <canvas id="lut-canvas" width="600" height="220" class="w-full h-52 block cursor-crosshair rounded"></canvas>
+            <div class="absolute bottom-3 left-4 text-[10px] font-mono text-base-content/50 pointer-events-none">
+              Click/drag to draw curve. Drag points to adjust.
+            </div>
+          </div>
+
+          <!-- Controls & Presets -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-[10px] font-mono uppercase font-semibold text-base-content/60">Presets:</span>
+              <button id="btn-lut-preset-linear" class="btn btn-xs btn-outline font-mono text-[10px]">Linear</button>
+              <button id="btn-lut-preset-scurve" class="btn btn-xs btn-outline font-mono text-[10px]">S-Curve</button>
+              <button id="btn-lut-preset-cam" class="btn btn-xs btn-outline font-mono text-[10px]">Cam/Sin</button>
+              <button id="btn-lut-preset-harmonic" class="btn btn-xs btn-outline font-mono text-[10px]">Harmonic</button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input type="file" id="inp-lut-file" accept=".csv,.json" class="hidden" />
+              <button id="btn-lut-upload-file" class="btn btn-xs btn-outline font-mono text-[10px]">Import File</button>
+              <button id="btn-lut-stream-burst" class="btn btn-xs btn-primary uppercase font-bold tracking-wider text-[10px]">
+                Upload Curve (Burst Stream)
+              </button>
+            </div>
+          </div>
+
+          <!-- Range Bounds (0xA0..0xA2) -->
+          <div class="grid grid-cols-3 gap-3 p-2.5 bg-base-100/50 rounded-xl border border-base-300/60 font-mono text-xs">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] text-base-content/60">MotMin (0xA0):</span>
+              <input type="number" id="inp-lut-mot-min" step="0.1" value="-3.1415" class="input input-bordered input-xs font-mono" />
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] text-base-content/60">MotMax (0xA1):</span>
+              <input type="number" id="inp-lut-mot-max" step="0.1" value="3.1415" class="input input-bordered input-xs font-mono" />
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] text-base-content/60">Points N (0xA2):</span>
+              <input type="number" id="inp-lut-points" min="16" max="128" step="16" value="64" class="input input-bordered input-xs font-mono" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Right: On-Device Calibration & Flash Storage (0xB0..0xB4) -->
+        <div class="lg:col-span-5 bg-base-200 border border-base-300 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="border-b border-base-300 pb-2 flex items-center justify-between">
+            <div>
+              <span class="badge badge-success badge-xs font-mono uppercase">NVM &amp; Discovery</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider mt-1">Calibration &amp; Flash Storage</h3>
+            </div>
+            <div id="badge-flash-status" class="badge badge-success badge-sm font-mono py-2 font-semibold">
+              CRC32 VALID
+            </div>
+          </div>
+
+          <!-- Calibration Status & Progress -->
+          <div class="flex flex-col gap-2 p-3 bg-base-100/60 rounded-xl border border-base-300/60">
+            <div class="flex justify-between items-center text-xs font-mono">
+              <span class="text-base-content/70">Calibration State (0x8E):</span>
+              <span id="txt-calib-state" class="font-bold text-primary">0: IDLE / READY</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <progress id="bar-calib-progress" class="progress progress-primary flex-1" value="0" max="100"></progress>
+              <span id="txt-calib-progress" class="text-xs font-mono font-bold w-12 text-right">0%</span>
+            </div>
+          </div>
+
+          <!-- Calibration Tuning Parameters (0xB1..0xB3) -->
+          <div class="grid grid-cols-3 gap-2 font-mono text-xs">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] text-base-content/60">Probe Lim (0xB1):</span>
+              <input type="number" id="inp-calib-probe-lim" min="0.1" max="10.0" step="0.1" value="1.5" class="input input-bordered input-xs font-mono" />
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] text-base-content/60">Sweep Vel (0xB2):</span>
+              <input type="number" id="inp-calib-sweep-vel" min="0.1" max="20.0" step="0.1" value="2.0" class="input input-bordered input-xs font-mono" />
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] text-base-content/60">Stall Cur (0xB3):</span>
+              <input type="number" id="inp-calib-stall-thresh" min="0.1" max="10.0" step="0.1" value="1.0" class="input input-bordered input-xs font-mono" />
+            </div>
+          </div>
+
+          <!-- Calibration Command Triggers (0xB0) -->
+          <div class="flex flex-col gap-2 pt-1">
+            <span class="text-[11px] font-semibold text-base-content/70 uppercase font-mono">Execute Homing &amp; Sweep Commands:</span>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-calib-stall-discovery" class="btn btn-xs btn-outline btn-primary uppercase font-bold text-[10px]">
+                Start Stall Discovery (0x01)
+              </button>
+              <button id="btn-calib-interactive-step" class="btn btn-xs btn-outline btn-accent uppercase font-bold text-[10px]">
+                Interactive Step (0x02)
+              </button>
+            </div>
+            <button id="btn-calib-abort" class="btn btn-xs btn-outline btn-error uppercase font-bold text-[10px] w-full">
+              Abort Calibration (0xFF)
+            </button>
+          </div>
+
+          <!-- Flash Persistence (0xB0 cmd 0x03, 0x04) -->
+          <div class="flex flex-col gap-2 pt-2 border-t border-base-300">
+            <span class="text-[11px] font-semibold text-base-content/70 uppercase font-mono">Flash Non-Volatile Memory:</span>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-flash-save" class="btn btn-xs btn-success uppercase font-bold text-success-content text-[10px]">
+                Save to Flash (0x03)
+              </button>
+              <button id="btn-flash-load" class="btn btn-xs btn-outline font-mono uppercase font-bold text-[10px]">
+                Load from Flash (0x04)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Application Logic & Protocols Script -->
@@ -1198,7 +1680,33 @@
       fibreError: 0,
       telemetryUa: undefined,
       telemetryUb: undefined,
-      telemetryUc: undefined
+      telemetryUc: undefined,
+
+      // Multi-motor and Robotic Kinematics
+      motorIndex: 0,
+      numMotors: 4,
+      gearRatio: 1.0,
+      backlashDelta: 0.02,
+      omegaThresh: 0.5,
+      torsionalStiffness: 100.0,
+      jointAngleAlpha: 0.0,
+      jointAngleBeta: 0.0,
+      jointTargetAlpha: 0.0,
+      jointTargetBeta: 0.0,
+      outerPidAlpha: { p: 10.0, i: 0.1, d: 0.05, ramp: 100.0, lim: 50.0 },
+      outerPidBeta: { p: 8.0, i: 0.1, d: 0.05, ramp: 100.0, lim: 50.0 },
+      diffMatrix: { t11: 0.5, t12: 0.5, t21: 0.5, t22: -0.5 },
+      lutMotMin: -3.1415,
+      lutMotMax: 3.1415,
+      lutPoints: 64,
+      lutStatus: 1,
+      calibCmd: 0,
+      calibProbeLimit: 1.5,
+      calibSweepVel: 2.0,
+      calibStallThresh: 1.0,
+      calibState: 0,
+      calibProgress: 0,
+      flashStatus: 1
     };
 
     /* =========================================================================
@@ -2151,7 +2659,33 @@
         TARGET: 0x01, ENABLE: 0x04, CONTROL_MODE: 0x05,
         ANGLE: 0x09, VELOCITY: 0x11, CURRENT_Q: 0x22,
         VEL_PID_P: 0x30, VEL_PID_I: 0x31, VEL_PID_D: 0x32,
-        ANG_PID_P: 0x36, VOLTAGE_LIMIT: 0x50, VELOCITY_LIMIT: 0x52
+        ANG_PID_P: 0x36, VOLTAGE_LIMIT: 0x50, VELOCITY_LIMIT: 0x52,
+        // Multi-motor and system
+        MOTOR_SELECT: 0x70, NUM_MOTORS: 0x71, SYS_TIME: 0x72,
+        // Joint configuration
+        TRANSMISSION_TYPE: 0x80, GEAR_RATIO: 0x81, BACKLASH_DELTA: 0x82,
+        OMEGA_THRESH: 0x83, TORSIONAL_STIFFNESS: 0x84,
+        JOINT_OFFSET_ALPHA: 0x85, JOINT_OFFSET_BETA: 0x86,
+        // Joint control and telemetry
+        JOINT_TARGET_ALPHA: 0x87, JOINT_TARGET_BETA: 0x88,
+        JOINT_ANGLE_ALPHA: 0x89, JOINT_ANGLE_BETA: 0x8A,
+        JOINT_VEL_ALPHA: 0x8B, JOINT_VEL_BETA: 0x8C,
+        OUTER_DOWNSAMPLE: 0x8D, CALIB_STATE: 0x8E, CALIB_PROGRESS: 0x8F,
+        // Cascaded Outer PIDs
+        OUTER_PID_ALPHA_P: 0x90, OUTER_PID_ALPHA_I: 0x91, OUTER_PID_ALPHA_D: 0x92,
+        OUTER_PID_ALPHA_RAMP: 0x93, OUTER_PID_ALPHA_LIM: 0x94,
+        OUTER_PID_BETA_P: 0x95, OUTER_PID_BETA_I: 0x96, OUTER_PID_BETA_D: 0x97,
+        OUTER_PID_BETA_RAMP: 0x98, OUTER_PID_BETA_LIM: 0x99,
+        // Differential and linkage geometry
+        DIFF_MATRIX_T11: 0x9A, DIFF_MATRIX_T12: 0x9B,
+        DIFF_MATRIX_T21: 0x9C, DIFF_MATRIX_T22: 0x9D,
+        LINKAGE_L1: 0x9E, LINKAGE_L2_L4: 0x9F,
+        // Non-linear LUT streaming
+        LUT_MOT_MIN: 0xA0, LUT_MOT_MAX: 0xA1, LUT_POINTS: 0xA2,
+        LUT_POINT_INDEX: 0xA3, LUT_POINT_VALUE: 0xA4, LUT_STATUS: 0xA5,
+        // Calibration command and flash storage
+        CALIB_CMD: 0xB0, CALIB_PROBE_LIMIT: 0xB1, CALIB_SWEEP_VEL: 0xB2,
+        CALIB_STALL_THRESH: 0xB3, FLASH_STATUS: 0xB4
       };
       // Standard barefoc MotionControlType codes (host protocol contract)
       static MODE_CODE = {
@@ -2163,9 +2697,56 @@
         super();
         this.i2cAddr = 0x40; // FishyServo / barefoc-multibus default address
         this.pollTimer = null;
-        this.simRegs = new Uint8Array(128);
+        this.selectedMotor = 0;
+        this.simRegs = new Uint8Array(1024);
         this.simRegs[MultiBusAdapter.REG.ENABLE] = 0;
         this.simRegs[MultiBusAdapter.REG.CONTROL_MODE] = 2; // angle
+        this.simRegs[MultiBusAdapter.REG.NUM_MOTORS] = 4;
+        this.simRegs[MultiBusAdapter.REG.MOTOR_SELECT] = 0;
+
+        // Default simulated values for kinematics
+        this.simRegs.set(floatToBytes(1.0), MultiBusAdapter.REG.GEAR_RATIO);
+        this.simRegs.set(floatToBytes(0.02), MultiBusAdapter.REG.BACKLASH_DELTA);
+        this.simRegs.set(floatToBytes(0.5), MultiBusAdapter.REG.OMEGA_THRESH);
+        this.simRegs.set(floatToBytes(100.0), MultiBusAdapter.REG.TORSIONAL_STIFFNESS);
+        this.simRegs.set(floatToBytes(0.0), MultiBusAdapter.REG.JOINT_TARGET_ALPHA);
+        this.simRegs.set(floatToBytes(0.0), MultiBusAdapter.REG.JOINT_TARGET_BETA);
+        this.simRegs.set(floatToBytes(0.0), MultiBusAdapter.REG.JOINT_ANGLE_ALPHA);
+        this.simRegs.set(floatToBytes(0.0), MultiBusAdapter.REG.JOINT_ANGLE_BETA);
+
+        // Outer PIDs
+        this.simRegs.set(floatToBytes(10.0), MultiBusAdapter.REG.OUTER_PID_ALPHA_P);
+        this.simRegs.set(floatToBytes(0.1), MultiBusAdapter.REG.OUTER_PID_ALPHA_I);
+        this.simRegs.set(floatToBytes(0.05), MultiBusAdapter.REG.OUTER_PID_ALPHA_D);
+        this.simRegs.set(floatToBytes(100.0), MultiBusAdapter.REG.OUTER_PID_ALPHA_RAMP);
+        this.simRegs.set(floatToBytes(50.0), MultiBusAdapter.REG.OUTER_PID_ALPHA_LIM);
+
+        this.simRegs.set(floatToBytes(8.0), MultiBusAdapter.REG.OUTER_PID_BETA_P);
+        this.simRegs.set(floatToBytes(0.1), MultiBusAdapter.REG.OUTER_PID_BETA_I);
+        this.simRegs.set(floatToBytes(0.05), MultiBusAdapter.REG.OUTER_PID_BETA_D);
+        this.simRegs.set(floatToBytes(100.0), MultiBusAdapter.REG.OUTER_PID_BETA_RAMP);
+        this.simRegs.set(floatToBytes(50.0), MultiBusAdapter.REG.OUTER_PID_BETA_LIM);
+
+        // Diff matrix
+        this.simRegs.set(floatToBytes(0.5), MultiBusAdapter.REG.DIFF_MATRIX_T11);
+        this.simRegs.set(floatToBytes(0.5), MultiBusAdapter.REG.DIFF_MATRIX_T12);
+        this.simRegs.set(floatToBytes(0.5), MultiBusAdapter.REG.DIFF_MATRIX_T21);
+        this.simRegs.set(floatToBytes(-0.5), MultiBusAdapter.REG.DIFF_MATRIX_T22);
+
+        // LUT
+        this.simRegs.set(floatToBytes(-3.1415), MultiBusAdapter.REG.LUT_MOT_MIN);
+        this.simRegs.set(floatToBytes(3.1415), MultiBusAdapter.REG.LUT_MOT_MAX);
+        this.simRegs[MultiBusAdapter.REG.LUT_POINTS] = 64;
+        this.simRegs[MultiBusAdapter.REG.LUT_POINTS + 1] = 0;
+        this.simRegs[MultiBusAdapter.REG.LUT_STATUS] = 1;
+
+        // Calib & Flash
+        this.simRegs.set(floatToBytes(1.5), MultiBusAdapter.REG.CALIB_PROBE_LIMIT);
+        this.simRegs.set(floatToBytes(2.0), MultiBusAdapter.REG.CALIB_SWEEP_VEL);
+        this.simRegs.set(floatToBytes(1.0), MultiBusAdapter.REG.CALIB_STALL_THRESH);
+        this.simRegs[MultiBusAdapter.REG.CALIB_STATE] = 0;
+        this.simRegs[MultiBusAdapter.REG.CALIB_PROGRESS] = 0;
+        this.simRegs[MultiBusAdapter.REG.FLASH_STATUS] = 1;
       }
 
       async connect(transport, baud) {
@@ -2185,6 +2766,13 @@
         this.startRegisterPolling();
       }
 
+      async setMotorIndex(m) {
+        this.selectedMotor = m;
+        if (this.onLog) this.onLog(`[MULTIBUS] MotorSelect (0x70) = ${m}`);
+        await this.writeRegister(MultiBusAdapter.REG.MOTOR_SELECT, new Uint8Array([m & 0xFF]));
+        await this.refreshTelemetry();
+      }
+
       async writeRegister(offset, bytes) {
         const payload = new Uint8Array(1 + bytes.length);
         payload[0] = offset;
@@ -2192,6 +2780,48 @@
         for (let i = 0; i < bytes.length; i++) {
           if (offset + i < this.simRegs.length) this.simRegs[offset + i] = bytes[i];
         }
+
+        // Handle simulation side-effects
+        if (offset === MultiBusAdapter.REG.MOTOR_SELECT) {
+          this.selectedMotor = bytes[0];
+        } else if (offset === MultiBusAdapter.REG.LUT_POINT_INDEX && bytes.length >= 6) {
+          // Check monotonicity of floats starting after 2-byte u16 index
+          let isMonotonic = true;
+          let prev = bytesToFloat(bytes, 2);
+          let dir = 0;
+          for (let p = 6; p <= bytes.length - 4; p += 4) {
+            const cur = bytesToFloat(bytes, p);
+            if (dir === 0) {
+              if (cur > prev + 1e-6) dir = 1;
+              else if (cur < prev - 1e-6) dir = -1;
+            } else if (dir === 1 && cur < prev - 1e-6) {
+              isMonotonic = false;
+              break;
+            } else if (dir === -1 && cur > prev + 1e-6) {
+              isMonotonic = false;
+              break;
+            }
+            prev = cur;
+          }
+          this.simRegs[MultiBusAdapter.REG.LUT_STATUS] = isMonotonic ? 1 : 0;
+        } else if (offset === MultiBusAdapter.REG.CALIB_CMD) {
+          const cmd = bytes[0];
+          if (cmd === 0x01) { // Stall Discovery
+            this.simRegs[MultiBusAdapter.REG.CALIB_STATE] = 1;
+            this.simRegs[MultiBusAdapter.REG.CALIB_PROGRESS] = 45;
+          } else if (cmd === 0x02) { // Interactive Step
+            this.simRegs[MultiBusAdapter.REG.CALIB_STATE] = 2;
+            this.simRegs[MultiBusAdapter.REG.CALIB_PROGRESS] = 80;
+          } else if (cmd === 0xFF) { // Abort
+            this.simRegs[MultiBusAdapter.REG.CALIB_STATE] = 0;
+            this.simRegs[MultiBusAdapter.REG.CALIB_PROGRESS] = 0;
+          } else if (cmd === 0x03) { // Save to Flash
+            this.simRegs[MultiBusAdapter.REG.FLASH_STATUS] = 1;
+          } else if (cmd === 0x04) { // Load from Flash
+            this.simRegs[MultiBusAdapter.REG.FLASH_STATUS] = 1;
+          }
+        }
+
         try {
           if (window.AgentLA && AgentLA.i2c && AgentLA.i2c.write) {
             await AgentLA.i2c.write(this.i2cAddr, payload);
@@ -2233,30 +2863,53 @@
         return this.simRegs.subarray(offset, offset + len);
       }
 
-      startRegisterPolling() {
+      async refreshTelemetry() {
         const R = MultiBusAdapter.REG;
+        const enable = (await this.readRegisters(R.ENABLE, 1))[0];
+        const mode = (await this.readRegisters(R.CONTROL_MODE, 1))[0];
+        const target = bytesToFloat(await this.readRegisters(R.TARGET, 4), 0);
+        const angle = bytesToFloat(await this.readRegisters(R.ANGLE, 4), 0);
+        const vel = bytesToFloat(await this.readRegisters(R.VELOCITY, 4), 0);
+        const iq = bytesToFloat(await this.readRegisters(R.CURRENT_Q, 4), 0);
+
+        // Kinematics Telemetry
+        const jointAlpha = bytesToFloat(await this.readRegisters(R.JOINT_ANGLE_ALPHA, 4), 0);
+        const jointBeta = bytesToFloat(await this.readRegisters(R.JOINT_ANGLE_BETA, 4), 0);
+        const calibState = (await this.readRegisters(R.CALIB_STATE, 1))[0] || 0;
+        const calibProgress = (await this.readRegisters(R.CALIB_PROGRESS, 1))[0] || 0;
+        const lutStatus = (await this.readRegisters(R.LUT_STATUS, 1))[0] || 0;
+        const flashStatus = (await this.readRegisters(R.FLASH_STATUS, 1))[0] || 0;
+
+        state.jointAngleAlpha = jointAlpha;
+        state.jointAngleBeta = jointBeta;
+        state.calibState = calibState;
+        state.calibProgress = calibProgress;
+        state.lutStatus = lutStatus;
+        state.flashStatus = flashStatus;
+
+        if (this.onTelemetry) this.onTelemetry({ angle, velocity: vel, iq });
+
+        const elEn = document.getElementById('mb-val-enable');
+        if (elEn) elEn.textContent = `${enable}`;
+        const elMd = document.getElementById('mb-val-mode');
+        if (elMd) elMd.textContent = `${mode}`;
+        const elTg = document.getElementById('mb-val-target');
+        if (elTg) elTg.textContent = target.toFixed(3);
+        const elAg = document.getElementById('mb-val-angle');
+        if (elAg) elAg.textContent = angle.toFixed(3);
+        const elVl = document.getElementById('mb-val-vel');
+        if (elVl) elVl.textContent = vel.toFixed(2);
+        const elIq = document.getElementById('mb-val-iq');
+        if (elIq) elIq.textContent = iq.toFixed(3);
+
+        if (typeof updateKinematicsTelemetryUI === 'function') {
+          updateKinematicsTelemetryUI();
+        }
+      }
+
+      startRegisterPolling() {
         this.pollTimer = setInterval(async () => {
-          const enable = (await this.readRegisters(R.ENABLE, 1))[0];
-          const mode = (await this.readRegisters(R.CONTROL_MODE, 1))[0];
-          const target = bytesToFloat(await this.readRegisters(R.TARGET, 4), 0);
-          const angle = bytesToFloat(await this.readRegisters(R.ANGLE, 4), 0);
-          const vel = bytesToFloat(await this.readRegisters(R.VELOCITY, 4), 0);
-          const iq = bytesToFloat(await this.readRegisters(R.CURRENT_Q, 4), 0);
-
-          if (this.onTelemetry) this.onTelemetry({ angle, velocity: vel, iq });
-
-          const elEn = document.getElementById('mb-val-enable');
-          if (elEn) elEn.textContent = `${enable}`;
-          const elMd = document.getElementById('mb-val-mode');
-          if (elMd) elMd.textContent = `${mode}`;
-          const elTg = document.getElementById('mb-val-target');
-          if (elTg) elTg.textContent = target.toFixed(3);
-          const elAg = document.getElementById('mb-val-angle');
-          if (elAg) elAg.textContent = angle.toFixed(3);
-          const elVl = document.getElementById('mb-val-vel');
-          if (elVl) elVl.textContent = vel.toFixed(2);
-          const elIq = document.getElementById('mb-val-iq');
-          if (elIq) elIq.textContent = iq.toFixed(3);
+          await this.refreshTelemetry();
         }, 200);
       }
 
@@ -2812,6 +3465,32 @@
         document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
         const activePanel = document.getElementById(viewId);
         if (activePanel) activePanel.classList.remove('hidden');
+        if (shellRoot) {
+          shellRoot.classList.toggle('hidden', viewId !== 'view-dashboard');
+        }
+      });
+    });
+
+    // Multi-Motor Selector Dispatch (0x70 MotorSelect)
+    async function selectMotor(m) {
+      state.motorIndex = m;
+      document.querySelectorAll('.motor-tab-btn').forEach(btn => {
+        const idx = parseInt(btn.getAttribute('data-motor'));
+        btn.classList.toggle('active', idx === m);
+      });
+      const lbl = document.getElementById('kin-active-motor-label');
+      if (lbl) lbl.textContent = `Active: Motor ${m}`;
+
+      if (activeAdapter && typeof activeAdapter.setMotorIndex === 'function') {
+        await activeAdapter.setMotorIndex(m);
+      }
+      logTerminal(`[MULTIBUS] Switched to Motor ${m}`);
+    }
+
+    document.querySelectorAll('.motor-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-motor'));
+        selectMotor(idx);
       });
     });
 
@@ -3708,9 +4387,17 @@
           '<div id="studio-menu-host"></div>' +
         '</div>' +
         '<div class="flex items-center gap-0.5 flex-1" id="studio-dash-tabs"></div>' +
+        '<div class="flex items-center gap-1 bg-base-300/60 p-0.5 rounded border border-base-300 text-xs font-mono mr-1" id="studio-motor-tabs">' +
+          '<span class="text-[10px] font-bold uppercase text-base-content/60 px-1">Motor:</span>' +
+          '<button class="motor-tab-btn px-2 py-0.5 rounded text-xs font-semibold active" data-motor="0">0</button>' +
+          '<button class="motor-tab-btn px-2 py-0.5 rounded text-xs font-semibold" data-motor="1">1</button>' +
+          '<button class="motor-tab-btn px-2 py-0.5 rounded text-xs font-semibold" data-motor="2">2</button>' +
+          '<button class="motor-tab-btn px-2 py-0.5 rounded text-xs font-semibold" data-motor="3">3</button>' +
+        '</div>' +
         '<button class="btn btn-xs btn-ghost" id="studio-add-dash" title="Add dashboard">+</button>' +
         '<button class="btn btn-xs btn-outline" id="studio-wizard-btn">Wizard</button>' +
         '<button class="btn btn-xs btn-outline" id="studio-params-btn">Parameters</button>' +
+        '<button class="btn btn-xs btn-outline" id="studio-kinematics-btn">Kinematics</button>' +
         '<button class="btn btn-xs btn-outline" id="studio-sampling-btn">Start Sampling</button>';
       shellRoot.appendChild(header);
 
@@ -3733,6 +4420,10 @@
       };
       document.getElementById('studio-wizard-btn').onclick = () => switchStudioView('wizard');
       document.getElementById('studio-params-btn').onclick = () => switchStudioView('params');
+      document.getElementById('studio-kinematics-btn').onclick = () => switchStudioView('kinematics');
+      document.querySelectorAll('#studio-motor-tabs .motor-tab-btn').forEach(btn => {
+        btn.onclick = () => selectMotor(parseInt(btn.getAttribute('data-motor')));
+      });
       const samplingBtn = document.getElementById('studio-sampling-btn');
       samplingBtn.onclick = () => {
         const next = !studio.domains.sampling;
@@ -3772,12 +4463,27 @@
     function switchStudioView(mode) {
       studioViewMode = mode;
       const view = document.getElementById('studio-view');
+      const kp = document.getElementById('view-kinematics');
+      const shell = document.getElementById('studio-shell');
       view.innerHTML = '';
       view.classList.toggle('single-col', mode !== 'dashboard');
       document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
-      if (mode === 'dashboard') renderDashboard();
-      else if (mode === 'wizard') renderWizard();
-      else if (mode === 'params') renderParams();
+      if (mode === 'dashboard') {
+        if (kp) kp.classList.add('hidden');
+        if (shell) shell.classList.remove('hidden');
+        renderDashboard();
+      } else if (mode === 'wizard') {
+        if (kp) kp.classList.add('hidden');
+        if (shell) shell.classList.remove('hidden');
+        renderWizard();
+      } else if (mode === 'params') {
+        if (kp) kp.classList.add('hidden');
+        if (shell) shell.classList.remove('hidden');
+        renderParams();
+      } else if (mode === 'kinematics') {
+        if (shell) shell.classList.add('hidden');
+        if (kp) kp.classList.remove('hidden');
+      }
     }
 
     // Compact live telemetry HUD built from scratch (no cloning of legacy DOM).
@@ -4403,9 +5109,610 @@
       applyBtn.disabled=true;
     })();
 
+    /* =========================================================================
+       7. ROBOTIC KINEMATICS, LUT CURVE STREAMING & CALIBRATION
+       ========================================================================= */
+
+    let lutCanvas = null;
+    let lutCtx = null;
+    let lutCurvePoints = [];
+    let isDrawingLut = false;
+
+    function updateKinematicsTelemetryUI() {
+      // 1. Joint Alpha (Pitch) dial & readouts (0x89 JointAngleAlpha)
+      const radAlpha = typeof state.jointAngleAlpha === 'number' ? state.jointAngleAlpha : 0.0;
+      const degAlpha = (radAlpha * 180 / Math.PI).toFixed(1);
+      const elAlphaRad = document.getElementById('val-joint-alpha-rad');
+      if (elAlphaRad) elAlphaRad.textContent = radAlpha.toFixed(3) + ' rad';
+      const elAlphaDeg = document.getElementById('val-joint-alpha-deg');
+      if (elAlphaDeg) elAlphaDeg.textContent = degAlpha + ' deg';
+
+      const needleAlpha = document.getElementById('dial-alpha-needle');
+      if (needleAlpha) needleAlpha.setAttribute('transform', `rotate(${(radAlpha * 180 / Math.PI)} 80 80)`);
+
+      const targetAlpha = typeof state.jointTargetAlpha === 'number' ? state.jointTargetAlpha : 0.0;
+      const arcAlpha = document.getElementById('dial-alpha-target-arc');
+      if (arcAlpha) {
+        const norm = Math.max(0, Math.min(1, (targetAlpha + Math.PI) / (2 * Math.PI)));
+        arcAlpha.setAttribute('stroke-dashoffset', (408.4 * (1 - norm)).toFixed(1));
+      }
+
+      // 2. Joint Beta (Roll) dial & readouts (0x8A JointAngleBeta)
+      const radBeta = typeof state.jointAngleBeta === 'number' ? state.jointAngleBeta : 0.0;
+      const degBeta = (radBeta * 180 / Math.PI).toFixed(1);
+      const elBetaRad = document.getElementById('val-joint-beta-rad');
+      if (elBetaRad) elBetaRad.textContent = radBeta.toFixed(3) + ' rad';
+      const elBetaDeg = document.getElementById('val-joint-beta-deg');
+      if (elBetaDeg) elBetaDeg.textContent = degBeta + ' deg';
+
+      const needleBeta = document.getElementById('dial-beta-needle');
+      if (needleBeta) needleBeta.setAttribute('transform', `rotate(${(radBeta * 180 / Math.PI)} 80 80)`);
+
+      const targetBeta = typeof state.jointTargetBeta === 'number' ? state.jointTargetBeta : 0.0;
+      const arcBeta = document.getElementById('dial-beta-target-arc');
+      if (arcBeta) {
+        const norm = Math.max(0, Math.min(1, (targetBeta + Math.PI) / (2 * Math.PI)));
+        arcBeta.setAttribute('stroke-dashoffset', (408.4 * (1 - norm)).toFixed(1));
+      }
+
+      // 3. Calibration state & progress (0x8E, 0x8F)
+      const cState = state.calibState || 0;
+      const stateLabels = ['0: IDLE / READY', '1: PROBING / SWEEPING', '2: STEPPING', '3: CALIBRATED / HOMED', '4: ERROR'];
+      const elCState = document.getElementById('txt-calib-state');
+      if (elCState) elCState.textContent = stateLabels[cState] || (cState + ': UNKNOWN');
+
+      const cProg = Math.max(0, Math.min(100, state.calibProgress || 0));
+      const elCBar = document.getElementById('bar-calib-progress');
+      if (elCBar) elCBar.value = cProg;
+      const elCProgTxt = document.getElementById('txt-calib-progress');
+      if (elCProgTxt) elCProgTxt.textContent = cProg + '%';
+
+      // 4. LUT Monotonicity Badge (0xA5)
+      const lutStatus = state.lutStatus !== undefined ? state.lutStatus : 1;
+      const lutBadge = document.getElementById('badge-lut-status');
+      if (lutBadge) {
+        if (lutStatus === 1) {
+          lutBadge.className = 'badge badge-success badge-sm font-mono py-2 font-semibold';
+          lutBadge.textContent = 'MONOTONIC [PASS]';
+        } else {
+          lutBadge.className = 'badge badge-warning badge-sm font-mono py-2 font-semibold';
+          lutBadge.textContent = 'NON-MONOTONIC [WARN]';
+        }
+      }
+
+      // 5. Flash Status Badge (0xB4)
+      const flashStatus = state.flashStatus !== undefined ? state.flashStatus : 1;
+      const flashBadge = document.getElementById('badge-flash-status');
+      if (flashBadge) {
+        if (flashStatus === 1) {
+          flashBadge.className = 'badge badge-success badge-sm font-mono py-2 font-semibold';
+          flashBadge.textContent = 'CRC32 VALID';
+        } else {
+          flashBadge.className = 'badge badge-warning badge-sm font-mono py-2 font-semibold';
+          flashBadge.textContent = 'CRC32 UNVERIFIED';
+        }
+      }
+    }
+
+    function initLutCanvas() {
+      lutCanvas = document.getElementById('lut-canvas');
+      if (!lutCanvas) return;
+      lutCtx = lutCanvas.getContext('2d');
+
+      const count = parseInt(document.getElementById('inp-lut-points').value) || 64;
+      generateLutPreset('linear', count);
+
+      function handlePointer(e) {
+        const rect = lutCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const nx = Math.max(0, Math.min(1, x / rect.width));
+        const ny = Math.max(0, Math.min(1, 1 - (y / rect.height)));
+
+        const minVal = parseFloat(document.getElementById('inp-lut-mot-min').value) || -3.1415;
+        const maxVal = parseFloat(document.getElementById('inp-lut-mot-max').value) || 3.1415;
+        const val = minVal + ny * (maxVal - minVal);
+
+        const idx = Math.min(lutCurvePoints.length - 1, Math.max(0, Math.round(nx * (lutCurvePoints.length - 1))));
+        lutCurvePoints[idx] = val;
+        renderLutCanvas();
+      }
+
+      lutCanvas.addEventListener('mousedown', (e) => { isDrawingLut = true; handlePointer(e); });
+      window.addEventListener('mousemove', (e) => { if (isDrawingLut) handlePointer(e); });
+      window.addEventListener('mouseup', () => { isDrawingLut = false; });
+
+      lutCanvas.addEventListener('touchstart', (e) => { isDrawingLut = true; handlePointer(e); e.preventDefault(); }, { passive: false });
+      window.addEventListener('touchmove', (e) => { if (isDrawingLut) { handlePointer(e); e.preventDefault(); } }, { passive: false });
+      window.addEventListener('touchend', () => { isDrawingLut = false; });
+    }
+
+    function generateLutPreset(preset, count = 64) {
+      const minVal = parseFloat(document.getElementById('inp-lut-mot-min').value) || -3.1415;
+      const maxVal = parseFloat(document.getElementById('inp-lut-mot-max').value) || 3.1415;
+      lutCurvePoints = new Array(count);
+
+      for (let i = 0; i < count; i++) {
+        const t = i / (count - 1);
+        let normY = t;
+        if (preset === 'scurve') {
+          normY = 1 / (1 + Math.exp(-8 * (t - 0.5)));
+        } else if (preset === 'cam') {
+          normY = 0.5 + 0.5 * Math.sin((t - 0.5) * Math.PI);
+        } else if (preset === 'harmonic') {
+          normY = 0.5 + 0.38 * Math.sin((t - 0.5) * Math.PI) + 0.12 * Math.sin(2 * (t - 0.5) * Math.PI);
+        } else {
+          normY = t;
+        }
+        lutCurvePoints[i] = minVal + normY * (maxVal - minVal);
+      }
+      renderLutCanvas();
+    }
+
+    function renderLutCanvas() {
+      if (!lutCanvas || !lutCtx) return;
+      const w = lutCanvas.width;
+      const h = lutCanvas.height;
+      const ctx = lutCtx;
+
+      ctx.fillStyle = '#080c14';
+      ctx.fillRect(0, 0, w, h);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      const gridCols = 8;
+      const gridRows = 4;
+      for (let c = 1; c < gridCols; c++) {
+        const x = (c / gridCols) * w;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let r = 1; r < gridRows; r++) {
+        const y = (r / gridRows) * h;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Midline (Zero line)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (!lutCurvePoints || lutCurvePoints.length === 0) return;
+
+      const minVal = parseFloat(document.getElementById('inp-lut-mot-min').value) || -3.1415;
+      const maxVal = parseFloat(document.getElementById('inp-lut-mot-max').value) || 3.1415;
+      const range = (maxVal - minVal) || 1;
+
+      // Draw curve stroke
+      ctx.beginPath();
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2.5;
+
+      for (let i = 0; i < lutCurvePoints.length; i++) {
+        const x = (i / (lutCurvePoints.length - 1)) * w;
+        const normY = (lutCurvePoints[i] - minVal) / range;
+        const y = h - (normY * h);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Draw sample point markers
+      ctx.fillStyle = '#00f0ff';
+      for (let i = 0; i < lutCurvePoints.length; i += 2) {
+        const x = (i / (lutCurvePoints.length - 1)) * w;
+        const normY = (lutCurvePoints[i] - minVal) / range;
+        const y = h - (normY * h);
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    async function streamLutCurveBurst() {
+      if (!activeAdapter) {
+        logTerminal('[LUT] No active protocol adapter connected.');
+        return;
+      }
+      const count = lutCurvePoints.length;
+      if (count === 0) return;
+
+      const minVal = parseFloat(document.getElementById('inp-lut-mot-min').value) || -3.1415;
+      const maxVal = parseFloat(document.getElementById('inp-lut-mot-max').value) || 3.1415;
+
+      if (activeAdapter.writeRegister) {
+        await activeAdapter.writeRegister(0xA0, floatToBytes(minVal));
+        await activeAdapter.writeRegister(0xA1, floatToBytes(maxVal));
+      }
+
+      // Single I2C burst transaction: [0xA3, 0x00, 0x00, val0, val1, ...]
+      // Bytes payload passed to writeRegister(0xA3, ...): index_lo, index_hi, then float bytes
+      const burstPayload = new Uint8Array(2 + count * 4);
+      burstPayload[0] = 0x00; // index 0 (u16 lo)
+      burstPayload[1] = 0x00; // index 0 (u16 hi)
+      const dv = new DataView(burstPayload.buffer);
+      for (let i = 0; i < count; i++) {
+        dv.setFloat32(2 + i * 4, lutCurvePoints[i], true);
+      }
+
+      logTerminal(`[LUT] Burst write streaming ${count} curve points starting at 0xA3...`);
+      if (activeAdapter.writeRegister) {
+        await activeAdapter.writeRegister(0xA3, burstPayload);
+      }
+
+      // Read back LutStatus (0xA5)
+      let status = 1;
+      if (activeAdapter.readRegisters) {
+        const res = await activeAdapter.readRegisters(0xA5, 1);
+        status = res && res.length > 0 ? res[0] : 1;
+      }
+      state.lutStatus = status;
+      updateKinematicsTelemetryUI();
+      logTerminal(`[LUT] Burst write complete. Monotonicity status (0xA5) = ${status}`);
+    }
+
+    function handleLutFileUpload(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target.result.trim();
+          if (text.startsWith('[') || text.startsWith('{')) {
+            const data = JSON.parse(text);
+            const arr = Array.isArray(data) ? data : data.points || [];
+            if (arr.length > 0) {
+              lutCurvePoints = arr.map(Number);
+              document.getElementById('inp-lut-points').value = lutCurvePoints.length;
+              renderLutCanvas();
+              logTerminal(`[LUT] Loaded ${lutCurvePoints.length} points from JSON.`);
+            }
+          } else {
+            const parts = text.split(/[\r\n,]+/).map(s => s.trim()).filter(s => s.length > 0 && !isNaN(Number(s)));
+            if (parts.length > 0) {
+              lutCurvePoints = parts.map(Number);
+              document.getElementById('inp-lut-points').value = lutCurvePoints.length;
+              renderLutCanvas();
+              logTerminal(`[LUT] Loaded ${lutCurvePoints.length} points from CSV.`);
+            }
+          }
+        } catch (err) {
+          logTerminal(`[LUT ERROR] Failed to parse file: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    async function applyDiffMatrix() {
+      const t11 = parseFloat(document.getElementById('inp-diff-t11').value) || 0;
+      const t12 = parseFloat(document.getElementById('inp-diff-t12').value) || 0;
+      const t21 = parseFloat(document.getElementById('inp-diff-t21').value) || 0;
+      const t22 = parseFloat(document.getElementById('inp-diff-t22').value) || 0;
+
+      if (activeAdapter && activeAdapter.writeRegister) {
+        await activeAdapter.writeRegister(0x9A, floatToBytes(t11));
+        await activeAdapter.writeRegister(0x9B, floatToBytes(t12));
+        await activeAdapter.writeRegister(0x9C, floatToBytes(t21));
+        await activeAdapter.writeRegister(0x9D, floatToBytes(t22));
+      }
+      logTerminal(`[DIFF] Applied matrix: [[${t11}, ${t12}], [${t21}, ${t22}]]`);
+    }
+
+    async function readDiffMatrix() {
+      if (!activeAdapter || !activeAdapter.readRegisters) return;
+      const b11 = await activeAdapter.readRegisters(0x9A, 4);
+      const b12 = await activeAdapter.readRegisters(0x9B, 4);
+      const b21 = await activeAdapter.readRegisters(0x9C, 4);
+      const b22 = await activeAdapter.readRegisters(0x9D, 4);
+
+      document.getElementById('inp-diff-t11').value = bytesToFloat(b11, 0).toFixed(3);
+      document.getElementById('inp-diff-t12').value = bytesToFloat(b12, 0).toFixed(3);
+      document.getElementById('inp-diff-t21').value = bytesToFloat(b21, 0).toFixed(3);
+      document.getElementById('inp-diff-t22').value = bytesToFloat(b22, 0).toFixed(3);
+      logTerminal('[DIFF] Read differential coupling matrix from target.');
+    }
+
+    async function executeCalibCommand(cmd, name) {
+      if (!activeAdapter || !activeAdapter.writeRegister) {
+        logTerminal(`[CALIB] No adapter available for command ${name}`);
+        return;
+      }
+      logTerminal(`[CALIB] Executing command ${name} (0x${cmd.toString(16).padStart(2, '0')}) to register 0xB0...`);
+      await activeAdapter.writeRegister(0xB0, new Uint8Array([cmd & 0xFF]));
+      if (activeAdapter.refreshTelemetry) {
+        await activeAdapter.refreshTelemetry();
+      }
+    }
+
+    async function syncAllKinematics() {
+      if (!activeAdapter || !activeAdapter.readRegisters) {
+        logTerminal('[SYNC] No active adapter to read kinematics.');
+        return;
+      }
+      logTerminal('[SYNC] Reading all kinematics registers from target...');
+
+      // 0x81..0x84
+      const bGear = await activeAdapter.readRegisters(0x81, 4);
+      const bBack = await activeAdapter.readRegisters(0x82, 4);
+      const bOmeg = await activeAdapter.readRegisters(0x83, 4);
+      const bStiff = await activeAdapter.readRegisters(0x84, 4);
+
+      const gear = bytesToFloat(bGear, 0);
+      const back = bytesToFloat(bBack, 0);
+      const omeg = bytesToFloat(bOmeg, 0);
+      const stiff = bytesToFloat(bStiff, 0);
+
+      document.getElementById('range-gear-ratio').value = gear;
+      document.getElementById('num-gear-ratio').value = gear.toFixed(2);
+      document.getElementById('range-backlash-delta').value = back;
+      document.getElementById('num-backlash-delta').value = back.toFixed(3);
+      document.getElementById('range-omega-thresh').value = omeg;
+      document.getElementById('num-omega-thresh').value = omeg.toFixed(2);
+      document.getElementById('range-torsional-stiffness').value = stiff;
+      document.getElementById('num-torsional-stiffness').value = stiff.toFixed(1);
+
+      // Outer PIDs
+      const bAp = await activeAdapter.readRegisters(0x90, 4);
+      const bAi = await activeAdapter.readRegisters(0x91, 4);
+      const bAd = await activeAdapter.readRegisters(0x92, 4);
+      const bAr = await activeAdapter.readRegisters(0x93, 4);
+      const bAl = await activeAdapter.readRegisters(0x94, 4);
+      document.getElementById('range-outer-alpha-p').value = bytesToFloat(bAp, 0);
+      document.getElementById('txt-outer-alpha-p').textContent = bytesToFloat(bAp, 0).toFixed(1);
+      document.getElementById('range-outer-alpha-i').value = bytesToFloat(bAi, 0);
+      document.getElementById('txt-outer-alpha-i').textContent = bytesToFloat(bAi, 0).toFixed(2);
+      document.getElementById('range-outer-alpha-d').value = bytesToFloat(bAd, 0);
+      document.getElementById('txt-outer-alpha-d').textContent = bytesToFloat(bAd, 0).toFixed(2);
+      document.getElementById('range-outer-alpha-ramp').value = bytesToFloat(bAr, 0);
+      document.getElementById('txt-outer-alpha-ramp').textContent = bytesToFloat(bAr, 0).toFixed(1);
+      document.getElementById('range-outer-alpha-lim').value = bytesToFloat(bAl, 0);
+      document.getElementById('txt-outer-alpha-lim').textContent = bytesToFloat(bAl, 0).toFixed(1);
+
+      const bBp = await activeAdapter.readRegisters(0x95, 4);
+      const bBi = await activeAdapter.readRegisters(0x96, 4);
+      const bBd = await activeAdapter.readRegisters(0x97, 4);
+      const bBr = await activeAdapter.readRegisters(0x98, 4);
+      const bBl = await activeAdapter.readRegisters(0x99, 4);
+      document.getElementById('range-outer-beta-p').value = bytesToFloat(bBp, 0);
+      document.getElementById('txt-outer-beta-p').textContent = bytesToFloat(bBp, 0).toFixed(1);
+      document.getElementById('range-outer-beta-i').value = bytesToFloat(bBi, 0);
+      document.getElementById('txt-outer-beta-i').textContent = bytesToFloat(bBi, 0).toFixed(2);
+      document.getElementById('range-outer-beta-d').value = bytesToFloat(bBd, 0);
+      document.getElementById('txt-outer-beta-d').textContent = bytesToFloat(bBd, 0).toFixed(2);
+      document.getElementById('range-outer-beta-ramp').value = bytesToFloat(bBr, 0);
+      document.getElementById('txt-outer-beta-ramp').textContent = bytesToFloat(bBr, 0).toFixed(1);
+      document.getElementById('range-outer-beta-lim').value = bytesToFloat(bBl, 0);
+      document.getElementById('txt-outer-beta-lim').textContent = bytesToFloat(bBl, 0).toFixed(1);
+
+      // Matrix
+      await readDiffMatrix();
+
+      // LUT MotMin/MotMax
+      const bLMin = await activeAdapter.readRegisters(0xA0, 4);
+      const bLMax = await activeAdapter.readRegisters(0xA1, 4);
+      document.getElementById('inp-lut-mot-min').value = bytesToFloat(bLMin, 0).toFixed(3);
+      document.getElementById('inp-lut-mot-max').value = bytesToFloat(bLMax, 0).toFixed(3);
+
+      // Calibration params
+      const bCp = await activeAdapter.readRegisters(0xB1, 4);
+      const bCv = await activeAdapter.readRegisters(0xB2, 4);
+      const bCs = await activeAdapter.readRegisters(0xB3, 4);
+      document.getElementById('inp-calib-probe-lim').value = bytesToFloat(bCp, 0).toFixed(2);
+      document.getElementById('inp-calib-sweep-vel').value = bytesToFloat(bCv, 0).toFixed(2);
+      document.getElementById('inp-calib-stall-thresh').value = bytesToFloat(bCs, 0).toFixed(2);
+
+      await activeAdapter.refreshTelemetry();
+      logTerminal('[SYNC] Kinematics sync complete.');
+    }
+
+    function initKinematicsUI() {
+      initLutCanvas();
+
+      // LUT presets
+      const btnLinear = document.getElementById('btn-lut-preset-linear');
+      if (btnLinear) btnLinear.onclick = () => generateLutPreset('linear');
+      const btnScurve = document.getElementById('btn-lut-preset-scurve');
+      if (btnScurve) btnScurve.onclick = () => generateLutPreset('scurve');
+      const btnCam = document.getElementById('btn-lut-preset-cam');
+      if (btnCam) btnCam.onclick = () => generateLutPreset('cam');
+      const btnHarmonic = document.getElementById('btn-lut-preset-harmonic');
+      if (btnHarmonic) btnHarmonic.onclick = () => generateLutPreset('harmonic');
+
+      // LUT file upload
+      const fileInp = document.getElementById('inp-lut-file');
+      const btnUpload = document.getElementById('btn-lut-upload-file');
+      if (btnUpload && fileInp) btnUpload.onclick = () => fileInp.click();
+      if (fileInp) fileInp.onchange = (e) => handleLutFileUpload(e.target.files[0]);
+
+      // LUT burst stream
+      const btnStream = document.getElementById('btn-lut-stream-burst');
+      if (btnStream) btnStream.onclick = streamLutCurveBurst;
+
+      // Matrix presets
+      const btnSym = document.getElementById('btn-matrix-symmetric');
+      if (btnSym) {
+        btnSym.onclick = () => {
+          document.getElementById('inp-diff-t11').value = '0.5';
+          document.getElementById('inp-diff-t12').value = '0.5';
+          document.getElementById('inp-diff-t21').value = '0.5';
+          document.getElementById('inp-diff-t22').value = '-0.5';
+          applyDiffMatrix();
+        };
+      }
+      const btnDir = document.getElementById('btn-matrix-direct');
+      if (btnDir) {
+        btnDir.onclick = () => {
+          document.getElementById('inp-diff-t11').value = '1.0';
+          document.getElementById('inp-diff-t12').value = '0.0';
+          document.getElementById('inp-diff-t21').value = '0.0';
+          document.getElementById('inp-diff-t22').value = '1.0';
+          applyDiffMatrix();
+        };
+      }
+      const btnInv = document.getElementById('btn-matrix-invert');
+      if (btnInv) {
+        btnInv.onclick = () => {
+          document.getElementById('inp-diff-t11').value = '-0.5';
+          document.getElementById('inp-diff-t12').value = '0.5';
+          document.getElementById('inp-diff-t21').value = '0.5';
+          document.getElementById('inp-diff-t22').value = '0.5';
+          applyDiffMatrix();
+        };
+      }
+
+      const btnApplyMat = document.getElementById('btn-apply-matrix');
+      if (btnApplyMat) btnApplyMat.onclick = applyDiffMatrix;
+      const btnReadMat = document.getElementById('btn-read-matrix');
+      if (btnReadMat) btnReadMat.onclick = readDiffMatrix;
+
+      // Calibration command buttons
+      const btnStall = document.getElementById('btn-calib-stall-discovery');
+      if (btnStall) btnStall.onclick = () => executeCalibCommand(0x01, 'START_STALL_DISCOVERY');
+      const btnStep = document.getElementById('btn-calib-interactive-step');
+      if (btnStep) btnStep.onclick = () => executeCalibCommand(0x02, 'INTERACTIVE_STEP');
+      const btnAbort = document.getElementById('btn-calib-abort');
+      if (btnAbort) btnAbort.onclick = () => executeCalibCommand(0xFF, 'ABORT');
+      const btnSave = document.getElementById('btn-flash-save');
+      if (btnSave) {
+        btnSave.onclick = async () => {
+          await executeCalibCommand(0x03, 'SAVE_TO_FLASH');
+          logTerminal('[FLASH] Saved calibration to flash.');
+        };
+      }
+      const btnLoad = document.getElementById('btn-flash-load');
+      if (btnLoad) {
+        btnLoad.onclick = async () => {
+          await executeCalibCommand(0x04, 'LOAD_FROM_FLASH');
+          logTerminal('[FLASH] Loaded calibration from flash.');
+        };
+      }
+
+      // Calibration tuning parameter inputs
+      const inpProbeLim = document.getElementById('inp-calib-probe-lim');
+      if (inpProbeLim) {
+        inpProbeLim.onchange = (e) => {
+          if (activeAdapter && activeAdapter.writeRegister) activeAdapter.writeRegister(0xB1, floatToBytes(parseFloat(e.target.value)));
+        };
+      }
+      const inpSweepVel = document.getElementById('inp-calib-sweep-vel');
+      if (inpSweepVel) {
+        inpSweepVel.onchange = (e) => {
+          if (activeAdapter && activeAdapter.writeRegister) activeAdapter.writeRegister(0xB2, floatToBytes(parseFloat(e.target.value)));
+        };
+      }
+      const inpStallThresh = document.getElementById('inp-calib-stall-thresh');
+      if (inpStallThresh) {
+        inpStallThresh.onchange = (e) => {
+          if (activeAdapter && activeAdapter.writeRegister) activeAdapter.writeRegister(0xB3, floatToBytes(parseFloat(e.target.value)));
+        };
+      }
+
+      // Sync & Return buttons
+      const btnSync = document.getElementById('btn-sync-kinematics');
+      if (btnSync) btnSync.onclick = syncAllKinematics;
+      const btnBack = document.getElementById('btn-kin-back-studio');
+      if (btnBack) {
+        btnBack.onclick = () => {
+          const dashBtn = document.querySelector('[data-view="view-dashboard"]');
+          if (dashBtn) dashBtn.click();
+        };
+      }
+
+      // Transmission parameters sliders & numbers
+      function bindSliderNumber(sliderId, numId, reg) {
+        const slider = document.getElementById(sliderId);
+        const num = document.getElementById(numId);
+        if (!slider || !num) return;
+        slider.oninput = () => {
+          num.value = slider.value;
+          if (activeAdapter && activeAdapter.writeRegister) {
+            activeAdapter.writeRegister(reg, floatToBytes(parseFloat(slider.value)));
+          }
+        };
+        num.oninput = () => {
+          slider.value = num.value;
+          if (activeAdapter && activeAdapter.writeRegister) {
+            activeAdapter.writeRegister(reg, floatToBytes(parseFloat(num.value)));
+          }
+        };
+      }
+      bindSliderNumber('range-gear-ratio', 'num-gear-ratio', 0x81);
+      bindSliderNumber('range-backlash-delta', 'num-backlash-delta', 0x82);
+      bindSliderNumber('range-omega-thresh', 'num-omega-thresh', 0x83);
+      bindSliderNumber('range-torsional-stiffness', 'num-torsional-stiffness', 0x84);
+
+      // Joint setpoint targets
+      function bindJointTarget(sliderId, numId, txtId, reg, stateKey) {
+        const slider = document.getElementById(sliderId);
+        const num = document.getElementById(numId);
+        const txt = document.getElementById(txtId);
+        if (!slider || !num) return;
+        const update = (val) => {
+          const v = parseFloat(val);
+          slider.value = v;
+          num.value = v.toFixed(2);
+          if (txt) txt.textContent = v.toFixed(2);
+          state[stateKey] = v;
+          if (activeAdapter && activeAdapter.writeRegister) {
+            activeAdapter.writeRegister(reg, floatToBytes(v));
+          }
+          updateKinematicsTelemetryUI();
+        };
+        slider.oninput = (e) => update(e.target.value);
+        num.oninput = (e) => update(e.target.value);
+      }
+      bindJointTarget('range-joint-target-alpha', 'num-joint-target-alpha', 'txt-joint-target-alpha', 0x87, 'jointTargetAlpha');
+      bindJointTarget('range-joint-target-beta', 'num-joint-target-beta', 'txt-joint-target-beta', 0x88, 'jointTargetBeta');
+
+      // Outer PIDs
+      function bindPidSlider(sliderId, txtId, reg) {
+        const slider = document.getElementById(sliderId);
+        const txt = document.getElementById(txtId);
+        if (!slider || !txt) return;
+        slider.oninput = () => {
+          const v = parseFloat(slider.value);
+          txt.textContent = v.toFixed(slider.step && slider.step.includes('.') ? slider.step.split('.')[1].length : 1);
+          if (activeAdapter && activeAdapter.writeRegister) {
+            activeAdapter.writeRegister(reg, floatToBytes(v));
+          }
+        };
+      }
+      bindPidSlider('range-outer-alpha-p', 'txt-outer-alpha-p', 0x90);
+      bindPidSlider('range-outer-alpha-i', 'txt-outer-alpha-i', 0x91);
+      bindPidSlider('range-outer-alpha-d', 'txt-outer-alpha-d', 0x92);
+      bindPidSlider('range-outer-alpha-ramp', 'txt-outer-alpha-ramp', 0x93);
+      bindPidSlider('range-outer-alpha-lim', 'txt-outer-alpha-lim', 0x94);
+
+      bindPidSlider('range-outer-beta-p', 'txt-outer-beta-p', 0x95);
+      bindPidSlider('range-outer-beta-i', 'txt-outer-beta-i', 0x96);
+      bindPidSlider('range-outer-beta-d', 'txt-outer-beta-d', 0x97);
+      bindPidSlider('range-outer-beta-ramp', 'txt-outer-beta-ramp', 0x98);
+      bindPidSlider('range-outer-beta-lim', 'txt-outer-beta-lim', 0x99);
+
+      // Wire all motor tabs
+      document.querySelectorAll('.motor-tab-btn').forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.getAttribute('data-motor'));
+          selectMotor(idx);
+        };
+      });
+    }
+
     /* Initialize Default Setup */
     updateAdapter();
     dispatchTargetUpdate();
+    initKinematicsUI();
     if (STUDIO_V2) initStudioShell();
     requestAnimationFrame(renderScope);
   </script>
