@@ -45,28 +45,17 @@
       min-height: 100%;
       margin: 0;
       padding: 0;
-      overflow: hidden;
-      background-color: var(--color-base-100, #0f172a);
-      color: var(--color-base-content, #e2e8f0);
-    }
-    #app-root {
-      height: calc(100vh - 48px);
-      width: 100%;
-      max-width: 1440px;
-      margin-inline: auto;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
     }
     html.is-embedded #top-bar,
-    html.is-embedded .studio-dock,
+    html.is-embedded .app-nav-rail,
+    html.is-embedded #app-nav-rail,
+    html.is-embedded .floating-glass-dock,
     html.is-embedded #floating-glass-dock {
       display: none !important;
     }
-    html.is-embedded #app-root {
-      height: 100vh;
-      max-width: 100%;
+    html.is-embedded main {
+      padding-bottom: 1rem !important;
+      max-width: 100% !important;
     }
 
     /* Strictly Zero CSS Dot Indicators */
@@ -88,9 +77,9 @@
       user-select: none;
     }
     .nav-tab-btn.active {
-      background-color: hsl(var(--b3, 220 13% 20%)) !important;
-      border-bottom-color: hsl(var(--p, 199 89% 48%)) !important;
-      color: hsl(var(--p, 199 89% 48%)) !important;
+      background-color: var(--color-base-300) !important;
+      border-bottom-color: var(--color-primary) !important;
+      color: var(--color-primary) !important;
       font-weight: 700;
     }
     .motor-tab-btn {
@@ -99,9 +88,9 @@
       user-select: none;
     }
     .motor-tab-btn.active {
-      background-color: hsl(var(--b3, 220 13% 20%)) !important;
-      border-color: hsl(var(--p, 199 89% 48%)) !important;
-      color: hsl(var(--p, 199 89% 48%)) !important;
+      background-color: var(--color-base-300) !important;
+      border-color: var(--color-primary) !important;
+      color: var(--color-primary) !important;
       font-weight: 700;
     }
     .topology-btn {
@@ -109,8 +98,14 @@
       user-select: none;
     }
     .topology-btn.active {
-      background-color: hsl(var(--p, 199 89% 48%)) !important;
-      color: hsl(var(--pc, 0 0% 100%)) !important;
+      background-color: var(--color-primary) !important;
+      color: var(--color-primary-content) !important;
+      font-weight: 700;
+    }
+    .mode-btn.active,
+    .torque-btn.active {
+      background-color: var(--color-primary) !important;
+      color: var(--color-primary-content) !important;
       font-weight: 700;
     }
 
@@ -124,19 +119,21 @@
       flex-direction: column;
       gap: 0.75rem;
     }
-    .view-panel::-webkit-scrollbar {
+    .view-panel::-webkit-scrollbar,
+    .terminal-scroll::-webkit-scrollbar {
       width: 6px;
       height: 6px;
     }
-    .view-panel::-webkit-scrollbar-thumb {
-      background: hsl(var(--bc) / 0.2);
+    .view-panel::-webkit-scrollbar-thumb,
+    .terminal-scroll::-webkit-scrollbar-thumb {
+      background: color-mix(in oklch, var(--color-base-content) 25%, transparent);
       border-radius: 3px;
     }
 
     /* Canvases and Visualizers */
     .scope-canvas-card {
-      background: #060911;
-      border: 1px solid hsl(var(--bc) / 0.15);
+      background-color: var(--color-base-200);
+      border: 1px solid var(--border-color, color-mix(in oklch, var(--color-base-content) 15%, transparent));
       border-radius: 0.5rem;
       position: relative;
       overflow: hidden;
@@ -153,7 +150,7 @@
 
     /* 3-Phase Meter Bars */
     .phase-bar-track {
-      background: rgba(255, 255, 255, 0.06);
+      background: color-mix(in oklch, var(--color-base-content) 8%, transparent);
       border-radius: 4px;
       overflow: hidden;
       height: 12px;
@@ -164,7 +161,7 @@
       transition: width 0.05s linear;
     }
     .phase-bipolar-track {
-      background: rgba(255, 255, 255, 0.06);
+      background: color-mix(in oklch, var(--color-base-content) 8%, transparent);
       border-radius: 4px;
       height: 14px;
       position: relative;
@@ -175,7 +172,7 @@
       top: 0;
       bottom: 0;
       width: 1px;
-      background: rgba(255, 255, 255, 0.3);
+      background: color-mix(in oklch, var(--color-base-content) 35%, transparent);
       z-index: 2;
     }
     .phase-bipolar-fill {
@@ -187,115 +184,63 @@
 
     /* Cascaded Control Loop Block Diagram */
     .cascade-block {
-      border: 1px solid hsl(var(--bc) / 0.2);
+      border: 1px solid color-mix(in oklch, var(--color-base-content) 20%, transparent);
       border-radius: 0.4rem;
-      background: hsl(var(--b2));
+      background: var(--color-base-200);
       transition: all 0.2s ease;
       cursor: pointer;
     }
     .cascade-block:hover {
-      border-color: hsl(var(--p));
-      background: hsl(var(--b3));
+      border-color: var(--color-primary);
+      background: var(--color-base-300);
     }
     .cascade-block.active-path {
-      border-color: hsl(var(--p));
-      box-shadow: 0 0 10px hsl(var(--p) / 0.25);
+      border-color: var(--color-primary);
+      box-shadow: 0 0 10px color-mix(in oklch, var(--color-primary) 30%, transparent);
     }
     .cascade-arrow {
-      stroke: hsl(var(--bc) / 0.35);
+      stroke: color-mix(in oklch, var(--color-base-content) 35%, transparent);
       stroke-width: 2;
       fill: none;
     }
     .cascade-arrow.active {
-      stroke: hsl(var(--p));
+      stroke: var(--color-primary);
       stroke-width: 2.5;
     }
 
-    /* Bottom Studio Dock (Standalone mode) */
-    .studio-dock {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 48px;
-      z-index: 50;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1.5rem;
-      background-color: hsl(var(--b2));
-      border-top: 1px solid hsl(var(--bc) / 0.15);
-      box-sizing: border-box;
-      user-select: none;
-    }
-    .dock-link {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: hsl(var(--bc) / 0.6);
-      font-size: 0.65rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      text-decoration: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      transition: color 0.15s ease;
-    }
-    .dock-link:hover {
-      color: hsl(var(--bc));
-      background: hsl(var(--bc) / 0.06);
-    }
-    .dock-link.dock-active {
-      color: hsl(var(--p));
-      background: hsl(var(--p) / 0.12);
-      font-weight: 700;
-    }
-
-    /* Terminal Console */
-    .terminal-scroll::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .terminal-scroll::-webkit-scrollbar-thumb {
-      background: hsl(var(--bc) / 0.25);
-      border-radius: 3px;
-    }
-
-    /* uPlot Tooltips & Dark Theme Overrides */
+    /* uPlot Tooltips & DaisyUI Theme Overrides */
     .uplot {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
     }
     .u-legend {
       font-size: 11px !important;
       padding: 4px 0 !important;
-      color: hsl(var(--bc) / 0.8) !important;
+      color: var(--color-base-content) !important;
     }
     .u-legend th {
       font-weight: 600;
       cursor: pointer;
     }
     .u-cursor-x, .u-cursor-y {
-      border-color: rgba(255, 255, 255, 0.3) !important;
+      border-color: color-mix(in oklch, var(--color-base-content) 35%, transparent) !important;
     }
     .u-select {
-      background: rgba(56, 189, 248, 0.15) !important;
+      background: color-mix(in oklch, var(--color-primary) 20%, transparent) !important;
     }
   </style>
 </head>
-<body class="flex flex-col bg-base-100 text-base-content select-none">
+<body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
 
-  <!-- OS Top Bar (Standalone Mode) -->
-  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-1.5 min-h-[40px] h-[40px] flex justify-between items-center z-30">
+  <!-- OS Top Bar -->
+  <header id="top-bar" class="navbar bg-base-200 border-b border-base-300 px-4 py-1.5 min-h-0 flex justify-between items-center z-30">
     <div class="navbar-start flex items-center gap-2">
       <a href="/home" class="brand-item flex items-center gap-2 text-inherit no-underline" title="AgentLA App Launcher">
         <span class="start-menu-icon" aria-hidden="true"></span>
-        <span class="font-bold tracking-tight text-xs font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> BareFOC Studio</span>
+        <span class="font-bold tracking-tight text-sm font-dot">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> BareFOC Studio</span>
       </a>
     </div>
 
-    <!-- Canonical Top-Rail Navigation -->
+    <!-- Canonical Top-Rail Navigation Header -->
     <div class="navbar-center hidden sm:flex items-center gap-1 font-mono-tech text-xs">
       <a href="/home" class="btn btn-ghost btn-xs font-mono-tech uppercase">Home</a>
       <a href="/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase">Scope</a>
@@ -309,35 +254,47 @@
 
     <div class="navbar-end flex items-center gap-2">
       <!-- Target Power Rail Toggle Switch -->
-      <label class="power-toggle-widget cursor-pointer flex items-center gap-2 bg-base-200 hover:bg-base-300 border border-base-300 rounded-full px-2.5 py-0.5 transition-all select-none" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
-        <svg class="solar-icon power-bolt-icon text-warning shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+      <label class="power-toggle-widget cursor-pointer flex items-center gap-2 bg-base-200/90 hover:bg-base-300 border border-base-300 rounded-full px-3 py-1 transition-all select-none" id="btn-target-power-pill" title="Target Power Rail (Click to toggle ON/OFF)">
+        <svg class="solar-icon power-bolt-icon text-warning shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
-        <span class="power-pill-label font-mono-tech text-[11px] font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">24.0V</span> · <span id="top-bar-current-val">0.32A</span></span>
+        <span class="power-pill-label font-mono-tech text-xs font-semibold whitespace-nowrap" id="top-bar-power-text"><span id="top-bar-voltage-val">24.0V</span> · <span id="top-bar-current-val">0.32A</span></span>
         <input type="checkbox" class="toggle toggle-xs toggle-success" id="target-power-switch" checked />
       </label>
 
-      <!-- Emergency Safe State Button -->
-      <button class="btn btn-xs btn-error gap-1 font-bold text-[11px] uppercase tracking-wider text-error-content shadow-none" id="btn-emergency-safe" title="Emergency Safe State: High-Z all PWM pins and cut power (Shortcut: Shift+Esc)">
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span>SAFE STATE</span>
-      </button>
+      <!-- Combined Emergency Safe State & Hardware Profile Split Button -->
+      <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+        <div class="join">
+          <button class="join-item btn btn-sm btn-error gap-1.5 font-bold text-xs uppercase tracking-wider text-error-content shadow-none border-r border-error-content/20" id="btn-emergency-safe" title="Emergency Safe State: High-Z all pins & cut power (Hotkey: Shift+Esc)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="shrink-0">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>SAFE STATE</span>
+          </button>
+          <button class="join-item btn btn-sm bg-base-200 hover:bg-base-300 border-base-300 gap-1 text-xs font-semibold shadow-none" id="btn-profile-toggle" title="Hardware Profiles stored in flash">
+            <span class="profile-name-text" id="active-profile-name">Safe State</span>
+            <span class="dropdown-arrow text-[10px] opacity-70">▾</span>
+          </button>
+        </div>
+        <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+          <div class="profile-menu-header">HARDWARE PROFILES (FLASH)</div>
+          <div class="profile-menu-slots" id="profile-menu-slots"></div>
+        </div>
+      </div>
 
       <!-- Tri-State Theme Toggle -->
-      <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Toggle Theme" aria-label="Toggle Theme Mode">
-        <svg class="solar-icon icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <button class="theme-toggle-btn mode-system" id="btn-theme-toggle" data-mode="system" title="Theme Mode: System (Auto)" aria-label="Toggle Theme Mode">
+        <svg class="solar-icon icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="12" cy="12" r="5"/>
         </svg>
       </button>
     </div>
   </header>
 
-  <!-- Application Root Frame -->
-  <div id="app-root">
+  <!-- Main Content Container (with 72px Dock Clearance) -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 pb-[72px] flex flex-col gap-4 overflow-y-auto">
 
     <!-- Sub-Toolbar & Multi-Motor Navigation Strip -->
     <div class="border-b border-base-300 bg-base-200/90 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0 z-20">
@@ -1056,59 +1013,7 @@
 
     </section>
 
-  </div>
-
-  <!-- Bottom Studio Dock (Anchored to bottom: 0 in standalone mode) -->
-  <footer class="studio-dock" id="studio-dock" aria-label="System Application Dock">
-    <a href="/home" class="dock-link" title="Apps Launcher">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-      </svg>
-      <span>Home</span>
-    </a>
-    <a href="/scope" class="dock-link" title="Oscilloscope">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
-      </svg>
-      <span>Scope</span>
-    </a>
-    <a href="/terminal" class="dock-link" title="Serial Terminal">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.4-1.4 3.6-3.6-3.6-3.6L7.5 7l5 5-5 5z"/>
-      </svg>
-      <span>Terminal</span>
-    </a>
-    <a href="/files" class="dock-link" title="Storage Files">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-      </svg>
-      <span>Files</span>
-    </a>
-    <a href="/barefoc" class="dock-link dock-active" title="BareFOC Studio">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"/>
-      </svg>
-      <span>BareFOC</span>
-    </a>
-    <a href="/servo" class="dock-link" title="Servo Master">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-      </svg>
-      <span>Servo</span>
-    </a>
-    <a href="/neopixel" class="dock-link" title="NeoPixel">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-      </svg>
-      <span>NeoPixel</span>
-    </a>
-    <a href="/sensor" class="dock-link" title="Sensor Studio">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 3C6.5 3 2 6.5 2 12c0 3.58 2.5 6.55 6 7.54v-2.13C5.5 16.5 4 14.48 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8c0 2.48-1.5 4.5-4 5.41v2.13c3.5-.99 6-3.96 6-7.54 0-5.5-4.5-9-10-9zm0 5c-2.21 0-4 1.79-4 4 0 1.5.8 2.77 2 3.46v2.18c-2.3-.85-4-3.07-4-5.64 0-3.31 2.69-6 6-6s6 2.69 6 6c0 2.57-1.7 4.79-4 5.64v-2.18c1.2-.69 2-1.96 2-3.46 0-2.21-1.79-4-4-4z"/>
-      </svg>
-      <span>Sensor</span>
-    </a>
-  </footer>
+  </main>
 
   <!-- =========================================================================
        JAVASCRIPT ARCHITECTURE & BAREFOC ENGINE
@@ -1486,6 +1391,63 @@
     }
 
     /* =========================================================================
+       DYNAMIC THEME PALETTE FOR CANVASES & UPLOT
+       ========================================================================= */
+    let cachedPalette = null;
+
+    function getCanvasPalette() {
+      if (cachedPalette) return cachedPalette;
+      const probe = document.createElement('div');
+      probe.style.display = 'none';
+      document.body.appendChild(probe);
+
+      function resolveVar(varName, fallback) {
+        probe.style.color = `var(${varName}, ${fallback})`;
+        const resolved = window.getComputedStyle(probe).color;
+        return resolved || fallback;
+      }
+
+      const isLight = document.documentElement.getAttribute('data-theme-scheme') === 'light' ||
+                      document.documentElement.getAttribute('data-theme') === 'caramellatte' ||
+                      document.documentElement.getAttribute('data-theme') === 'light' ||
+                      document.documentElement.getAttribute('data-theme') === 'nord';
+
+      const base100 = resolveVar('--color-base-100', isLight ? '#ffffff' : '#0a0a0a');
+      const base200 = resolveVar('--color-base-200', isLight ? '#f4f4f4' : '#141414');
+      const base300 = resolveVar('--color-base-300', isLight ? '#e5e5e5' : '#1a1a1a');
+      const baseContent = resolveVar('--color-base-content', isLight ? '#1f2937' : '#f4f4f4');
+      const primary = resolveVar('--color-primary', '#38bdf8');
+      const info = resolveVar('--color-info', '#00bfff');
+      const success = resolveVar('--color-success', '#22c55e');
+      const warning = resolveVar('--color-warning', '#f59e0b');
+      const error = resolveVar('--color-error', '#ef4444');
+
+      document.body.removeChild(probe);
+
+      cachedPalette = {
+        bg: base100,
+        cardBg: base200,
+        surface: base300,
+        text: baseContent,
+        textMuted: isLight ? 'rgba(30, 41, 59, 0.6)' : 'rgba(244, 244, 244, 0.5)',
+        grid: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+        gridSubtle: isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.04)',
+        border: isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)',
+        primary,
+        info,
+        success,
+        warning,
+        error,
+        isLight
+      };
+      return cachedPalette;
+    }
+
+    function invalidateCanvasPalette() {
+      cachedPalette = null;
+    }
+
+    /* =========================================================================
        CANVAS 1: CLARKE / PARK POLAR LOCUS VECTOR SCOPE
        ========================================================================= */
     const polarCanvas = document.getElementById('canvas-vector-scope');
@@ -1504,7 +1466,8 @@
       polarCtx.scale(dpr, dpr);
 
       // Background
-      polarCtx.fillStyle = '#060911';
+      const pal = getCanvasPalette();
+      polarCtx.fillStyle = pal.cardBg;
       polarCtx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
@@ -1514,14 +1477,14 @@
       // Concentric circles (Polar current scale)
       polarCtx.lineWidth = 1;
       for (let r = 0.25; r <= 1.0; r += 0.25) {
-        polarCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        polarCtx.strokeStyle = pal.grid;
         polarCtx.beginPath();
         polarCtx.arc(cx, cy, radius * r, 0, 2 * Math.PI);
         polarCtx.stroke();
       }
 
       // Radial spokes (every 45 deg)
-      polarCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      polarCtx.strokeStyle = pal.gridSubtle;
       for (let a = 0; a < 8; a++) {
         const ang = (a * Math.PI) / 4;
         polarCtx.beginPath();
@@ -1536,16 +1499,16 @@
       const dAngle = cur.elAngle;
       const qAngle = cur.elAngle + Math.PI / 2;
 
-      // d-axis (Cyan)
-      polarCtx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      // d-axis (Cyan / Info)
+      polarCtx.strokeStyle = pal.isLight ? 'rgba(2, 132, 199, 0.6)' : 'rgba(56, 189, 248, 0.5)';
       polarCtx.lineWidth = 1.5;
       polarCtx.beginPath();
       polarCtx.moveTo(cx - radius * 0.8 * Math.cos(dAngle), cy - radius * 0.8 * Math.sin(dAngle));
       polarCtx.lineTo(cx + radius * 0.8 * Math.cos(dAngle), cy + radius * 0.8 * Math.sin(dAngle));
       polarCtx.stroke();
 
-      // q-axis (Amber)
-      polarCtx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+      // q-axis (Amber / Warning)
+      polarCtx.strokeStyle = pal.isLight ? 'rgba(217, 119, 6, 0.6)' : 'rgba(245, 158, 11, 0.5)';
       polarCtx.beginPath();
       polarCtx.moveTo(cx - radius * 0.8 * Math.cos(qAngle), cy - radius * 0.8 * Math.sin(qAngle));
       polarCtx.lineTo(cx + radius * 0.8 * Math.cos(qAngle), cy + radius * 0.8 * Math.sin(qAngle));
@@ -1553,9 +1516,9 @@
 
       // Text labels for d & q
       polarCtx.font = '10px monospace';
-      polarCtx.fillStyle = '#38bdf8';
+      polarCtx.fillStyle = pal.isLight ? '#0284c7' : '#38bdf8';
       polarCtx.fillText('+d', cx + (radius * 0.85) * Math.cos(dAngle) - 6, cy + (radius * 0.85) * Math.sin(dAngle) + 4);
-      polarCtx.fillStyle = '#f59e0b';
+      polarCtx.fillStyle = pal.isLight ? '#d97706' : '#f59e0b';
       polarCtx.fillText('+q', cx + (radius * 0.85) * Math.cos(qAngle) - 6, cy + (radius * 0.85) * Math.sin(qAngle) + 4);
 
       // Clarke I_alpha, I_beta locus point
@@ -1571,7 +1534,7 @@
 
       // Draw locus trail
       if (polarHistory.length > 1) {
-        polarCtx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+        polarCtx.strokeStyle = pal.isLight ? 'rgba(2, 132, 199, 0.4)' : 'rgba(56, 189, 248, 0.35)';
         polarCtx.lineWidth = 1.5;
         polarCtx.beginPath();
         polarCtx.moveTo(polarHistory[0].x, polarHistory[0].y);
@@ -1582,7 +1545,7 @@
       }
 
       // Draw instantaneous current vector arrow
-      polarCtx.strokeStyle = '#22c55e';
+      polarCtx.strokeStyle = pal.isLight ? '#16a34a' : '#22c55e';
       polarCtx.lineWidth = 2.5;
       polarCtx.beginPath();
       polarCtx.moveTo(cx, cy);
@@ -1590,7 +1553,7 @@
       polarCtx.stroke();
 
       // Vector head dot
-      polarCtx.fillStyle = '#22c55e';
+      polarCtx.fillStyle = pal.isLight ? '#16a34a' : '#22c55e';
       polarCtx.beginPath();
       polarCtx.arc(px, py, 4, 0, 2 * Math.PI);
       polarCtx.fill();
@@ -1615,7 +1578,8 @@
       svpwmCtx.save();
       svpwmCtx.scale(dpr, dpr);
 
-      svpwmCtx.fillStyle = '#060911';
+      const pal = getCanvasPalette();
+      svpwmCtx.fillStyle = pal.cardBg;
       svpwmCtx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
@@ -1634,7 +1598,7 @@
 
       // Fill Active Sector Background
       const secIdx = (cur.sector - 1) % 6;
-      svpwmCtx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+      svpwmCtx.fillStyle = pal.isLight ? 'rgba(2, 132, 199, 0.15)' : 'rgba(56, 189, 248, 0.12)';
       svpwmCtx.beginPath();
       svpwmCtx.moveTo(cx, cy);
       svpwmCtx.lineTo(vertices[secIdx].x, vertices[secIdx].y);
@@ -1643,7 +1607,7 @@
       svpwmCtx.fill();
 
       // Outer Hexagon Perimeter
-      svpwmCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      svpwmCtx.strokeStyle = pal.border;
       svpwmCtx.lineWidth = 1.5;
       svpwmCtx.beginPath();
       svpwmCtx.moveTo(vertices[0].x, vertices[0].y);
@@ -1654,7 +1618,7 @@
       svpwmCtx.stroke();
 
       // Sector Partition Rays
-      svpwmCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      svpwmCtx.strokeStyle = pal.grid;
       svpwmCtx.lineWidth = 1;
       for (let i = 0; i < 6; i++) {
         svpwmCtx.beginPath();
@@ -1664,7 +1628,7 @@
       }
 
       // Maximum Linear Modulation Inscribed Circle (Vbus / sqrt(3))
-      svpwmCtx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+      svpwmCtx.strokeStyle = pal.isLight ? 'rgba(22, 163, 74, 0.6)' : 'rgba(34, 197, 94, 0.4)';
       svpwmCtx.lineWidth = 1.2;
       svpwmCtx.setLineDash([4, 4]);
       svpwmCtx.beginPath();
@@ -1674,7 +1638,7 @@
 
       // Sector Numbers
       svpwmCtx.font = '10px monospace';
-      svpwmCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      svpwmCtx.fillStyle = pal.textMuted;
       for (let i = 0; i < 6; i++) {
         const midAng = (i + 0.5) * (Math.PI / 3);
         const tx = cx + (rMax * 0.6) * Math.cos(midAng) - 6;
@@ -1687,14 +1651,14 @@
       const vx = cx + cur.valpha * vscale;
       const vy = cy - cur.vbeta * vscale;
 
-      svpwmCtx.strokeStyle = '#f59e0b';
+      svpwmCtx.strokeStyle = pal.isLight ? '#d97706' : '#f59e0b';
       svpwmCtx.lineWidth = 2.5;
       svpwmCtx.beginPath();
       svpwmCtx.moveTo(cx, cy);
       svpwmCtx.lineTo(vx, vy);
       svpwmCtx.stroke();
 
-      svpwmCtx.fillStyle = '#f59e0b';
+      svpwmCtx.fillStyle = pal.isLight ? '#d97706' : '#f59e0b';
       svpwmCtx.beginPath();
       svpwmCtx.arc(vx, vy, 4, 0, 2 * Math.PI);
       svpwmCtx.fill();
@@ -1758,7 +1722,8 @@
       gimbalCtx.save();
       gimbalCtx.scale(dpr, dpr);
 
-      gimbalCtx.fillStyle = '#060911';
+      const pal = getCanvasPalette();
+      gimbalCtx.fillStyle = pal.cardBg;
       gimbalCtx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
@@ -1767,7 +1732,7 @@
       const rInner = rOuter * 0.72;
 
       // Base Stator Ring
-      gimbalCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      gimbalCtx.strokeStyle = pal.border;
       gimbalCtx.lineWidth = 3;
       gimbalCtx.beginPath();
       gimbalCtx.arc(cx, cy, rOuter, 0, 2 * Math.PI);
@@ -1782,20 +1747,20 @@
       gimbalCtx.rotate(roll);
       gimbalCtx.scale(1.0, Math.cos(pitch) || 0.1);
 
-      gimbalCtx.strokeStyle = '#38bdf8';
+      gimbalCtx.strokeStyle = pal.isLight ? '#0284c7' : '#38bdf8';
       gimbalCtx.lineWidth = 2.5;
       gimbalCtx.beginPath();
       gimbalCtx.arc(0, 0, rInner, 0, 2 * Math.PI);
       gimbalCtx.stroke();
 
       // Pitch pivot axis pins
-      gimbalCtx.fillStyle = '#38bdf8';
+      gimbalCtx.fillStyle = pal.isLight ? '#0284c7' : '#38bdf8';
       gimbalCtx.fillRect(-rInner - 4, -3, 8, 6);
       gimbalCtx.fillRect(rInner - 4, -3, 8, 6);
 
       // Inner Payload Platform
-      gimbalCtx.fillStyle = 'rgba(34, 197, 94, 0.3)';
-      gimbalCtx.strokeStyle = '#22c55e';
+      gimbalCtx.fillStyle = pal.isLight ? 'rgba(22, 163, 74, 0.25)' : 'rgba(34, 197, 94, 0.3)';
+      gimbalCtx.strokeStyle = pal.isLight ? '#16a34a' : '#22c55e';
       gimbalCtx.lineWidth = 2;
       gimbalCtx.beginPath();
       gimbalCtx.arc(0, 0, rInner * 0.5, 0, 2 * Math.PI);
@@ -1803,7 +1768,7 @@
       gimbalCtx.stroke();
 
       // Crosshair orientation pointer
-      gimbalCtx.strokeStyle = '#22c55e';
+      gimbalCtx.strokeStyle = pal.isLight ? '#16a34a' : '#22c55e';
       gimbalCtx.beginPath();
       gimbalCtx.moveTo(-rInner * 0.5, 0);
       gimbalCtx.lineTo(rInner * 0.5, 0);
@@ -1839,7 +1804,8 @@
       lutCtx.save();
       lutCtx.scale(dpr, dpr);
 
-      lutCtx.fillStyle = '#060911';
+      const pal = getCanvasPalette();
+      lutCtx.fillStyle = pal.cardBg;
       lutCtx.fillRect(0, 0, w, h);
 
       const pad = 24;
@@ -1847,7 +1813,7 @@
       const ph = h - pad * 2;
 
       // Grid lines
-      lutCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      lutCtx.strokeStyle = pal.grid;
       lutCtx.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {
         const y = pad + (ph / 4) * i;
@@ -1864,7 +1830,7 @@
       }
 
       // 45-degree Reference Line
-      lutCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      lutCtx.strokeStyle = pal.border;
       lutCtx.setLineDash([4, 4]);
       lutCtx.beginPath();
       lutCtx.moveTo(pad, pad + ph);
@@ -1876,7 +1842,7 @@
       const n = pts.length;
 
       // Draw Curve
-      lutCtx.strokeStyle = '#38bdf8';
+      lutCtx.strokeStyle = pal.isLight ? '#0284c7' : '#38bdf8';
       lutCtx.lineWidth = 2.5;
       lutCtx.beginPath();
       for (let i = 0; i < n; i++) {
@@ -1892,11 +1858,11 @@
         const x = pad + (i / (n - 1)) * pw;
         const y = pad + ph - pts[i] * ph;
 
-        lutCtx.fillStyle = (i === draggedLutIndex) ? '#f59e0b' : '#38bdf8';
+        lutCtx.fillStyle = (i === draggedLutIndex) ? (pal.isLight ? '#d97706' : '#f59e0b') : (pal.isLight ? '#0284c7' : '#38bdf8');
         lutCtx.beginPath();
         lutCtx.arc(x, y, 4, 0, 2 * Math.PI);
         lutCtx.fill();
-        lutCtx.strokeStyle = '#060911';
+        lutCtx.strokeStyle = pal.cardBg;
         lutCtx.lineWidth = 1.5;
         lutCtx.stroke();
       }
@@ -2026,6 +1992,8 @@
       const widthM = containerM.clientWidth || 800;
       const widthC = containerC.clientWidth || 800;
 
+      const pal = getCanvasPalette();
+
       // Options for Chart 1: Motion
       const optsMotion = {
         width: widthM,
@@ -2035,14 +2003,14 @@
           y: { auto: true }
         },
         axes: [
-          { stroke: '#94a3b8', grid: { stroke: 'rgba(255, 255, 255, 0.06)' }, font: '10px monospace' },
-          { stroke: '#94a3b8', grid: { stroke: 'rgba(255, 255, 255, 0.06)' }, font: '10px monospace' }
+          { stroke: pal.textMuted, grid: { stroke: pal.grid }, font: '10px monospace' },
+          { stroke: pal.textMuted, grid: { stroke: pal.grid }, font: '10px monospace' }
         ],
         series: [
           { label: 'Time (s)' },
-          { label: 'Target', stroke: '#38bdf8', width: 2 },
-          { label: 'Angle', stroke: '#22c55e', width: 2 },
-          { label: 'Velocity', stroke: '#f59e0b', width: 1.5 }
+          { label: 'Target', stroke: pal.isLight ? '#0284c7' : '#38bdf8', width: 2 },
+          { label: 'Angle', stroke: pal.isLight ? '#16a34a' : '#22c55e', width: 2 },
+          { label: 'Velocity', stroke: pal.isLight ? '#d97706' : '#f59e0b', width: 1.5 }
         ]
       };
 
@@ -2055,8 +2023,8 @@
           y: { auto: true }
         },
         axes: [
-          { stroke: '#94a3b8', grid: { stroke: 'rgba(255, 255, 255, 0.06)' }, font: '10px monospace' },
-          { stroke: '#94a3b8', grid: { stroke: 'rgba(255, 255, 255, 0.06)' }, font: '10px monospace' }
+          { stroke: pal.textMuted, grid: { stroke: pal.grid }, font: '10px monospace' },
+          { stroke: pal.textMuted, grid: { stroke: pal.grid }, font: '10px monospace' }
         ],
         series: [
           { label: 'Time (s)' },
@@ -2064,9 +2032,12 @@
           { label: 'Ib', stroke: '#10b981', width: 1.5 },
           { label: 'Ic', stroke: '#0ea5e9', width: 1.5 },
           { label: 'Id', stroke: '#a855f7', width: 2 },
-          { label: 'Iq', stroke: '#f59e0b', width: 2 }
+          { label: 'Iq', stroke: pal.isLight ? '#d97706' : '#f59e0b', width: 2 }
         ]
       };
+
+      containerM.innerHTML = '';
+      containerC.innerHTML = '';
 
       const dummyMotionData = [[0], [0], [0], [0]];
       const dummyCurrentsData = [[0], [0], [0], [0], [0], [0]];
@@ -2086,6 +2057,29 @@
       ro.observe(containerM);
       ro.observe(containerC);
     }
+
+    function handleThemeChange() {
+      invalidateCanvasPalette();
+      if (plotMotion || plotCurrents) {
+        initUPlotCharts();
+      }
+      renderVectorScope();
+      renderSvpwmHexagon();
+      renderGimbalVisualizer();
+      renderLutSplineEditor();
+    }
+
+    document.addEventListener('agentla-theme-changed', handleThemeChange);
+
+    const themeObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && (m.attributeName === 'data-theme' || m.attributeName === 'data-theme-scheme')) {
+          handleThemeChange();
+          break;
+        }
+      }
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-theme-scheme'] });
 
     let startTime = performance.now();
     let lastPlotUpdate = 0;
