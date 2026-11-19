@@ -1627,17 +1627,17 @@ async function fetchBoardManifest() {
         PIN_MAP = generatePinMapFromManifest(BOARD_MANIFEST);
         renderDynamicPinMatrix(BOARD_MANIFEST);
     } catch (err) {
-        console.warn('Failed to load board manifest, using BakuProbe full-feature fallback:', err);
+        console.warn('Failed to load board manifest, using Pico 2 fallback:', err);
         const fallback = {
-            board_id: 'bakuprobe',
-            name: 'BakuProbe RP2350 Logic & Debug Probe',
-            mcu: { chip: 'RP2350B', cores: 'Dual ARM Cortex-M33 / Hazard3 RISC-V @ 150MHz' },
+            board_id: 'pico2',
+            name: 'Raspberry Pi Pico 2',
+            mcu: { chip: 'RP2350A', cores: 'Dual ARM Cortex-M33 / Hazard3 RISC-V @ 150MHz' },
             features: {
-                has_hardware_can: true,
-                has_hardware_rs485: true,
-                target_current_sense: true,
-                target_power_control: true,
-                qwiic_stemma_qt: true
+                has_hardware_can: false,
+                has_hardware_rs485: false,
+                target_current_sense: false,
+                target_power_control: false,
+                qwiic_stemma_qt: false
             },
             power_architecture: {
                 target_power: {
@@ -5439,8 +5439,8 @@ window.addEventListener('storage', (e) => {
     }
 });
 
-let deviceStorageData = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
-let deviceSystemData = { chip: "RP2350B", board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0-Forest" };
+let deviceStorageData = { total_bytes: 4194304, used_bytes: 1468006, free_bytes: 2726298 };
+let deviceSystemData = { chip: "RP2350A", board_name: "Raspberry Pi Pico 2", flash_bytes: 4194304, firmware_version: "v2.0-Forest" };
 
 async function fetchStorage() {
     try {

@@ -126,7 +126,7 @@
         <div class="bar-left navbar-start" style="display: flex; align-items: center;">
             <a href="#/" class="brand-item" id="brand-logo" title="AgentLA Launcher (Home)" onclick="navigateToRoute('#/'); return false;" style="text-decoration:none; color:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <span class="start-menu-icon" aria-hidden="true"></span>
-                <span class="font-bold tracking-tight text-sm brand-title" id="top-bar-title-container">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> <span id="top-bar-context-title">BakuProbe</span></span>
+                <span class="font-bold tracking-tight text-sm brand-title" id="top-bar-title-container">AgentLA <span class="text-base-content/40 font-normal mx-0.5">//</span> <span id="top-bar-context-title">Raspberry Pi Pico 2</span></span>
             </a>
         </div>
 
@@ -1725,9 +1725,9 @@
         }
 
         // State
-        let deviceStorage = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
-        let deviceSystem = { chip: "RP2350B", board_name: "BakuProbe", flash_bytes: 8388608, firmware_version: "v2.0" };
-        let currentBoardName = "BakuProbe";
+        let deviceStorage = { total_bytes: 4194304, used_bytes: 1468006, free_bytes: 2726298 };
+        let deviceSystem = { chip: "RP2350A", board_name: "Raspberry Pi Pico 2", flash_bytes: 4194304, firmware_version: "v2.0" };
+        let currentBoardName = "Raspberry Pi Pico 2";
         let installedApps = [];
 
         // Built-in System Applications (Displayed in Applications alongside LittleFS user apps)
@@ -2533,9 +2533,9 @@
             const pClock = document.getElementById('pinned-info-clock');
             const pBoard = document.getElementById('pinned-info-board');
             const pFw = document.getElementById('pinned-info-fw');
-            const chipTxt = deviceSystem.chip || "RP2350B Cortex-M33";
+            const chipTxt = deviceSystem.chip || "RP2350A Cortex-M33";
             const clockTxt = (deviceSystem.clock_mhz ? `${deviceSystem.clock_mhz}MHz` : "150MHz") + " · 520KB";
-            const boardTxt = deviceSystem.board_name || "BakuProbe";
+            const boardTxt = deviceSystem.board_name || "Raspberry Pi Pico 2";
             currentBoardName = boardTxt;
             const fwTxt = deviceSystem.firmware_version || "v2.0";
             if (elChip) elChip.innerText = chipTxt;

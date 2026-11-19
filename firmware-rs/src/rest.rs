@@ -3340,14 +3340,16 @@ impl picoserve::routing::MethodHandlerService<()> for SystemInfoHandler {
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
         let cur_mhz = crate::benchmark::get_sys_clk_hz() / 1_000_000;
-        let mut buf = heapless::String::<256>::new();
+        let mut buf = heapless::String::<384>::new();
         let _ = core::fmt::Write::write_fmt(
             &mut buf,
             format_args!(
-                r#"{{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":{},"cores":2,"flash_bytes":{},"sram_bytes":532480,"littlefs_offset":"0x{:08x}","firmware":"AgentLA v1.0.0-rust","status":"healthy"}}"#,
+                r#"{{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":{},"cores":2,"flash_bytes":{},"sram_bytes":532480,"littlefs_offset":"0x{:08x}","firmware":"AgentLA v1.0.0-rust","status":"healthy","board_id":"{}","board_name":"{}"}}"#,
                 cur_mhz,
                 crate::storage::FLASH_SIZE_BYTES,
                 crate::storage::SYSTEM_FS_OFFSET,
+                crate::board::ActiveBoard::BOARD_ID,
+                crate::board::ActiveBoard::NAME,
             ),
         );
         send_json(request, response_writer, StatusCode::OK, buf.as_str()).await

@@ -541,8 +541,8 @@
     // -------------------------------------------------------------------------
     // Device Info & Flash Storage Fetcher
     // -------------------------------------------------------------------------
-    var deviceStorage = { total_bytes: 8388608, used_bytes: 1468006, free_bytes: 6920602 };
-    var deviceSystem = { chip: "RP2350B", clock_mhz: 150, board_name: "BakuProbe / Pico 2", flash_bytes: 8388608, firmware_version: "v2.0" };
+    var deviceStorage = { total_bytes: 4194304, used_bytes: 1468006, free_bytes: 2726298 };
+    var deviceSystem = { chip: "RP2350A", clock_mhz: 150, board_name: "Raspberry Pi Pico 2", flash_bytes: 4194304, firmware_version: "v2.0" };
 
     function formatBytes(bytes) {
         if (!bytes || bytes === 0) return '0 B';
@@ -575,9 +575,9 @@
         var elClock = document.getElementById('popover-info-clock');
         var elBoard = document.getElementById('popover-info-board');
         var elFw = document.getElementById('popover-info-fw');
-        if (elChip) elChip.innerText = deviceSystem.chip || "RP2350B Cortex-M33";
+        if (elChip) elChip.innerText = deviceSystem.chip || "RP2350A Cortex-M33";
         if (elClock) elClock.innerText = (deviceSystem.clock_mhz ? deviceSystem.clock_mhz + "MHz" : "150MHz") + " · 520KB";
-        if (elBoard) elBoard.innerText = deviceSystem.board_name || "BakuProbe / Pico 2";
+        if (elBoard) elBoard.innerText = deviceSystem.board_name || "Raspberry Pi Pico 2";
         if (elFw) elFw.innerText = deviceSystem.firmware_version || "v2.0";
     }
 
@@ -949,14 +949,14 @@
                             </div>
                         </div>
                         <div class="popover-info-grid">
-                            <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="popover-info-chip">RP2350B Cortex-M33</span></div>
+                            <div class="info-pill"><span class="info-label">PROCESSOR</span><span class="info-val" id="popover-info-chip">RP2350A Cortex-M33</span></div>
                             <div class="info-pill"><span class="info-label">CORES / CLOCK</span><span class="info-val" id="popover-info-clock">150MHz · 520KB</span></div>
-                            <div class="info-pill"><span class="info-label">SRAM MEMORY</span><span class="info-val" id="popover-info-board">BakuProbe / Pico 2</span></div>
+                            <div class="info-pill"><span class="info-label">BOARD</span><span class="info-val" id="popover-info-board">Raspberry Pi Pico 2</span></div>
                             <div class="info-pill"><span class="info-label">FIRMWARE</span><span class="info-val" id="popover-info-fw">v2.0</span></div>
                         </div>
                         <div class="popover-storage-section">
                             <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                                Flash Partitioning (<span id="popover-total-flash">8.0 MB</span> Total)
+                                Flash Partitioning (<span id="popover-total-flash">4.0 MB</span> Total)
                             </div>
                             <div class="storage-segmented-bar" id="storage-bar">
                                 <div class="segment-rom" id="seg-rom" style="width: 19.5%;" title="System ROM Firmware"></div>
