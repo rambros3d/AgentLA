@@ -491,7 +491,7 @@ pub fn create_composite_usb(
     static CONFIG_DESC: StaticCell<[u8; 1024]> = StaticCell::new();
     static BOS_DESC: StaticCell<[u8; 256]> = StaticCell::new();
     static MSOS_DESC: StaticCell<[u8; 512]> = StaticCell::new();
-    static CONTROL_BUF: StaticCell<[u8; 256]> = StaticCell::new();
+    static CONTROL_BUF: StaticCell<[u8; 512]> = StaticCell::new();
 
     static CDC_UART_STATE: StaticCell<CdcAcmState> = StaticCell::new();
     static HID_STATE: StaticCell<HidState> = StaticCell::new();
@@ -503,7 +503,7 @@ pub fn create_composite_usb(
     let config_desc = CONFIG_DESC.init([0; 1024]);
     let bos_desc = BOS_DESC.init([0; 256]);
     let msos_desc = MSOS_DESC.init([0; 512]);
-    let control_buf = CONTROL_BUF.init([0; 256]);
+    let control_buf = CONTROL_BUF.init([0; 512]);
 
     let (vid, pid, product_str, mfg_str) = match personality {
         ProgrammerPersonality::CmsisDap => (0x1209, 0x414D, "AgentLA CMSIS-DAP Probe", "AgentLA"),

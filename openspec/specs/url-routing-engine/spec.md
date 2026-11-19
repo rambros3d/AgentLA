@@ -2,9 +2,7 @@
 
 ## Purpose
 URL routing engine handling factory WebUI serving, root redirection to canonical routes, LittleFS custom application routes, bridge script injection, SPA fallbacks, and REST API dispatch.
-
 ## Requirements
-
 ### Requirement: HTML Bridge Script Injection
 The HTTP server SHALL append `<script src="/agentla-bridge.js" defer></script>` to HTML responses served from LittleFS under `/apps/{app-name}/...` during chunked file streaming.
 
@@ -66,3 +64,15 @@ The HTTP server SHALL route requests for `/device`, `/device/`, and direct reque
 #### Scenario: Trailing slash redirection for device route
 - **WHEN** a client requests `http://10.10.10.10/device/`
 - **THEN** the server returns HTTP 301 Moved Permanently redirecting to `/device`.
+
+### Requirement: Panic-Free Header and Route Dispatch
+The URL routing engine and request parsing pipeline SHALL safely parse HTTP headers and dispatch matched routes without raising slice indexing out-of-bounds panics or stack overflow exceptions.
+
+#### Scenario: Root route dispatch
+- **WHEN** a client performs `GET /` with standard HTTP headers
+- **THEN** the server returns HTTP 302 Found redirecting to `default_home_route` without firmware crash.
+
+#### Scenario: BareFOC canonical route dispatch
+- **WHEN** a client performs `GET /barefoc`
+- **THEN** the server returns HTTP 200 with `barefoc.html` without firmware crash.
+

@@ -945,49 +945,9 @@ pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
     let mut tcp_tx_buf_1 = [0u8; 1536];
     let server_1 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_1);
 
-    let mut http_buf_2 = [0u8; 2048];
-    let mut tcp_rx_buf_2 = [0u8; 1536];
-    let mut tcp_tx_buf_2 = [0u8; 1536];
-    let server_2 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_2);
-
-    let mut http_buf_3 = [0u8; 2048];
-    let mut tcp_rx_buf_3 = [0u8; 1536];
-    let mut tcp_tx_buf_3 = [0u8; 1536];
-    let server_3 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_3);
-
-    let mut http_buf_4 = [0u8; 2048];
-    let mut tcp_rx_buf_4 = [0u8; 1536];
-    let mut tcp_tx_buf_4 = [0u8; 1536];
-    let server_4 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_4);
-
-    let mut http_buf_5 = [0u8; 2048];
-    let mut tcp_rx_buf_5 = [0u8; 1536];
-    let mut tcp_tx_buf_5 = [0u8; 1536];
-    let server_5 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_5);
-
-    let mut http_buf_6 = [0u8; 2048];
-    let mut tcp_rx_buf_6 = [0u8; 1536];
-    let mut tcp_tx_buf_6 = [0u8; 1536];
-    let server_6 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_6);
-
-    let mut http_buf_7 = [0u8; 2048];
-    let mut tcp_rx_buf_7 = [0u8; 1536];
-    let mut tcp_tx_buf_7 = [0u8; 1536];
-    let server_7 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_7);
-
-    defmt::info!("HTTP server listening on TCP :80 with 8 concurrent worker sockets");
+    defmt::info!("HTTP server listening on TCP :80 with 2 concurrent worker sockets");
     embassy_futures::join::join(
-        embassy_futures::join::join4(
-            server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0),
-            server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1),
-            server_2.listen_and_serve(2, stack, 80, &mut tcp_rx_buf_2, &mut tcp_tx_buf_2),
-            server_3.listen_and_serve(3, stack, 80, &mut tcp_rx_buf_3, &mut tcp_tx_buf_3),
-        ),
-        embassy_futures::join::join4(
-            server_4.listen_and_serve(4, stack, 80, &mut tcp_rx_buf_4, &mut tcp_tx_buf_4),
-            server_5.listen_and_serve(5, stack, 80, &mut tcp_rx_buf_5, &mut tcp_tx_buf_5),
-            server_6.listen_and_serve(6, stack, 80, &mut tcp_rx_buf_6, &mut tcp_tx_buf_6),
-            server_7.listen_and_serve(7, stack, 80, &mut tcp_rx_buf_7, &mut tcp_tx_buf_7),
-        ),
+        server_0.listen_and_serve(0, stack, 80, &mut tcp_rx_buf_0, &mut tcp_tx_buf_0),
+        server_1.listen_and_serve(1, stack, 80, &mut tcp_rx_buf_1, &mut tcp_tx_buf_1),
     ).await;
 }
