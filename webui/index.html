@@ -67,8 +67,6 @@
     <link rel="stylesheet" href="daisyui.css?v=2.0.0">
     <link rel="stylesheet" href="style.css?v=2.0.0">
     <link rel="stylesheet" href="themes.css?v=2.0.0">
-    <link rel="prefetch" href="app.js">
-    <link rel="prefetch" href="lab.html">
     <style>
         /* Launcher Canvas Theme Binding */
         body {
@@ -4468,6 +4466,13 @@
 
         // Initialize on DOM load
         (async function init() {
+            // Single dispatch path: dispatch initial hash immediately
+            function dispatchHash() {
+                handleHashRoute(window.location.hash);
+            }
+            window.addEventListener('hashchange', dispatchHash);
+            dispatchHash();
+
             renderDockPinnedApps();
             renderPinnedWidgets();
             updatePinButtons();
@@ -4483,14 +4488,6 @@
             if (manageSearch) {
                 manageSearch.addEventListener('input', () => renderManageApps());
             }
-
-            // Single dispatch path: initial load and hashchange both go through
-            // handleHashRoute, which owns pane visibility and tab selection.
-            function dispatchHash() {
-                handleHashRoute(window.location.hash);
-            }
-            window.addEventListener('hashchange', dispatchHash);
-            dispatchHash();
         })();
     </script>
 </body>
