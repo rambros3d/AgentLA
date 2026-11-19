@@ -83,6 +83,94 @@
       background: hsl(var(--bc) / 0.2);
       border-radius: 3px;
     }
+    /* ODrive-GUI-style studio shell - landscape optimized */
+    html.studio-v2 body { overflow: hidden; }
+    html.studio-v2 #top-bar,
+    html.studio-v2 .app-nav-rail,
+    html.studio-v2 #app-nav-rail,
+    html.studio-v2 .floating-glass-dock,
+    html.studio-v2 #floating-glass-dock { display: none !important; }
+    html.studio-v2 main {
+      max-width: none !important; padding: 0 !important; margin: 0 !important;
+      height: 100vh; display: flex; flex-direction: column; gap: 0; overflow: hidden;
+    }
+    #studio-shell { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .studio-shell-header {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 0.25rem;
+      padding: 0.25rem 0.5rem; min-height: 34px;
+      background: hsl(var(--b2)); border-bottom: 1px solid hsl(var(--bc)/0.15);
+      flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    }
+    .studio-shell-header::-webkit-scrollbar { height: 0; }
+    .studio-dash-tab {
+      padding: 0.2rem 0.55rem; font-size: 0.7rem; cursor: pointer; white-space: nowrap;
+      border-radius: 0.2rem; border-bottom: 2px solid transparent; background: transparent; font-weight: 600;
+    }
+    .studio-dash-tab:hover { background: hsl(var(--bc)/0.08); }
+    .studio-dash-tab.active { color: hsl(var(--p)); border-bottom-color: hsl(var(--p)); background: hsl(var(--p)/0.1); }
+    /* Menu visibility must beat utility classes regardless of load order */
+    .studio-menu.hidden { display: none !important; }
+    .studio-menu {
+      position: absolute; top: 100%; left: 0; z-index: 50;
+      display: flex; flex-direction: column; min-width: 200px; padding: 0.2rem;
+      background: hsl(var(--b1)); border: 1px solid hsl(var(--bc)/0.2);
+      border-radius: 0.3rem; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+    .studio-menu button, .studio-menu label {
+      text-align: left; padding: 0.35rem 0.5rem; border-radius: 0.2rem;
+      cursor: pointer; font-size: 0.74rem; white-space: nowrap;
+    }
+    .studio-menu button:hover, .studio-menu label:hover { background: hsl(var(--bc)/0.1); }
+    /* Viewport fills remaining height; each column scrolls independently */
+    #studio-view {
+      flex: 1 1 auto; min-height: 0; display: grid;
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      gap: 0.5rem; padding: 0.5rem; overflow: hidden;
+    }
+    #studio-view.single-col { grid-template-columns: 1fr; overflow-y: auto; }
+    .studio-col { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.15rem; }
+    .studio-col::-webkit-scrollbar { width: 6px; }
+    .studio-col::-webkit-scrollbar-thumb { background: hsl(var(--bc)/0.2); border-radius: 3px; }
+    .studio-hud { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0.4rem; }
+    .studio-hud .hud-cell {
+      background: hsl(var(--b2)); border: 1px solid hsl(var(--bc)/0.12);
+      border-radius: 0.4rem; padding: 0.35rem 0.55rem; min-width: 0;
+    }
+    .studio-hud .hud-cell .k { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: hsl(var(--bc)/0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .studio-hud .hud-cell .v { font-family: ui-monospace, monospace; font-size: 0.95rem; font-weight: 700; line-height: 1.1; }
+    .studio-hud .hud-cell .s { font-family: ui-monospace, monospace; font-size: 0.62rem; color: hsl(var(--bc)/0.55); }
+    .widget-card { border: 1px solid hsl(var(--bc)/0.15); border-radius: 0.4rem; padding: 0.45rem 0.55rem; background: hsl(var(--b1)); }
+    .widget-card h3 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem; opacity: 0.8; }
+    .studio-shell-footer {
+      flex: 0 0 auto; display: flex; align-items: stretch; min-height: 32px;
+      background: hsl(var(--b2)); border-top: 1px solid hsl(var(--bc)/0.15);
+    }
+    .axis-chip {
+      position: relative; padding: 0.2rem 0.55rem;
+      font-family: ui-monospace, monospace; font-size: 0.66rem;
+      border-right: 1px solid hsl(var(--bc)/0.1);
+      cursor: pointer; display: flex; align-items: center; gap: 0.3rem; user-select: none;
+    }
+    .axis-chip.inactive { color: hsl(var(--bc)/0.45); }
+    .axis-chip.error { color: hsl(var(--er)); font-weight: 700; }
+    .axis-chip.ok { color: hsl(var(--su)); }
+    .axis-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .axis-error-popup {
+      position: absolute; bottom: 2.2rem; left: 0; z-index: 60;
+      min-width: 260px; padding: 0.5rem 0.6rem;
+      background: hsl(var(--b1)); border: 1px solid hsl(var(--bc)/0.25);
+      border-radius: 0.35rem; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+      font-size: 0.68rem; line-height: 1.4; white-space: nowrap;
+    }
+    .axis-error-popup .err-none { color: hsl(var(--su)); }
+    .axis-error-popup .err-bad { color: hsl(var(--er)); font-weight: 700; }
+    .param-tree-node { font-size: 0.7rem; padding: 0.1rem 0; }
+    .param-tree-node .pt-path { font-family: ui-monospace, monospace; color: hsl(var(--bc)/0.7); }
+    .wizard-link { font-size: 0.7rem; padding: 0.1rem 0.25rem; color: hsl(var(--bc)/0.5); }
+    .wizard-link.active-link { text-decoration: underline; color: hsl(var(--p)); font-weight: 700; }
+    .wizard-link.finished-page { color: hsl(var(--su)); }
+    .diff-old { color: hsl(var(--er)); text-decoration: line-through; }
+    .diff-new { color: hsl(var(--su)); font-weight: 700; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-base-100 text-base-content select-none">
@@ -102,7 +190,7 @@
       <a href="/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase">Scope</a>
       <a href="/terminal" class="btn btn-ghost btn-xs font-mono-tech uppercase">Terminal</a>
       <a href="/files" class="btn btn-ghost btn-xs font-mono-tech uppercase">Files</a>
-      <a href="/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10">Motor</a>
+      <a href="/barefoc" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10">BareFOC</a>
       <a href="/servo" class="btn btn-ghost btn-xs font-mono-tech uppercase">Servo</a>
       <a href="/neopixel" class="btn btn-ghost btn-xs font-mono-tech uppercase">NeoPixel</a>
       <a href="/sensor" class="btn btn-ghost btn-xs font-mono-tech uppercase">Sensor</a>
@@ -1114,6 +1202,72 @@
     };
 
     /* =========================================================================
+        1b. CENTRAL STUDIO STORE (ODrive-GUI-style single source of truth)
+        The legacy `state` / `scope` objects remain as live references so all
+        existing protocol engines keep working; the store adds subscription,
+        commit, and event-bus primitives used by the parity features.
+       ========================================================================= */
+    class StudioStore {
+      constructor(seed) {
+        this.state = seed;
+        this._subs = new Map();      // key -> Set<callback>
+        this._listeners = new Map(); // event -> Set<callback>
+        this.domains = {
+          targets: [],               // discovered targets [{id, axes:[...], connected}]
+          activeTargetId: null,
+          params: {},                // targetId -> normalized parameter tree
+          dashboards: [],            // [{id, name, controls, actions, plots}]
+          currentDashId: null,
+          sampledProperties: [],     // parameter paths being sampled
+          sampling: false,
+          wizardConfig: null,
+          history: []                // last 100 commits (audit / diff)
+        };
+      }
+      // Keyed subscription (e.g. 'scope', 'state', 'targets', 'dashboards')
+      subscribe(key, cb) {
+        if (!this._subs.has(key)) this._subs.set(key, new Set());
+        this._subs.get(key).add(cb);
+        return () => this._subs.get(key).delete(cb);
+      }
+      emitChange(key) {
+        const set = this._subs.get(key);
+        if (set) for (const cb of set) { try { cb(this.state, this.domains); } catch (_) {} }
+      }
+      // Commit a change to core state or a store domain and notify subscribers.
+      commit(scope, key, value) {
+        const target = scope === 'state' ? this.state : (scope === 'domains' ? this.domains : this.domains[scope]);
+        if (!target) return;
+        const prev = target[key];
+        target[key] = value;
+        this.domains.history.push({ scope, key, prev, value, t: Date.now() });
+        if (this.domains.history.length > 100) this.domains.history.shift();
+        this.emitChange(scope);
+        this.emit(key);
+      }
+      // Lightweight event bus: on(event, cb) / emit(event, payload)
+      on(event, cb) {
+        if (!this._listeners.has(event)) this._listeners.set(event, new Set());
+        this._listeners.get(event).add(cb);
+        return () => this._listeners.get(event).delete(cb);
+      }
+      emit(event, payload) {
+        const set = this._listeners.get(event);
+        if (set) for (const cb of set) { try { cb(payload); } catch (_) {} }
+      }
+      dispatch(action, payload) {
+        switch (action) {
+          case 'setDash': this.commit('domains', 'currentDashId', payload); break;
+          case 'setTarget': this.commit('domains', 'activeTargetId', payload); break;
+          case 'setSampling': this.commit('domains', 'sampling', payload); this.emit('sampling', payload); break;
+          case 'refreshTargets': this.emit('discovery:refresh'); break;
+          default: this.emit(action, payload);
+        }
+      }
+    }
+    const studio = new StudioStore(state);
+
+    /* =========================================================================
        2. PROTOCOL ADAPTERS & VIRTUAL MOTOR SIMULATOR
        ========================================================================= */
 
@@ -1136,7 +1290,8 @@
 
       step(target, mode, enabled, gains) {
         const now = performance.now();
-        const dt = Math.min((now - this.lastTime) / 1000.0, 0.05);
+        // Cap dt to keep the stiff current-loop integration stable.
+        const dt = Math.min((now - this.lastTime) / 1000.0, 0.004);
         this.lastTime = now;
         if (dt <= 0) return;
 
@@ -1147,6 +1302,8 @@
           this.angle += this.velocity * dt;
           this.iq = 0.0;
           this.id = 0.0;
+          if (!isFinite(this.velocity)) this.velocity = 0;
+          if (!isFinite(this.angle) || Math.abs(this.angle) > 1e6) this.angle = 0;
           return;
         }
 
@@ -1201,6 +1358,15 @@
         const accel = (this.torque - this.b * this.velocity) / this.J;
         this.velocity += accel * dt;
         this.angle += this.velocity * dt;
+
+        // Guard against numeric divergence and honor the configured current limit.
+        const iqLim = Math.max(0.1, gains.currLimit || 2.5);
+        this.iq = Math.max(-iqLim, Math.min(iqLim, this.iq));
+        this.iq = Math.max(-100, Math.min(100, this.iq));
+        this.velocity = Math.max(-1000, Math.min(1000, this.velocity));
+        if (!isFinite(this.angle) || Math.abs(this.angle) > 1e6) this.angle = 0;
+        if (!isFinite(this.velocity)) this.velocity = 0;
+        if (!isFinite(this.iq)) this.iq = 0;
       }
     }
 
@@ -2203,6 +2369,21 @@
     };
     scope.ctx = scope.canvas.getContext('2d');
 
+    // Register the scope object as a store domain and extend it with arbitrary
+    // parameter-series storage used by the configurable dashboards.
+    studio.domains.scope = scope;
+    scope.extraSeries = {}; // path -> Float32Array ring buffer (lazy allocated)
+    scope.traceAPath = 'target';
+    scope.traceBPath = 'angle';
+    scope.crosshair = { active: false, x: 0, y: 0, time: 0, valA: 0, valB: 0 };
+
+    function getSeries(path) {
+      if (!scope.extraSeries[path]) {
+        scope.extraSeries[path] = new Float32Array(scope.bufferSize);
+      }
+      return scope.extraSeries[path];
+    }
+
     function pushScopePoint(t, valA, valB) {
       if (scope.frozen) return;
       scope.timeBuffer[scope.writeIdx] = t;
@@ -2562,6 +2743,7 @@
       if (mbIq) mbIq.textContent = state.iq.toFixed(3);
 
       updateDialVisuals();
+      updateStudioHud();
 
       // Push to Oscilloscope Ring Buffer
       const now = performance.now();
@@ -2580,7 +2762,42 @@
       else if (selB === 'target') traceB = state.target;
 
       pushScopePoint(now, traceA, traceB);
+
+      // Record arbitrary sampled parameters (ODrive-GUI-style global sampling).
+      // A path maps to a live value source; unknown paths fall back to 0.
+      if (studio.domains.sampling) {
+        for (const path of studio.domains.sampledProperties) {
+          const val = readSampledValue(path);
+          const series = getSeries(path);
+          series[scope.writeIdx === 0 ? scope.bufferSize - 1 : scope.writeIdx - 1] = val;
+        }
+      }
     }, 20); // 50 Hz telemetry rate
+
+    // Resolve a sampled parameter path to a live numeric value.
+    function readSampledValue(path) {
+      const map = {
+        'target': state.target,
+        'angle': state.actualAngle,
+        'velocity': state.actualVelocity,
+        'iq': state.iq,
+        'id': state.id,
+        'ua': state.ua,
+        'ub': state.ub,
+        'uc': state.uc,
+        'vbus': state.vbus,
+        'power': parseFloat(state.power) || 0,
+        'theta_e': state.theta_e,
+        'zero_electric_angle': state.zeroElectricAngle,
+        'pole_pairs': state.polePairs
+      };
+      if (map[path] !== undefined) return Number(map[path]) || 0;
+      // Discovered parameter tree values (target-qualified or bare paths)
+      const clean = path.split('.').slice(-1)[0];
+      if (map[clean] !== undefined) return Number(map[clean]) || 0;
+      const treeVal = lookupParamValue(path);
+      return typeof treeVal === 'number' ? treeVal : 0;
+    }
 
     /* =========================================================================
        6. UI EVENT LISTENERS & WIRING
@@ -2616,6 +2833,7 @@
 
     function setConnStatus(isConnected) {
       state.connected = isConnected;
+      if (STUDIO_V2 && window.__barefocDiscoveryReady) discovery.discover();
       const btn = document.getElementById('btn-connect');
       const badge = document.getElementById('conn-status-badge');
       const txt = document.getElementById('conn-status-text');
@@ -3070,9 +3288,1125 @@
       });
     }
 
+    /* =========================================================================
+        8. PARITY ENGINE: DISCOVERY / PARAMETERS / DASHBOARDS / WIZARD / SHELL
+        Mirrors the ODrive GUI interaction model on top of the existing
+        protocol adapters. All new DOM is generated here so the legacy markup
+        and protocol engines remain intact.
+       ========================================================================= */
+
+    const STUDIO_V2 = true; // feature switch: false restores the legacy five-tab view
+
+    // ---- Enum dictionaries (ODrive GUI compatible) ----
+    const ODRIVE_ENUMS = {
+      requested_state: [
+        [0,'Undefined'],[1,'Idle'],[2,'Startup Sequence'],[3,'Full Calibration Sequence'],
+        [4,'Motor Calibration'],[5,'Sensorless Control'],[6,'Encoder Index Search'],
+        [7,'Encoder Offset Calibration'],[8,'Closed Loop Control'],[9,'Lockin Spin'],
+        [10,'Encoder Direction Find'],[11,'Homing'],[12,'Encoder Hall Polarity Calibration'],
+        [13,'Encoder Hall Phase Calibration']
+      ],
+      motor_type: [[0,'High Current'],[2,'Gimbal'],[3,'Induction']],
+      encoder_mode: [[0,'Incremental'],[1,'Hall Effect'],[2,'Sine Cosine'],[256,'CUI Absolute'],[257,'AMS Absolute'],[258,'AEAT Absolute'],[259,'RLS Absolute']],
+      control_mode: [[0,'Voltage Control'],[1,'Torque Control'],[2,'Velocity Control'],[3,'Position Control']],
+      input_mode: [[0,'Inactive'],[1,'Passthrough'],[2,'Velocity Ramp'],[3,'Position Filter'],[4,'Mix Channels'],[5,'Trapezoidal Trajectory'],[6,'Torque Ramp'],[7,'Mirror'],[8,'Tuning']],
+      motion_mode: [[0,'torque'],[1,'velocity'],[2,'angle'],[3,'velocity_openloop'],[4,'angle_openloop']]
+    };
+
+    // ---- Error bitmasks -> human-readable names ----
+    const ERROR_DICT = {
+      axis: [
+        [1<<0,'AXIS_ERROR_INVALID_STATE'],[1<<1,'AXIS_ERROR_DC_BUS_UNDER_VOLTAGE'],
+        [1<<2,'AXIS_ERROR_DC_BUS_OVER_VOLTAGE'],[1<<3,'AXIS_ERROR_CURRENT_MEASUREMENT_TIMEOUT'],
+        [1<<4,'AXIS_ERROR_BRAKE_RESISTOR_DISARMED'],[1<<5,'AXIS_ERROR_MOTOR_DISARMED'],
+        [1<<6,'AXIS_ERROR_MOTOR_FAILED'],[1<<7,'AXIS_ERROR_SENSORLESS_ESTIMATOR_FAILED'],
+        [1<<8,'AXIS_ERROR_ENCODER_FAILED'],[1<<9,'AXIS_ERROR_CONTROLLER_FAILED'],
+        [1<<10,'AXIS_ERROR_POS_CTRL_DURING_SENSORLESS'],[1<<12,'AXIS_ERROR_WATCHDOG_TIMER_EXPIRED'],
+        [1<<13,'AXIS_ERROR_MIN_ENDSTOP_PRESSED'],[1<<14,'AXIS_ERROR_MAX_ENDSTOP_PRESSED'],
+        [1<<15,'AXIS_ERROR_ESTOP_REQUESTED'],[1<<17,'AXIS_ERROR_HOMING_WITHOUT_ENDSTOP'],
+        [1<<18,'AXIS_ERROR_OVER_TEMP'],[1<<19,'AXIS_ERROR_INVALID_POSITION_MAP']
+      ],
+      motor: [
+        [1<<0,'MOTOR_ERROR_PHASE_RESISTANCE_OUT_OF_RANGE'],
+        [1<<1,'MOTOR_ERROR_PHASE_INDUCTANCE_OUT_OF_RANGE'],
+        [1<<2,'MOTOR_ERROR_ADC_FAILED'],[1<<3,'MOTOR_ERROR_DRV_FAULT'],
+        [1<<4,'MOTOR_ERROR_CONTROL_DEADLINE_MISSED'],[1<<5,'MOTOR_ERROR_NOT_IMPLEMENTED_MOTOR_TYPE'],
+        [1<<6,'MOTOR_ERROR_BRAKE_RESISTOR_ABSENT'],[1<<7,'MOTOR_ERROR_MODULATION_IS_NAN'],
+        [1<<8,'MOTOR_ERROR_MODULATION_MAGNITUDE'],[1<<9,'MOTOR_ERROR_CURRENT_SENSE_SATURATION'],
+        [1<<10,'MOTOR_ERROR_CURRENT_LIMIT_VIOLATION'],[1<<16,'MOTOR_ERROR_OVER_TEMP']
+      ],
+      encoder: [
+        [1<<0,'ENCODER_ERROR_UNSTABLE_GAIN'],[1<<1,'ENCODER_ERROR_CPR_POLEPAIRS_MISMATCH'],
+        [1<<2,'ENCODER_ERROR_NO_RESPONSE'],[1<<3,'ENCODER_ERROR_UNSUPPORTED_ENCODER_MODE'],
+        [1<<4,'ENCODER_ERROR_ILLEGAL_HALL_STATE'],[1<<5,'ENCODER_ERROR_INDEX_NOT_FOUND_YET'],
+        [1<<6,'ENCODER_ERROR_ABS_SPI_TIMEOUT'],[1<<7,'ENCODER_ERROR_ABS_SPI_COM_FAIL'],
+        [1<<8,'ENCODER_ERROR_ABS_SPI_NOT_READY'],[1<<9,'ENCODER_ERROR_HALL_NOT_CALIBRATED_YET']
+      ],
+      controller: [
+        [1<<0,'CONTROLLER_ERROR_OVERSPEED'],[1<<1,'CONTROLLER_ERROR_INVALID_INPUT_MODE'],
+        [1<<2,'CONTROLLER_ERROR_UNSTABLE_GAIN'],[1<<3,'CONTROLLER_ERROR_INVALID_MIRROR_AXIS'],
+        [1<<4,'CONTROLLER_ERROR_INVALID_LOAD_ENCODER'],[1<<5,'CONTROLLER_ERROR_INVALID_ESTIMATE'],
+        [1<<6,'CONTROLLER_ERROR_INVALID_CIRCULAR_RANGE'],[1<<7,'CONTROLLER_ERROR_SPINOUT_DETECTED'],
+        [1<<8,'CONTROLLER_ERROR_INDEX_SEARCH_DURING_SPINOUT']
+      ]
+    };
+    // Errors expected during calibration are masked while the wizard runs.
+    const CALIBRATION_MASK = {
+      motor: (1<<0)|(1<<1),
+      encoder: (1<<1)|(1<<2)
+    };
+
+    function decodeErrors(kind, code) {
+      if (!code) return ['none'];
+      const mask = (studio.domains.calibrating && CALIBRATION_MASK[kind]) ? CALIBRATION_MASK[kind] : 0;
+      const c = code & ~mask;
+      if (!c) return ['none'];
+      const names = [];
+      for (const [bit, name] of (ERROR_DICT[kind] || [])) if (c & bit) names.push(name);
+      return names.length ? names : ['UNKNOWN (0x' + c.toString(16) + ')'];
+    }
+
+    // ---- Discovery Service ----
+    class DiscoveryService {
+      constructor(store) { this.store = store; }
+      async discover() {
+        const targets = [];
+        const transport = state.transport;
+        if (transport === 'simulation' || !state.connected) {
+          // Simulated multi-device: two targets, two axes each.
+          targets.push({ id: 'sim0', label: 'Virtual ODrive (SIM)', axes: ['axis0','axis1'], connected: true, kind: 'sim' });
+          targets.push({ id: 'sim1', label: 'Virtual BareFOC (SIM)', axes: ['axis0','axis1'], connected: true, kind: 'sim' });
+        } else if (state.protocol === 'fibre') {
+          targets.push({ id: 'fibre' + state.canNodeId, label: 'Fibre Target (node ' + state.canNodeId + ')', axes: ['axis0'], connected: true, kind: 'fibre' });
+        } else if (state.protocol === 'multibus') {
+          targets.push({ id: 'mb' + state.canNodeId, label: 'MultiBus Target (0x' + (0x40+(state.canNodeId&7)).toString(16) + ')', axes: ['axis0'], connected: true, kind: 'multibus' });
+        } else {
+          targets.push({ id: 'cmd' + state.canNodeId, label: 'Commander Target (node ' + state.canNodeId + ')', axes: ['axis0'], connected: true, kind: 'commander' });
+        }
+        this.store.commit('domains', 'targets', targets);
+        if (!this.store.domains.activeTargetId && targets.length) {
+          this.store.commit('domains', 'activeTargetId', targets[0].id);
+        }
+        this.store.emit('discovery:updated', targets);
+        return targets;
+      }
+      refresh() {
+        if (logTerminal) logTerminal('[DISCOVERY] Probing active transports for motor targets...');
+        return this.discover();
+      }
+    }
+    const discovery = new DiscoveryService(studio);
+    window.__barefocDiscoveryReady = true;
+
+    // ---- Parameter Explorer ----
+    function makeNode(path, val, type, readonly, extra) {
+      return Object.assign({ path, val, type: type || 'float', readonly: !!readonly }, extra || {});
+    }
+
+    class ParameterExplorer {
+      constructor(store) { this.store = store; this.cache = {}; }
+      discoverFor(target) {
+        if (this.cache[target.id]) return this.cache[target.id];
+        let tree = {};
+        if (state.protocol === 'fibre') tree = this.fromFibreSchema();
+        else if (state.protocol === 'multibus') tree = this.fromMultiBus();
+        else tree = this.fromCommander();
+        this.cache[target.id] = tree;
+        this.store.domains.params[target.id] = tree;
+        return tree;
+      }
+      fromFibreSchema() {
+        const t = {};
+        const add = (path, val, type, ro) => { t[path] = makeNode(path, val, type, ro); };
+        add('vbus_voltage', state.vbus, 'float', true);
+        for (const axis of ['axis0','axis1']) {
+          add(axis + '.shaft_angle', state.actualAngle, 'float', true);
+          add(axis + '.shaft_velocity', state.actualVelocity, 'float', true);
+          add(axis + '.current_q', state.iq, 'float', true);
+          add(axis + '.target_velocity', state.target, 'float', false);
+          add(axis + '.controller.input_pos', state.target, 'float', false);
+          add(axis + '.controller.config.control_mode', 3, 'enum', false, { options: ODRIVE_ENUMS.control_mode });
+          add(axis + '.motor.config.current_lim', state.currLimit, 'float', false);
+          add(axis + '.controller.config.vel_limit', state.angleVelLimit, 'float', false);
+          add(axis + '.controller.config.pos_gain', state.angleP, 'float', false);
+          add(axis + '.controller.config.vel_gain', state.velP, 'float', false);
+          add(axis + '.controller.config.vel_integrator_gain', state.velI, 'float', false);
+          add(axis + '.requested_state', 8, 'enum', false, { options: ODRIVE_ENUMS.requested_state });
+          add(axis + '.error', 0, 'uint32', true);
+          t[axis + '.save_configuration'] = makeNode(axis + '.save_configuration', 'function', 'function', false);
+        }
+        t.save_configuration = makeNode('save_configuration', 'function', 'function', false);
+        return t;
+      }
+      fromMultiBus() {
+        const t = {};
+        const R = MultiBusAdapter.REG;
+        const add = (name, reg, val, type, ro) => { t[name] = makeNode(name, val, type, ro, { reg }); };
+        add('target', R.TARGET, state.target, 'float', false);
+        add('enable', R.ENABLE, state.enabled ? 1 : 0, 'bool', false);
+        add('control_mode', R.CONTROL_MODE, 2, 'enum', false, { options: ODRIVE_ENUMS.motion_mode });
+        add('angle', R.ANGLE, state.actualAngle, 'float', true);
+        add('velocity', R.VELOCITY, state.actualVelocity, 'float', true);
+        add('current_q', R.CURRENT_Q, state.iq, 'float', true);
+        add('vel_pid_p', R.VEL_PID_P, state.velP, 'float', false);
+        add('vel_pid_i', R.VEL_PID_I, state.velI, 'float', false);
+        add('vel_pid_d', R.VEL_PID_D, state.velD, 'float', false);
+        add('ang_pid_p', R.ANG_PID_P, state.angleP, 'float', false);
+        add('voltage_limit', R.VOLTAGE_LIMIT, state.voltageLimit, 'float', false);
+        add('velocity_limit', R.VELOCITY_LIMIT, state.angleVelLimit, 'float', false);
+        return t;
+      }
+      fromCommander() {
+        const t = {};
+        const add = (path, val, type, ro, extra) => { t[path] = makeNode(path, val, type, ro, extra); };
+        add('target', state.target, 'float', false);
+        add('angle', state.actualAngle, 'float', true);
+        add('velocity', state.actualVelocity, 'float', true);
+        add('iq', state.iq, 'float', true);
+        add('id', state.id, 'float', true);
+        add('vbus', state.vbus, 'float', true);
+        add('power', parseFloat(state.power)||0, 'float', true);
+        add('motion_mode', 2, 'enum', false, { options: ODRIVE_ENUMS.motion_mode });
+        add('torque_mode', 2, 'enum', false, { options: [[0,'voltage'],[1,'dc_current'],[2,'foc_current']] });
+        add('enable', state.enabled ? 1 : 0, 'bool', false);
+        add('A P', state.angleP, 'float', false);
+        add('A L', state.angleVelLimit, 'float', false);
+        add('V P', state.velP, 'float', false);
+        add('V I', state.velI, 'float', false);
+        add('V D', state.velD, 'float', false);
+        add('V F', state.velTf, 'float', false);
+        add('V R', state.velRamp, 'float', false);
+        add('C P', state.currP, 'float', false);
+        add('C I', state.currI, 'float', false);
+        add('C L', state.currLimit, 'float', false);
+        t['save_configuration'] = makeNode('save_configuration', 'function', 'function', false);
+        return t;
+      }
+      allNodes(targetId) {
+        const tree = this.store.domains.params[targetId] || {};
+        return Object.values(tree);
+      }
+      refresh() {
+        this.cache = {};
+        const targets = this.store.domains.targets;
+        targets.forEach(t => this.discoverFor(t));
+        this.store.emit('params:updated');
+        return true;
+      }
+    }
+    const explorer = new ParameterExplorer(studio);
+
+    // Resolve a parameter path to a live numeric value (used by sampling).
+    function lookupParamValue(path) {
+      const t = studio.domains.activeTargetId;
+      const node = t && studio.domains.params[t] && studio.domains.params[t][path];
+      if (node && typeof node.val === 'number') return node.val;
+      const bare = path.split('.').slice(-1)[0];
+      const t2 = t && studio.domains.params[t] && studio.domains.params[t][bare];
+      return t2 && typeof t2.val === 'number' ? t2.val : undefined;
+    }
+
+    // Write a parameter value through the active adapter.
+    function writeParamValue(node, value) {
+      const path = node.path;
+      if (node.type === 'function') {
+        activeAdapter.saveFlash();
+        logTerminal('[PARAM] Invoked ' + path);
+        return;
+      }
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      node.val = num;
+      const alias = {
+        'target': null, 'A P': ['angleP','A P'], 'A L': ['angleVelLimit','A L'],
+        'V P': ['velP','V P'], 'V I': ['velI','V I'], 'V D': ['velD','V D'],
+        'V F': ['velTf','V F'], 'V R': ['velRamp','V R'],
+        'C P': ['currP','C P'], 'C I': ['currI','C I'], 'C L': ['currLimit','C L']
+      };
+      const a = alias[path];
+      if (a) { state[a[0]] = num; activeAdapter.writeGain(a[1], num); }
+      else if (path === 'enable') { state.enabled = !!num; activeAdapter.setEnable(state.enabled); }
+      else if (path.includes('control_mode') || path === 'motion_mode') {
+        const mode = ODRIVE_ENUMS.motion_mode[num] ? ODRIVE_ENUMS.motion_mode[num][1] : state.mode;
+        state.mode = mode; activeAdapter.setMode(mode);
+      } else if (path === 'target' || path.includes('input_pos') || path.includes('target_velocity')) {
+        state.target = num; dispatchTargetUpdate();
+      } else if (node.reg !== undefined) {
+        activeAdapter.writeGain && activeAdapter.writeRegister && activeAdapter.writeRegister(node.reg, floatToBytes(num));
+      }
+      logTerminal('[PARAM] ' + path + ' = ' + num);
+    }
+
+    // ---- Dashboard model ----
+    let dashSeq = 1;
+    function newDashboard(name) {
+      return { id: 'dash-' + (dashSeq++), name: name || ('Dashboard ' + dashSeq), controls: [], actions: [], plots: [] };
+    }
+    function activeDash() {
+      return studio.domains.dashboards.find(d => d.id === studio.domains.currentDashId) || null;
+    }
+    function defaultTuningDashboard() {
+      const d = newDashboard('Tuning');
+      d.controls = [
+        { id: uid(), type: 'numeric', path: axisPath('motor.config.current_lim'), source: 'C L' },
+        { id: uid(), type: 'numeric', path: axisPath('controller.config.vel_limit'), source: 'A L' },
+        { id: uid(), type: 'slider', path: axisPath('controller.config.pos_gain'), source: 'A P' },
+        { id: uid(), type: 'slider', path: axisPath('controller.config.vel_gain'), source: 'V P' },
+        { id: uid(), type: 'slider', path: axisPath('controller.config.vel_integrator_gain'), source: 'V I' },
+        { id: uid(), type: 'enum', path: axisPath('requested_state'), options: ODRIVE_ENUMS.requested_state }
+      ];
+      d.actions = [
+        { id: uid(), type: 'action', path: axisPath('controller.input_pos'), val: 0 },
+        { id: uid(), type: 'action', path: axisPath('controller.input_pos'), val: 10 }
+      ];
+      d.plots = [
+        { id: uid(), vars: [{ path: 'target', color: '#1f77b4' }, { path: 'angle', color: '#ff7f0e' }] },
+        { id: uid(), vars: [{ path: 'target', color: '#1f77b4' }, { path: 'velocity', color: '#ff7f0e' }] }
+      ];
+      return d;
+    }
+    function axisPath(suffix) {
+      const t = studio.domains.activeTargetId || 'target';
+      const axis = (studio.domains.targets.find(x => x.id === t) || {}).axes?.[0] || 'axis0';
+      return t + '.' + axis + '.' + suffix;
+    }
+    function uid() { return 'id-' + Math.random().toString(36).slice(2, 10); }
+    function renderParamTree(targetId) {
+      const nodes = explorer.allNodes(targetId);
+      const wrap = document.createElement('div');
+      wrap.className = 'param-tree flex flex-col gap-0.5 max-h-64 overflow-y-auto';
+      for (const node of nodes) {
+        const row = document.createElement('div');
+        row.className = 'param-tree-node flex items-center justify-between gap-2 border-b border-base-content/10 py-0.5';
+        const label = document.createElement('span');
+        label.className = 'pt-path truncate';
+        label.textContent = node.path + (node.readonly ? ' [ro]' : '');
+        label.title = node.path;
+        const add = document.createElement('button');
+        add.className = 'btn btn-xs btn-ghost';
+        add.textContent = '+';
+        add.title = 'Add to dashboard';
+        add.onclick = () => openAddWidgetMenu(node, add);
+        row.appendChild(label); row.appendChild(add);
+        wrap.appendChild(row);
+      }
+      if (!nodes.length) wrap.textContent = 'No parameters discovered yet. Connect a target and refresh.';
+      return wrap;
+    }
+    function openAddWidgetMenu(node, anchor) {
+      const menu = document.createElement('div');
+      menu.className = 'studio-menu';
+      const opts = [];
+      if (node.type === 'bool') opts.push(['control','Add Boolean Control']);
+      if (node.type === 'enum') opts.push(['enum','Add Enum Select']);
+      if (node.type === 'function') opts.push(['function','Add Function Button']);
+      if (!node.readonly && node.type !== 'function') {
+        opts.push(['control','Add Numeric Control']);
+        opts.push(['slider','Add Slider']);
+        opts.push(['action','Add Action (Send)']);
+      }
+      opts.push(['plot','Plot This Variable']);
+      opts.forEach(([type,label]) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.onclick = () => {
+          addWidgetToDash(type, node);
+          menu.remove();
+        };
+        menu.appendChild(b);
+      });
+      anchor.parentElement.appendChild(menu);
+      setTimeout(() => document.addEventListener('click', function close(e) {
+        if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); }
+      }), 0);
+    }
+    function addWidgetToDash(type, node) {
+      const dash = activeDash();
+      if (!dash) return;
+      if (type === 'plot') {
+        dash.plots.push({ id: uid(), vars: [{ path: node.path, color: '#38bdf8' }] });
+        registerSampled(node.path);
+      } else if (type === 'action') {
+        dash.actions.push({ id: uid(), type: 'action', path: node.path, val: 0 });
+      } else {
+        dash.controls.push({ id: uid(), type, path: node.path, source: node.path, options: node.options });
+      }
+      studio.emitChange('dashboards');
+      renderDashboard();
+    }
+    function registerSampled(path) {
+      if (!studio.domains.sampledProperties.includes(path)) {
+        studio.domains.sampledProperties.push(path);
+        studio.emit('sampling:changed');
+      }
+    }
+    function removeWidget(list, id) {
+      const dash = activeDash(); if (!dash) return;
+      const arr = dash[list];
+      const idx = arr.findIndex(w => w.id === id);
+      if (idx >= 0) arr.splice(idx, 1);
+      studio.emitChange('dashboards');
+      renderDashboard();
+    }
+
+    // ---- Wizard page graph ----
+    function buildWizardPages() {
+      const targets = studio.domains.targets;
+      const pages = [];
+      pages.push({ key: 'target', title: 'Which target are you setting up?', link: 'Target', choices: targets.map(t => ({ title: t.label, targetId: t.id })), required: true });
+      pages.push({ key: 'supply', title: 'Supply & Brake', link: 'Supply', fields: [
+        { key: 'brake_resistance', label: 'Brake resistance (Ohms)', value: 0 },
+        { key: 'supply_voltage', label: 'Supply voltage (V)', value: 24 }
+      ], required: true });
+      targets.forEach(t => t.axes.forEach(axis => {
+        const p = t.id + '.' + axis;
+        pages.push({ key: 'motor_' + p, title: 'Motor for ' + p, link: 'Motor ' + axis, fields: [
+          { key: p + '.motor_type', label: 'Motor type', options: ODRIVE_ENUMS.motor_type },
+          { key: p + '.pole_pairs', label: 'Pole pairs', value: 7 },
+          { key: p + '.kv', label: 'Motor KV', value: 380 },
+          { key: p + '.phase_resistance', label: 'Phase resistance (Ohm)', value: 0.25 },
+          { key: p + '.phase_inductance', label: 'Phase inductance (H)', value: 0.00015 }
+        ], calibration: 'motor', axis, targetId: t.id, required: true });
+        pages.push({ key: 'encoder_' + p, title: 'Encoder for ' + p, link: 'Encoder ' + axis, fields: [
+          { key: p + '.encoder_mode', label: 'Encoder type', options: ODRIVE_ENUMS.encoder_mode },
+          { key: p + '.cpr', label: 'Counts per revolution', value: 8192 }
+        ], calibration: 'encoder', axis, targetId: t.id, required: true });
+        pages.push({ key: 'control_' + p, title: 'Control mode for ' + p, link: 'Control ' + axis, fields: [
+          { key: p + '.control_mode', label: 'Control mode', options: ODRIVE_ENUMS.control_mode }
+        ], required: true });
+        pages.push({ key: 'misc_' + p, title: 'Limits for ' + p, link: 'Limits ' + axis, fields: [
+          { key: p + '.vel_limit', label: 'Velocity limit (rad/s)', value: 50 },
+          { key: p + '.current_lim', label: 'Current limit (A)', value: 10 }
+        ], required: true });
+      }));
+      pages.push({ key: 'review', title: 'Review and Apply', link: 'Review and Apply', review: true });
+      return pages;
+    }
+
+    // ---- Shell rendering ----
+    let shellRoot = null;
+    function initStudioShell() {
+      if (!STUDIO_V2) return;
+      const main = document.querySelector('main');
+      if (!main) return;
+      // Take full control of the viewport: hide legacy chrome even when the
+      // host bridge has not applied the is-embedded class.
+      document.documentElement.classList.add('studio-v2');
+      const topBar = document.getElementById('top-bar');
+      if (topBar) topBar.style.display = 'none';
+      const subToolbar = document.querySelector('.sticky');
+      if (subToolbar) subToolbar.style.display = 'none';
+      // Reuse the legacy tab strip container as the dashboard header injection point.
+      shellRoot = document.createElement('div');
+      shellRoot.id = 'studio-shell';
+      main.insertBefore(shellRoot, main.firstChild);
+
+      const header = document.createElement('div');
+      header.className = 'studio-shell-header';
+      header.innerHTML =
+        '<div class="relative">' +
+          '<button class="btn btn-xs btn-ghost font-bold uppercase tracking-wider" id="studio-menu-btn">Menu</button>' +
+          '<div id="studio-menu-host"></div>' +
+        '</div>' +
+        '<div class="flex items-center gap-0.5 flex-1" id="studio-dash-tabs"></div>' +
+        '<button class="btn btn-xs btn-ghost" id="studio-add-dash" title="Add dashboard">+</button>' +
+        '<button class="btn btn-xs btn-outline" id="studio-wizard-btn">Wizard</button>' +
+        '<button class="btn btn-xs btn-outline" id="studio-params-btn">Parameters</button>' +
+        '<button class="btn btn-xs btn-outline" id="studio-sampling-btn">Start Sampling</button>';
+      shellRoot.appendChild(header);
+
+      const view = document.createElement('div');
+      view.id = 'studio-view';
+      view.className = 'flex flex-col gap-4 mt-3';
+      shellRoot.appendChild(view);
+
+      const footer = document.createElement('div');
+      footer.id = 'studio-footer';
+      footer.className = 'studio-shell-footer';
+      main.appendChild(footer);
+
+      // Header wiring
+      document.getElementById('studio-menu-btn').onclick = toggleStudioMenu;
+      document.getElementById('studio-add-dash').onclick = () => {
+        const d = newDashboard();
+        studio.domains.dashboards.push(d);
+        studio.commit('domains', 'currentDashId', d.id);
+      };
+      document.getElementById('studio-wizard-btn').onclick = () => switchStudioView('wizard');
+      document.getElementById('studio-params-btn').onclick = () => switchStudioView('params');
+      const samplingBtn = document.getElementById('studio-sampling-btn');
+      samplingBtn.onclick = () => {
+        const next = !studio.domains.sampling;
+        studio.dispatch('setSampling', next);
+        samplingBtn.textContent = next ? 'Stop Sampling' : 'Start Sampling';
+        samplingBtn.classList.toggle('btn-primary', next);
+      };
+
+      // Menu content
+      renderStudioMenu();
+
+      // Subscribe to store changes -> re-render the relevant parts
+      studio.subscribe('domains', () => { renderDashTabs(); renderFooter(); });
+      studio.on('sampling', (on) => {
+        const btn = document.getElementById('studio-sampling-btn');
+        if (btn) { btn.textContent = on ? 'Stop Sampling' : 'Start Sampling'; btn.classList.toggle('btn-primary', on); }
+      });
+      studio.on('discovery:updated', () => { explorer.refresh(); renderFooter(); });
+      studio.on('params:updated', () => {
+        if (studio.domains.view === 'params') renderParams();
+      });
+
+      // Initial model
+      discovery.discover();
+      explorer.refresh();
+      if (!studio.domains.dashboards.length) {
+        const tuning = defaultTuningDashboard();
+        studio.domains.dashboards.push(tuning);
+        studio.commit('domains', 'currentDashId', tuning.id);
+      }
+      renderDashTabs();
+      renderFooter();
+      switchStudioView('dashboard');
+    }
+
+    let studioViewMode = 'dashboard';
+    function switchStudioView(mode) {
+      studioViewMode = mode;
+      const view = document.getElementById('studio-view');
+      view.innerHTML = '';
+      view.classList.toggle('single-col', mode !== 'dashboard');
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+      if (mode === 'dashboard') renderDashboard();
+      else if (mode === 'wizard') renderWizard();
+      else if (mode === 'params') renderParams();
+    }
+
+    // Compact live telemetry HUD built from scratch (no cloning of legacy DOM).
+    function buildHudCells() {
+      const cells = [
+        ['Shaft Angle', 'hud-angle-val', 'hud-angle-deg'],
+        ['Shaft Velocity', 'hud-vel-val', 'hud-vel-rpm'],
+        ['Target Setpoint', 'hud-target-val', 'hud-target-unit'],
+        ['Current Iq / Id', 'hud-current-iq', 'hud-current-id'],
+        ['Bus Voltage / Power', 'hud-vbus-val', 'hud-power-val'],
+        ['FOC Loop Rate', 'hud-rate-val', 'hud-temp-val']
+      ];
+      const hud = document.createElement('div'); hud.className = 'studio-hud';
+      cells.forEach(([label, vId, sId]) => {
+        const c = document.createElement('div'); c.className = 'hud-cell';
+        const k = document.createElement('div'); k.className = 'k'; k.textContent = label;
+        const v = document.createElement('div'); v.className = 'v'; v.style.color = 'hsl(var(--p))'; v.textContent = '0.00';
+        const s = document.createElement('div'); s.className = 's'; s.textContent = '';
+        c.appendChild(k); c.appendChild(v); c.appendChild(s);
+        hud.appendChild(c);
+      });
+      // Keep references so the telemetry tick can update them.
+      hud._cells = cells.map(([, vId, sId]) => ({
+        v: hud.children[cells.findIndex(x=>x[1]===vId)].querySelector('.v'),
+        s: hud.children[cells.findIndex(x=>x[1]===vId)].querySelector('.s')
+      }));
+      studio._hud = hud;
+      return hud;
+    }
+
+    function updateStudioHud() {
+      if (!STUDIO_V2 || !studio._hud) return;
+      const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+      set('hud-angle-val', state.actualAngle.toFixed(2)+' rad');
+      set('hud-angle-deg', ((state.actualAngle*180/Math.PI)%360).toFixed(1)+' deg');
+      set('hud-vel-val', state.actualVelocity.toFixed(1)+' rad/s');
+      set('hud-vel-rpm', ((state.actualVelocity*60)/(2*Math.PI)).toFixed(0)+' RPM');
+      set('hud-target-val', state.target.toFixed(2));
+      set('hud-current-iq', state.iq.toFixed(2)+' A');
+      set('hud-current-id', 'Id: '+state.id.toFixed(2)+' A');
+      set('hud-vbus-val', state.vbus.toFixed(1)+' V');
+      set('hud-power-val', state.power+' W');
+      set('hud-rate-val', state.loopRateKhz.toFixed(1)+' kHz');
+      set('hud-temp-val', 'Temp: '+state.temperature.toFixed(0)+' C');
+      set('hud-target-unit', state.mode.includes('velocity')?'rad/s':state.mode==='torque'?'A (Iq)':'rad');
+      set('s-val-ua', state.ua.toFixed(2)+' V');
+      set('s-val-ub', state.ub.toFixed(2)+' V');
+      set('s-val-uc', state.uc.toFixed(2)+' V');
+      set('s-val-thetae', state.theta_e.toFixed(2));
+      set('s-val-zero', state.zeroElectricAngle.toFixed(2));
+      set('s-val-pwm', state.modulation);
+      // Mirror the compact HUD cells when the shell view is active.
+      const c = studio._hud._cells;
+      if (c && c.length === 6) {
+        c[0].v.textContent = state.actualAngle.toFixed(2)+' rad'; c[0].s.textContent = ((state.actualAngle*180/Math.PI)%360).toFixed(1)+' deg';
+        c[1].v.textContent = state.actualVelocity.toFixed(1)+' rad/s'; c[1].s.textContent = ((state.actualVelocity*60)/(2*Math.PI)).toFixed(0)+' RPM';
+        c[2].v.textContent = state.target.toFixed(2); c[2].s.textContent = state.mode.includes('velocity')?'rad/s':state.mode==='torque'?'A (Iq)':'rad';
+        c[3].v.textContent = state.iq.toFixed(2)+' A'; c[3].s.textContent = 'Id: '+state.id.toFixed(2)+' A';
+        c[4].v.textContent = state.vbus.toFixed(1)+' V'; c[4].s.textContent = state.power+' W';
+        c[5].v.textContent = state.loopRateKhz.toFixed(1)+' kHz'; c[5].s.textContent = 'Temp: '+state.temperature.toFixed(0)+' C';
+      }
+    }
+
+    function renderDashTabs() {
+      const host = document.getElementById('studio-dash-tabs');
+      if (!host) return;
+      host.innerHTML = '';
+      for (const d of studio.domains.dashboards) {
+        const b = document.createElement('button');
+        b.className = 'studio-dash-tab' + (d.id === studio.domains.currentDashId ? ' active' : '');
+        b.textContent = d.name;
+        b.onclick = () => { studio.commit('domains', 'currentDashId', d.id); switchStudioView('dashboard'); };
+        b.ondblclick = () => {
+          const name = prompt('Dashboard name', d.name);
+          if (name) { d.name = name; renderDashTabs(); }
+        };
+        host.appendChild(b);
+      }
+    }
+
+    function renderStudioMenu() {
+      const host = document.getElementById('studio-menu-host');
+      if (!host) return;
+      host.innerHTML = '';
+      const menu = document.createElement('div');
+      menu.className = 'studio-menu hidden';
+      menu.id = 'studio-menu';
+      const items = [
+        ['Export dashboard', exportDashboard],
+        ['Import dashboard', () => document.getElementById('studio-import-dash').click()],
+        ['Import target config', () => document.getElementById('studio-import-config').click()],
+        ['Export target config', exportTargetConfig],
+        ['Refresh discovery', () => discovery.refresh()]
+      ];
+      items.forEach(([label, fn]) => {
+        const b = document.createElement('button'); b.textContent = label; b.onclick = () => { fn(); menu.classList.add('hidden'); }; menu.appendChild(b);
+      });
+      const f1 = document.createElement('input'); f1.type='file'; f1.id='studio-import-dash'; f1.accept='.json'; f1.className='hidden';
+      f1.onchange = (e) => importDashboardFile(e.target.files[0]);
+      const f2 = document.createElement('input'); f2.type='file'; f2.id='studio-import-config'; f2.accept='.json'; f2.className='hidden';
+      f2.onchange = (e) => importConfigFile(e.target.files[0]);
+      host.appendChild(menu); host.appendChild(f1); host.appendChild(f2);
+    }
+    function toggleStudioMenu() {
+      const m = document.getElementById('studio-menu');
+      if (m) m.classList.toggle('hidden');
+    }
+
+    // ---- Dashboard render ----
+    function renderDashboard() {
+      const view = document.getElementById('studio-view');
+      if (!view) return;
+      view.innerHTML = '';
+      const dash = activeDash();
+      if (!dash) { view.textContent = 'No dashboard selected.'; return; }
+      // Ensure plots show live data immediately (ODrive GUI starts sampling on connect).
+      if (!studio.domains.sampling) studio.dispatch('setSampling', true);
+
+      const left = document.createElement('div'); left.className = 'studio-col';
+      const right = document.createElement('div'); right.className = 'studio-col';
+
+      // Compact telemetry HUD + diagnostics on the left.
+      left.appendChild(buildHudCells());
+      const diag = document.createElement('div'); diag.className = 'widget-card';
+      diag.innerHTML =
+        '<h3>Live Signals</h3>' +
+        '<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono text-[0.66rem]">' +
+        '<div>Ua <b class="text-primary" id="s-val-ua">0.00 V</b></div>' +
+        '<div>Ub <b class="text-accent" id="s-val-ub">0.00 V</b></div>' +
+        '<div>Uc <b class="text-secondary" id="s-val-uc">0.00 V</b></div>' +
+        '<div>Theta_e <b id="s-val-thetae">0.00</b></div>' +
+        '<div>Zero Offset <b id="s-val-zero">1.84</b></div>' +
+        '<div>PWM <b id="s-val-pwm">SVPWM</b></div>' +
+        '</div>';
+      left.appendChild(diag);
+      const modes = document.createElement('div'); modes.className = 'widget-card';
+      modes.innerHTML = '<h3>Motion Control Modes</h3><div class="flex flex-wrap gap-1">' +
+        ['angle','velocity','torque','velocity_openloop','angle_openloop'].map(m=>
+          `<button class="btn btn-xs ${m===state.mode?'btn-primary':'btn-outline'} btn-mode" data-mode="${m}">${m.replace('_',' ')}</button>`).join('') +
+        '</div>';
+      left.appendChild(modes);
+      left.querySelectorAll('.btn-mode').forEach(b => b.onclick = () => {
+        const mode=b.dataset.mode; state.mode=mode;
+        left.querySelectorAll('.btn-mode').forEach(x=>x.classList.remove('btn-primary'));
+        b.classList.add('btn-primary');
+        // Adapt setpoint slider range to the selected mode.
+        const slider = document.getElementById('range-target-slider');
+        if (slider) {
+          if (mode.includes('velocity')) { slider.min='-100'; slider.max='100'; }
+          else if (mode === 'torque') { slider.min='-5'; slider.max='5'; }
+          else { slider.min='-3.1415'; slider.max='3.1415'; }
+        }
+        if (state.connected) activeAdapter.setMode(mode);
+        logTerminal('[MODE] '+mode);
+      });
+
+      // Controls and actions below the HUD on the left.
+      const ccard = document.createElement('div'); ccard.className = 'widget-card';
+      ccard.innerHTML = '<h3>Controls & Actions</h3>';
+      dash.controls.forEach(w => ccard.appendChild(renderControlWidget(w)));
+      dash.actions.forEach(w => ccard.appendChild(renderActionWidget(w)));
+      left.appendChild(ccard);
+
+      // Plots on the right, sized to fill the column.
+      const pcard = document.createElement('div'); pcard.className = 'widget-card flex-1 flex flex-col min-h-0';
+      pcard.innerHTML = '<h3>Plots</h3>';
+      dash.plots.forEach(p => pcard.appendChild(renderPlotWidget(p)));
+      right.appendChild(pcard);
+
+      view.appendChild(left); view.appendChild(right);
+      updateStudioHud();
+    }
+
+    function renderControlWidget(w) {
+      const node = findNodeByPath(w.path) || makeNode(w.path, 0, w.type, false, { options: w.options });
+      const box = document.createElement('div');
+      box.className = 'widget-card mb-2 flex flex-col gap-1';
+      const head = document.createElement('div'); head.className='flex items-center justify-between gap-2';
+      const title = document.createElement('span'); title.className='text-xs font-mono truncate'; title.textContent=w.path.split('.').slice(-2).join('.'); title.title=w.path;
+      const rm = document.createElement('button'); rm.className='btn btn-xs btn-ghost'; rm.textContent='X'; rm.title='Remove';
+      rm.onclick=()=>removeWidget('controls', w.id);
+      head.appendChild(title); head.appendChild(rm); box.appendChild(head);
+
+      let control;
+      if (w.type === 'function') {
+        control = document.createElement('button'); control.className='btn btn-xs btn-primary'; control.textContent = w.path.split('.').pop() + '()';
+        control.onclick=()=>writeParamValue(node, 0);
+      } else if (w.type === 'enum') {
+        control = document.createElement('select'); control.className='select select-bordered select-xs';
+        for (const [val,label] of (w.options || node.options || [])) {
+          const o=document.createElement('option'); o.value=val; o.textContent=label; control.appendChild(o);
+        }
+        control.onchange=()=>writeParamValue(node, parseFloat(control.value));
+      } else if (w.type === 'slider') {
+        const row=document.createElement('div'); row.className='flex items-center gap-2';
+        const range=document.createElement('input'); range.type='range'; range.className='range range-xs range-primary flex-1';
+        const v=Number(node.val)||0; range.min=String(v/4||0); range.max=String(v*4||1); range.step='any'; range.value=String(v);
+        const val=document.createElement('span'); val.className='font-mono text-xs w-16 text-right'; val.textContent=v;
+        range.oninput=()=>{ val.textContent=range.value; };
+        range.onchange=()=>writeParamValue(node, parseFloat(range.value));
+        row.appendChild(range); row.appendChild(val); control=row;
+      } else if (w.type === 'bool') {
+        control=document.createElement('input'); control.type='checkbox'; control.className='toggle toggle-xs toggle-success';
+        control.checked=!!node.val; control.onchange=()=>writeParamValue(node, control.checked?1:0);
+      } else {
+        control=document.createElement('div'); control.className='join';
+        const inp=document.createElement('input'); inp.type='number'; inp.className='input input-bordered input-xs join-item w-28 font-mono'; inp.value=node.val;
+        const send=document.createElement('button'); send.className='btn btn-xs btn-primary join-item'; send.textContent='Send';
+        send.onclick=()=>writeParamValue(node, parseFloat(inp.value));
+        control.appendChild(inp); control.appendChild(send);
+      }
+      box.appendChild(control);
+      return box;
+    }
+
+    function renderActionWidget(w) {
+      const box=document.createElement('div'); box.className='widget-card mb-2 flex items-center gap-2';
+      const label=document.createElement('span'); label.className='text-xs font-mono flex-1 truncate'; label.textContent=w.path.split('.').slice(-2).join('.'); label.title=w.path;
+      const inp=document.createElement('input'); inp.type='number'; inp.className='input input-bordered input-xs w-20 font-mono'; inp.value=w.val;
+      inp.onchange=()=>w.val=parseFloat(inp.value);
+      const send=document.createElement('button'); send.className='btn btn-xs btn-outline'; send.textContent='Send';
+      send.onclick=()=>{ const node=findNodeByPath(w.path)||makeNode(w.path,w.val,'float',false); writeParamValue(node,w.val); };
+      const rm=document.createElement('button'); rm.className='btn btn-xs btn-ghost'; rm.textContent='X'; rm.onclick=()=>removeWidget('actions',w.id);
+      box.appendChild(label); box.appendChild(inp); box.appendChild(send); box.appendChild(rm);
+      return box;
+    }
+
+    function renderPlotWidget(p) {
+      const box=document.createElement('div'); box.className='widget-card mb-2 flex-1 flex flex-col min-h-[120px]';
+      const head=document.createElement('div'); head.className='flex items-center justify-between mb-1';
+      head.innerHTML='<span class="text-xs font-bold">Plot</span>';
+      const rm=document.createElement('button'); rm.className='btn btn-xs btn-ghost'; rm.textContent='X'; rm.onclick=()=>removeWidget('plots',p.id);
+      head.appendChild(rm); box.appendChild(head);
+      const canvas=document.createElement('canvas'); canvas.width=512; canvas.height=140;
+      canvas.className='w-full flex-1 border border-base-content/10 rounded';
+      canvas.style.minHeight='120px';
+      box.appendChild(canvas);
+      p.vars.forEach(v=>registerSampled(v.path));
+      // light mini-render loop for this plot
+      const draw=()=>{
+        if (!canvas.isConnected) return;
+        const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.strokeStyle='rgba(128,128,128,0.2)'; ctx.beginPath(); ctx.moveTo(0,60); ctx.lineTo(512,60); ctx.stroke();
+        for (const v of p.vars) {
+          const series=getSeries(v.path); ctx.strokeStyle=v.color||'#38bdf8'; ctx.beginPath();
+          for (let i=0;i<scope.count;i++){ const idx=(scope.writeIdx-scope.count+i+scope.bufferSize)%scope.bufferSize; const x=i/Math.max(1,scope.count-1)*512; const y=60-(series[idx]||0)*12; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+          ctx.stroke();
+        }
+        requestAnimationFrame(draw);
+      };
+      requestAnimationFrame(draw);
+      return box;
+    }
+
+    function findNodeByPath(path) {
+      for (const t of Object.values(studio.domains.params)) {
+        if (t[path]) return t[path];
+      }
+      return null;
+    }
+
+    // ---- Parameter view ----
+    function renderParams() {
+      const view=document.getElementById('studio-view'); if(!view) return;
+      view.innerHTML='';
+      const card=document.createElement('div'); card.className='widget-card';
+      card.innerHTML='<div class="flex items-center justify-between mb-2"><h2 class="text-sm font-bold uppercase tracking-wider">Parameter Explorer</h2></div>';
+      const controls=document.createElement('div'); controls.className='flex gap-2 mb-3';
+      const refresh=document.createElement('button'); refresh.className='btn btn-xs btn-outline'; refresh.textContent='Refresh'; refresh.onclick=()=>explorer.refresh();
+      controls.appendChild(refresh); card.appendChild(controls);
+      const sel=document.createElement('select'); sel.className='select select-bordered select-sm mb-3';
+      studio.domains.targets.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.label; sel.appendChild(o); });
+      sel.value=studio.domains.activeTargetId||'';
+      sel.onchange=()=>{ studio.commit('domains','activeTargetId',sel.value); renderParams(); };
+      card.appendChild(sel);
+      card.appendChild(renderParamTree(sel.value));
+      view.appendChild(card);
+    }
+
+    // ---- Footer: per-axis status + error decoding ----
+    function axisErrorCodes(axisLabel) {
+      // Primary axis errors come from the active target telemetry.
+      const err = state.fibreError || 0;
+      return { axis: err, motor: 0, encoder: 0, controller: err };
+    }
+    function renderFooter() {
+      const footer=document.getElementById('studio-footer'); if(!footer) return;
+      footer.innerHTML='';
+      const targets=studio.domains.targets;
+      if (!targets.length) {
+        const empty=document.createElement('div'); empty.className='axis-chip inactive'; empty.textContent='No targets discovered'; footer.appendChild(empty); return;
+      }
+      for (const t of targets) {
+        if (!t.axes || !t.axes.length) continue;
+        for (const axis of t.axes) {
+          const codes=axisErrorCodes(t.id+'.'+axis);
+          const hasError=Object.values(codes).some(c=>c&&(!studio.domains.calibrating || (c & ~0x3)));
+          const chip=document.createElement('div');
+          chip.className='axis-chip '+(t.connected?(hasError?'error':'ok'):'inactive');
+          chip.innerHTML='<span class="axis-dot"></span><span>'+t.id+' '+axis+(hasError?' [ERROR]':'')+'</span>';
+          const popup=document.createElement('div');
+          popup.className='axis-error-popup hidden';
+          let html='<div class="font-bold mb-1">'+t.id+'.'+axis+'</div>';
+          for (const kind of ['axis','motor','encoder','controller']) {
+            const names=decodeErrors(kind,codes[kind]);
+            html+='<div>'+kind+': <span class="'+(names[0]==='none'?'err-none':'err-bad')+'">'+names.join(', ')+'</span></div>';
+          }
+          html+='<button class="btn btn-xs btn-error mt-2 w-full" data-clear="'+t.id+'.'+axis+'">Clear Errors</button>';
+          popup.innerHTML=html;
+          popup.querySelector('button').onclick=(e)=>{ e.stopPropagation(); clearAxisErrors(); };
+          chip.appendChild(popup);
+          chip.onclick=()=>popup.classList.toggle('hidden');
+          footer.appendChild(chip);
+        }
+      }
+    }
+    function clearAxisErrors() {
+      state.fibreError=0;
+      activeAdapter.sendRaw && activeAdapter.sendRaw('M1 E 0');
+      logTerminal('[FAULT] Cleared axis/motor/encoder/controller errors.');
+      renderFooter();
+    }
+    // Poll errors every 1000ms and refresh footer.
+    setInterval(()=>{ if (STUDIO_V2) renderFooter(); }, 1000);
+
+    // ---- Wizard render ----
+    let wizardState = { pages: [], index: 0, choices: {}, choiceMade: {}, calStatus: {} };
+    function renderWizard() {
+      const view=document.getElementById('studio-view'); if(!view) return;
+      view.innerHTML='';
+      if (!wizardState.pages.length) {
+        wizardState.pages=buildWizardPages();
+        wizardState.index=0;
+        wizardState.choices={}; wizardState.choiceMade={}; wizardState.calStatus={};
+      }
+      const page=wizardState.pages[wizardState.index];
+      const card=document.createElement('div'); card.className='widget-card';
+      // Nav links
+      const nav=document.createElement('div'); nav.className='flex flex-wrap gap-2 mb-4 pb-2 border-b border-base-content/10';
+      wizardState.pages.forEach((p,i)=>{
+        const s=document.createElement('span');
+        s.className='wizard-link'+(i===wizardState.index?' active-link':'')+(wizardState.choiceMade[p.key]?' finished-page':'');
+        s.textContent=p.link; nav.appendChild(s);
+      });
+      card.appendChild(nav);
+      const h=document.createElement('h2'); h.className='text-sm font-bold mb-3'; h.textContent=page.title; card.appendChild(h);
+
+      if (page.review) {
+        const diff=document.createElement('div'); diff.className='text-xs font-mono flex flex-col gap-1 mb-4 max-h-64 overflow-y-auto';
+        for (const [k,v] of Object.entries(wizardState.choices)) {
+          const oldVal=lookupParamValue(k);
+          diff.innerHTML+='<div>'+k+': <span class="diff-old">'+oldVal+'</span> -> <span class="diff-new">'+v+'</span></div>';
+        }
+        if (!Object.keys(wizardState.choices).length) diff.textContent='No changes configured.';
+        card.appendChild(diff);
+        const apply=document.createElement('button'); apply.className='btn btn-sm btn-success'; apply.textContent='Apply';
+        apply.onclick=applyWizardConfig; card.appendChild(apply);
+      } else if (page.choices && !page.fields) {
+        page.choices.forEach(c=>{
+          const b=document.createElement('button'); b.className='btn btn-sm btn-outline m-1'; b.textContent=c.title;
+          b.onclick=()=>{
+            if (c.targetId) wizardState.choices.activeTarget=c.targetId;
+            wizardState.choiceMade[page.key]=true;
+            b.classList.add('btn-primary');
+          };
+          card.appendChild(b);
+        });
+        if (!wizardState.choiceMade[page.key]) {
+          const tip=document.createElement('div'); tip.className='text-xs text-warning mt-2'; tip.textContent='Make a choice to continue.'; card.appendChild(tip);
+        }
+      } else if (page.fields) {
+        page.fields.forEach(f=>{
+          const row=document.createElement('div'); row.className='flex items-center gap-2 mb-2';
+          const lbl=document.createElement('span'); lbl.className='text-xs w-56'; lbl.textContent=f.label; row.appendChild(lbl);
+          let input;
+          if (f.options) {
+            input=document.createElement('select'); input.className='select select-bordered select-xs';
+            f.options.forEach(([val,text])=>{ const o=document.createElement('option'); o.value=val; o.textContent=text; input.appendChild(o); });
+          } else {
+            input=document.createElement('input'); input.type='number'; input.className='input input-bordered input-xs w-32';
+            input.value = wizardState.choices[f.key] !== undefined ? wizardState.choices[f.key] : f.value;
+          }
+          input.onchange=()=>{
+            let val = f.options ? parseFloat(input.value) : parseFloat(input.value);
+            if (f.key.endsWith('.encoder_mode') && val===1) {
+              const pp=wizardState.choices[f.key.replace('.encoder_mode','.pole_pairs')]||7;
+              wizardState.choices[f.key.replace('.encoder_mode','.cpr')]=6*pp;
+            }
+            wizardState.choices[f.key]=val; wizardState.choiceMade[page.key]=true;
+          };
+          row.appendChild(input); card.appendChild(row);
+        });
+        if (page.calibration) {
+          const cal=document.createElement('div'); cal.className='flex items-center gap-2 mt-3';
+          const btn=document.createElement('button'); btn.className='btn btn-xs btn-primary'; btn.textContent=page.calibration==='motor'?'Calibrate Motor':'Calibrate Encoder';
+          const status=document.createElement('span'); status.className='text-xs font-mono';
+          status.textContent=wizardState.calStatus[page.key]||'';
+          btn.onclick=async()=>{
+            status.textContent='Calibrating...'; studio.domains.calibrating=true;
+            try {
+              const result=await activeAdapter.executeAlignmentStep(page.calibration==='motor'?1:2);
+              studio.domains.calibrating=false;
+              const ok=!result || result.error===undefined;
+              status.textContent=ok?'Calibration succeeded!':'Calibration failed';
+              status.className='text-xs font-mono '+(ok?'text-success':'text-error');
+              wizardState.calStatus[page.key]=status.textContent;
+              wizardState.choiceMade[page.key]=ok;
+              if (ok && page.calibration==='motor') {
+                wizardState.choices[page.fields[3].key]=0.25;
+                wizardState.choices[page.fields[4].key]=0.00015;
+              }
+            } catch(e){ studio.domains.calibrating=false; status.textContent='Calibration failed'; status.className='text-xs font-mono text-error'; }
+          };
+          cal.appendChild(btn); cal.appendChild(status); card.appendChild(cal);
+        }
+        const done=document.createElement('button'); done.className='btn btn-xs btn-outline mt-3'; done.textContent='Confirm Page';
+        done.onclick=()=>{ wizardState.choiceMade[page.key]=true; };
+        card.appendChild(done);
+      }
+
+      const controls=document.createElement('div'); controls.className='flex gap-2 mt-4';
+      const back=document.createElement('button'); back.className='btn btn-sm btn-ghost'; back.textContent='Back';
+      back.disabled=wizardState.index===0;
+      back.onclick=()=>{ wizardState.index--; renderWizard(); };
+      const next=document.createElement('button'); next.className='btn btn-sm btn-primary'; next.textContent='Next';
+      const canNext=!!wizardState.choiceMade[page.key];
+      if (!canNext) { next.classList.add('btn-disabled'); next.title='Make a choice or confirm this page first.'; }
+      next.onclick=()=>{ if(!canNext) return; wizardState.index=Math.min(wizardState.pages.length-1,wizardState.index+1); renderWizard(); };
+      const finish=document.createElement('button'); finish.className='btn btn-sm btn-ghost'; finish.textContent='Finish';
+      finish.onclick=()=>{ wizardState.index=wizardState.pages.length-1; renderWizard(); };
+      controls.appendChild(back); controls.appendChild(finish); controls.appendChild(next);
+      card.appendChild(controls);
+      view.appendChild(card);
+    }
+    function applyWizardConfig() {
+      for (const [k,v] of Object.entries(wizardState.choices)) {
+        const node=findNodeByPath(k);
+        if (node && !node.readonly) writeParamValue(node,v);
+        else if (k==='activeTarget') continue;
+        else logTerminal('[WIZARD] Stored '+k+' = '+v);
+      }
+      logTerminal('[WIZARD] Configuration applied to target.');
+      wizardState.pages=[];
+    }
+
+    // ---- Import / Export ----
+    function downloadJson(obj, name) {
+      const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    }
+    function exportDashboard() {
+      const dash=activeDash(); if(!dash) return;
+      downloadJson(dash, dash.name.replace(/\s+/g,'_')+'.json');
+      logTerminal('[DASH] Exported '+dash.name);
+    }
+    function importDashboardFile(file) {
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try {
+          const d=JSON.parse(reader.result);
+          d.id=uid(); studio.domains.dashboards.push(d);
+          studio.commit('domains','currentDashId',d.id);
+          (d.plots||[]).forEach(p=>(p.vars||[]).forEach(v=>registerSampled(v.path)));
+          logTerminal('[DASH] Imported '+d.name);
+        } catch(e){ logTerminal('[DASH-ERR] '+e.message); }
+      };
+      reader.readAsText(file);
+    }
+    function exportTargetConfig() {
+      const t=studio.domains.activeTargetId;
+      const cfg={};
+      const tree=studio.domains.params[t]||{};
+      for (const [k,n] of Object.entries(tree)) cfg[k]={val:n.val,type:n.type,readonly:n.readonly};
+      downloadJson(cfg,(t||'target')+'-config.json');
+      logTerminal('[CONFIG] Exported target configuration.');
+    }
+    function importConfigFile(file) {
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try {
+          const cfg=JSON.parse(reader.result);
+          for (const [k,v] of Object.entries(cfg)) {
+            const node=findNodeByPath(k)||makeNode(k,v.val,v.type,v.readonly);
+            if (!v.readonly) writeParamValue(node,v.val);
+          }
+          logTerminal('[CONFIG] Imported target configuration.');
+        } catch(e){ logTerminal('[CONFIG-ERR] '+e.message); }
+      };
+      reader.readAsText(file);
+    }
+
+    /* =========================================================================
+        9. STUB REMEDIATION & SCOPE ENHANCEMENTS
+       ========================================================================= */
+
+    // 5.3 Interactive crosshair on the oscilloscope canvas.
+    (function wireScopeCrosshair() {
+      const canvas=document.getElementById('scope-canvas');
+      const overlay=document.getElementById('scope-crosshair-overlay');
+      const vline=document.getElementById('crosshair-vline');
+      const label=document.getElementById('crosshair-label');
+      if(!canvas||!overlay||!vline||!label) return;
+      canvas.addEventListener('pointermove',(e)=>{
+        const rect=canvas.getBoundingClientRect();
+        const x=(e.clientX-rect.left)*(canvas.width/rect.width);
+        scope.crosshair.active=true; scope.crosshair.x=x;
+        const idx=Math.max(0,Math.min(scope.count-1,Math.round(x/rect.width*(scope.count-1))));
+        const realIdx=scope.count?(scope.writeIdx-scope.count+idx+scope.bufferSize)%scope.bufferSize:0;
+        const t=scope.timeBuffer[realIdx]||0;
+        scope.crosshair.time=t;
+        scope.crosshair.valA=scope.traceABuffer[realIdx]||0;
+        scope.crosshair.valB=scope.traceBBuffer[realIdx]||0;
+        overlay.classList.remove('hidden');
+        vline.style.left=(x/canvas.width*100)+'%';
+        label.style.left=Math.min(canvas.width-150,Math.max(0,x+8))+'px';
+        label.textContent='t='+((t-(performance.now()))/1000).toFixed(2)+'s | A='+scope.crosshair.valA.toFixed(2)+' B='+scope.crosshair.valB.toFixed(2);
+      });
+      canvas.addEventListener('pointerleave',()=>{ scope.crosshair.active=false; overlay.classList.add('hidden'); });
+    })();
+
+    // 5.1 Dynamic trace selectors populated from sampled parameters.
+    function refreshTraceSelectors() {
+      const paths=['target','angle','velocity','iq','id','ua','vbus','theta_e'].concat(
+        studio.domains.sampledProperties.filter(p=>!['target','angle','velocity'].includes(p))
+      );
+      for (const id of ['sel-trace-a','sel-trace-b']) {
+        const sel=document.getElementById(id); if(!sel) continue;
+        const prev=sel.value;
+        sel.innerHTML='';
+        paths.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; sel.appendChild(o); });
+        if (paths.includes(prev)) sel.value=prev;
+      }
+    }
+    refreshTraceSelectors();
+    studio.on('sampling:changed',refreshTraceSelectors);
+
+    // 5.4 Read From Target: sync gains/limits from active target or cached config.
+    const btnSync=document.getElementById('btn-sync-tuning');
+    if(btnSync) btnSync.onclick=()=>{
+      const target=studio.domains.activeTargetId;
+      const tree=studio.domains.params[target]||{};
+      const pull=(path,key,textId,sliderId)=>{
+        const node=findNodeByPath(path)||tree[path];
+        if(node&&typeof node.val==='number'){
+          state[key]=node.val;
+          const t=document.getElementById(textId); if(t)t.textContent=node.val;
+          const s=document.getElementById(sliderId); if(s)s.value=node.val;
+        }
+      };
+      pull('A P','angleP','txt-angle-p','range-angle-p');
+      pull('A L','angleVelLimit','txt-angle-vel-limit','range-angle-vel-limit');
+      pull('V P','velP','txt-vel-p','range-vel-p');
+      pull('V I','velI','txt-vel-i','range-vel-i');
+      pull('V D','velD','txt-vel-d','range-vel-d');
+      pull('V F','velTf','txt-vel-tf','range-vel-tf');
+      pull('V R','velRamp','txt-vel-ramp','range-vel-ramp');
+      pull('C P','currP','txt-curr-p','range-curr-p');
+      pull('C I','currI','txt-curr-i','range-curr-i');
+      pull('C L','currLimit','txt-curr-limit','range-curr-limit');
+      logTerminal('[TUNING] Gains/limits synchronized from target.');
+    };
+
+    // 5.5 Hardware limit & modulation inputs -> parameter writes.
+    const wireLimit=(id,key,param)=>{
+      const el=document.getElementById(id); if(!el) return;
+      el.addEventListener('change',()=>{
+        const v=parseFloat(el.value); if(isNaN(v))return;
+        state[key]=v;
+        if(state.connected) activeAdapter.writeGain&&activeAdapter.writeGain(param,v);
+        logTerminal('[LIMIT] '+param+' = '+v);
+      });
+    };
+    wireLimit('inp-supply-v','vbus','vbus');
+    wireLimit('inp-voltage-limit','voltageLimit','voltage_limit');
+    wireLimit('inp-velocity-limit','angleVelLimit','A L');
+    const selMod=document.getElementById('sel-modulation');
+    if(selMod) selMod.addEventListener('change',()=>{
+      state.modulation=selMod.value;
+      logTerminal('[MODULATION] '+state.modulation);
+    });
+
+    // 5.8 Fault badges driven by decoded error bits.
+    (function wireFaultBadges(){
+      const badgeIds=['NORMAL_STATE','OVER_VOLTAGE','UNDER_VOLTAGE','OVER_CURRENT','THERMAL_FAULT','SENSOR_LOSS'];
+      const poll=()=>{
+        const err=state.fibreError||0;
+        const flags={
+          NORMAL_STATE: err===0,
+          OVER_VOLTAGE: !!(err & (1<<2)),
+          UNDER_VOLTAGE: !!(err & (1<<1)),
+          OVER_CURRENT: !!(err & (1<<3)),
+          THERMAL_FAULT: !!(err & (1<<17)),
+          SENSOR_LOSS: !!(err & (1<<7))
+        };
+        badgeIds.forEach(id=>{
+          const el=document.getElementById('badge-'+id)||document.getElementById(id);
+          if(el) el.classList.toggle('badge-error',!!flags[id]);
+        });
+      };
+      setInterval(()=>{ if(STUDIO_V2) poll(); },500);
+    })();
+
+    // 5.7 Power toggle guard (FeatureRegistry + optional bridge power API).
+    (function wirePowerGuard(){
+      const sw=document.getElementById('target-power-switch');
+      if(!sw)return;
+      const supported=()=>!(window.FeatureRegistry && window.FeatureRegistry.hasTargetPowerControl===false);
+      if(!supported()){ sw.disabled=true; sw.checked=false; return; }
+      sw.addEventListener('change',async()=>{
+        const on=sw.checked;
+        if(window.AgentLA && AgentLA.power && AgentLA.power.setEnabled){ try{ await AgentLA.power.setEnabled(on); }catch(_){} }
+        logTerminal('[POWER] Target rail '+(on?'ON':'OFF'));
+      });
+    })();
+
+    // 5.6 Alignment: require a real numeric result before enabling Apply.
+    (function guardAlignmentApply(){
+      const applyBtn=document.getElementById('btn-apply-alignment');
+      if(!applyBtn)return;
+      applyBtn.disabled=true;
+    })();
+
     /* Initialize Default Setup */
     updateAdapter();
     dispatchTargetUpdate();
+    if (STUDIO_V2) initStudioShell();
     requestAnimationFrame(renderScope);
   </script>
 </body>

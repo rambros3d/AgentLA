@@ -1,19 +1,9 @@
 # barefoc-studio-application Specification
 
 ## Purpose
-TBD - created by archiving change add-barefoc-studio-app. Update Purpose after archive.
+Legacy USER_FS application specification. The app was promoted to a built-in SYSTEM_FS application by the native-barefoc-system-app change; current behavior is tracked by native-barefoc-system-app and the motor-* parity capabilities.
+
 ## Requirements
-### Requirement: User Application Package Structure
-The system SHALL provide an installable application bundle under `apps/barefoc/` containing `app.json`, `icon.svg`, and `index.html`.
-
-#### Scenario: Package metadata validation
-- **WHEN** AgentLA reads `/apps/barefoc/app.json`
-- **THEN** it validates that name is "barefoc", category is "Robotics", and permissions require "uart", "can", and "gpio_flexible"
-
-#### Scenario: Application package creation
-- **WHEN** the build script or packager generates `apps/packages/barefoc.tar`
-- **THEN** the tarball contains valid POSIX ustar entries for `app.json`, `icon.svg`, and `index.html` with total size under 768 KB
-
 ### Requirement: Catalog Registration and Installation
 The system SHALL register the BareFOC Studio application in `apps/catalog.json` and support installation via the AgentLA App Store.
 

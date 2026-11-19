@@ -37,7 +37,7 @@ impl Resource {
     }
 }
 
-pub static DEFAULT_RESOURCES: [Resource; 7] = [
+pub static DEFAULT_RESOURCES: [Resource; 8] = [
     Resource::new(
         "agentla://info",
         "AgentLA System Info",
@@ -78,6 +78,12 @@ pub static DEFAULT_RESOURCES: [Resource; 7] = [
         "agentla://skills/analyzer",
         "Bus Protocol & Logic Analyzer Specialist",
         Some("Pin Arbiter reservation, high-speed signal capture, protocol decoding, and 120-ohm termination"),
+        "text/markdown",
+    ),
+    Resource::new(
+        "agentla://skills/barefoc",
+        "BareFOC Agentic Debug Playbook",
+        Some("Safety-first workflow for debugging external FOC targets: discovery, telemetry, register access, calibration, and safe-state teardown"),
         "text/markdown",
     ),
 ];
@@ -184,7 +190,15 @@ pub static ANALYZE_BUS_ARGS: [PromptArgument; 1] = [
     ),
 ];
 
-pub static DEFAULT_PROMPTS: [Prompt; 4] = [
+pub static BAREFOC_DEBUG_ARGS: [PromptArgument; 1] = [
+    PromptArgument::new(
+        "node",
+        Some("External FOC target node to debug (0-63, default 1)"),
+        false,
+    ),
+];
+
+pub static DEFAULT_PROMPTS: [Prompt; 5] = [
     Prompt::new(
         "dev_workflow",
         Some("Autonomous closed-loop firmware development, wiring guidance, flashing, and physical signal verification"),
@@ -204,6 +218,11 @@ pub static DEFAULT_PROMPTS: [Prompt; 4] = [
         "analyze_bus",
         Some("Pin Arbiter reservation, high-speed logic analyzer capture, and protocol decoding"),
         &ANALYZE_BUS_ARGS,
+    ),
+    Prompt::new(
+        "barefoc_debug",
+        Some("Guided, safety-first debugging workflow for an external FOC target using the BareFOC tools"),
+        &BAREFOC_DEBUG_ARGS,
     ),
 ];
 
@@ -254,8 +273,9 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
         self.prompts = prompts;
     }
 
-    /// Handle a request and return a 16384-byte heapless string response.
-    pub fn handle_request(&self, body: &[u8]) -> heapless::String<16384> {
+    /// Handle a request and return a bounded heapless string response.
+    /// 32 KB accommodates the full tools/list catalog (56 tools) with headroom.
+    pub fn handle_request(&self, body: &[u8]) -> heapless::String<32768> {
         let mut out = heapless::String::new();
         self.handle_request_into(body, &mut out);
         out
@@ -382,6 +402,13 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                                 id_frag
                             );
                         }
+                        "agentla://skills/barefoc" => {
+                            let _ = write!(
+                                out,
+                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/barefoc","mimeType":"text/markdown","text":"# BareFOC Agentic Debug Playbook\n\nFOC loops run on the EXTERNAL target. AgentLA only bridges transports; it never runs field-oriented control locally. All tools are no_std, zero-heap, and bounded.\n\n## 1. Safety First\n- Before anything, confirm target power is safe: call barefoc_status (check overcurrent, vtarget_mv, safe_state).\n- Keep barefoc_emergency ready: it disables the inverter, zeroes the setpoint, quiesces pins, and cuts target power.\n- Respect mechanical limits; never command motion with the shaft unconstrained.\n\n## 2. Target Discovery\n- Use barefoc_target to select the node (0-63) and I2C address (default 0x40+node). Session-only, not persisted.\n- Discover devices with i2c_scan / sensor_scan and can_sniff for the transport in use.\n\n## 3. Telemetry\n- barefoc_status samples fresh rail voltage, current, power, temperature, overcurrent trip, active profile, and power state.\n- Re-check after every state change.\n\n## 4. Register Access\n- barefoc_read / barefoc_write access MultiBus registers over I2C (default 0x40+node) or gate-driver registers over SPI.\n- Bounded payloads (1-32 bytes). A NACK means the target did not acknowledge: stop and reassess wiring.\n\n## 5. Command and Mode Control\n- barefoc_command sends SimpleFOC Commander ASCII (e.g. M1, M1 C 2, M1 V 10) over UART and returns the response.\n- barefoc_mode commands torque/velocity/angle/idle and enable over CAN/UART. Start in idle, then enable only when safe.\n\n## 6. Calibration\n- barefoc_calibrate triggers motor or encoder calibration on the target and reports in_progress/success/failure.\n- Do not move the shaft during calibration; re-check telemetry afterward.\n\n## 7. Error Decoding\n- Decode ODrive MOTOR_ERROR_* flags and SimpleFOC errors from the target response.\n- Common causes: phase resistance out of range, encoder misalignment, overcurrent trip, undervoltage.\n\n## 8. Safe-State Teardown\n- Always finish with barefoc_emergency to return pins to High-Z and cut target power.\n- Verify with barefoc_status that safe_state is true and power_enabled is false."}}]}}}}"##,
+                                id_frag
+                            );
+                        }
                         _ => {
                             let _ = write!(
                                 out,
@@ -441,6 +468,14 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                                 out,
                                 r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Bus protocol capture and logic analyzer decoding","messages":[{{"role":"user","content":{{"type":"text","text":"Protocol analysis for {}. Follow analyzer playbook: (1) pins_claim probe channels D0..D7, (2) set 120-ohm CAN termination relay if needed, (3) configure trigger & sample rate, (4) sniff_bus protocol decode, (5) timing & checksum validation, (6) pins_release. Reference: http://10.10.10.10/skills/agentla-analyzer/SKILL.md"}}]}}}}"#,
                                 id_frag, protocol
+                            );
+                        }
+                        "barefoc_debug" => {
+                            let node = extract_string_arg(text, "node").unwrap_or("1");
+                            let _ = write!(
+                                out,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Safety-first external FOC target debugging workflow","messages":[{{"role":"user","content":{{"type":"text","text":"Debug external FOC target node {}. SAFETY FIRST: (1) barefoc_status - verify rail voltage, current, overcurrent, and safe state; keep barefoc_emergency ready. DISCOVERY: (2) barefoc_target - select node/address, then i2c_scan/can_sniff for transport. TELEMETRY: (3) re-check barefoc_status. REGISTER ACCESS: (4) barefoc_read/barefoc_write bounded MultiBus or SPI gate-driver registers. COMMAND/MODE: (5) barefoc_command Commander ASCII and barefoc_mode start in idle then enable when safe. TUNING/CALIBRATION: (6) barefoc_calibrate motor or encoder, do not move the shaft. ERROR DECODE: (7) decode target MOTOR_ERROR_* / SimpleFOC errors. SAFE TEARDOWN: (8) barefoc_emergency then verify with barefoc_status. FOC runs on the external target, not on AgentLA. Reference: agentla://skills/barefoc"}}]}}}}"#,
+                                id_frag, node
                             );
                         }
                         _ => {

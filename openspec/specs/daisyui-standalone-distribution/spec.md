@@ -13,7 +13,7 @@ The AgentLA firmware web server SHALL serve the complete, standalone daisyUI CSS
 - **THEN** the server returns status `200 OK`, `Content-Type: text/css`, `Content-Encoding: gzip`, and `Cache-Control: public, max-age=31536000`
 
 ### Requirement: Pre-Gzip Packaging and System Flash Headroom Limit
-The WebUI packaging tool `tools/pack_webui.py` SHALL pre-compress `daisyui.css` with gzip and ensure that the total compressed WebUI partition image fits within the 512 KB LittleFS system partition boundary with at least 35% free flash headroom.
+The WebUI packaging tool `tools/pack_webui.py` SHALL pre-compress `daisyui.css` with gzip and ensure that the total compressed WebUI partition image fits within the 1 MB LittleFS system partition boundary with at least 35% free flash headroom.
 
 #### Scenario: Packaging WebUI partition image
 - **WHEN** `pack_webui.py` executes against `webui/` containing `daisyui.css`

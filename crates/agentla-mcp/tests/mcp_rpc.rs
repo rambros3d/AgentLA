@@ -85,8 +85,50 @@ fn test_tools_list() {
     assert!(!res.contains(r#""name":"app_uninstall""#));
     assert!(!res.contains(r#""name":"app_delete""#));
 
-    // Verify exactly 49 tools in ALL_TOOLS
-    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 49);
+    // Verify BareFOC tools are advertised
+    assert!(res.contains(r#""name":"barefoc_status""#));
+    assert!(res.contains(r#""name":"barefoc_target""#));
+    assert!(res.contains(r#""name":"barefoc_read""#));
+    assert!(res.contains(r#""name":"barefoc_write""#));
+    assert!(res.contains(r#""name":"barefoc_command""#));
+    assert!(res.contains(r#""name":"barefoc_mode""#));
+    assert!(res.contains(r#""name":"barefoc_calibrate""#));
+    assert!(res.contains(r#""name":"barefoc_emergency""#));
+
+    // Verify the authoritative tool count equals the compiled catalog length
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 56);
+}
+
+#[test]
+fn test_barefoc_tools_advertised_and_catalog_counts() {
+    let server = McpServer::new();
+
+    let tools_req = br#"{"jsonrpc":"2.0","id":100,"method":"tools/list"}"#;
+    let tools_res = server.handle_request(tools_req);
+    for name in [
+        "barefoc_status",
+        "barefoc_target",
+        "barefoc_read",
+        "barefoc_write",
+        "barefoc_command",
+        "barefoc_mode",
+        "barefoc_calibrate",
+        "barefoc_emergency",
+    ] {
+        let needle = format!(r#""name":"{}""#, name);
+        assert!(tools_res.contains(&needle), "tools/list missing {}", name);
+    }
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 56);
+
+    let res_req = br#"{"jsonrpc":"2.0","id":101,"method":"resources/list"}"#;
+    let res_res = server.handle_request(res_req);
+    assert!(res_res.contains(r#""uri":"agentla://skills/barefoc""#));
+    assert_eq!(agentla_mcp::DEFAULT_RESOURCES.len(), 8);
+
+    let prompt_req = br#"{"jsonrpc":"2.0","id":102,"method":"prompts/list"}"#;
+    let prompt_res = server.handle_request(prompt_req);
+    assert!(prompt_res.contains(r#""name":"barefoc_debug""#));
+    assert_eq!(agentla_mcp::DEFAULT_PROMPTS.len(), 5);
 }
 
 #[test]
@@ -171,6 +213,7 @@ fn test_resources_list() {
     assert!(res.contains(r#""uri":"agentla://skills/debug""#));
     assert!(res.contains(r#""uri":"agentla://skills/programmer""#));
     assert!(res.contains(r#""uri":"agentla://skills/analyzer""#));
+    assert!(res.contains(r#""uri":"agentla://skills/barefoc""#));
 }
 
 #[test]
@@ -213,6 +256,13 @@ fn test_resources_read() {
     assert!(res_ana.contains(r#""contents":[{"uri":"agentla://skills/analyzer""#));
     assert!(res_ana.contains(r#"Signal Capture & Analysis Flow"#));
 
+    let req_barefoc = br#"{"jsonrpc":"2.0","id":15,"method":"resources/read","params":{"uri":"agentla://skills/barefoc"}}"#;
+    let res_barefoc = server.handle_request(req_barefoc);
+    assert!(res_barefoc.contains(r#""uri":"agentla://skills/barefoc""#));
+    assert!(res_barefoc.contains("BareFOC Agentic Debug Playbook"));
+    assert!(res_barefoc.contains("Safety First"));
+    assert!(res_barefoc.contains("Safe-State Teardown"));
+
     let req_unknown = br#"{"jsonrpc":"2.0","id":10,"method":"resources/read","params":{"uri":"agentla://unknown"}}"#;
     let res_unknown = server.handle_request(req_unknown);
     assert!(res_unknown.contains(r#""code":-32602"#));
@@ -231,6 +281,7 @@ fn test_prompts_list() {
     assert!(res.contains(r#""name":"debug_target""#));
     assert!(res.contains(r#""name":"program_target""#));
     assert!(res.contains(r#""name":"analyze_bus""#));
+    assert!(res.contains(r#""name":"barefoc_debug""#));
 }
 
 #[test]
@@ -269,6 +320,19 @@ fn test_prompts_get() {
     assert!(res_ana.contains(r#""id":25"#));
     assert!(res_ana.contains(r#"Protocol analysis for can"#));
     assert!(res_ana.contains(r#"120-ohm CAN termination relay"#));
+
+    // 6. barefoc_debug with explicit node
+    let req_bf = br#"{"jsonrpc":"2.0","id":26,"method":"prompts/get","params":{"name":"barefoc_debug","arguments":{"node":"3"}}}"#;
+    let res_bf = server.handle_request(req_bf);
+    assert!(res_bf.contains(r#""id":26"#));
+    assert!(res_bf.contains("target node 3"));
+    assert!(res_bf.contains("SAFETY FIRST"));
+    assert!(res_bf.contains("agentla://skills/barefoc"));
+
+    // 7. barefoc_debug default node
+    let req_bf_def = br#"{"jsonrpc":"2.0","id":27,"method":"prompts/get","params":{"name":"barefoc_debug"}}"#;
+    let res_bf_def = server.handle_request(req_bf_def);
+    assert!(res_bf_def.contains("target node 1"));
 }
 
 #[test]
@@ -552,4 +616,73 @@ fn test_sensor_tools_dispatch() {
     let res = server.handle_request(req);
     assert!(res.contains(r#""isError":false"#));
     assert!(res.contains(r#"\"accel_z_g\":0.99"#));
+}
+
+#[test]
+fn test_barefoc_tools_dispatch() {
+    let handler = |name: &str, body: &str, out: &mut heapless::String<1536>| -> bool {
+        match name {
+            "barefoc_status" => {
+                let _ = write!(out, r#"{{"status":"ok","vtarget_mv":3300,"active_profile":0,"safe_state":true}}"#);
+                false
+            }
+            "barefoc_target" => {
+                let node = extract_u32_arg(body, "node").unwrap_or(1);
+                let _ = write!(out, r#"{{"status":"ok","node":{},"addr":{}}}"#, node, 0x40 + node);
+                false
+            }
+            "barefoc_read" => {
+                let reg = extract_u32_arg(body, "reg").unwrap_or(0);
+                let _ = write!(out, r#"{{"status":"ok","reg":{},"hex":"AB","bytes":[171]}}"#, reg);
+                false
+            }
+            "barefoc_write" => {
+                let reg = extract_u32_arg(body, "reg").unwrap_or(0);
+                let _ = write!(out, r#"{{"status":"ok","reg":{},"written":1}}"#, reg);
+                false
+            }
+            "barefoc_command" => {
+                let cmd = extract_string_arg(body, "command").unwrap_or("");
+                let _ = write!(out, r#"{{"status":"ok","command":"{}","response":"M1"}}"#, cmd);
+                false
+            }
+            "barefoc_mode" => {
+                let mode = extract_string_arg(body, "mode").unwrap_or("idle");
+                let _ = write!(out, r#"{{"status":"ok","mode":"{}","enabled":false}}"#, mode);
+                false
+            }
+            "barefoc_calibrate" => {
+                let kind = extract_string_arg(body, "kind").unwrap_or("motor");
+                let _ = write!(out, r#"{{"status":"ok","kind":"{}","state":"in_progress"}}"#, kind);
+                false
+            }
+            "barefoc_emergency" => {
+                let _ = out.push_str(r#"{"status":"ok","safe_state":true,"power_enabled":false}"#);
+                false
+            }
+            _ => true,
+        }
+    };
+    let server = McpServer::with_handler(handler);
+
+    let cases: [(&str, &str); 8] = [
+        ("barefoc_status", r#"{"name":"barefoc_status","arguments":{}}"#),
+        ("barefoc_target", r#"{"name":"barefoc_target","arguments":{"node":2}}"#),
+        ("barefoc_read", r#"{"name":"barefoc_read","arguments":{"reg":16,"len":1}}"#),
+        ("barefoc_write", r#"{"name":"barefoc_write","arguments":{"reg":16,"data":"0xAB"}}"#),
+        ("barefoc_command", r#"{"name":"barefoc_command","arguments":{"command":"M1"}}"#),
+        ("barefoc_mode", r#"{"name":"barefoc_mode","arguments":{"mode":"velocity","enabled":false}}"#),
+        ("barefoc_calibrate", r#"{"name":"barefoc_calibrate","arguments":{"kind":"encoder"}}"#),
+        ("barefoc_emergency", r#"{"name":"barefoc_emergency","arguments":{}}"#),
+    ];
+    for (i, (name, params)) in cases.iter().enumerate() {
+        let req = format!(
+            r#"{{"jsonrpc":"2.0","id":{},"method":"tools/call","params":{}}}"#,
+            i + 40,
+            params
+        );
+        let res = server.handle_request(req.as_bytes());
+        assert!(res.contains(r#""isError":false"#), "{} failed: {}", name, res);
+        assert!(res.contains(r#"\"status\":\"ok\""#), "{} missing ok: {}", name, res);
+    }
 }

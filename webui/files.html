@@ -88,7 +88,7 @@
       <a href="/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase">Scope</a>
       <a href="/terminal" class="btn btn-ghost btn-xs font-mono-tech uppercase">Terminal</a>
       <a href="/files" class="btn btn-ghost btn-xs font-mono-tech uppercase btn-active text-primary bg-primary/10">Files</a>
-      <a href="/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase">Motor</a>
+      <a href="/barefoc" class="btn btn-ghost btn-xs font-mono-tech uppercase">BareFOC</a>
       <a href="/servo" class="btn btn-ghost btn-xs font-mono-tech uppercase">Servo</a>
       <a href="/neopixel" class="btn btn-ghost btn-xs font-mono-tech uppercase">NeoPixel</a>
       <a href="/sensor" class="btn btn-ghost btn-xs font-mono-tech uppercase">Sensor</a>
@@ -491,7 +491,7 @@
     const EDITABLE_EXTENSIONS = new Set(['json', 'toml', 'js', 'html', 'css', 'txt', 'csv']);
     const MAX_EDIT_BYTES = 256 * 1024;
     let storageMetrics = {
-      system: { total_bytes: 524288, used_bytes: 155599, read_only: true },
+      system: { total_bytes: 1048576, used_bytes: 155599, read_only: true },
       user: { total_bytes: 2015232, used_bytes: 16384, read_only: false }
     };
 
@@ -572,7 +572,7 @@
       }
 
       const sysUsed = storageMetrics.system.used_bytes || 0;
-      const sysTotal = storageMetrics.system.total_bytes || 524288;
+      const sysTotal = storageMetrics.system.total_bytes || 1048576;
       const usrUsed = storageMetrics.user.used_bytes || 0;
       const usrTotal = storageMetrics.user.total_bytes || 2015232;
 

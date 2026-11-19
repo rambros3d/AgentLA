@@ -13,10 +13,10 @@
   },
   "capabilities": {
     "tools": {
-      "count": 49
+      "count": 56
     },
     "resources": {
-      "count": 2
+      "count": 8
     }
   }
 }

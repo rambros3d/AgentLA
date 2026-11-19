@@ -8,7 +8,7 @@ Validates:
 - Floating dock and launcher drawer integration using Solar Bold Duotone Radar icon.
 - Surface-only active state highlights with zero CSS dot indicators.
 - Strict zero-emoji compliance across all new/modified assets.
-- MCP tool declarations in `crates/agentla-mcp` and `webui/mcp.json` tool capability count (49).
+- MCP tool declarations in `crates/agentla-mcp` and `webui/mcp.json` tool capability count (56).
 - WebUI packaging inclusion in `tools/pack_webui.py`.
 """
 
@@ -44,7 +44,7 @@ def test_sensor_studio_in_rom_asset():
     assert 'href="/scope"' in content
     assert 'href="/terminal"' in content
     assert 'href="/files"' in content
-    assert 'href="/motor"' in content
+    assert 'href="/barefoc"' in content
     assert 'href="/servo"' in content
     assert 'href="/neopixel"' in content
     assert 'href="/sensor"' in content
@@ -193,10 +193,10 @@ def test_mcp_manifest_and_tools_count():
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assert manifest["name"] == "AgentLA RP2350"
-    assert manifest["capabilities"]["tools"]["count"] == 49, "mcp.json tool count must be exactly 49"
+    assert manifest["capabilities"]["tools"]["count"] == 56, "mcp.json tool count must be exactly 56"
 
     tools_rs = (REPO_ROOT / "crates" / "agentla-mcp" / "src" / "tools.rs").read_text(encoding="utf-8")
-    assert "pub static ALL_TOOLS: [Tool; 49]" in tools_rs
+    assert "pub static ALL_TOOLS: [Tool; 56]" in tools_rs
 
     # 4 Sensor tools
     for tool_name in [

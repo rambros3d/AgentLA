@@ -1985,7 +1985,7 @@ impl MethodHandlerService<(), ()> for McpHealth {
         &self, _state: &(), (): (), _method: &str, mut request: Request<'_, R>, response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
         let _ = read_body_str(&mut request).await;
-        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":14}"#).await
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":56,"resources":8,"prompts":5}"#).await
     }
 }
 

@@ -456,6 +456,16 @@ def test_barefoc_studio_landscape_two_column_layout():
     assert 'id="input-numeric-target"' in content
     assert 'id="btn-send-numeric-target"' in content
 
+    # Invariant 5: ODrive-GUI-style shell and parity engines are present
+    assert 'id="studio-shell"' in content or "shellRoot.id = 'studio-shell'" in content
+    assert "class StudioStore" in content
+    assert "class DiscoveryService" in content
+    assert "class ParameterExplorer" in content
+    assert "function renderWizard" in content
+    assert "function renderFooter" in content
+    assert "studio-shell-footer" in content
+    assert "const STUDIO_V2" in content
+
 
 def test_native_servo_system_app():
     """Verify Servo Master native in-ROM system app integration, navigation, and zero-emoji compliance."""

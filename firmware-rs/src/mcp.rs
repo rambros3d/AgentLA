@@ -1,7 +1,13 @@
 //! Minimal MCP JSON-RPC 2.0 server barrel (delegates to `agentla-mcp`).
 
 use core::fmt::Write as _;
+use core::sync::atomic::{AtomicU8, Ordering};
 use rp_pac as pac;
+
+/// Session-only active external FOC target (no LittleFS persistence).
+/// Node defaults to 1; I2C address defaults to 0x40 + node (0x41).
+static BAREFOC_NODE: AtomicU8 = AtomicU8::new(1);
+static BAREFOC_ADDR: AtomicU8 = AtomicU8::new(0x41);
 
 #[allow(unused_imports)]
 pub use agentla_mcp::{
@@ -14,7 +20,7 @@ use crate::servo;
 
 pub const MAX_BODY: usize = 16384;
 
-pub fn handle_request(body: &[u8]) -> heapless::String<16384> {
+pub fn handle_request(body: &[u8]) -> heapless::String<32768> {
     let server = McpServer::with_handler(invoke_tool);
     server.handle_request(body)
 }
@@ -1092,6 +1098,209 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
                     true
                 }
             }
+        }
+        "barefoc_status" => {
+            let snap = crate::telemetry::sample_telemetry();
+            let node = BAREFOC_NODE.load(Ordering::Relaxed);
+            let addr = BAREFOC_ADDR.load(Ordering::Relaxed);
+            let _ = write!(
+                out,
+                r#"{{"status":"ok","target_node":{},"target_addr":{},"vtarget_mv":{},"itarget_ma":{},"power_mw":{},"temp_c":{},"overcurrent":{},"active_profile":{},"power_enabled":{},"safe_state":{}}}"#,
+                node, addr, snap.v_target_mv, snap.i_target_ma, snap.p_target_mw,
+                snap.temp_c, snap.is_tripped, profile::active_slot(),
+                profile::is_target_power_enabled(), profile::active_slot() == 0
+            );
+            false
+        }
+        "barefoc_target" => {
+            let node_opt = extract_u32_arg(body, "node").filter(|&n| n <= 63);
+            let addr_opt = extract_u32_arg(body, "addr").filter(|&a| a <= 0x7F);
+            if let Some(node) = node_opt {
+                BAREFOC_NODE.store(node as u8, Ordering::Relaxed);
+                // Default address follows node unless an explicit addr was supplied.
+                if addr_opt.is_none() {
+                    BAREFOC_ADDR.store((0x40 + node) as u8, Ordering::Relaxed);
+                }
+            }
+            if let Some(addr) = addr_opt {
+                BAREFOC_ADDR.store(addr as u8, Ordering::Relaxed);
+            }
+            let node = BAREFOC_NODE.load(Ordering::Relaxed);
+            let addr = BAREFOC_ADDR.load(Ordering::Relaxed);
+            let _ = write!(out, r#"{{"status":"ok","node":{},"addr":{},"addr_hex":"0x{:02X}"}}"#, node, addr, addr);
+            false
+        }
+        "barefoc_read" => {
+            let node = extract_u32_arg(body, "node").unwrap_or_else(|| BAREFOC_NODE.load(Ordering::Relaxed) as u32).min(63);
+            let addr = extract_u32_arg(body, "addr").unwrap_or_else(|| BAREFOC_ADDR.load(Ordering::Relaxed) as u32) as u8;
+            let reg = extract_u32_arg(body, "reg").unwrap_or(0) as u8;
+            let len = (extract_u32_arg(body, "len").unwrap_or(1) as usize).clamp(1, 32);
+            let bus = extract_string_arg(body, "bus").unwrap_or("i2c");
+            if bus == "spi" {
+                let mut tx = [0u8; 33];
+                tx[0] = reg | 0x80;
+                let mut rx = [0u8; 33];
+                crate::bridge::spi::spi_transfer_default(0, 1_000_000, &tx[..len + 1], &mut rx[..len + 1]);
+                let _ = write!(out, r#"{{"status":"ok","bus":"spi","node":{},"reg":{},"len":{},"hex":""#, node, reg, len);
+                for &b in &rx[1..len + 1] { let _ = write!(out, "{:02X}", b); }
+                let _ = write!(out, r#"","bytes":["#);
+                for (i, &b) in rx[1..len + 1].iter().enumerate() {
+                    if i > 0 { let _ = out.push(','); }
+                    let _ = write!(out, "{}", b);
+                }
+                let _ = out.push_str("]}");
+                false
+            } else {
+                let sda = crate::bridge::i2c::I2C_PINS[0];
+                let scl = crate::bridge::i2c::I2C_PINS[1];
+                let mut buf = [0u8; 32];
+                if crate::bridge::i2c::hw_i2c_read(sda, scl, addr, reg, &mut buf[..len]) {
+                    let _ = write!(out, r#"{{"status":"ok","bus":"i2c","node":{},"addr":{},"reg":{},"len":{},"hex":""#, node, addr, reg, len);
+                    for &b in &buf[..len] { let _ = write!(out, "{:02X}", b); }
+                    let _ = write!(out, r#"","bytes":["#);
+                    for (i, &b) in buf[..len].iter().enumerate() {
+                        if i > 0 { let _ = out.push(','); }
+                        let _ = write!(out, "{}", b);
+                    }
+                    let _ = out.push_str("]}");
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","bus":"i2c","node":{},"addr":{},"reg":{}}}"#, node, addr, reg);
+                    true
+                }
+            }
+        }
+        "barefoc_write" => {
+            let node = extract_u32_arg(body, "node").unwrap_or_else(|| BAREFOC_NODE.load(Ordering::Relaxed) as u32).min(63);
+            let addr = extract_u32_arg(body, "addr").unwrap_or_else(|| BAREFOC_ADDR.load(Ordering::Relaxed) as u32) as u8;
+            let reg = extract_u32_arg(body, "reg").unwrap_or(0) as u8;
+            let bus = extract_string_arg(body, "bus").unwrap_or("i2c");
+            let mut data_buf = [0u8; 32];
+            let mut data_len = 0usize;
+            if let Some(hex_str) = extract_string_arg(body, "data") {
+                let clean = hex_str.trim_start_matches("0x").trim_start_matches("0X");
+                data_len = decode_hex(clean, &mut data_buf);
+            }
+            if data_len == 0 {
+                if let Some(val) = extract_u32_arg(body, "data") {
+                    data_buf[0] = val as u8;
+                    data_len = 1;
+                }
+            }
+            if data_len == 0 { data_buf[0] = 0; data_len = 1; }
+            if bus == "spi" {
+                let mut tx = [0u8; 33];
+                tx[0] = reg & 0x7F;
+                tx[1..data_len + 1].copy_from_slice(&data_buf[..data_len]);
+                let mut rx = [0u8; 33];
+                crate::bridge::spi::spi_transfer_default(0, 1_000_000, &tx[..data_len + 1], &mut rx[..data_len + 1]);
+                let _ = write!(out, r#"{{"status":"ok","bus":"spi","node":{},"reg":{},"written":{}}}"#, node, reg, data_len);
+                false
+            } else {
+                let sda = crate::bridge::i2c::I2C_PINS[0];
+                let scl = crate::bridge::i2c::I2C_PINS[1];
+                if crate::bridge::i2c::hw_i2c_write(sda, scl, addr, reg, &data_buf[..data_len]) {
+                    let _ = write!(out, r#"{{"status":"ok","bus":"i2c","node":{},"addr":{},"reg":{},"written":{}}}"#, node, addr, reg, data_len);
+                    false
+                } else {
+                    let _ = write!(out, r#"{{"status":"nack","bus":"i2c","node":{},"addr":{},"reg":{}}}"#, node, addr, reg);
+                    true
+                }
+            }
+        }
+        "barefoc_command" => {
+            let cmd = extract_string_arg(body, "command").unwrap_or("");
+            let baud = extract_u32_arg(body, "baud").unwrap_or(115200);
+            let timeout = extract_u32_arg(body, "timeout_ms").unwrap_or(500).clamp(1, 2000);
+            let sent = if !cmd.is_empty() {
+                crate::bridge::uart::uart_write_bytes(crate::bridge::uart::PIN_UART_TX_DEFAULT, baud, cmd.as_bytes())
+            } else { 0 };
+            let mut rx_buf = [0u8; 128];
+            let n = crate::bridge::uart::uart_read_blocking(crate::bridge::uart::PIN_UART_RX_DEFAULT, baud, &mut rx_buf, timeout);
+            let mut escaped = heapless::String::<256>::new();
+            for &b in &rx_buf[..n] {
+                if b.is_ascii_graphic() || b == b' ' {
+                    let _ = escaped.push(b as char);
+                } else if b == b'\n' {
+                    let _ = escaped.push_str("\\n");
+                } else if b == b'\r' {
+                    let _ = escaped.push_str("\\r");
+                } else {
+                    let _ = write!(escaped, "\\x{:02X}", b);
+                }
+            }
+            let mut cmd_escaped = heapless::String::<128>::new();
+            escape_json(cmd, &mut cmd_escaped);
+            let _ = write!(
+                out,
+                r#"{{"status":"ok","command":"{}","bytes_sent":{},"bytes_read":{},"response":"{}"}}"#,
+                cmd_escaped.as_str(), sent, n, escaped.as_str()
+            );
+            false
+        }
+        "barefoc_mode" => {
+            let node = extract_u32_arg(body, "node").unwrap_or_else(|| BAREFOC_NODE.load(Ordering::Relaxed) as u32).min(63);
+            let mode = extract_string_arg(body, "mode").unwrap_or("idle");
+            let torque_mode = extract_string_arg(body, "torque_mode").unwrap_or("voltage");
+            let enabled = extract_bool_arg(body, "enabled").unwrap_or(false);
+            // Emit an ODrive-style requested-state CAN frame over the adapter.
+            let state: u8 = match mode {
+                "torque" => 1,
+                "velocity" => 2,
+                "angle" => 3,
+                _ => 0, // idle
+            };
+            crate::bridge::can_gsusb::adapter_can_start();
+            let mut data = [0u8; 8];
+            data[0] = state;
+            data[1] = if enabled { 1 } else { 0 };
+            data[2] = match torque_mode { "current" => 1, _ => 0 };
+            let frame = crate::bridge::can_gsusb::CanWsFrame {
+                id: 0x040 + node,
+                ext: false,
+                rtr: false,
+                dlc: 3,
+                data,
+                ts_us: (embassy_time::Instant::now().as_micros() & 0xFFFF_FFFF) as u32,
+            };
+            crate::bridge::can_gsusb::transmit_can_ws_frame(&frame);
+            let _ = write!(
+                out,
+                r#"{{"status":"ok","node":{},"mode":"{}","torque_mode":"{}","enabled":{},"can_id":{},"state":{}}}"#,
+                node, mode, torque_mode, enabled, frame.id, state
+            );
+            false
+        }
+        "barefoc_calibrate" => {
+            let node = extract_u32_arg(body, "node").unwrap_or_else(|| BAREFOC_NODE.load(Ordering::Relaxed) as u32).min(63);
+            let kind = extract_string_arg(body, "kind").unwrap_or("motor");
+            // ODrive requested-state calibration values: motor=4, encoder=5.
+            let cmd_state: u8 = if kind == "encoder" { 5 } else { 4 };
+            crate::bridge::can_gsusb::adapter_can_start();
+            let mut data = [0u8; 8];
+            data[0] = cmd_state;
+            let frame = crate::bridge::can_gsusb::CanWsFrame {
+                id: 0x040 + node,
+                ext: false,
+                rtr: false,
+                dlc: 1,
+                data,
+                ts_us: (embassy_time::Instant::now().as_micros() & 0xFFFF_FFFF) as u32,
+            };
+            crate::bridge::can_gsusb::transmit_can_ws_frame(&frame);
+            let _ = write!(
+                out,
+                r#"{{"status":"ok","node":{},"kind":"{}","state":"in_progress","can_id":{},"command_state":{}}}"#,
+                node, kind, frame.id, cmd_state
+            );
+            false
+        }
+        "barefoc_emergency" => {
+            // Delegate to the existing single safe-state path (profile slot 0).
+            let _ = crate::profile::apply_profile_sync(crate::profile::SAFE_STATE_ID);
+            crate::profile::set_target_power(false);
+            let _ = out.push_str(r#"{"status":"ok","safe_state":true,"inverter_disabled":true,"target_zeroed":true,"pins_released":true,"power_enabled":false}"#);
+            false
         }
         _ => {
             let _ = write!(out, "unknown tool: {}", name);

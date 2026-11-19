@@ -44,9 +44,9 @@
                 var stored = localStorage.getItem('agentla_pinned_dock_apps');
                 var pinned = stored ? JSON.parse(stored) : null;
                 if (!Array.isArray(pinned)) {
-                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
+                    pinned = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc'];
                 }
-                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor'];
+                var allSys = ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc'];
                 var css = '';
                 for (var i = 0; i < allSys.length; i++) {
                     if (pinned.indexOf(allSys[i]) === -1) {
@@ -136,7 +136,7 @@
             <a href="#/scope" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openLab('scope'); return false;">Scope</a>
             <a href="#/terminal" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openTerminalApp(); return false;">Terminal</a>
             <a href="#/files" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openFilesApp(); return false;">Files</a>
-            <a href="#/motor" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openMotorApp(); return false;">Motor</a>
+            <a href="#/barefoc" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openBarefocApp(); return false;">BareFOC</a>
             <a href="#/servo" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openServoApp(); return false;">Servo</a>
             <a href="#/neopixel" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openNeoPixelApp(); return false;">NeoPixel</a>
             <a href="#/sensor" class="btn btn-ghost btn-xs font-mono-tech uppercase" onclick="openSensorApp(); return false;">Sensor</a>
@@ -280,8 +280,8 @@
                     </svg>
                 </button>
 
-                <!-- Motor (BareFOC Studio) -->
-                <button class="dock-icon-btn" id="dock-app-motor" data-dock-tooltip="Motor (BareFOC)" onclick="openMotorApp()">
+                <!-- BareFOC Studio -->
+                <button class="dock-icon-btn" id="dock-app-barefoc" data-dock-tooltip="BareFOC" onclick="openBarefocApp()">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <g opacity="0.45">
                             <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
@@ -1130,7 +1130,7 @@
                                 <option value="/agent">MCP Agent Console (/agent)</option>
                                 <option value="/terminal">Serial Terminal (/terminal)</option>
                                 <option value="/files">Storage Explorer (/files)</option>
-                                <option value="/motor">BareFOC Studio (/motor)</option>
+                                <option value="/barefoc">BareFOC Studio (/barefoc)</option>
                             </select>
                         </div>
                     </div>
@@ -1418,6 +1418,16 @@
         let currentRoute = '#/';
         let activeAppInfo = null;
 
+        // Single source of truth for launcher tab routes and the settings overlay.
+        // All hashes use the canonical '#/' prefix; no bare '#view' hashes.
+        const TAB_ROUTES = {
+            launchpad: '#/',
+            manage: '#/launcher/manage',
+            store: '#/launcher/store',
+            skills: '#/launcher/skills',
+        };
+        const SETTINGS_ROUTE = '#/settings';
+
         function navigateToRoute(route, pushState = true) {
             if (pushState && window.location.hash !== route) {
                 window.location.hash = route;
@@ -1426,10 +1436,22 @@
             handleHashRoute(route);
         }
 
+        // Resolve a canonical hash to a launcher tab, or null for app routes.
+        function hashToLauncherTab(hash) {
+            if (hash === '#/' || hash === '#/launcher' || hash === '' || hash === '#') return 'launchpad';
+            if (hash === TAB_ROUTES.manage) return 'manage';
+            if (hash === TAB_ROUTES.store) return 'store';
+            if (hash === TAB_ROUTES.skills) return 'skills';
+            return null;
+        }
+
         function handleHashRoute(hash) {
             hash = hash || window.location.hash || '#/';
             if (!hash.startsWith('#')) hash = '#' + hash;
             currentRoute = hash;
+
+            // Leaving the settings route always closes its modal.
+            if (hash.toLowerCase() !== SETTINGS_ROUTE) closeSettingsModal();
 
             const mainWorkspace = document.getElementById('main-workspace');
             const viewportContainer = document.getElementById('view-app-viewport');
@@ -1441,10 +1463,12 @@
             // Reset active states on dock buttons
             document.querySelectorAll('#app-nav-rail .dock-icon-btn, #floating-glass-dock .dock-icon-btn').forEach(btn => btn.classList.remove('active'));
 
-            if (hash === '#/' || hash === '#/launcher' || hash === '#/home' || hash === '') {
-                // Show Launchpad Workspace
+            // Launcher routes: map the canonical hash to a launcher tab.
+            const launcherTab = hashToLauncherTab(hash);
+            if (launcherTab) {
                 if (mainWorkspace) mainWorkspace.style.display = 'flex';
                 if (viewportContainer) viewportContainer.style.display = 'none';
+                switchLauncherView(launcherTab, false);
                 const ctxTitle = document.getElementById('top-bar-context-title');
                 if (ctxTitle) ctxTitle.textContent = currentBoardName;
                 document.title = `AgentLA // ${currentBoardName}`;
@@ -1453,13 +1477,14 @@
                 return;
             }
 
-            if (hash === '#/skills') {
+            // Settings is an overlay on top of the launcher, not a separate pane.
+            if (hash === SETTINGS_ROUTE) {
                 if (mainWorkspace) mainWorkspace.style.display = 'flex';
                 if (viewportContainer) viewportContainer.style.display = 'none';
-                switchLauncherView('skills');
+                openSettingsModal();
                 const ctxTitle = document.getElementById('top-bar-context-title');
-                if (ctxTitle) ctxTitle.textContent = 'Agent Skills';
-                document.title = 'AgentLA // Agent Skills';
+                if (ctxTitle) ctxTitle.textContent = currentBoardName;
+                document.title = `AgentLA // ${currentBoardName}`;
                 if (launcherDockBtn) launcherDockBtn.classList.add('active');
                 activeAppInfo = null;
                 return;
@@ -1524,11 +1549,11 @@
                 targetUrl = isDemo ? 'files.html' : '/files';
                 appTitle = 'Storage Files';
                 dockId = 'dock-app-files';
-            } else if (hash === '#/motor' || hash === '#/barefoc' || hash === '#/foc') {
+            } else if (hash === '#/barefoc' || hash === '#/motor' || hash === '#/foc') {
                 if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
-                targetUrl = isDemo ? 'barefoc.html' : '/motor';
+                targetUrl = isDemo ? 'barefoc.html' : '/barefoc';
                 appTitle = 'BareFOC Studio';
-                dockId = 'dock-app-motor';
+                dockId = 'dock-app-barefoc';
             } else if (hash === '#/servo' || hash === '#/servomaster') {
                 if (viewportFrame) viewportFrame.setAttribute('data-app-type', 'other');
                 targetUrl = isDemo ? 'servo.html' : '/servo';
@@ -1563,6 +1588,22 @@
                     targetUrl = `/app/${encodeURIComponent(appId)}/`;
                 }
                 dockId = `dock-app-${appId}`;
+            }
+
+            // Defensive fallback: an unrecognized hash must never leave a blank
+            // iframe. Restore the launcher instead.
+            if (!targetUrl) {
+                if (mainWorkspace) mainWorkspace.style.display = 'flex';
+                if (viewportContainer) viewportContainer.style.display = 'none';
+                switchLauncherView('launchpad', false);
+                try { history.replaceState(null, '', TAB_ROUTES.launchpad); } catch (_) {}
+                currentRoute = TAB_ROUTES.launchpad;
+                const ctxTitle = document.getElementById('top-bar-context-title');
+                if (ctxTitle) ctxTitle.textContent = currentBoardName;
+                document.title = `AgentLA // ${currentBoardName}`;
+                if (launcherDockBtn) launcherDockBtn.classList.add('active');
+                activeAppInfo = null;
+                return;
             }
 
             const ctxTitle = document.getElementById('top-bar-context-title');
@@ -1699,7 +1740,7 @@
                 category: 'Robotics',
                 subText: 'FOC Motor',
                 accent: 'accent-servo',
-                action: "openMotorApp()",
+                action: "openBarefocApp()",
                 description: 'Field-Oriented Control (FOC) motor workbench with cascaded PID/LPF tuning, 60 FPS oscilloscope, and multi-protocol diagnostics.',
                 iconSvg: `<svg class="solar-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <g opacity="0.45">
@@ -1896,14 +1937,14 @@
                 </svg>`
             },
             {
-                id: 'motor',
-                name: 'Motor',
+                id: 'barefoc',
+                name: 'BareFOC',
                 category: 'Motion & FOC Control',
                 version: '1.0.0 (ROM)',
                 description: 'BareFOC Studio native workbench instrument. Real-time Field Oriented Control, telemetry, tuning, and closed-loop motor configuration.',
                 tags: ['System ROM', 'BareFOC', 'BLDC', 'Stepper', 'FOC', 'Motion'],
                 accent: 'accent-motor',
-                action: "openMotorApp()",
+                action: "openBarefocApp()",
                 iconSvg: `<svg class="solar-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <g opacity="0.45">
                         <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
@@ -2344,7 +2385,7 @@
                 <option value="/agent">MCP Agent Console (/agent)</option>
                 <option value="/terminal">Serial Terminal (/terminal)</option>
                 <option value="/files">Storage Explorer (/files)</option>
-                <option value="/motor">BareFOC Studio (/motor)</option>
+                <option value="/barefoc">BareFOC Studio (/barefoc)</option>
                 <option value="/device">Device Diagnostics (/device)</option>
             `;
 
@@ -2455,8 +2496,8 @@
                 if (typeof modal.close === 'function' && modal.open) {
                     modal.close();
                 }
-                if (window.location.hash.toLowerCase() === '#settings') {
-                    history.replaceState(null, '', window.location.pathname + window.location.search);
+                if (window.location.hash.toLowerCase() === SETTINGS_ROUTE) {
+                    history.replaceState(null, '', TAB_ROUTES.launchpad);
                 }
             }
         }
@@ -2506,7 +2547,7 @@
             if (pBoard) pBoard.innerText = boardTxt;
             if (pFw) pFw.innerText = fwTxt;
 
-            if (!activeAppInfo && (!currentRoute || currentRoute === '#/' || currentRoute === '#/launcher' || currentRoute === '#/home' || currentRoute === '')) {
+            if (!activeAppInfo && (!currentRoute || hashToLauncherTab(currentRoute) || currentRoute === SETTINGS_ROUTE)) {
                 const ctxTitle = document.getElementById('top-bar-context-title');
                 if (ctxTitle) ctxTitle.textContent = currentBoardName;
                 document.title = `AgentLA // ${currentBoardName}`;
@@ -2650,8 +2691,13 @@
             navigateToRoute('#/files');
         }
 
+        function openBarefocApp() {
+            navigateToRoute('#/barefoc');
+        }
+
+        // Backwards-compatible alias for callers still using the old name.
         function openMotorApp() {
-            navigateToRoute('#/motor');
+            openBarefocApp();
         }
 
         function openServoApp() {
@@ -2706,7 +2752,7 @@
                     }
                 }
             } catch (_) {}
-            return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'];
+            return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo'];
         }
 
         function setPinnedApps(list) {
@@ -2745,7 +2791,7 @@
             const pinned = getPinnedApps();
 
             // Toggle visibility of system instruments in dock
-            ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].forEach(sysId => {
+            ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo'].forEach(sysId => {
                 const el = document.getElementById(`dock-app-${sysId}`);
                 if (el) {
                     el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -2756,7 +2802,7 @@
 
             let html = '';
             pinned.forEach(appId => {
-                if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo'].includes(appId)) return;
+                if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo'].includes(appId)) return;
 
                 const allAvailApps = [...SYSTEM_APPLICATIONS, ...installedApps];
                 const installed = allAvailApps.find(a => (a.id || a.name) === appId);
@@ -2803,7 +2849,7 @@
             }
         });
 
-        function switchLauncherView(view) {
+        function switchLauncherView(view, updateHash = true) {
             currentLauncherView = view;
             const btnLaunchpad = document.getElementById('tab-btn-launchpad');
             const btnManage = document.getElementById('tab-btn-manage');
@@ -2825,7 +2871,9 @@
             if (viewAppStore) viewAppStore.style.display = (view === 'store') ? 'block' : 'none';
             if (viewSkills) viewSkills.style.display = (view === 'skills') ? 'block' : 'none';
 
-            try { history.replaceState(null, '', '#' + view); } catch (_) {}
+            if (updateHash) {
+                try { history.replaceState(null, '', TAB_ROUTES[view] || TAB_ROUTES.launchpad); } catch (_) {}
+            }
 
             const ws = document.getElementById('main-workspace');
             if (ws) ws.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4436,31 +4484,13 @@
                 manageSearch.addEventListener('input', () => renderManageApps());
             }
 
-            window.addEventListener('hashchange', () => {
-                const h = window.location.hash.toLowerCase();
-                if (h === '#settings') {
-                    openSettingsModal();
-                } else if (h === '#store') {
-                    switchLauncherView('store');
-                } else if (h === '#manage') {
-                    switchLauncherView('manage');
-                } else {
-                    handleHashRoute(window.location.hash);
-                }
-            });
-
-            const initialHash = window.location.hash;
-            if (initialHash.toLowerCase() === '#settings') {
-                openSettingsModal();
-            } else if (initialHash.toLowerCase() === '#store' || window.location.search.includes('view=store')) {
-                switchLauncherView('store');
-            } else if (initialHash.toLowerCase() === '#manage' || window.location.search.includes('view=manage')) {
-                switchLauncherView('manage');
-            } else if (initialHash && initialHash !== '#/' && initialHash !== '#' && initialHash !== '#/launcher' && initialHash !== '#/home') {
-                handleHashRoute(initialHash);
-            } else {
-                switchLauncherView('launchpad');
+            // Single dispatch path: initial load and hashchange both go through
+            // handleHashRoute, which owns pane visibility and tab selection.
+            function dispatchHash() {
+                handleHashRoute(window.location.hash);
             }
+            window.addEventListener('hashchange', dispatchHash);
+            dispatchHash();
         })();
     </script>
 </body>

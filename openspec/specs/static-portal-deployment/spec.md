@@ -6,7 +6,7 @@ Governs the separation between hosted public marketing assets (`website/`) and e
 ## Requirements
 
 ### Requirement: Firmware Flash Isolation & Pre-Compressed Static Streaming
-All marketing assets, simulation data, and hosted scripts SHALL reside in the `website/` directory and MUST NOT be compiled into firmware ROM. WebUI assets (`webui/`) SHALL be packaged into a standalone 512 KB LittleFS binary filesystem image flashed into the first half of `SYSTEM_FS` at flash `0x00148000` (XIP `0x10148000`) rather than compiled as `include_str!` string literals into the firmware executable.
+All marketing assets, simulation data, and hosted scripts SHALL reside in the `website/` directory and MUST NOT be compiled into firmware ROM. WebUI assets (`webui/`) SHALL be packaged into a standalone 1 MB LittleFS binary filesystem image flashed into `SYSTEM_FS` at flash `0x00148000` (XIP `0x10148000`) rather than compiled as `include_str!` string literals into the firmware executable.
 
 The System WebUI filesystem image SHALL store pre-compressed `.gz` assets (`index.html.gz`, `apps.html.gz`, `style.css.gz`, `themes.css.gz`, `app.js.gz`). The HTTP server SHALL serve these assets with `Content-Encoding: gzip` when requested with `Accept-Encoding: gzip`, reducing total LittleFS storage footprint to under 200 KB while accelerating USB transfer rates.
 

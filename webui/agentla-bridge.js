@@ -461,7 +461,7 @@
                 if (typeof window.openSettingsModal === 'function') {
                     window.openSettingsModal();
                 } else {
-                    window.location.href = homeUrl + '#settings';
+                    window.location.href = homeUrl + '#/settings';
                 }
             });
         }
@@ -703,7 +703,7 @@
                 }
             }
         } catch (_) {}
-        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'];
+        return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo', 'neopixel', 'sensor'];
     }
 
     function renderDockPinnedApps(container) {
@@ -711,7 +711,7 @@
         if (!container) return;
 
         var pinned = getPinnedApps();
-        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].forEach(function(sysId) {
+        ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo', 'neopixel', 'sensor'].forEach(function(sysId) {
             var el = document.getElementById('dock-app-' + sysId);
             if (el) {
                 el.style.display = pinned.indexOf(sysId) !== -1 ? 'inline-flex' : 'none';
@@ -720,7 +720,7 @@
         var html = '';
 
         pinned.forEach(function(appId) {
-            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].indexOf(appId) !== -1) return;
+            if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo', 'neopixel', 'sensor'].indexOf(appId) !== -1) return;
 
             var isCurrent = window.location.pathname.includes('/' + appId + '/');
             var activeClass = isCurrent ? ' active' : '';
@@ -826,8 +826,8 @@
                     </svg>
                 </a>
 
-                <!-- Motor (BareFOC) -->
-                <a href="${isDemo ? 'barefoc.html' : '/motor'}" class="dock-icon-btn" id="dock-app-motor"${sysStyle('motor')} data-dock-tooltip="Motor (BareFOC)">
+                <!-- BareFOC Studio -->
+                <a href="${isDemo ? 'barefoc.html' : '/barefoc'}" class="dock-icon-btn" id="dock-app-barefoc"${sysStyle('barefoc')} data-dock-tooltip="BareFOC">
                     <svg class="solar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <g opacity="0.45">
                             <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
@@ -982,8 +982,8 @@
         }
 
         var curPath = window.location.pathname;
-        if (curPath.startsWith('/motor') || curPath.startsWith('/barefoc') || curPath.startsWith('/foc')) {
-            var mBtn = document.getElementById('dock-app-motor');
+        if (curPath.startsWith('/barefoc') || curPath.startsWith('/motor') || curPath.startsWith('/foc')) {
+            var mBtn = document.getElementById('dock-app-barefoc');
             if (mBtn) mBtn.classList.add('active');
         } else if (curPath.startsWith('/servo') || curPath.startsWith('/servomaster')) {
             var srvBtn = document.getElementById('dock-app-servo');

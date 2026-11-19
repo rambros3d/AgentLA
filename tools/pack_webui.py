@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 AgentLA System WebUI Packager Utility
-Pre-compresses WebUI assets with gzip, builds a 512 KB LittleFS image for the
-first half of SYSTEM_FS (flash 0x148000, XIP 0x10148000), converts it to UF2
+Pre-compresses WebUI assets with gzip, builds a 1 MB LittleFS image for the
+full SYSTEM_FS (flash 0x148000, XIP 0x10148000), converts it to UF2
 at offset 0x10148000 for RP2350 flashing, and generates a streaming ustar
 tarball for live HTTP updates via POST /api/v1/system/webui/update.
 
@@ -30,8 +30,8 @@ except ImportError:
 RP2350_ARM_FAMILY_ID = 0xe48bff59
 DEFAULT_FLASH_OFFSET = 0x10148000
 BLOCK_SIZE = 4096
-BLOCK_COUNT = 128
-PARTITION_SIZE = BLOCK_SIZE * BLOCK_COUNT  # 512 KB (524,288 bytes)
+BLOCK_COUNT = 256
+PARTITION_SIZE = BLOCK_SIZE * BLOCK_COUNT  # 1 MB (1,048,576 bytes)
 
 
 def bin_to_uf2(bin_data: bytes, target_addr: int = DEFAULT_FLASH_OFFSET, family_id: int = RP2350_ARM_FAMILY_ID) -> bytes:
@@ -171,7 +171,7 @@ def pack_webui(
 
     for rel_name, full_path in asset_files:
         raw_data = full_path.read_bytes()
-        # Normalize whitespace and comments in HTML, CSS, and JS to maximize compression within 512KB ROM partition budget
+        # Normalize whitespace and comments in HTML, CSS, and JS to maximize compression within 1 MB ROM partition budget
         if rel_name.endswith(".html"):
             try:
                 text = raw_data.decode("utf-8")
@@ -229,9 +229,9 @@ def pack_webui(
     print("-" * 60)
     print(f"{'TOTAL':<24} | {total_raw_bytes:>10} B | {total_gz_bytes:>10} B | {(total_gz_bytes/total_raw_bytes*100):>6.1f}%")
     headroom = PARTITION_SIZE - total_gz_bytes
-    print(f"[pack_webui] Partition headroom: {headroom / 1024:.2f} KB / 512 KB ({headroom / PARTITION_SIZE * 100:.1f}% free)")
+    print(f"[pack_webui] Partition headroom: {headroom / 1024:.2f} KB / 1024 KB ({headroom / PARTITION_SIZE * 100:.1f}% free)")
 
-    # Extract 512 KB LittleFS binary image
+    # Extract 1 MB LittleFS binary image
     img_data = fs.context.buffer
     if len(img_data) != PARTITION_SIZE:
         raise ValueError(f"LittleFS image size mismatch: expected {PARTITION_SIZE}, got {len(img_data)}")
@@ -264,7 +264,7 @@ def pack_webui(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Pack WebUI assets into a 512 KB LittleFS image and UF2")
+    parser = argparse.ArgumentParser(description="Pack WebUI assets into a 1 MB LittleFS image and UF2")
     parser.add_argument("--web-dir", default="webui", help="Path to webui directory")
     parser.add_argument("--output-img", default="build/webui.img", help="Output path for LittleFS image")
     parser.add_argument("--output-uf2", default="build/webui.uf2", help="Output path for UF2 file")

@@ -326,6 +326,54 @@ pub const TOOL_SENSOR_POLL: Tool = Tool::new(
     r#"{"type":"object","properties":{"addr":{"type":"integer","description":"I2C 7-bit device address"},"profile":{"type":"string","description":"Sensor profile (mpu6050, tmag5273, bme280, as5600, ina219, auto)"},"registers":{"type":"array","items":{"type":"integer"},"description":"Explicit register addresses to poll if profile not specified"}},"required":["addr"]}"#,
 );
 
+pub const TOOL_BAREFOC_STATUS: Tool = Tool::new(
+    "barefoc_status",
+    "Fresh external FOC target rail telemetry, active profile, and safe-state status",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_BAREFOC_TARGET: Tool = Tool::new(
+    "barefoc_target",
+    "Set or query the active external FOC target node/address used by subsequent tools (session-only)",
+    r#"{"type":"object","properties":{"node":{"type":"integer","description":"Target node (0-63, default 1)"},"addr":{"type":"integer","description":"I2C 7-bit address (0x00-0x7F, default 0x40+node)"}}}"#,
+);
+
+pub const TOOL_BAREFOC_READ: Tool = Tool::new(
+    "barefoc_read",
+    "Read a MultiBus register over I2C (default 0x40+node) or a gate-driver register over SPI on the external FOC target",
+    r#"{"type":"object","properties":{"node":{"type":"integer","description":"Target node (0-63)"},"addr":{"type":"integer","description":"I2C 7-bit address"},"reg":{"type":"integer","description":"Register offset"},"len":{"type":"integer","description":"Bytes to read (1-32, default 1)"},"bus":{"type":"string","description":"Bus type: i2c (default) or spi"}},"required":["reg"]}"#,
+);
+
+pub const TOOL_BAREFOC_WRITE: Tool = Tool::new(
+    "barefoc_write",
+    "Write a MultiBus register over I2C or a gate-driver register over SPI on the external FOC target",
+    r#"{"type":"object","properties":{"node":{"type":"integer","description":"Target node (0-63)"},"addr":{"type":"integer","description":"I2C 7-bit address"},"reg":{"type":"integer","description":"Register offset"},"data":{"type":"string","description":"Hex-encoded bytes or decimal value to write"},"bus":{"type":"string","description":"Bus type: i2c (default) or spi"}},"required":["reg","data"]}"#,
+);
+
+pub const TOOL_BAREFOC_COMMAND: Tool = Tool::new(
+    "barefoc_command",
+    "Send a SimpleFOC Commander ASCII command over UART and return the device response (e.g. M1, M1 C 2, M1 V 10)",
+    r#"{"type":"object","properties":{"command":{"type":"string","description":"Commander ASCII command string"},"baud":{"type":"integer","description":"Baud rate (default 115200)"},"timeout_ms":{"type":"integer","description":"Response timeout in ms (default 500)"}},"required":["command"]}"#,
+);
+
+pub const TOOL_BAREFOC_MODE: Tool = Tool::new(
+    "barefoc_mode",
+    "Command motion mode, torque sub-mode, and enable state on the external FOC target over CAN/UART",
+    r#"{"type":"object","properties":{"node":{"type":"integer","description":"Target node (0-63, default 1)"},"mode":{"type":"string","description":"Motion mode: torque, velocity, angle, or idle"},"torque_mode":{"type":"string","description":"Torque sub-mode: voltage or current"},"enabled":{"type":"boolean","description":"Enable the inverter/drive"}},"required":["mode"]}"#,
+);
+
+pub const TOOL_BAREFOC_CALIBRATE: Tool = Tool::new(
+    "barefoc_calibrate",
+    "Trigger motor or encoder calibration on the external FOC target and report status",
+    r#"{"type":"object","properties":{"node":{"type":"integer","description":"Target node (0-63, default 1)"},"kind":{"type":"string","description":"Calibration kind: motor or encoder (default motor)"}}}"#,
+);
+
+pub const TOOL_BAREFOC_EMERGENCY: Tool = Tool::new(
+    "barefoc_emergency",
+    "One-call safe state: disable the inverter, zero the target, release pins to High-Z, and cut target power",
+    r#"{"type":"object","properties":{}}"#,
+);
+
 /// Three composite AI Agent hardware tools.
 pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_TARGET_DIAGNOSE,
@@ -333,8 +381,8 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (45 standard + 3 composite tools = 48 total).
-pub static ALL_TOOLS: [Tool; 48] = [
+/// Full catalog of AgentLA tools (45 standard + 3 composite + 8 barefoc = 56 total).
+pub static ALL_TOOLS: [Tool; 56] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
@@ -383,6 +431,14 @@ pub static ALL_TOOLS: [Tool; 48] = [
     TOOL_SENSOR_READ_REG,
     TOOL_SENSOR_WRITE_REG,
     TOOL_SENSOR_POLL,
+    TOOL_BAREFOC_STATUS,
+    TOOL_BAREFOC_TARGET,
+    TOOL_BAREFOC_READ,
+    TOOL_BAREFOC_WRITE,
+    TOOL_BAREFOC_COMMAND,
+    TOOL_BAREFOC_MODE,
+    TOOL_BAREFOC_CALIBRATE,
+    TOOL_BAREFOC_EMERGENCY,
 ];
 
 /// Trait for dispatching tool calls to the hardware engine.

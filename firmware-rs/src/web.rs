@@ -271,11 +271,20 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
             )
         }))
         .route("/files.html", get_service(crate::fs_http::SystemWebFile::new("files.html", "text/html")))
-        .route("/motor", get_service(crate::fs_http::SystemWebFile::new("barefoc.html", "text/html")))
+        .route("/barefoc", get_service(crate::fs_http::SystemWebFile::new("barefoc.html", "text/html")))
+        .route("/motor", get(|| async move {
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                ("Location", "/barefoc"),
+                ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                ("Content-Type", "text/plain"),
+                "Redirecting...",
+            )
+        }))
         .route("/motor/", get(|| async move {
             (
                 StatusCode::MOVED_PERMANENTLY,
-                ("Location", "/motor"),
+                ("Location", "/barefoc"),
                 ("Cache-Control", "no-cache, no-store, must-revalidate"),
                 ("Content-Type", "text/plain"),
                 "Redirecting...",
@@ -286,7 +295,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/foc", get(|| async move {
             (
                 StatusCode::MOVED_PERMANENTLY,
-                ("Location", "/motor"),
+                ("Location", "/barefoc"),
                 ("Cache-Control", "no-cache, no-store, must-revalidate"),
                 ("Content-Type", "text/plain"),
                 "Redirecting...",
@@ -295,16 +304,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/foc/", get(|| async move {
             (
                 StatusCode::MOVED_PERMANENTLY,
-                ("Location", "/motor"),
-                ("Cache-Control", "no-cache, no-store, must-revalidate"),
-                ("Content-Type", "text/plain"),
-                "Redirecting...",
-            )
-        }))
-        .route("/barefoc", get(|| async move {
-            (
-                StatusCode::MOVED_PERMANENTLY,
-                ("Location", "/motor"),
+                ("Location", "/barefoc"),
                 ("Cache-Control", "no-cache, no-store, must-revalidate"),
                 ("Content-Type", "text/plain"),
                 "Redirecting...",
@@ -313,7 +313,7 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/barefoc/", get(|| async move {
             (
                 StatusCode::MOVED_PERMANENTLY,
-                ("Location", "/motor"),
+                ("Location", "/barefoc"),
                 ("Cache-Control", "no-cache, no-store, must-revalidate"),
                 ("Content-Type", "text/plain"),
                 "Redirecting...",
@@ -547,6 +547,10 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/motor/daisyui.css", get_service(crate::fs_http::SystemWebFile::new("daisyui.css", "text/css")))
         .route("/motor/themes.css", get_service(crate::fs_http::SystemWebFile::new("themes.css", "text/css")))
         .route("/motor/agentla-bridge.js", get_service(crate::fs_http::SystemWebFile::new("agentla-bridge.js", "application/javascript")))
+        .route("/barefoc/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
+        .route("/barefoc/daisyui.css", get_service(crate::fs_http::SystemWebFile::new("daisyui.css", "text/css")))
+        .route("/barefoc/themes.css", get_service(crate::fs_http::SystemWebFile::new("themes.css", "text/css")))
+        .route("/barefoc/agentla-bridge.js", get_service(crate::fs_http::SystemWebFile::new("agentla-bridge.js", "application/javascript")))
         .route("/app.js", get_service(crate::fs_http::SystemWebFile::new("app.js", "application/javascript")))
         .route("/style.css", get_service(crate::fs_http::SystemWebFile::new("style.css", "text/css")))
         .route("/daisyui.css", get_service(crate::fs_http::SystemWebFile::new("daisyui.css", "text/css")))
@@ -579,6 +583,8 @@ pub fn make_app() -> picoserve::Router<impl PathRouter> {
         .route("/skills/debug/SKILL.md", get_service(crate::fs_http::SystemWebFile::new("skills/agentla-debug/SKILL.md", "text/markdown; charset=utf-8")))
         .route("/skills/programmer/SKILL.md", get_service(crate::fs_http::SystemWebFile::new("skills/agentla-programmer/SKILL.md", "text/markdown; charset=utf-8")))
         .route("/skills/analyzer/SKILL.md", get_service(crate::fs_http::SystemWebFile::new("skills/agentla-analyzer/SKILL.md", "text/markdown; charset=utf-8")))
+        .route("/skills/agentla-barefoc/SKILL.md", get_service(crate::fs_http::SystemWebFile::new("skills/agentla-barefoc/SKILL.md", "text/markdown; charset=utf-8")))
+        .route("/skills/barefoc/SKILL.md", get_service(crate::fs_http::SystemWebFile::new("skills/agentla-barefoc/SKILL.md", "text/markdown; charset=utf-8")))
         .route_service("/api/v1/system/webui/update", crate::fs_http::SystemWebUiUpdate)
         .route_service("/api/v1/system/bootsel", crate::rest::SystemBootsel)
         .route_service("/api/v1/system/reboot", crate::rest::SystemReboot)

@@ -277,7 +277,10 @@ async fn main(spawner: embassy_executor::Spawner) {
     let net_config = embassy_net::Config::ipv4_static(embassy_net::StaticConfigV4 {
         address: embassy_net::Ipv4Cidr::new(net::STATIC_IP, 24),
         dns_servers,
-        gateway: Some(net::STATIC_IP),
+        // Host and device are peers on a direct USB NCM /24 link. A gateway
+        // pointing at our own IP makes smoltcp treat on-subnet replies as
+        // off-subnet, ARP for itself, and never return TCP responses.
+        gateway: None,
     });
 
     static STACK_RESOURCES: StaticCell<embassy_net::StackResources<24>> = StaticCell::new();

@@ -25,7 +25,7 @@ The system SHALL route `/neopixel` to `SystemWebFile::new("neopixel.html", "text
 The system SHALL display the `NeoPixel` instrument in the top navigation rail across all primary system workbench pages.
 
 #### Scenario: Navigating from other system instruments
-- **WHEN** user is viewing `/scope`, `/terminal`, `/motor`, or `/servo`
+- **WHEN** user is viewing `/scope`, `/terminal`, `/barefoc`, `/foc`, or `/servo`
 - **THEN** the top navigation rail displays a link to `NeoPixel` (`/neopixel`)
 
 #### Scenario: Active state styling on neopixel page

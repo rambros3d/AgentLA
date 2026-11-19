@@ -25,7 +25,7 @@ The system SHALL route `/servo` to `SystemWebFile::new("servo.html", "text/html"
 The system SHALL display the `Servo` instrument in the top navigation rail across all primary system workbench pages.
 
 #### Scenario: Navigating from other system instruments
-- **WHEN** user is viewing `/scope`, `/terminal`, or `/motor`
+- **WHEN** user is viewing `/scope`, `/terminal`, `/barefoc`, or `/foc`
 - **THEN** the top navigation rail displays a link to `Servo` (`/servo`)
 
 #### Scenario: Active state styling on servo page

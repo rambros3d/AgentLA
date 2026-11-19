@@ -5238,12 +5238,12 @@ function applyHashMode() {
                        window.location.pathname.endsWith('.html');
         window.location.href = isDemo ? 'servo.html' : '/servo';
         return;
-    } else if (cleanHash === 'motor' || cleanHash === 'barefoc') {
+    } else if (cleanHash === 'barefoc' || cleanHash === 'motor' || cleanHash === 'foc') {
         const isDemo = window.location.protocol === 'https:' || 
                        window.location.hostname.includes('github.io') ||
                        window.location.search.includes('demo=1') ||
                        window.location.pathname.endsWith('.html');
-        window.location.href = isDemo ? 'barefoc.html' : '/motor';
+        window.location.href = isDemo ? 'barefoc.html' : '/barefoc';
         return;
     }
 }
@@ -5372,7 +5372,7 @@ function getPinnedApps() {
             }
         }
     } catch (_) {}
-    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'];
+    return ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo', 'neopixel', 'sensor'];
 }
 
 function renderDockPinnedApps() {
@@ -5382,8 +5382,8 @@ function renderDockPinnedApps() {
     const container = document.getElementById('dock-pinned-apps');
     const pinned = getPinnedApps();
 
-    // Toggle visibility of system instruments in dock (dock-app-servo, dock-app-motor, etc.)
-    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].forEach(sysId => {
+    // Toggle visibility of system instruments in dock (dock-app-servo, dock-app-barefoc, etc.)
+    ['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo', 'neopixel', 'sensor'].forEach(sysId => {
         const el = document.getElementById(`dock-app-${sysId}`);
         if (el) {
             el.style.display = pinned.includes(sysId) ? 'inline-flex' : 'none';
@@ -5396,7 +5396,7 @@ function renderDockPinnedApps() {
 
     let html = '';
     pinned.forEach(appId => {
-        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'motor', 'servo', 'neopixel', 'sensor'].includes(appId)) return;
+        if (['scope', 'adapters', 'target', 'pins', 'console', 'terminal', 'files', 'barefoc', 'servo', 'neopixel', 'sensor'].includes(appId)) return;
         let appName = appId;
         let clickAction = '';
         let iconSvg = '';
