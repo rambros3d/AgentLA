@@ -419,7 +419,7 @@ def test_html_and_js_syntax_integrity():
 
 
 def test_barefoc_studio_landscape_two_column_layout():
-    """Verify BareFOC Studio dashboard has responsive two-column wide-screen layout with zero emojis."""
+    """Verify BareFOC Studio dashboard has responsive layout, vector scopes, uPlot, and zero emojis."""
     barefoc_path = HTML_DIR / "barefoc.html"
     assert barefoc_path.exists(), "webui/barefoc.html must exist"
     content = barefoc_path.read_text(encoding="utf-8")
@@ -430,41 +430,34 @@ def test_barefoc_studio_landscape_two_column_layout():
 
     # Invariant 2: Responsive 12-column dashboard layout
     assert 'id="view-dashboard"' in content
-    assert "grid grid-cols-1 lg:grid-cols-12 gap-5 items-start" in content
+    assert "grid grid-cols-1 lg:grid-cols-12" in content
 
-    # Invariant 3: Left column with lg:col-span-5 containing telemetry HUD and diagnostics
-    assert "lg:col-span-5 flex flex-col gap-4" in content
+    # Invariant 3: Primary Telemetry HUD and Real-Time Vector Scopes
     assert 'id="hud-angle-val"' in content
     assert 'id="hud-vel-val"' in content
     assert 'id="hud-target-val"' in content
-    assert 'id="hud-current-iq"' in content
+    assert 'id="hud-iq-val"' in content
     assert 'id="hud-vbus-val"' in content
-    assert 'id="hud-rate-val"' in content
-    assert 'id="val-ua"' in content
-    assert 'id="val-theta-e"' in content
-    assert 'id="val-pwm-type"' in content
+    assert 'id="canvas-vector-scope"' in content
+    assert 'id="canvas-svpwm-scope"' in content
 
-    # Invariant 4: Right column with lg:col-span-7 containing motion modes and interactive setpoint dial
-    assert "lg:col-span-7 flex flex-col gap-4" in content
-    assert 'id="badge-active-mode"' in content
+    # Invariant 4: Interactive Control Modes and Quick Setpoint Slider
+    assert 'id="motion-mode-join"' in content
     assert 'data-mode="angle"' in content
     assert 'data-mode="velocity"' in content
     assert 'data-mode="torque"' in content
-    assert 'data-torque="foc_current"' in content
-    assert 'id="foc-dial"' in content
-    assert 'id="range-target-slider"' in content
-    assert 'id="input-numeric-target"' in content
-    assert 'id="btn-send-numeric-target"' in content
+    assert 'id="torque-mode-join"' in content
+    assert 'data-tq="foc_current"' in content
+    assert 'id="quick-target-slider"' in content
+    assert 'id="quick-target-display"' in content
 
-    # Invariant 5: ODrive-GUI-style shell and parity engines are present
-    assert 'id="studio-shell"' in content or "shellRoot.id = 'studio-shell'" in content
-    assert "class StudioStore" in content
-    assert "class DiscoveryService" in content
-    assert "class ParameterExplorer" in content
-    assert "function renderWizard" in content
-    assert "function renderFooter" in content
-    assert "studio-shell-footer" in content
-    assert "const STUDIO_V2" in content
+    # Invariant 5: uPlot Telemetry Oscilloscope and MultiBus / Commander Views
+    assert "/uplot.min.css" in content
+    assert "/uplot.min.js" in content
+    assert 'id="view-oscilloscope"' in content
+    assert 'new uPlot' in content
+    assert 'id="view-multibus"' in content
+    assert 'id="view-commander"' in content
 
 
 def test_native_servo_system_app():
@@ -527,6 +520,55 @@ def test_native_servo_system_app():
     assert '.route("/servo", get_service(crate::fs_http::SystemWebFile::new("servo.html", "text/html")))' in web_rs
     assert '.route("/servomaster"' in web_rs
     assert '("Location", "/servo")' in web_rs
+
+
+def test_widget_microlibraries_and_widescreen_layout():
+    """Verify the 8 widget micro-libraries exist, have zero emojis, are registered in firmware routes,
+    and widescreen 12-column layouts are present."""
+    widget_files = [
+        "pureknob.min.js",
+        "nipplejs.min.js",
+        "ogl.min.js",
+        "agentla-led-view.js",
+        "agentla-servo-view.js",
+        "agentla-thermal-view.js",
+        "agentla-pinout-view.js",
+        "agentla-storage-map.js",
+    ]
+
+    # Invariant 1: Files exist and have zero emojis
+    for fname in widget_files:
+        fpath = HTML_DIR / fname
+        assert fpath.exists(), f"Widget file {fname} must exist in webui/"
+        content = fpath.read_text(encoding="utf-8")
+        emoji_matches = re.findall(r"[\U00010000-\U0010ffff]", content)
+        assert len(emoji_matches) == 0, f"Found emojis in {fname}: {set(emoji_matches)}"
+
+    # Invariant 2: Firmware routing registered in web.rs
+    web_rs = (REPO_ROOT / "firmware-rs" / "src" / "web.rs").read_text(encoding="utf-8")
+    for fname in widget_files:
+        assert f'.route("/{fname}"' in web_rs, f"Route for /{fname} must be registered in web.rs"
+
+    # Invariant 3: Subroutes for barefoc
+    assert '.route("/barefoc/pureknob.min.js"' in web_rs
+    assert '.route("/barefoc/nipplejs.min.js"' in web_rs
+
+    # Invariant 4: Responsive 12-column widescreen layouts in overhauled apps
+    widescreen_apps = [
+        HTML_DIR / "barefoc.html",
+        HTML_DIR / "servo.html",
+        HTML_DIR / "neopixel.html",
+        HTML_DIR / "sensor.html",
+        HTML_DIR / "files.html",
+    ]
+    for app in widescreen_apps:
+        content = app.read_text(encoding="utf-8")
+        assert "grid-cols-12" in content or "lg:grid-cols-12" in content, f"{app.name} must have 12-column grid layout"
+        # Verify zero emojis
+        emoji_matches = re.findall(r"[\U00010000-\U0010ffff]", content)
+        assert len(emoji_matches) == 0, f"Found emojis in {app.name}: {set(emoji_matches)}"
+        # Verify zero CSS dot indicators
+        assert ".dock-icon-btn.active::after" not in content
 
 
 if __name__ == "__main__":

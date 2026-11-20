@@ -35,7 +35,12 @@
   <link rel="stylesheet" href="/daisyui.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
+  <link rel="stylesheet" href="/uplot.min.css">
   <script src="/agentla-bridge.js"></script>
+  <script src="/uplot.min.js"></script>
+  <script src="/ogl.min.js"></script>
+  <script src="/pureknob.min.js"></script>
+  <script src="/agentla-thermal-view.js"></script>
   <style>
     html.is-embedded #top-bar,
     html.is-embedded .app-nav-rail,
@@ -258,11 +263,11 @@
     </div>
   </div>
 
-  <!-- Main Bento Grid Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 pb-[76px] grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-y-auto">
+  <!-- Main Bento Grid Container (12-Column Responsive Layout) -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 pb-[76px] grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch overflow-y-auto">
 
-    <!-- Left Bento Column: Bus Discovery & Radar (5 cols) -->
-    <div class="lg:col-span-5 flex flex-col gap-6">
+    <!-- Left Bento Column: Bus Discovery, Radar & Register Map (4 cols) -->
+    <div class="lg:col-span-4 flex flex-col gap-4">
 
       <!-- I2C Radar Matrix Card -->
       <div id="card-i2c-bus" class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
@@ -354,46 +359,7 @@
         </div>
       </div>
 
-    </div>
-
-    <!-- Right Bento Column: Live Visualizer & Register Map (7 cols) -->
-    <div class="lg:col-span-7 flex flex-col gap-6">
-
-      <!-- Live Visualizer Bento Card -->
-      <div class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
-        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 pb-2.5">
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-xs font-mono uppercase tracking-wider text-primary">Real-Time Visualizer</span>
-            <span id="badge-fps" class="badge badge-xs badge-neutral font-mono">60 FPS</span>
-          </div>
-
-          <!-- Visualizer Mode Tabs -->
-          <div class="join bg-base-300/60 p-0.5 rounded-lg border border-base-300 text-xs font-mono">
-            <button id="vis-tab-imu" class="join-item btn btn-xs btn-primary px-2 font-mono">3D IMU</button>
-            <button id="vis-tab-angle" class="join-item btn btn-xs btn-ghost px-2 font-mono">Angle Dial</button>
-            <button id="vis-tab-env" class="join-item btn btn-xs btn-ghost px-2 font-mono">Climate</button>
-            <button id="vis-tab-power" class="join-item btn btn-xs btn-ghost px-2 font-mono">Power</button>
-            <button id="vis-tab-stream" class="join-item btn btn-xs btn-ghost px-2 font-mono">Waveform</button>
-          </div>
-        </div>
-
-        <!-- Pure HTML5 2D Canvas Container -->
-        <div class="canvas-container" id="visualizer-container">
-          <canvas id="telemetry-canvas" class="telemetry-canvas" width="640" height="280"></canvas>
-        </div>
-
-        <!-- Telemetry Numerical HUD -->
-        <div id="telemetry-hud-metrics" class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs font-mono bg-base-300/40 p-2 rounded-lg border border-base-300">
-          <div><div class="text-[10px] text-base-content/50">PITCH</div><div id="metric-pitch" class="font-bold text-primary">0.0 deg</div></div>
-          <div><div class="text-[10px] text-base-content/50">ROLL</div><div id="metric-roll" class="font-bold text-primary">0.0 deg</div></div>
-          <div><div class="text-[10px] text-base-content/50">YAW</div><div id="metric-yaw" class="font-bold text-primary">0.0 deg</div></div>
-          <div><div class="text-[10px] text-base-content/50">ACCEL X</div><div id="metric-ax" class="font-bold">0.00 g</div></div>
-          <div><div class="text-[10px] text-base-content/50">ACCEL Y</div><div id="metric-ay" class="font-bold">0.00 g</div></div>
-          <div><div class="text-[10px] text-base-content/50">ACCEL Z</div><div id="metric-az" class="font-bold">1.00 g</div></div>
-        </div>
-      </div>
-
-      <!-- 256-Byte Interactive Register Map Bento Card -->
+      <!-- 256-Byte Interactive Register Map Bento Card (in Left Column on Widescreen) -->
       <div class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 pb-2">
           <div class="flex items-center gap-2">
@@ -466,6 +432,48 @@
           </div>
         </div>
 
+      </div>
+
+    </div>
+
+    <!-- Right Bento Column: 3D OGL Attitude Viewer, Visualizers & Charts (8 cols) -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+
+      <!-- Live Visualizer Bento Card -->
+      <div class="bg-base-200/60 p-4 rounded-xl border border-base-300 flex flex-col gap-3 flex-1">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-xs font-mono uppercase tracking-wider text-primary">Real-Time Visualizer</span>
+            <span id="badge-fps" class="badge badge-xs badge-neutral font-mono">60 FPS</span>
+          </div>
+
+          <!-- Visualizer Mode Tabs -->
+          <div class="join bg-base-300/60 p-0.5 rounded-lg border border-base-300 text-xs font-mono">
+            <button id="vis-tab-imu" class="join-item btn btn-xs btn-primary px-2 font-mono">3D IMU</button>
+            <button id="vis-tab-angle" class="join-item btn btn-xs btn-ghost px-2 font-mono">Angle Dial</button>
+            <button id="vis-tab-env" class="join-item btn btn-xs btn-ghost px-2 font-mono">Climate</button>
+            <button id="vis-tab-power" class="join-item btn btn-xs btn-ghost px-2 font-mono">Power</button>
+            <button id="vis-tab-stream" class="join-item btn btn-xs btn-ghost px-2 font-mono">Waveform</button>
+          </div>
+        </div>
+
+        <!-- Pure HTML5 2D Canvas & OGL 3D Container -->
+        <div class="canvas-container relative min-h-[300px] flex-1" id="visualizer-container">
+          <canvas id="telemetry-canvas" class="telemetry-canvas" width="640" height="280"></canvas>
+          <div id="ogl-container" class="absolute inset-0 w-full h-full hidden"></div>
+          <div id="pureknob-gauge-container" class="absolute inset-0 w-full h-full hidden flex items-center justify-around py-4"></div>
+          <div id="uplot-sensor-container" class="absolute inset-0 w-full h-full hidden p-2"></div>
+        </div>
+
+        <!-- Telemetry Numerical HUD -->
+        <div id="telemetry-hud-metrics" class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs font-mono bg-base-300/40 p-2 rounded-lg border border-base-300">
+          <div><div class="text-[10px] text-base-content/50">PITCH</div><div id="metric-pitch" class="font-bold text-primary">0.0 deg</div></div>
+          <div><div class="text-[10px] text-base-content/50">ROLL</div><div id="metric-roll" class="font-bold text-primary">0.0 deg</div></div>
+          <div><div class="text-[10px] text-base-content/50">YAW</div><div id="metric-yaw" class="font-bold text-primary">0.0 deg</div></div>
+          <div><div class="text-[10px] text-base-content/50">ACCEL X</div><div id="metric-ax" class="font-bold">0.00 g</div></div>
+          <div><div class="text-[10px] text-base-content/50">ACCEL Y</div><div id="metric-ay" class="font-bold">0.00 g</div></div>
+          <div><div class="text-[10px] text-base-content/50">ACCEL Z</div><div id="metric-az" class="font-bold">1.00 g</div></div>
+        </div>
       </div>
 
     </div>
@@ -749,6 +757,20 @@
             : 'join-item btn btn-xs btn-ghost px-2 font-mono';
         }
       });
+
+      const oglEl = document.getElementById('ogl-container');
+      const knobEl = document.getElementById('pureknob-gauge-container');
+      const streamEl = document.getElementById('uplot-sensor-container');
+      const canvasEl = document.getElementById('telemetry-canvas');
+
+      const isImu = (type === 'imu_3d' || type === 'vis_imu');
+      const isAngle = (type === 'angle_dial' || type === 'vis_angle');
+      const isStream = (type === 'generic_stream' || type === 'vis_stream');
+
+      if (oglEl) oglEl.classList.toggle('hidden', !isImu || oglRenderer === null);
+      if (knobEl) knobEl.classList.toggle('hidden', !isAngle || angleKnob === null);
+      if (streamEl) streamEl.classList.toggle('hidden', !isStream);
+      if (canvasEl) canvasEl.classList.toggle('hidden', (isImu && oglRenderer !== null) || (isAngle && angleKnob !== null));
     }
 
     document.getElementById('vis-tab-imu').onclick = () => switchVisualizer('imu_3d');
@@ -756,6 +778,98 @@
     document.getElementById('vis-tab-env').onclick = () => switchVisualizer('env_dashboard');
     document.getElementById('vis-tab-power').onclick = () => switchVisualizer('power_monitor');
     document.getElementById('vis-tab-stream').onclick = () => switchVisualizer('generic_stream');
+
+    /* OGL 3D IMU Attitude Viewer & PureKnob Angle Meter */
+    let oglRenderer = null, oglScene = null, oglCamera = null, oglMesh = null;
+    function initOglImu() {
+      const container = document.getElementById('ogl-container');
+      if (!container || typeof ogl === 'undefined') return;
+      try {
+        container.innerHTML = '';
+        oglRenderer = new ogl.Renderer({ alpha: true, antialias: true, dpr: window.devicePixelRatio || 1 });
+        const gl = oglRenderer.gl;
+        gl.canvas.style.width = '100%';
+        gl.canvas.style.height = '100%';
+        container.appendChild(gl.canvas);
+
+        oglCamera = new ogl.Camera(gl, { fov: 35 });
+        oglCamera.position.set(0, 0, 5);
+
+        oglScene = new ogl.Transform();
+
+        // 3D IMU PCB Board Mesh
+        const geometry = new ogl.Box(gl, { width: 2.2, height: 0.15, depth: 1.4 });
+        const vertex = `
+          attribute vec3 position;
+          attribute vec3 normal;
+          uniform mat4 modelViewMatrix;
+          uniform mat4 projectionMatrix;
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normal;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `;
+        const fragment = `
+          precision highp float;
+          varying vec3 vNormal;
+          void main() {
+            vec3 light = normalize(vec3(0.5, 1.0, 0.7));
+            float d = max(0.2, dot(vNormal, light));
+            vec3 color = (vNormal.y > 0.5) ? vec3(0.01, 0.52, 0.78) : vec3(0.12, 0.16, 0.24);
+            gl_FragColor = vec4(color * d, 1.0);
+          }
+        `;
+        const program = new ogl.Program(gl, { vertex, fragment });
+        oglMesh = new ogl.Mesh(gl, { geometry, program });
+        oglMesh.setParent(oglScene);
+
+        const resize = () => {
+          if (!container.clientWidth || !container.clientHeight) return;
+          oglRenderer.setSize(container.clientWidth, container.clientHeight);
+          oglCamera.perspective({ aspect: container.clientWidth / container.clientHeight });
+        };
+        new ResizeObserver(resize).observe(container);
+        resize();
+        switchVisualizer(currentVis);
+      } catch (e) {
+        oglRenderer = null;
+      }
+    }
+
+    function updateOglAttitude(pDeg, rDeg, yDeg, q = null) {
+      if (!oglRenderer || !oglMesh) return;
+      if (q && q.length === 4) {
+        oglMesh.quaternion.set(q[1], q[2], q[3], q[0]);
+      } else {
+        const radP = (pDeg * Math.PI) / 180;
+        const radR = (rDeg * Math.PI) / 180;
+        const radY = (yDeg * Math.PI) / 180;
+        oglMesh.rotation.x = radP;
+        oglMesh.rotation.y = radY;
+        oglMesh.rotation.z = radR;
+      }
+      oglRenderer.render({ scene: oglScene, camera: oglCamera });
+    }
+
+    let angleKnob = null;
+    function initAngleKnob() {
+      const container = document.getElementById('pureknob-gauge-container');
+      if (!container || typeof pureknob === 'undefined') return;
+      container.innerHTML = '';
+      angleKnob = pureknob.createKnob(160, 160);
+      angleKnob.setProperty('colorBG', '#1e293b');
+      angleKnob.setProperty('colorFG', '#38bdf8');
+      angleKnob.setProperty('colorLabel', '#94a3b8');
+      angleKnob.setProperty('trackWidth', 0.25);
+      angleKnob.setProperty('valMin', 0);
+      angleKnob.setProperty('valMax', 360);
+      angleKnob.setProperty('val', 0);
+      angleKnob.setProperty('label', 'ANGLE');
+      angleKnob.setProperty('readonly', true);
+      angleKnob.setProperty('fnValueToString', (v) => `${Math.round(v)} deg`);
+      container.appendChild(angleKnob.node());
+    }
 
     /* Pure HTML5 2D Canvas Visualizers */
     const canvas = document.getElementById('telemetry-canvas');
@@ -767,9 +881,17 @@
       ctx.clearRect(0, 0, w, h);
 
       if (currentVis === 'imu_3d') {
-        render3DPrism(ctx, w, h, pitch, roll, yaw);
+        if (oglRenderer) {
+          updateOglAttitude(pitch, roll, yaw);
+        } else {
+          render3DPrism(ctx, w, h, pitch, roll, yaw);
+        }
       } else if (currentVis === 'angle_dial') {
-        renderAngleDial(ctx, w, h, angleDeg);
+        if (angleKnob) {
+          angleKnob.setValue(Math.round(angleDeg));
+        } else {
+          renderAngleDial(ctx, w, h, angleDeg);
+        }
       } else if (currentVis === 'env_dashboard') {
         renderClimateMeters(ctx, w, h, envTemp, envPress, envHum);
       } else if (currentVis === 'power_monitor') {
@@ -1113,6 +1235,8 @@
     // Initial setup
     selectAddress(0x68);
     scanI2CBus();
+    initOglImu();
+    initAngleKnob();
     renderCanvas();
   </script>
 </body>

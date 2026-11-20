@@ -37,6 +37,7 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <script src="/agentla-bridge.js"></script>
+  <script src="/agentla-led-view.js"></script>
   <style>
     html.is-embedded #top-bar,
     html.is-embedded .app-nav-rail,
@@ -893,14 +894,24 @@
         ctx.strokeStyle = isLit ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)';
         ctx.stroke();
 
-        // Pixel index number if radius is large enough
-        if (coord.radius >= 11) {
-          ctx.font = '9px monospace';
-          ctx.fillStyle = isLit ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.4)';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(i.toString(), coord.x, coord.y);
+      if (window.agentlaLedEngine) {
+        window.agentlaLedEngine.setTopology(state.geometry, {
+          count: state.pixelCount,
+          matrixWidth: state.matrixWidth,
+          matrixHeight: state.matrixHeight,
+          serpentine: state.serpentine
+        });
+        const rgbBuf = [];
+        for (let i = 0; i < state.pixelCount; i++) {
+          const p = state.pixels[i] || { r: 0, g: 0, b: 0, w: 0 };
+          const b = state.brightness;
+          rgbBuf.push([
+            Math.min(255, Math.round(p.r * b + (p.w || 0) * 0.8 * b)),
+            Math.min(255, Math.round(p.g * b + (p.w || 0) * 0.8 * b)),
+            Math.min(255, Math.round(p.b * b + (p.w || 0) * 0.8 * b))
+          ]);
         }
+        window.agentlaLedEngine.setPixels(rgbBuf);
       }
     }
 
@@ -1347,6 +1358,19 @@
       initPixels(16);
       setupEventListeners();
       connectWs();
+      // Initialize Standardized AgentlaLedView Engine
+      if (typeof AgentlaLedView !== 'undefined') {
+        const dummyDiv = document.createElement('div');
+        dummyDiv.style.display = 'none';
+        document.body.appendChild(dummyDiv);
+        window.agentlaLedEngine = new AgentlaLedView(dummyDiv, {
+          topology: state.geometry,
+          count: state.pixelCount,
+          matrixWidth: state.matrixWidth,
+          matrixHeight: state.matrixHeight,
+          serpentine: state.serpentine
+        });
+      }
       // Start initial procedural rainbow shader for immediate visual feedback
       el.btnStreamToggle.click();
     });

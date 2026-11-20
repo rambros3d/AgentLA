@@ -37,6 +37,8 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <script src="/agentla-bridge.js"></script>
+  <script src="/pureknob.min.js"></script>
+  <script src="/agentla-servo-view.js"></script>
   <style>
     html.is-embedded #top-bar,
     html.is-embedded .app-nav-rail,
@@ -160,92 +162,154 @@
     </div>
   </div>
 
-  <!-- Main Content Container (with 72px Dock Clearance) -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 pb-[72px] flex flex-col gap-6 overflow-y-auto">
+  <!-- Main Content Container (with 72px Dock Clearance, Responsive 12-Column Grid) -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 pb-[72px] flex flex-col gap-4 overflow-y-auto">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch flex-1">
+      
+      <!-- Left Column: Controls, Channel Cards & Timeline (8 cols) -->
+      <div class="lg:col-span-8 flex flex-col gap-4">
+        <!-- Global Toolbar / Tabs -->
+        <div class="flex flex-wrap items-center justify-between gap-3 bg-base-200/60 p-3 rounded-xl border border-base-300">
+          <div class="flex items-center gap-3">
+            <button id="btn-add-channel" class="btn btn-xs btn-primary btn-outline gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Channel
+            </button>
 
-    <!-- Global Toolbar / Tabs -->
-    <div class="flex flex-wrap items-center justify-between gap-4 bg-base-200/60 p-3.5 rounded-xl border border-base-300">
-      <div class="flex items-center gap-3">
-        <button id="btn-add-channel" class="btn btn-xs btn-primary btn-outline gap-1.5">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Channel
-        </button>
+            <div class="h-4 w-px bg-base-300"></div>
 
-        <div class="h-4 w-px bg-base-300"></div>
-
-        <!-- Easing Toggle -->
-        <label class="flex items-center gap-2 cursor-pointer text-xs text-base-content/80">
-          <input type="checkbox" id="chk-easing" class="checkbox checkbox-xs checkbox-primary" checked />
-          <span>Motion Easing (S-Curve)</span>
-        </label>
-      </div>
-
-      <!-- Sweep Mode Controls -->
-      <div class="flex items-center gap-2.5 bg-base-300/60 px-3 py-1 rounded-lg border border-base-300 text-xs">
-        <span class="text-base-content/70 font-medium">Auto-Sweep:</span>
-        <button id="btn-sweep-toggle" class="btn btn-xs btn-neutral">
-          Start Sweep
-        </button>
-        <span class="text-base-content/60">Speed:</span>
-        <input type="range" id="range-sweep-speed" min="1" max="10" value="4" class="range range-xs range-primary w-20" />
-      </div>
-    </div>
-
-    <!-- Channel Cards Grid -->
-    <div id="channels-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      <!-- Dynamic channels populated here -->
-    </div>
-
-    <!-- Pose Sequencer Section -->
-    <section class="bg-base-200 border border-base-300 rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-base-300 pb-3">
-        <div>
-          <h2 class="text-sm font-bold text-base-content flex items-center gap-2">
-            Pose Sequencer & Choreography
-          </h2>
-          <p class="text-xs text-base-content/60">Save multi-channel keyframes, adjust transition speeds, and loop automated motions.</p>
-        </div>
-        <div class="join">
-          <button id="btn-save-pose" class="btn btn-xs btn-outline join-item">
-            + Save Pose
-          </button>
-          <button id="btn-play-seq" class="btn btn-xs btn-success join-item uppercase tracking-wider font-semibold">
-            Play
-          </button>
-          <button id="btn-stop-seq" class="btn btn-xs btn-neutral join-item uppercase tracking-wider font-semibold" disabled>
-            Stop
-          </button>
-        </div>
-      </div>
-
-      <!-- Poses Library & Sequence Timeline -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Poses Chips -->
-        <div class="flex flex-col gap-2">
-          <span class="text-xs font-semibold text-base-content/70">Stored Poses:</span>
-          <div id="poses-list" class="flex flex-wrap gap-2">
-            <!-- Dynamic pose badges -->
-          </div>
-        </div>
-
-        <!-- Sequence Steps Timeline -->
-        <div class="lg:col-span-2 flex flex-col gap-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-base-content/70">Execution Timeline:</span>
-            <label class="flex items-center gap-1.5 text-xs text-base-content/70 cursor-pointer">
-              <input type="checkbox" id="chk-seq-loop" class="checkbox checkbox-xs checkbox-primary" checked />
-              <span>Loop Continuously</span>
+            <!-- Easing Toggle -->
+            <label class="flex items-center gap-2 cursor-pointer text-xs text-base-content/80">
+              <input type="checkbox" id="chk-easing" class="checkbox checkbox-xs checkbox-primary" checked />
+              <span>Motion Easing (S-Curve)</span>
             </label>
           </div>
-          <div id="sequence-timeline" class="flex items-center gap-2 overflow-x-auto p-3 bg-base-300/50 rounded-xl border border-base-300 min-h-[70px]">
-            <span class="text-xs text-base-content/50 italic">Timeline empty. Click '+ Save Current Pose' then add to timeline.</span>
+
+          <!-- Sweep Mode Controls -->
+          <div class="flex items-center gap-2 bg-base-300/60 px-3 py-1 rounded-lg border border-base-300 text-xs">
+            <span class="text-base-content/70 font-medium">Auto-Sweep:</span>
+            <button id="btn-sweep-toggle" class="btn btn-xs btn-neutral">
+              Start Sweep
+            </button>
+            <span class="text-base-content/60">Speed:</span>
+            <input type="range" id="range-sweep-speed" min="1" max="10" value="4" class="range range-xs range-primary w-20" />
           </div>
         </div>
-      </div>
-    </section>
 
+        <!-- Channel Cards Grid -->
+        <div id="channels-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Dynamic channels populated here -->
+        </div>
+
+        <!-- Pose Sequencer Section -->
+        <section class="bg-base-200 border border-base-300 rounded-xl p-4 flex flex-col gap-3 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-2">
+            <div>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-base-content flex items-center gap-2">
+                Pose Sequencer &amp; Choreography
+              </h2>
+              <p class="text-[10px] text-base-content/60">Save multi-channel keyframes, adjust transition speeds, and loop automated motions.</p>
+            </div>
+            <div class="join">
+              <button id="btn-save-pose" class="btn btn-xs btn-outline join-item">
+                + Save Pose
+              </button>
+              <button id="btn-play-seq" class="btn btn-xs btn-success join-item uppercase tracking-wider font-semibold">
+                Play
+              </button>
+              <button id="btn-stop-seq" class="btn btn-xs btn-neutral join-item uppercase tracking-wider font-semibold" disabled>
+                Stop
+              </button>
+            </div>
+          </div>
+
+          <!-- Poses Library & Sequence Timeline -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Poses Chips -->
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs font-semibold text-base-content/70">Stored Poses:</span>
+              <div id="poses-list" class="flex flex-wrap gap-1.5">
+                <!-- Dynamic pose badges -->
+              </div>
+            </div>
+
+            <!-- Sequence Steps Timeline -->
+            <div class="lg:col-span-2 flex flex-col gap-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-base-content/70">Execution Timeline:</span>
+                <label class="flex items-center gap-1.5 text-xs text-base-content/70 cursor-pointer">
+                  <input type="checkbox" id="chk-seq-loop" class="checkbox checkbox-xs checkbox-primary" checked />
+                  <span>Loop Continuously</span>
+                </label>
+              </div>
+              <div id="sequence-timeline" class="flex items-center gap-2 overflow-x-auto p-2.5 bg-base-300/50 rounded-lg border border-base-300 min-h-[64px]">
+                <span class="text-xs text-base-content/50 italic">Timeline empty. Click '+ Save Current Pose' then add to timeline.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Standardized Parametric Horn Simulator & PureKnob (4 cols) -->
+      <div class="lg:col-span-4 flex flex-col gap-4">
+        
+        <!-- Parametric Horn Visualizer Card -->
+        <div class="card bg-base-200 border border-base-300 p-4 flex flex-col gap-3 rounded-xl shadow-sm">
+          <div class="flex items-center justify-between border-b border-base-300 pb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80 flex items-center gap-1.5">
+              <span>Parametric Horn Simulator</span>
+            </h3>
+            <span class="badge badge-primary badge-xs font-mono font-bold" id="badge-selected-servo-channel">CH 1</span>
+          </div>
+
+          <!-- Horn Type Selector -->
+          <div class="join w-full">
+            <button class="join-item btn btn-xs flex-1 horn-type-btn active" data-type="single">Single</button>
+            <button class="join-item btn btn-xs flex-1 horn-type-btn" data-type="double">Double</button>
+            <button class="join-item btn btn-xs flex-1 horn-type-btn" data-type="cross">Cross</button>
+            <button class="join-item btn btn-xs flex-1 horn-type-btn" data-type="wheel">Wheel</button>
+          </div>
+
+          <!-- AgentlaServoView Canvas Container -->
+          <div id="servo-parametric-horn-container" class="w-full h-52 bg-base-300/40 rounded-xl border border-base-300 overflow-hidden relative"></div>
+
+          <!-- PureKnob Rotary Setpoint Dial -->
+          <div class="flex flex-col items-center justify-center p-2 bg-base-300/30 rounded-xl border border-base-300">
+            <span class="text-[10px] font-mono uppercase text-base-content/60 font-semibold mb-1">Rotary Angle Dial</span>
+            <div id="servo-pureknob-dial-container" class="flex justify-center items-center"></div>
+          </div>
+
+          <!-- Channel Target Quick Presets -->
+          <div class="grid grid-cols-5 gap-1 text-[11px] font-mono">
+            <button class="btn btn-ghost btn-xs border border-base-300" onclick="setParametricPreset(0)">0 deg</button>
+            <button class="btn btn-ghost btn-xs border border-base-300" onclick="setParametricPreset(45)">45 deg</button>
+            <button class="btn btn-ghost btn-xs border border-base-300" onclick="setParametricPreset(90)">90 deg</button>
+            <button class="btn btn-ghost btn-xs border border-base-300" onclick="setParametricPreset(135)">135 deg</button>
+            <button class="btn btn-ghost btn-xs border border-base-300" onclick="setParametricPreset(180)">180 deg</button>
+          </div>
+        </div>
+
+        <!-- Telemetry & Safety Quick Info -->
+        <div class="card bg-base-200 border border-base-300 p-3.5 flex flex-col gap-2 rounded-xl text-xs font-mono">
+          <div class="flex items-center justify-between text-base-content/70">
+            <span>PWM Frame Rate:</span>
+            <span class="font-bold text-primary">50 Hz (20 ms)</span>
+          </div>
+          <div class="flex items-center justify-between text-base-content/70">
+            <span>Clock Resolution:</span>
+            <span class="font-bold text-accent">1 us / tick</span>
+          </div>
+          <div class="flex items-center justify-between text-base-content/70">
+            <span>Emergency Safe Hotkey:</span>
+            <span class="badge badge-ghost badge-xs font-mono font-bold">Shift + Esc</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
   </main>
 
   <!-- Wiring & Safety Guide Modal -->
@@ -490,13 +554,18 @@
       }
     }
 
-    function onAngleSliderChange(id, val) {
+    function onAngleSliderChange(id, val, syncVisualizer = true) {
       const ch = channels.find(c => c.id === id);
       if (!ch) return;
-      ch.targetAngle = parseInt(val, 10);
+      const numVal = parseInt(val, 10);
+      ch.targetAngle = numVal;
       if (!document.getElementById("chk-easing").checked) {
         ch.angle = ch.targetAngle;
         updateServoHardware(ch);
+      }
+      if (syncVisualizer && id === selectedServoId) {
+        if (parametricServoView) parametricServoView.setAngle(numVal);
+        if (servoKnob) servoKnob.setValue(numVal);
       }
     }
 
@@ -515,6 +584,10 @@
       if (!document.getElementById("chk-easing").checked) {
         ch.angle = deg;
         updateServoHardware(ch);
+      }
+      if (id === selectedServoId) {
+        if (parametricServoView) parametricServoView.setAngle(deg);
+        if (servoKnob) servoKnob.setValue(deg);
       }
     }
 
@@ -828,9 +901,73 @@
       });
     }
 
+    /* Standardized Parametric Servo Horn & PureKnob Integration */
+    let parametricServoView = null;
+    let servoKnob = null;
+    let selectedServoId = 1;
+
+    function initParametricVisualizer() {
+      const container = document.getElementById("servo-parametric-horn-container");
+      if (!container || typeof AgentlaServoView === "undefined") return;
+      container.innerHTML = "";
+      const activeCh = channels.find(c => c.id === selectedServoId) || channels[0];
+      const initialAngle = activeCh ? activeCh.angle : 90;
+
+      parametricServoView = new AgentlaServoView(container, {
+        hornType: "single",
+        angle: initialAngle,
+        minAngle: 0,
+        maxAngle: 180,
+        interactive: true
+      });
+
+      parametricServoView.on("change", (angle) => {
+        onAngleSliderChange(selectedServoId, Math.round(angle), false);
+        if (servoKnob) servoKnob.setValue(Math.round(angle));
+      });
+
+      // PureKnob Angle Dial
+      const knobContainer = document.getElementById("servo-pureknob-dial-container");
+      if (knobContainer && typeof pureknob !== "undefined") {
+        knobContainer.innerHTML = "";
+        servoKnob = pureknob.createKnob(120, 120);
+        servoKnob.setProperty("colorBG", "#1e293b");
+        servoKnob.setProperty("colorFG", "#38bdf8");
+        servoKnob.setProperty("colorLabel", "#94a3b8");
+        servoKnob.setProperty("trackWidth", 0.25);
+        servoKnob.setProperty("valMin", 0);
+        servoKnob.setProperty("valMax", 180);
+        servoKnob.setProperty("val", initialAngle);
+        servoKnob.setProperty("fnValueToString", (v) => `${v} deg`);
+        servoKnob.setProperty("fnStringToValue", (s) => parseInt(s, 10) || 0);
+        servoKnob.addListener((knob, val) => {
+          onAngleSliderChange(selectedServoId, val, false);
+          if (parametricServoView) parametricServoView.setAngle(val);
+        });
+        knobContainer.appendChild(servoKnob.node());
+      }
+
+      // Horn Type Selector
+      document.querySelectorAll(".horn-type-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          document.querySelectorAll(".horn-type-btn").forEach(b => b.classList.remove("active"));
+          e.currentTarget.classList.add("active");
+          const type = e.currentTarget.dataset.type;
+          if (parametricServoView) parametricServoView.setHornType(type);
+        });
+      });
+    }
+
+    function setParametricPreset(deg) {
+      onAngleSliderChange(selectedServoId, deg);
+      if (parametricServoView) parametricServoView.setAngle(deg);
+      if (servoKnob) servoKnob.setValue(deg);
+    }
+
     /* Initial Attach & Render */
     channels.forEach(ch => sendAttach(ch));
     renderChannels();
+    initParametricVisualizer();
   </script>
 </body>
 </html>

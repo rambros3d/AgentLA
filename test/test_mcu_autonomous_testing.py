@@ -24,9 +24,9 @@ from mcu_test_runner import McpRpcClient, TestReport, run_closed_loop_test
 
 
 def test_skill_canonical_path_and_no_legacy_dirs():
-    """Ensure all 4 canonical skills exist under SKILLS/ and obsolete mcu-autonomous-testing is removed."""
+    """Ensure all canonical skills exist under SKILLS/ and obsolete mcu-autonomous-testing is removed."""
     skills_dir = REPO_ROOT / "SKILLS"
-    for name in ["agentla-dev", "agentla-debug", "agentla-programmer", "agentla-analyzer"]:
+    for name in ["agentla-dev", "agentla-debug", "agentla-programmer", "agentla-analyzer", "agentla-barefoc", "agentla-webapp"]:
         skill_file = skills_dir / name / "SKILL.md"
         assert skill_file.is_file(), f"Expected canonical skill at {skill_file}"
 
@@ -75,9 +75,17 @@ def test_skill_document_content():
     assert "pins_release" in ana_content
     assert "mcp_sniff_bus" in ana_content
 
+    # 5. agentla-webapp
+    webapp_content = (skills_dir / "agentla-webapp" / "SKILL.md").read_text(encoding="utf-8")
+    assert "name: agentla-webapp" in webapp_content
+    assert "DaisyUI 5" in webapp_content
+    assert "uPlot" in webapp_content
+    assert "is-embedded" in webapp_content
+    assert "agentla-bridge.js" in webapp_content
+
 
 def test_pack_webui_includes_skill():
-    """Verify pack_webui discovers and compresses the 4 skills suite into LittleFS."""
+    """Verify pack_webui discovers and compresses the skills suite into LittleFS."""
     from pack_webui import pack_webui, PARTITION_SIZE
 
     build_dir = REPO_ROOT / "build"
@@ -92,7 +100,7 @@ def test_pack_webui_includes_skill():
         output_tar=tar_path,
     )
 
-    for skill in ["agentla-dev", "agentla-debug", "agentla-programmer", "agentla-analyzer"]:
+    for skill in ["agentla-dev", "agentla-debug", "agentla-programmer", "agentla-analyzer", "agentla-barefoc", "agentla-webapp"]:
         assert f"skills/{skill}/SKILL.md" in result["asset_names"], f"Missing {skill} in packed assets"
 
     assert "skills/mcu-autonomous-testing/SKILL.md" not in result["asset_names"], "Deprecated skill should not be packed"
