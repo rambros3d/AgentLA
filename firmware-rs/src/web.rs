@@ -949,7 +949,23 @@ pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
     let mut tcp_rx_buf_1 = [0u8; 1536];
     let mut tcp_tx_buf_1 = [0u8; 1536];
 
-    defmt::info!("HTTP server listening on TCP :80 with 2 concurrent worker sockets");
+    let mut http_buf_2 = [0u8; 2048];
+    let mut tcp_rx_buf_2 = [0u8; 1536];
+    let mut tcp_tx_buf_2 = [0u8; 1536];
+
+    let mut http_buf_3 = [0u8; 2048];
+    let mut tcp_rx_buf_3 = [0u8; 1536];
+    let mut tcp_tx_buf_3 = [0u8; 1536];
+
+    let mut http_buf_4 = [0u8; 2048];
+    let mut tcp_rx_buf_4 = [0u8; 1536];
+    let mut tcp_tx_buf_4 = [0u8; 1536];
+
+    let mut http_buf_5 = [0u8; 2048];
+    let mut tcp_rx_buf_5 = [0u8; 1536];
+    let mut tcp_tx_buf_5 = [0u8; 1536];
+
+    defmt::info!("HTTP server listening on TCP :80 with 6 concurrent worker sockets");
     let worker_0 = async {
         loop {
             let server_0 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_0);
@@ -964,5 +980,37 @@ pub async fn web_server_task(stack: embassy_net::Stack<'static>) {
             defmt::warn!("HTTP worker 1 finished, restarting listener");
         }
     };
-    embassy_futures::join::join(worker_0, worker_1).await;
+    let worker_2 = async {
+        loop {
+            let server_2 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_2);
+            let _ = server_2.listen_and_serve(2, stack, 80, &mut tcp_rx_buf_2, &mut tcp_tx_buf_2).await;
+            defmt::warn!("HTTP worker 2 finished, restarting listener");
+        }
+    };
+    let worker_3 = async {
+        loop {
+            let server_3 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_3);
+            let _ = server_3.listen_and_serve(3, stack, 80, &mut tcp_rx_buf_3, &mut tcp_tx_buf_3).await;
+            defmt::warn!("HTTP worker 3 finished, restarting listener");
+        }
+    };
+    let worker_4 = async {
+        loop {
+            let server_4 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_4);
+            let _ = server_4.listen_and_serve(4, stack, 80, &mut tcp_rx_buf_4, &mut tcp_tx_buf_4).await;
+            defmt::warn!("HTTP worker 4 finished, restarting listener");
+        }
+    };
+    let worker_5 = async {
+        loop {
+            let server_5 = picoserve::Server::new(&app, &CONFIG, &mut http_buf_5);
+            let _ = server_5.listen_and_serve(5, stack, 80, &mut tcp_rx_buf_5, &mut tcp_tx_buf_5).await;
+            defmt::warn!("HTTP worker 5 finished, restarting listener");
+        }
+    };
+    embassy_futures::join::join(
+        embassy_futures::join::join3(worker_0, worker_1, worker_2),
+        embassy_futures::join::join3(worker_3, worker_4, worker_5),
+    )
+    .await;
 }

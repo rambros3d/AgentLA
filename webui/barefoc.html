@@ -6,6 +6,19 @@
   <title>BAREFOC_STUDIO // AgentLA</title>
   <script>
     (function() {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var isEmbed = (window.self !== window.top) || 
+                      params.get('embed') === '1' || 
+                      params.get('no_launcher') === '1' || 
+                      window.AgentLANoLauncher === true;
+        if (isEmbed) {
+          document.documentElement.classList.add('is-embedded');
+        }
+      } catch (_) {
+        document.documentElement.classList.add('is-embedded');
+      }
+
       document.documentElement.setAttribute('data-style', 'industrial');
       var savedMode = localStorage.getItem('agentla-theme-mode');
       var saved = localStorage.getItem('agentla-theme');
