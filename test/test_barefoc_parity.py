@@ -1,10 +1,9 @@
-"""Static verification for the BareFOC Studio <-> ODrive GUI parity change.
+"""Static verification for BareFOC Studio contracts, styling, and register maps.
 
-These tests validate the structural contracts in webui/barefoc.html that deliver
-feature parity with the ODrive GUI reference: discovery, parameter explorer,
-configurable dashboards, stepped wizard, arbitrary-variable scope, and the
-remediation of previously dead controls. They are pure static checks so they
-run without a browser or jsdom dependency.
+These tests validate the structural contracts in webui/barefoc.html:
+Board Identity, Joint Identity, 4-Axis Motor Bank, Automated Calibration Wizard,
+DaisyUI 5 styling compliance, zero dot indicators, full-bleed viewport, and zero emojis.
+They are pure static checks so they run without a browser or jsdom dependency.
 """
 
 import re
@@ -30,6 +29,7 @@ def test_zero_emoji_and_no_dot_indicators():
     content = _content()
     assert not re.findall(r"[\U00010000-\U0010ffff]", content), "no emojis allowed"
     assert ".nav-tab-btn::after," in content
+    assert ".motor-tab-btn::after," in content
     assert "display: none !important;" in content
 
 
@@ -52,109 +52,72 @@ def test_all_inline_scripts_are_syntactically_valid():
             Path(path).unlink(missing_ok=True)
 
 
-def test_studio_store_and_event_bus():
-    js = _js(_content())
-    assert "class StudioStore" in js
-    for member in ["subscribe(", "commit(", "on(", "emit(", "dispatch("]:
-        assert member in js, f"StudioStore missing {member}"
-    assert "const studio = new StudioStore(state)" in js
-    assert "studio.domains.scope = scope" in js
-
-
-def test_discovery_service_and_multi_axis_simulator():
-    js = _js(_content())
-    assert "class DiscoveryService" in js
-    assert "async discover()" in js
-    # Two simulated targets with two axes each
-    assert "Virtual ODrive (SIM)" in js
-    assert "Virtual BareFOC (SIM)" in js
-    assert "axes: ['axis0','axis1']" in js
-    assert "function renderFooter" in js
-    assert "studio-shell-footer" in js
-    assert "function decodeErrors" in js
-    assert "const ERROR_DICT" in js
-    assert "const CALIBRATION_MASK" in js
-    assert "setInterval(()=>{ if (STUDIO_V2) renderFooter(); }, 1000)" in js
-
-
-def test_parameter_explorer_and_generic_controls():
-    js = _js(_content())
-    assert "class ParameterExplorer" in js
-    for fn in ["fromFibreSchema", "fromMultiBus", "fromCommander"]:
-        assert fn in js, f"ParameterExplorer missing {fn}"
-    assert "makeNode(" in js
-    assert "function renderParamTree" in js
-    assert "function renderControlWidget" in js
-    assert "function renderActionWidget" in js
-    for t in ["'function'", "'enum'", "'slider'", "'bool'"]:
-        assert t in js
-    assert "inspectSchema()" in js
-
-
-def test_dashboard_builder_and_import_export():
-    js = _js(_content())
-    assert "function newDashboard" in js
-    assert "function defaultTuningDashboard" in js
-    assert "function addWidgetToDash" in js
-    assert "function renderDashboard" in js
-    assert "function exportDashboard" in js
-    assert "function importDashboardFile" in js
-    assert "function exportTargetConfig" in js
-    assert "function importConfigFile" in js
-    assert "'Export dashboard'" in js
-    assert "'Import target config'" in js
-    # Default Tuning workflow widgets
-    assert "vel_integrator_gain" in js
-    assert "requested_state" in js
-    assert "save_configuration" in js
-
-
-def test_wizard_pages_calibration_and_diff():
-    js = _js(_content())
-    assert "function buildWizardPages" in js
-    assert "function renderWizard" in js
-    assert "function applyWizardConfig" in js
-    # Page graph coverage
-    for key in ["target", "supply", "motor_", "encoder_", "control_", "misc_", "review"]:
-        assert key in js, f"wizard page {key} missing"
-    # Hall encoder CPR derivation and calibration gating
-    assert "6*pp" in js or "6 * pp" in js
-    assert "Calibrate Motor" in js
-    assert "Calibrate Encoder" in js
-    assert "wizardState.choiceMade[page.key]" in js
-    assert "diff-old" in js and "diff-new" in js
-    assert "CALIBRATION_MASK" in js
-
-
-def test_arbitrary_waveform_plotting():
-    js = _js(_content())
-    assert "studio.domains.sampledProperties" in js
-    assert "function refreshTraceSelectors" in js
-    assert "function registerSampled" in js
-    assert "getSeries(" in js
-    assert "function readSampledValue" in js
-    # Retained scope capabilities
-    for token in [
-        "btn-scope-export", "btn-timebase", "scope.autoScale",
-        "scope.frozen", "scope.crosshair", "stepBenchmark",
-    ]:
-        assert token in js, f"scope capability {token} missing"
-
-
-def test_stub_remediation():
-    js = _js(_content())
-    assert "btn-sync-tuning" in js
-    assert "inp-supply-v" in js
-    assert "inp-voltage-limit" in js
-    assert "inp-velocity-limit" in js
-    assert "wireScopeCrosshair" in js
-    assert "wirePowerGuard" in js
-    assert "wireFaultBadges" in js
-    assert "guardAlignmentApply" in js
-
-
-def test_no_framework_or_new_build_artifact():
+def test_board_and_joint_identity_components():
     content = _content()
+    # Board Identity
+    assert 'id="board-uid-pill"' in content
+    assert 'id="board-uid-val"' in content
+    assert 'id="input-board-name"' in content
+    assert 'id="input-board-node-id"' in content
+    assert 'id="btn-save-board-identity"' in content
+
+    # Motor Selector Tabs with dynamic joint names
+    assert 'id="motor-tab-0"' in content
+    assert 'id="motor-tab-3"' in content
+
+    # Joint Identity Controls
+    assert 'id="joint-identity-controls"' in content
+    assert 'id="inp-joint-addr"' in content
+    assert 'id="inp-joint-name"' in content
+    assert 'id="btn-apply-joint-identity"' in content
+
+
+def test_multibus_identity_and_motor_bank_registers():
+    js = _js(_content())
+    # MultiBus Identity offsets
+    assert "HARDWARE_UID: 0x04" in js
+    assert "BOARD_NODE_ID: 0x10" in js
+    assert "BOARD_NAME: 0x11" in js
+    assert "JOINT_BASE: 0x20" in js
+    assert "JOINT0_ADDR: 0x20" in js
+    assert "JOINT0_NAME: 0x21" in js
+    assert "JOINT3_ADDR: 0x50" in js
+    assert "JOINT3_NAME: 0x51" in js
+
+    # 4-Axis Motor Bank offsets
+    assert "MOTOR_BANK_BASE: 0x60" in js
+    assert "MOTOR_BANK_STRIDE: 0x20" in js
+    assert "MOTOR_POLE_PAIRS_OFFSET: 0x00" in js
+    assert "MOTOR_ZERO_ELEC_OFFSET: 0x0E" in js
+    assert "MOTOR_SENSOR_DIR_OFFSET: 0x12" in js
+
+    # Calibration commands
+    assert "CALIB_CMD: 0xB0" in js
+    assert "ALIGN: 0x01" in js
+    assert "SET_ORIGIN: 0x04" in js
+
+
+def test_calibration_wizard_and_arm_badges():
+    content = _content()
+    # Arm status badge
+    assert 'id="badge-arm-status"' in content
+    assert "DISARMED_SAFE" in content
+
+    # Calibration telemetry readouts
+    assert 'id="calib-elec-zero-val"' in content
+    assert 'id="calib-sensor-dir-val"' in content
+    assert 'id="calib-commit-status"' in content
+
+    # Calibration action buttons
+    assert 'id="btn-calib-align"' in content
+    assert 'id="btn-calib-origin"' in content
+    assert "1. Run Electrical ALIGN" in content
+    assert "Set Mechanical Origin" in content
+
+
+def test_viewport_geometry_and_daisyui():
+    content = _content()
+    assert "calc(100vh - 48px)" in content
     assert "vue" not in content.lower()
     assert "react" not in content.lower()
     assert 'src="/agentla-bridge.js"' in content

@@ -61,6 +61,9 @@
       margin: 0;
       padding: 0;
     }
+    main {
+      height: calc(100vh - 48px);
+    }
     html.is-embedded #top-bar,
     html.is-embedded .app-nav-rail,
     html.is-embedded #app-nav-rail,
@@ -69,6 +72,7 @@
       display: none !important;
     }
     html.is-embedded main {
+      height: 100vh !important;
       padding-bottom: 1rem !important;
       max-width: 100% !important;
     }
@@ -347,15 +351,47 @@
           <span class="w-1.5 h-1.5 rounded-full bg-success-content animate-pulse"></span>
           <span id="conn-status-text">Connected</span>
         </div>
+
+        <!-- Board Identity Components (Silicon UID pill, Board Name, Node ID) -->
+        <div class="flex items-center gap-1.5 bg-base-300/80 px-2 py-0.5 rounded-lg border border-base-300 text-xs font-mono" id="board-identity-group" title="BareFOC Board Identity (Silicon UID 0x04..0x0F, Node ID 0x10, Name 0x11..0x1F)">
+          <div id="board-uid-pill" class="badge badge-neutral badge-xs font-mono py-1 px-1.5 text-[10px] tracking-wider uppercase" title="Silicon Hardware UID (MultiBus 0x04..0x0F)">
+            UID: <span id="board-uid-val" class="font-bold text-primary ml-1">340028001751</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-base-content/60 uppercase">Name:</span>
+            <input id="input-board-name" type="text" maxlength="15" value="barefoc-quad" class="input input-bordered input-xs font-mono w-28 text-[11px]" title="Board Name (MultiBus 0x11..0x1F, max 15 chars)" />
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-base-content/60 uppercase">ID:</span>
+            <input id="input-board-node-id" type="number" min="0" max="127" value="64" class="input input-bordered input-xs font-mono w-12 text-center text-[11px]" title="Board Node ID (MultiBus 0x10, 0..127)" />
+          </div>
+          <button id="btn-save-board-identity" class="btn btn-xs btn-ghost text-primary uppercase font-mono text-[10px] px-1 py-0" title="Apply Board Identity">Set</button>
+        </div>
       </div>
 
-      <!-- Center: Motor Selector Tabs (M0..M3 with Surface Active Styling) -->
-      <div id="multi-motor-tabs" class="flex items-center gap-1 bg-base-300/80 p-0.5 rounded-lg border border-base-300 text-xs font-mono">
-        <span class="text-[10px] font-bold uppercase tracking-wider text-base-content/60 px-1">Motor:</span>
-        <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold active" data-motor="0">M0</button>
-        <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold" data-motor="1">M1</button>
-        <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold" data-motor="2">M2</button>
-        <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold" data-motor="3">M3</button>
+      <!-- Center: Motor Selector Tabs (M0..M3 with dynamic joint names) & Joint Identity Controls -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <div id="multi-motor-tabs" class="flex items-center gap-1 bg-base-300/80 p-0.5 rounded-lg border border-base-300 text-xs font-mono">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-base-content/60 px-1">Motor:</span>
+          <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold active" data-motor="0" id="motor-tab-0">M0: shoulder_pitch</button>
+          <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold" data-motor="1" id="motor-tab-1">M1: shoulder_roll</button>
+          <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold" data-motor="2" id="motor-tab-2">M2: elbow_pitch</button>
+          <button class="motor-tab-btn px-2.5 py-0.5 rounded text-xs font-semibold" data-motor="3" id="motor-tab-3">M3: wrist_roll</button>
+        </div>
+
+        <!-- Joint Identity Configuration Controls for Active Motor Tab -->
+        <div id="joint-identity-controls" class="flex items-center gap-1.5 bg-base-300/80 px-2 py-0.5 rounded-lg border border-base-300 text-xs font-mono" title="Joint Identity for active motor tab (MultiBus 0x20..0x5F)">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-base-content/60" id="joint-identity-label">M0 Joint:</span>
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-base-content/50 uppercase">Addr</span>
+            <input type="number" id="inp-joint-addr" min="0" max="127" value="1" class="input input-bordered input-xs font-mono w-12 text-center text-[11px]" title="Joint Address (0..127)" />
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-base-content/50 uppercase">Name</span>
+            <input type="text" id="inp-joint-name" maxlength="15" value="shoulder_pitch" class="input input-bordered input-xs font-mono w-28 text-[11px]" title="Joint Name (max 15 chars)" />
+          </div>
+          <button id="btn-apply-joint-identity" class="btn btn-xs btn-outline btn-primary uppercase font-mono text-[10px] px-2" title="Write Joint Address and Name to MultiBus">Apply</button>
+        </div>
       </div>
 
       <!-- Right: Master Inverter Enable & Quick Stop -->
@@ -917,14 +953,34 @@
       </div>
 
       <!-- Automated Calibration Wizard Strip -->
-      <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col gap-2">
-        <div class="flex items-center justify-between">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">
-            Automated Calibration Wizard (MultiBus 0xB0..0xB4)
-          </h3>
+      <div class="bg-base-200 border border-base-300 rounded-xl p-3 flex flex-col gap-2.5" id="calibration-wizard-strip">
+        <div class="flex items-center justify-between flex-wrap gap-2">
           <div class="flex items-center gap-2">
-            <span class="text-[10px] font-mono text-base-content/60">Flash Status:</span>
-            <span id="badge-flash-status" class="badge badge-success badge-xs font-mono">CRC32 OK</span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">
+              Automated Calibration Wizard (MultiBus 0xB0..0xB4)
+            </h3>
+            <!-- Safe Disarm Badge: DISARMED_SAFE vs ARMED -->
+            <span id="badge-arm-status" class="badge badge-warning badge-xs font-mono font-bold tracking-wider uppercase py-1.5 px-2">DISARMED_SAFE</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-mono text-base-content/60">Flash Auto-Commit:</span>
+            <span id="badge-flash-status" class="badge badge-success badge-xs font-mono font-semibold py-1.5">CRC32 OK</span>
+          </div>
+        </div>
+
+        <!-- Telemetry Readout Strip: Electrical Zero Angle, Sensor Direction, Auto-Commit Status -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-base-300/50 p-2 rounded-lg text-xs font-mono">
+          <div class="flex items-center justify-between px-2 py-1 bg-base-200/80 rounded border border-base-300">
+            <span class="text-[10px] text-base-content/60 uppercase">Electrical Zero:</span>
+            <span id="calib-elec-zero-val" class="font-bold text-primary">Uncalibrated (0.000 rad)</span>
+          </div>
+          <div class="flex items-center justify-between px-2 py-1 bg-base-200/80 rounded border border-base-300">
+            <span class="text-[10px] text-base-content/60 uppercase">Sensor Direction:</span>
+            <span id="calib-sensor-dir-val" class="font-bold text-accent">CW (+1)</span>
+          </div>
+          <div class="flex items-center justify-between px-2 py-1 bg-base-200/80 rounded border border-base-300">
+            <span class="text-[10px] text-base-content/60 uppercase">Commit Status:</span>
+            <span id="calib-commit-status" class="font-bold text-success truncate">Ready</span>
           </div>
         </div>
 
@@ -941,8 +997,9 @@
 
           <!-- Trigger Buttons (4 cols) -->
           <div class="md:col-span-4 flex items-center gap-1.5 flex-wrap">
-            <button class="btn btn-xs btn-primary font-mono uppercase" onclick="triggerCalib(1)">1. Zero Search</button>
-            <button class="btn btn-xs btn-outline font-mono uppercase" onclick="triggerCalib(2)">2. Step Sweep</button>
+            <button id="btn-calib-align" class="btn btn-xs btn-primary font-mono uppercase font-bold" onclick="triggerCalib(1)" title="Run 1-Click Electrical Alignment & Auto-Commit to Flash">1. Run Electrical ALIGN</button>
+            <button id="btn-calib-origin" class="btn btn-xs btn-accent font-mono uppercase font-bold" onclick="triggerCalib(4)" title="Set Mechanical Origin (ZERO) for active motor">Set Mechanical Origin</button>
+            <button class="btn btn-xs btn-outline font-mono uppercase" onclick="triggerCalib(2)">Step Sweep</button>
             <button class="btn btn-xs btn-success font-mono uppercase text-success-content" onclick="triggerCalib(3)">Save Flash</button>
             <button class="btn btn-xs btn-error btn-outline font-mono uppercase" onclick="triggerCalib(255)">Abort</button>
           </div>
@@ -1054,6 +1111,37 @@
   <script>
     /* MultiBus Register Map Contract */
     const MultiBusReg = {
+      // Board Identity (0x04..0x1F)
+      HARDWARE_UID: 0x04,
+      BOARD_NODE_ID: 0x10,
+      BOARD_NAME: 0x11,
+
+      // Joint Identity Slots (0x20..0x5F, 16B each: ADDR @ +0x00, NAME @ +0x01..+0x0F)
+      JOINT_BASE: 0x20,
+      JOINT_STRIDE: 0x10,
+      JOINT0_ADDR: 0x20,
+      JOINT0_NAME: 0x21,
+      JOINT1_ADDR: 0x30,
+      JOINT1_NAME: 0x31,
+      JOINT2_ADDR: 0x40,
+      JOINT2_NAME: 0x41,
+      JOINT3_ADDR: 0x50,
+      JOINT3_NAME: 0x51,
+
+      // 4-Axis Motor Bank (0x60..0xDF, 32B per motor)
+      MOTOR_BANK_BASE: 0x60,
+      MOTOR_BANK_STRIDE: 0x20,
+      MOTOR_POLE_PAIRS_OFFSET: 0x00,
+      MOTOR_PHASE_R_OFFSET: 0x02,
+      MOTOR_PHASE_L_OFFSET: 0x06,
+      MOTOR_KV_OFFSET: 0x0A,
+      MOTOR_ZERO_ELEC_OFFSET: 0x0E,
+      MOTOR_SENSOR_DIR_OFFSET: 0x12,
+      MOTOR_SENSOR_TYPE_OFFSET: 0x13,
+      MOTOR_VOLT_ALIGN_OFFSET: 0x14,
+      MOTOR_HOMING_OFFSET: 0x18,
+
+      // Runtime / Operational registers
       TARGET: 0x01,
       ENABLE: 0x04,
       CONTROL_MODE: 0x05,
@@ -1114,6 +1202,8 @@
       LUT_POINT_INDEX: 0xA3,
       LUT_POINT_VALUE: 0xA4,
       LUT_STATUS: 0xA5,
+
+      // Calibration command & parameters (0xB0..0xB4)
       CALIB_CMD: 0xB0,
       CALIB_PROBE_LIMIT: 0xB1,
       CALIB_SWEEP_VEL: 0xB2,
@@ -1121,7 +1211,16 @@
       FLASH_STATUS: 0xB4
     };
 
-    /* Byte packing utilities */
+    /* Calibration Command Codes Contract */
+    const CalibCmd = {
+      ALIGN: 0x01,
+      SWEEP: 0x02,
+      SAVE: 0x03,
+      SET_ORIGIN: 0x04,
+      ABORT: 0xFF
+    };
+
+    /* Byte packing and string utilities */
     function floatToBytes(val) {
       const buf = new ArrayBuffer(4);
       new DataView(buf).setFloat32(0, val, true); // Little-endian
@@ -1136,6 +1235,23 @@
     }
     function bytesToHex(bytes) {
       return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    function stringToBytes(str, len = 15) {
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < str.length && i < len; i++) {
+        bytes[i] = str.charCodeAt(i);
+      }
+      return bytes;
+    }
+    function bytesToString(bytes, offset = 0, len = 15) {
+      if (!bytes || bytes.length < offset) return '';
+      let str = '';
+      for (let i = 0; i < len && offset + i < bytes.length; i++) {
+        const c = bytes[offset + i];
+        if (c === 0) break;
+        str += String.fromCharCode(c);
+      }
+      return str;
     }
 
     /* Client state store for 4 motors */
@@ -1181,6 +1297,16 @@
       transport: 'simulation',
       i2cAddr: 0x40,
       connected: true,
+      armed: false,
+      hardwareUid: '340028001751323337373334',
+      boardName: 'barefoc-quad',
+      boardNodeId: 64,
+      joints: [
+        { addr: 1, name: 'shoulder_pitch' },
+        { addr: 2, name: 'shoulder_roll' },
+        { addr: 3, name: 'elbow_pitch' },
+        { addr: 4, name: 'wrist_roll' }
+      ],
       jointPitch: 0.0,
       jointRoll: 0.0,
       calibState: 0,
@@ -1212,6 +1338,36 @@
       }
 
       initSimRegisters() {
+        // Hardware Silicon UID (0x04..0x0F, 12 bytes)
+        const uidBytes = [0x34, 0x00, 0x28, 0x00, 0x17, 0x51, 0x32, 0x33, 0x37, 0x37, 0x33, 0x34];
+        this.simRegs.set(uidBytes, MultiBusReg.HARDWARE_UID);
+
+        // Board Identity (0x10..0x1F)
+        this.simRegs[MultiBusReg.BOARD_NODE_ID] = appState.boardNodeId;
+        this.simRegs.set(stringToBytes(appState.boardName, 15), MultiBusReg.BOARD_NAME);
+
+        // 4x Joint Identity Slots (0x20..0x5F, 16B each)
+        appState.joints.forEach((j, idx) => {
+          const base = MultiBusReg.JOINT_BASE + idx * MultiBusReg.JOINT_STRIDE;
+          this.simRegs[base] = j.addr;
+          this.simRegs.set(stringToBytes(j.name, 15), base + 1);
+        });
+
+        // 4-Axis Motor Bank (0x60..0xDF, 32B per motor)
+        for (let m = 0; m < 4; m++) {
+          const mBase = MultiBusReg.MOTOR_BANK_BASE + m * MultiBusReg.MOTOR_BANK_STRIDE;
+          this.simRegs[mBase + MultiBusReg.MOTOR_POLE_PAIRS_OFFSET] = 7;
+          this.simRegs[mBase + MultiBusReg.MOTOR_POLE_PAIRS_OFFSET + 1] = 0;
+          this.simRegs.set(floatToBytes(0.15), mBase + MultiBusReg.MOTOR_PHASE_R_OFFSET);
+          this.simRegs.set(floatToBytes(0.00012), mBase + MultiBusReg.MOTOR_PHASE_L_OFFSET);
+          this.simRegs.set(floatToBytes(140.0), mBase + MultiBusReg.MOTOR_KV_OFFSET);
+          this.simRegs.set(floatToBytes(0.0), mBase + MultiBusReg.MOTOR_ZERO_ELEC_OFFSET);
+          this.simRegs[mBase + MultiBusReg.MOTOR_SENSOR_DIR_OFFSET] = 1; // CW (+1)
+          this.simRegs[mBase + MultiBusReg.MOTOR_SENSOR_TYPE_OFFSET] = 1;
+          this.simRegs.set(floatToBytes(2.0), mBase + MultiBusReg.MOTOR_VOLT_ALIGN_OFFSET);
+          this.simRegs.set(floatToBytes(0.0), mBase + MultiBusReg.MOTOR_HOMING_OFFSET);
+        }
+
         this.simRegs[MultiBusReg.ENABLE] = 1;
         this.simRegs[MultiBusReg.CONTROL_MODE] = 2; // angle
         this.simRegs[MultiBusReg.NUM_MOTORS] = 4;
@@ -1364,9 +1520,31 @@
       if (appState.calibState > 0) {
         appState.calibProgress += 1;
         if (appState.calibProgress >= 100) {
-          appState.calibState = 0;
           appState.calibProgress = 100;
-          document.getElementById('calib-state-text').textContent = 'State: Calibration Complete';
+          if (appState.calibState === 1) { // 1-Click ALIGN
+            const m = appState.activeMotor;
+            const zeroAngle = 1.284 + m * 0.42;
+            const sensorDir = 1; // CW (+1)
+            const mBase = MultiBusReg.MOTOR_BANK_BASE + m * MultiBusReg.MOTOR_BANK_STRIDE;
+            multiBus.simRegs.set(floatToBytes(zeroAngle), mBase + MultiBusReg.MOTOR_ZERO_ELEC_OFFSET);
+            multiBus.simRegs[mBase + MultiBusReg.MOTOR_SENSOR_DIR_OFFSET] = sensorDir;
+            multiBus.simRegs[MultiBusReg.FLASH_STATUS] = 1;
+
+            updateArmStatusBadge(true);
+            const badgeFlash = document.getElementById('badge-flash-status');
+            if (badgeFlash) badgeFlash.textContent = 'Flash Auto-Saved';
+            const commitStatus = document.getElementById('calib-commit-status');
+            if (commitStatus) commitStatus.textContent = 'Armed & Auto-Committed to Flash';
+            const zeroValEl = document.getElementById('calib-elec-zero-val');
+            if (zeroValEl) zeroValEl.textContent = `${zeroAngle.toFixed(3)} rad (${(zeroAngle * 180 / Math.PI).toFixed(1)} deg)`;
+            const dirValEl = document.getElementById('calib-sensor-dir-val');
+            if (dirValEl) dirValEl.textContent = sensorDir === 1 ? 'CW (+1)' : 'CCW (-1)';
+            document.getElementById('calib-state-text').textContent = 'State: ALIGN Complete & Armed';
+            logTerminal(`[CALIB] Electrical ALIGN complete. Motor M${m} ARMED. Auto-committed zero=${zeroAngle.toFixed(3)} rad to Flash.`);
+          } else {
+            document.getElementById('calib-state-text').textContent = 'State: Step Sweep Complete';
+          }
+          appState.calibState = 0;
         } else {
           document.getElementById('calib-state-text').textContent = `State: Running Step ${appState.calibState} (${appState.calibProgress}%)`;
         }
@@ -2328,6 +2506,105 @@
     });
 
     /* =========================================================================
+       BOARD & JOINT IDENTITY INTEGRATION
+       ========================================================================= */
+    function updateMotorTabLabels() {
+      for (let m = 0; m < 4; m++) {
+        const btn = document.getElementById(`motor-tab-${m}`);
+        if (!btn) continue;
+        const name = appState.joints[m]?.name || '';
+        btn.textContent = name ? `M${m}: ${name}` : `M${m}`;
+      }
+    }
+
+    function updateActiveJointControls() {
+      const m = appState.activeMotor;
+      const joint = appState.joints[m];
+      const lbl = document.getElementById('joint-identity-label');
+      if (lbl) lbl.textContent = `M${m} Joint:`;
+      const inpAddr = document.getElementById('inp-joint-addr');
+      if (inpAddr && joint) inpAddr.value = joint.addr;
+      const inpName = document.getElementById('inp-joint-name');
+      if (inpName && joint) inpName.value = joint.name;
+    }
+
+    async function applyJointIdentity() {
+      const m = appState.activeMotor;
+      const inpAddr = document.getElementById('inp-joint-addr');
+      const inpName = document.getElementById('inp-joint-name');
+      const addr = Math.max(0, Math.min(127, parseInt(inpAddr.value) || 0));
+      const rawName = (inpName.value || '').trim().slice(0, 15);
+      appState.joints[m].addr = addr;
+      appState.joints[m].name = rawName;
+      inpAddr.value = addr;
+      inpName.value = rawName;
+
+      const addrReg = MultiBusReg.JOINT_BASE + m * MultiBusReg.JOINT_STRIDE;
+      const nameReg = addrReg + 1;
+      await multiBus.writeRegister(addrReg, new Uint8Array([addr]));
+      await multiBus.writeRegister(nameReg, stringToBytes(rawName, 15));
+
+      updateMotorTabLabels();
+      refreshAllRegisters();
+      logTerminal(`[IDENTITY] Applied Joint ${m} (Addr: ${addr}, Name: "${rawName}") -> Regs 0x${addrReg.toString(16).toUpperCase()}, 0x${nameReg.toString(16).toUpperCase()}`);
+    }
+
+    async function applyBoardIdentity() {
+      const inpName = document.getElementById('input-board-name');
+      const inpNode = document.getElementById('input-board-node-id');
+      const rawName = (inpName.value || '').trim().slice(0, 15);
+      const nodeId = Math.max(0, Math.min(127, parseInt(inpNode.value) || 0));
+      appState.boardName = rawName;
+      appState.boardNodeId = nodeId;
+      inpName.value = rawName;
+      inpNode.value = nodeId;
+
+      await multiBus.writeRegister(MultiBusReg.BOARD_NODE_ID, new Uint8Array([nodeId]));
+      await multiBus.writeRegister(MultiBusReg.BOARD_NAME, stringToBytes(rawName, 15));
+      refreshAllRegisters();
+      logTerminal(`[IDENTITY] Board Name set to "${rawName}", Node ID set to ${nodeId}`);
+    }
+
+    function updateArmStatusBadge(isArmed) {
+      appState.armed = isArmed;
+      const badge = document.getElementById('badge-arm-status');
+      if (!badge) return;
+      if (isArmed) {
+        badge.classList.remove('badge-warning', 'badge-neutral');
+        badge.classList.add('badge-success');
+        badge.textContent = 'ARMED';
+      } else {
+        badge.classList.remove('badge-success');
+        badge.classList.add('badge-warning');
+        badge.textContent = 'DISARMED_SAFE';
+      }
+    }
+
+    function updateMotorReadouts() {
+      const m = appState.activeMotor;
+      const mBase = MultiBusReg.MOTOR_BANK_BASE + m * MultiBusReg.MOTOR_BANK_STRIDE;
+      const zeroAngle = bytesToFloat(multiBus.simRegs, mBase + MultiBusReg.MOTOR_ZERO_ELEC_OFFSET);
+      const sensorDir = (multiBus.simRegs[mBase + MultiBusReg.MOTOR_SENSOR_DIR_OFFSET] << 24) >> 24;
+      const zeroValEl = document.getElementById('calib-elec-zero-val');
+      if (zeroValEl) {
+        if (zeroAngle === 0.0 && !appState.armed) {
+          zeroValEl.textContent = 'Uncalibrated (0.000 rad)';
+        } else {
+          zeroValEl.textContent = `${zeroAngle.toFixed(3)} rad (${(zeroAngle * 180 / Math.PI).toFixed(1)} deg)`;
+        }
+      }
+      const dirValEl = document.getElementById('calib-sensor-dir-val');
+      if (dirValEl) {
+        dirValEl.textContent = sensorDir >= 0 ? 'CW (+1)' : 'CCW (-1)';
+      }
+    }
+
+    const btnSaveBoardEl = document.getElementById('btn-save-board-identity');
+    if (btnSaveBoardEl) btnSaveBoardEl.addEventListener('click', applyBoardIdentity);
+    const btnApplyJointEl = document.getElementById('btn-apply-joint-identity');
+    if (btnApplyJointEl) btnApplyJointEl.addEventListener('click', applyJointIdentity);
+
+    /* =========================================================================
        MOTOR SELECTOR TABS (M0..M3 Surface Active Styling)
        ========================================================================= */
     document.querySelectorAll('.motor-tab-btn').forEach(btn => {
@@ -2337,6 +2614,8 @@
         const m = parseInt(e.currentTarget.dataset.motor);
         appState.activeMotor = m;
         await multiBus.writeRegister(MultiBusReg.MOTOR_SELECT, new Uint8Array([m]));
+        updateActiveJointControls();
+        updateMotorReadouts();
         logTerminal(`[MOTOR] Selected Motor M${m} (Reg 0x70 = ${m})`);
       });
     });
@@ -2361,19 +2640,51 @@
     });
 
     async function triggerCalib(cmdCode) {
-      appState.calibState = cmdCode === 255 ? 0 : cmdCode;
-      appState.calibProgress = 0;
-      await multiBus.writeRegister(MultiBusReg.CALIB_CMD, new Uint8Array([cmdCode]));
-      if (cmdCode === 1) {
-        logTerminal('[CALIB] Triggered Electrical Zero Search (0xB0 = 0x01)');
-      } else if (cmdCode === 2) {
+      if (cmdCode === CalibCmd.ALIGN || cmdCode === 1) {
+        appState.calibState = 1;
+        appState.calibProgress = 0;
+        await multiBus.writeRegister(MultiBusReg.CALIB_CMD, new Uint8Array([0x01]));
+        const commitStatus = document.getElementById('calib-commit-status');
+        if (commitStatus) commitStatus.textContent = 'Calibrating Zero & Sensor Dir...';
+        const stateText = document.getElementById('calib-state-text');
+        if (stateText) stateText.textContent = 'State: Running Electrical ALIGN (0%)';
+        logTerminal('[CALIB] Triggered 1-Click Electrical ALIGN (0xB0 = 0x01)');
+      } else if (cmdCode === CalibCmd.SWEEP || cmdCode === 2) {
+        appState.calibState = 2;
+        appState.calibProgress = 0;
+        await multiBus.writeRegister(MultiBusReg.CALIB_CMD, new Uint8Array([0x02]));
+        const stateText = document.getElementById('calib-state-text');
+        if (stateText) stateText.textContent = 'State: Interactive Step Sweep (0%)';
         logTerminal('[CALIB] Triggered Interactive Step Sweep (0xB0 = 0x02)');
-      } else if (cmdCode === 3) {
+      } else if (cmdCode === CalibCmd.SAVE || cmdCode === 3) {
+        await multiBus.writeRegister(MultiBusReg.CALIB_CMD, new Uint8Array([0x03]));
+        multiBus.simRegs[MultiBusReg.FLASH_STATUS] = 1;
+        const badgeFlash = document.getElementById('badge-flash-status');
+        if (badgeFlash) badgeFlash.textContent = 'Flash Saved';
+        const commitStatus = document.getElementById('calib-commit-status');
+        if (commitStatus) commitStatus.textContent = 'Saved to NVM Flash';
         logTerminal('[CALIB] Saved Calibration to Flash Storage (0xB0 = 0x03)');
-        document.getElementById('badge-flash-status').textContent = 'Flash Saved';
-      } else if (cmdCode === 255) {
+      } else if (cmdCode === CalibCmd.SET_ORIGIN || cmdCode === 4) {
+        await multiBus.writeRegister(MultiBusReg.CALIB_CMD, new Uint8Array([0x04]));
+        const m = appState.activeMotor;
+        motorState[m].angle = 0.0;
+        motorState[m].target = 0.0;
+        multiBus.simRegs.set(floatToBytes(0.0), MultiBusReg.ANGLE);
+        multiBus.simRegs.set(floatToBytes(0.0), MultiBusReg.TARGET);
+        const stateText = document.getElementById('calib-state-text');
+        if (stateText) stateText.textContent = 'State: Mechanical Origin Set (ZERO)';
+        const commitStatus = document.getElementById('calib-commit-status');
+        if (commitStatus) commitStatus.textContent = 'Mechanical Origin Zeroed';
+        updateDashboardHUD();
+        logTerminal(`[CALIB] Set Mechanical Origin to ZERO (0xB0 = 0x04) on Motor M${m}`);
+      } else if (cmdCode === CalibCmd.ABORT || cmdCode === 255) {
+        appState.calibState = 0;
+        appState.calibProgress = 0;
+        await multiBus.writeRegister(MultiBusReg.CALIB_CMD, new Uint8Array([0xFF]));
+        const stateText = document.getElementById('calib-state-text');
+        if (stateText) stateText.textContent = 'State: Aborted';
+        updateArmStatusBadge(false);
         logTerminal('[CALIB] Aborted Calibration Routine (0xB0 = 0xFF)');
-        document.getElementById('calib-state-text').textContent = 'State: Aborted';
       }
     }
 
@@ -2431,41 +2742,56 @@
        ========================================================================= */
     const registerDefinitions = [
       { offset: 0x01, name: 'TARGET', type: 'float', unit: 'rad / rad/s / A' },
-      { offset: 0x04, name: 'ENABLE', type: 'u8', unit: '0/1' },
-      { offset: 0x05, name: 'CONTROL_MODE', type: 'u8', unit: '0..4' },
-      { offset: 0x09, name: 'ANGLE', type: 'float', unit: 'rad' },
-      { offset: 0x11, name: 'VELOCITY', type: 'float', unit: 'rad/s' },
-      { offset: 0x22, name: 'CURRENT_Q', type: 'float', unit: 'A' },
-      { offset: 0x23, name: 'CURRENT_D', type: 'float', unit: 'A' },
-      { offset: 0x30, name: 'VEL_PID_P', type: 'float', unit: 'gain' },
-      { offset: 0x31, name: 'VEL_PID_I', type: 'float', unit: 'gain' },
-      { offset: 0x32, name: 'VEL_PID_D', type: 'float', unit: 'gain' },
-      { offset: 0x36, name: 'ANG_PID_P', type: 'float', unit: 'gain' },
-      { offset: 0x50, name: 'VOLTAGE_LIMIT', type: 'float', unit: 'V' },
-      { offset: 0x52, name: 'VELOCITY_LIMIT', type: 'float', unit: 'rad/s' },
-      { offset: 0x54, name: 'CURRENT_LIMIT', type: 'float', unit: 'A' },
-      { offset: 0x70, name: 'MOTOR_SELECT', type: 'u8', unit: '0..3' },
-      { offset: 0x71, name: 'NUM_MOTORS', type: 'u8', unit: 'count' },
+      { offset: 0x04, name: 'HARDWARE_UID', type: 'hex12', unit: 'silicon uid' },
+      { offset: 0x10, name: 'BOARD_NODE_ID', type: 'u8', unit: '0..127' },
+      { offset: 0x11, name: 'BOARD_NAME', type: 'str15', unit: 'string' },
+      { offset: 0x20, name: 'JOINT0_ADDR', type: 'u8', unit: '0..127' },
+      { offset: 0x21, name: 'JOINT0_NAME', type: 'str15', unit: 'string' },
+      { offset: 0x30, name: 'JOINT1_ADDR', type: 'u8', unit: '0..127' },
+      { offset: 0x31, name: 'JOINT1_NAME', type: 'str15', unit: 'string' },
+      { offset: 0x40, name: 'JOINT2_ADDR', type: 'u8', unit: '0..127' },
+      { offset: 0x41, name: 'JOINT2_NAME', type: 'str15', unit: 'string' },
+      { offset: 0x50, name: 'JOINT3_ADDR', type: 'u8', unit: '0..127' },
+      { offset: 0x51, name: 'JOINT3_NAME', type: 'str15', unit: 'string' },
+      { offset: 0x60, name: 'M0_POLE_PAIRS', type: 'u16', unit: 'pairs' },
+      { offset: 0x62, name: 'M0_PHASE_R', type: 'float', unit: 'ohm' },
+      { offset: 0x66, name: 'M0_PHASE_L', type: 'float', unit: 'H' },
+      { offset: 0x6A, name: 'M0_KV', type: 'float', unit: 'RPM/V' },
+      { offset: 0x6E, name: 'M0_ZERO_ELEC', type: 'float', unit: 'rad' },
+      { offset: 0x72, name: 'M0_SENSOR_DIR', type: 'i8', unit: '+1/-1' },
+      { offset: 0x74, name: 'M0_VOLT_ALIGN', type: 'float', unit: 'V' },
       { offset: 0x78, name: 'TOPOLOGY_MODE', type: 'u8', unit: '0..3' },
-      { offset: 0x87, name: 'JOINT_TARGET_ALPHA', type: 'float', unit: 'rad' },
-      { offset: 0x88, name: 'JOINT_TARGET_BETA', type: 'float', unit: 'rad' },
-      { offset: 0x89, name: 'JOINT_ANGLE_ALPHA', type: 'float', unit: 'rad' },
-      { offset: 0x8A, name: 'JOINT_ANGLE_BETA', type: 'float', unit: 'rad' },
-      { offset: 0x8E, name: 'CALIB_STATE', type: 'u8', unit: 'code' },
-      { offset: 0x8F, name: 'CALIB_PROGRESS', type: 'u8', unit: '%' },
-      { offset: 0x90, name: 'OUTER_PID_ALPHA_P', type: 'float', unit: 'gain' },
-      { offset: 0x9A, name: 'DIFF_MATRIX_T11', type: 'float', unit: 'ratio' },
-      { offset: 0xA0, name: 'LUT_MOT_MIN', type: 'float', unit: 'rad' },
-      { offset: 0xA1, name: 'LUT_MOT_MAX', type: 'float', unit: 'rad' },
-      { offset: 0xA2, name: 'LUT_POINTS', type: 'u16', unit: 'count' },
-      { offset: 0xA4, name: 'LUT_POINT_VALUE', type: 'float', unit: 'spline' },
-      { offset: 0xA5, name: 'LUT_STATUS', type: 'u8', unit: '0/1' },
-      { offset: 0xB0, name: 'CALIB_CMD', type: 'u8', unit: 'cmd' },
-      { offset: 0xB4, name: 'FLASH_STATUS', type: 'u8', unit: 'CRC OK' }
+      { offset: 0x80, name: 'M1_POLE_PAIRS', type: 'u16', unit: 'pairs' },
+      { offset: 0x8E, name: 'M1_ZERO_ELEC', type: 'float', unit: 'rad' },
+      { offset: 0xA0, name: 'M2_POLE_PAIRS', type: 'u16', unit: 'pairs' },
+      { offset: 0xAE, name: 'M2_ZERO_ELEC', type: 'float', unit: 'rad' },
+      { offset: 0xB0, name: 'CALIB_CMD', type: 'u8', unit: '1:ALIGN 4:ZERO' },
+      { offset: 0xB4, name: 'FLASH_STATUS', type: 'u8', unit: 'CRC OK' },
+      { offset: 0xC0, name: 'M3_POLE_PAIRS', type: 'u16', unit: 'pairs' },
+      { offset: 0xCE, name: 'M3_ZERO_ELEC', type: 'float', unit: 'rad' }
     ];
+
+    function formatRegValue(reg) {
+      if (reg.type === 'float') {
+        return bytesToFloat(multiBus.simRegs, reg.offset).toFixed(3);
+      } else if (reg.type === 'u8') {
+        return (multiBus.simRegs[reg.offset] || 0).toString();
+      } else if (reg.type === 'i8') {
+        return (((multiBus.simRegs[reg.offset] || 0) << 24) >> 24).toString();
+      } else if (reg.type === 'u16') {
+        const val = (multiBus.simRegs[reg.offset] || 0) | ((multiBus.simRegs[reg.offset + 1] || 0) << 8);
+        return val.toString();
+      } else if (reg.type === 'hex12') {
+        return bytesToHex(multiBus.simRegs.subarray(reg.offset, reg.offset + 12));
+      } else if (reg.type === 'str15') {
+        return bytesToString(multiBus.simRegs, reg.offset, 15);
+      }
+      return '0';
+    }
 
     function populateRegisterTable() {
       const tbody = document.getElementById('multibus-table-body');
+      if (!tbody) return;
       tbody.innerHTML = '';
       registerDefinitions.forEach(reg => {
         const hex = '0x' + reg.offset.toString(16).padStart(2, '0').toUpperCase();
@@ -2474,20 +2800,13 @@
         tr.dataset.name = reg.name;
         tr.dataset.hex = hex;
 
-        let curVal = '0.00';
-        if (reg.type === 'float') {
-          curVal = bytesToFloat(multiBus.simRegs, reg.offset).toFixed(3);
-        } else if (reg.type === 'u8') {
-          curVal = multiBus.simRegs[reg.offset] || 0;
-        } else if (reg.type === 'u16') {
-          curVal = (multiBus.simRegs[reg.offset] || 0) | ((multiBus.simRegs[reg.offset + 1] || 0) << 8);
-        }
+        const curVal = formatRegValue(reg);
 
         tr.innerHTML = `
           <td class="font-bold text-primary">${hex}</td>
           <td class="font-semibold text-base-content">${reg.name}</td>
           <td class="text-base-content/60">${reg.type}</td>
-          <td id="reg-val-${reg.offset}" class="font-bold text-emerald-400">${curVal} ${reg.unit}</td>
+          <td id="reg-val-${reg.offset}" class="font-bold text-emerald-400 font-mono">${curVal} ${reg.unit}</td>
           <td>
             <input type="text" id="reg-inp-${reg.offset}" class="input input-bordered input-xs font-mono w-28 text-xs" placeholder="${curVal}" />
           </td>
@@ -2498,7 +2817,6 @@
         tbody.appendChild(tr);
       });
     }
-    populateRegisterTable();
 
     async function writeSingleRegister(offset, type) {
       const inp = document.getElementById(`reg-inp-${offset}`);
@@ -2506,33 +2824,34 @@
       const str = inp.value.trim();
       let bytes;
       if (type === 'float') {
-        const val = parseFloat(str);
-        bytes = floatToBytes(val);
+        bytes = floatToBytes(parseFloat(str));
       } else if (type === 'u8') {
-        const val = parseInt(str);
-        bytes = new Uint8Array([val & 0xFF]);
+        bytes = new Uint8Array([parseInt(str) & 0xFF]);
+      } else if (type === 'i8') {
+        bytes = new Uint8Array([parseInt(str) & 0xFF]);
       } else if (type === 'u16') {
         const val = parseInt(str);
         bytes = new Uint8Array([val & 0xFF, (val >> 8) & 0xFF]);
+      } else if (type === 'str15') {
+        bytes = stringToBytes(str, 15);
+      } else if (type === 'hex12') {
+        bytes = new Uint8Array(12);
+        for (let i = 0; i < 12; i++) {
+          bytes[i] = parseInt(str.substr(i * 2, 2) || '0', 16);
+        }
       }
-      await multiBus.writeRegister(offset, bytes);
-      logTerminal(`[MBUS WRITE] Register 0x${offset.toString(16).toUpperCase()} written with ${str}`);
-      refreshAllRegisters();
+      if (bytes) {
+        await multiBus.writeRegister(offset, bytes);
+        logTerminal(`[MBUS WRITE] Register 0x${offset.toString(16).toUpperCase()} written with ${str}`);
+        refreshAllRegisters();
+      }
     }
 
     function refreshAllRegisters() {
       registerDefinitions.forEach(reg => {
         const el = document.getElementById(`reg-val-${reg.offset}`);
         if (!el) return;
-        let curVal = '0.00';
-        if (reg.type === 'float') {
-          curVal = bytesToFloat(multiBus.simRegs, reg.offset).toFixed(3);
-        } else if (reg.type === 'u8') {
-          curVal = multiBus.simRegs[reg.offset] || 0;
-        } else if (reg.type === 'u16') {
-          curVal = (multiBus.simRegs[reg.offset] || 0) | ((multiBus.simRegs[reg.offset + 1] || 0) << 8);
-        }
-        el.textContent = `${curVal} ${reg.unit}`;
+        el.textContent = `${formatRegValue(reg)} ${reg.unit}`;
       });
     }
 
@@ -2783,6 +3102,11 @@
       initTargetKnob();
       initGimbalJoystick();
       renderLutSplineEditor();
+      updateMotorTabLabels();
+      updateActiveJointControls();
+      updateMotorReadouts();
+      updateArmStatusBadge(false);
+      populateRegisterTable();
       requestAnimationFrame(stepSimulation);
     });
   </script>

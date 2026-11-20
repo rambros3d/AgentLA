@@ -2,8 +2,8 @@
 
 Executes the full inline script of webui/barefoc.html inside a minimal DOM/bridge
 stub (Node.js) to catch runtime errors that static syntax checks cannot detect.
-Verifies the ODrive-GUI-style shell actually initializes: discovery, parameter
-tree, dashboards, multi-axis footer, and the stepped wizard.
+Verifies the BareFOC Studio shell initializes: Board Identity, Joint Identity,
+MultiBus register maps, 4-Axis motor bank, and the Automated Calibration Wizard.
 """
 
 import shutil
@@ -23,9 +23,12 @@ def test_barefoc_studio_runtime_shell_initializes():
     assert res.returncode == 0, f"Runtime error:\n{res.stderr}\n{res.stdout}"
     out = res.stdout
     assert "RUNTIME OK" in out, out
-    assert 'targets: ["sim0:2","sim1:2"]' in out, out  # multi-device, multi-axis
-    assert "dashboards: Tuning" in out, out
-    assert "footer chips: 4" in out, out
-    assert "wizard pages: 19" in out, out
-    assert "MOTOR_ERROR_PHASE_RESISTANCE_OUT_OF_RANGE" in out, out  # error decoding
+    assert "hardware_uid: 0x04" in out, out
+    assert "board_node_id: 0x10" in out, out
+    assert "motor_bank: 0x60" in out, out
+    assert "calib_cmd: 0xb0" in out, out
+    assert "motors: 4" in out, out
+    assert "shoulder_pitch" in out, out
+    assert "calib badge armed: ARMED" in out, out
+    assert "mechanical origin angle: 0" in out, out
     assert "RUNTIME ERROR" not in out, out

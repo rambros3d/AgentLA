@@ -105,32 +105,46 @@ global.navigator = {};
 global.Blob = function(){}; global.URL = { createObjectURL:()=> 'blob:x', revokeObjectURL(){} };
 global.FileReader = function(){};
 
+global.MutationObserver = class {
+  constructor(cb) { this.cb = cb; }
+  observe() {}
+  disconnect() {}
+  takeRecords() { return []; }
+};
+
 try {
-  const probe = `\n;(function(){ console.log('RUNTIME OK: script executed without error');
-  console.log('STUDIO_V2:', STUDIO_V2, 'shellRoot:', typeof shellRoot !== 'undefined' && !!shellRoot, 'viewMode:', typeof studioViewMode !== 'undefined' && studioViewMode);
-  console.log('targets:', JSON.stringify(studio.domains.targets.map(t=>t.id+':'+t.axes.length)));
-  console.log('dashboards:', studio.domains.dashboards.map(d=>d.name).join(','));
-  console.log('params:', Object.keys(studio.domains.params).length ? Object.keys(studio.domains.params[Object.keys(studio.domains.params)[0]]).length : 0);
-  console.log('footer chips:', (document.getElementById('studio-footer') ? document.getElementById('studio-footer').children.length : 'n/a'));
-  console.log('studio-view children:', document.getElementById('studio-view') ? document.getElementById('studio-view').children.length : 'n/a');
-  console.log('dial:', document.getElementById('dial-center-text').textContent);
-  console.log('--- interactive probes ---');
-  switchStudioView('wizard');
-  console.log('wizard pages:', wizardState.pages.length, 'first:', wizardState.pages[0].title);
-  // advance through pages by marking choices and clicking Next equivalent
-  wizardState.choiceMade[wizardState.pages[0].key] = true;
-  console.log('wizard can-advance:', !!wizardState.choiceMade[wizardState.pages[0].key]);
-  switchStudioView('params');
-  console.log('params view children:', document.getElementById('studio-view').children.length);
-  const node = explorer.allNodes(studio.domains.activeTargetId)[0];
-  addWidgetToDash('slider', node);
-  console.log('dash widgets after add:', activeDash().controls.length);
-  registerSampled('custom.param');
-  console.log('sampled count:', studio.domains.sampledProperties.length);
-  console.log('decodeErrors:', decodeErrors('motor', 3).join(','));
-  console.log('config export target:', studio.domains.activeTargetId);
-  applyWizardConfig();
-  console.log('applyWizardConfig OK');
+  const probe = `\n;(async function(){
+    console.log('RUNTIME OK: BareFOC Studio runtime script executed without error');
+    console.log('hardware_uid: 0x' + MultiBusReg.HARDWARE_UID.toString(16).padStart(2, '0'));
+    console.log('board_node_id: 0x' + MultiBusReg.BOARD_NODE_ID.toString(16).padStart(2, '0'));
+    console.log('board_name: 0x' + MultiBusReg.BOARD_NAME.toString(16).padStart(2, '0'));
+    console.log('joint_base: 0x' + MultiBusReg.JOINT_BASE.toString(16).padStart(2, '0'));
+    console.log('motor_bank: 0x' + MultiBusReg.MOTOR_BANK_BASE.toString(16).padStart(2, '0'));
+    console.log('calib_cmd: 0x' + MultiBusReg.CALIB_CMD.toString(16).padStart(2, '0'));
+    console.log('motors: ' + motorState.length);
+    console.log('active motor: ' + appState.activeMotor);
+    console.log('board name: ' + appState.boardName);
+    console.log('joint 0 name: ' + appState.joints[0].name);
+
+    // Test Joint Identity mutation
+    const inpName = document.getElementById('inp-joint-name');
+    if (inpName) inpName.value = 'shoulder_yaw';
+    const inpAddr = document.getElementById('inp-joint-addr');
+    if (inpAddr) inpAddr.value = '5';
+    await applyJointIdentity();
+    console.log('applied joint name: ' + appState.joints[0].name);
+
+    // Test Calibration ALIGN command
+    await triggerCalib(CalibCmd.ALIGN);
+    console.log('calib state after ALIGN trigger: ' + appState.calibState);
+
+    // Test Arm Badge update
+    updateArmStatusBadge(true);
+    console.log('calib badge armed: ' + document.getElementById('badge-arm-status').textContent);
+
+    // Test Set Mechanical Origin command (0x04)
+    await triggerCalib(CalibCmd.SET_ORIGIN);
+    console.log('mechanical origin angle: ' + motorState[0].angle);
   })();`;
   eval(script + probe);
 } catch (e) {
