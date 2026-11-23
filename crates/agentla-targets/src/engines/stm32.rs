@@ -404,8 +404,8 @@ pub fn h5_program_page<M: TargetMemAccess>(
 // ----------------------------------------------------------------------------
 // 6. STM32H5 DBGMCU Configuration (Low-Power Debug Clocking & Watchdogs)
 // ----------------------------------------------------------------------------
-pub const DBGMCU_CONFIG: u32 = 0x4402_4004;
-pub const DBGMCU_APB1LFREEZE: u32 = 0x4402_4008;
+pub const DBGMCU_CONFIG: u32 = 0xE004_4004;
+pub const DBGMCU_APB1LFREEZE: u32 = 0xE004_4008;
 
 pub const DBG_STOP: u32 = 1 << 1;
 pub const DBG_STANDBY: u32 = 1 << 2;
@@ -415,15 +415,14 @@ pub const DBG_IWDG_STOP: u32 = 1 << 12;
 /// Configure STM32H5 DBGMCU to un-gate debug clocking in STOP and STANDBY low-power modes
 /// and freeze watchdog counters when halted.
 pub fn stm32h5_configure_dbgmcu<M: TargetMemAccess>(mem: &mut M) -> Result<(), TargetError> {
-    for &base in &[0x4402_4000, 0xE004_4000, 0x5402_4000] {
-        let config_addr = base + 0x04;
-        let freeze_addr = base + 0x08;
-        if let Ok(cr) = mem.read32(config_addr) {
-            let _ = mem.write32(config_addr, cr | DBG_STOP | DBG_STANDBY);
-        }
-        if let Ok(apb1) = mem.read32(freeze_addr) {
-            let _ = mem.write32(freeze_addr, apb1 | DBG_WWDG_STOP | DBG_IWDG_STOP);
-        }
+    let base = 0xE004_4000u32;
+    let config_addr = base + 0x04;
+    let freeze_addr = base + 0x08;
+    if let Ok(cr) = mem.read32(config_addr) {
+        let _ = mem.write32(config_addr, cr | DBG_STOP | DBG_STANDBY);
+    }
+    if let Ok(apb1) = mem.read32(freeze_addr) {
+        let _ = mem.write32(freeze_addr, apb1 | DBG_WWDG_STOP | DBG_IWDG_STOP);
     }
     Ok(())
 }

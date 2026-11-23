@@ -2,6 +2,7 @@
 
 use core::fmt::Write as _;
 use core::sync::atomic::{AtomicU8, Ordering};
+use agentla_bsp::BoardProfile;
 use rp_pac as pac;
 
 /// Session-only active external FOC target (no LittleFS persistence).
@@ -67,6 +68,124 @@ fn parse_mcp_color(s: &str) -> (u8, u8, u8) {
     }
 }
 
+static PENDING_ACTION: portable_atomic::AtomicU32 = portable_atomic::AtomicU32::new(0);
+
+pub async fn execute_pending_action() {
+    let act = PENDING_ACTION.swap(0, Ordering::SeqCst);
+    if act == 0 {
+        return;
+    }
+    match act {
+        1 => {
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+            cortex_m::peripheral::SCB::sys_reset();
+        }
+        2 => {
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+            crate::rest::request_recovery();
+        }
+        3 => {
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+            embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+        }
+        val if val >= 0x1000 => {
+            let mhz = val & 0xFFFF;
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(150)).await;
+            rp_pac::WATCHDOG.scratch4().write_value(0xC10C_0000 | (mhz & 0xFFFF));
+            let _ = crate::benchmark::apply_system_clock_in_ram(crate::benchmark::PROFILE_150);
+            embassy_time::Timer::after(embassy_time::Duration::from_millis(50)).await;
+            cortex_m::peripheral::SCB::sys_reset();
+        }
+        _ => {}
+    }
+}
+
+fn list_dir_entries<S: littlefs2::driver::Storage>(
+    fs: &littlefs2::fs::Filesystem<'static, S>,
+    path_str: &str,
+    out: &mut heapless::String<1536>,
+) -> Result<(), &'static str> {
+    let target_path = if path_str == "/" || path_str.is_empty() {
+        littlefs2::path::PathBuf::try_from(".").map_err(|_| "invalid_path")?
+    } else {
+        littlefs2::path::PathBuf::try_from(path_str).map_err(|_| "invalid_path")?
+    };
+
+    let mut first = true;
+    out.push('[').map_err(|_| "buffer_overflow")?;
+    let mut write_err = false;
+    let res = fs.read_dir_and_then(&target_path, |dir| {
+        for entry in dir.by_ref() {
+            let Ok(entry) = entry else { continue };
+            let name = entry.file_name().as_str();
+            if name == "." || name == ".." {
+                continue;
+            }
+            let m = entry.metadata();
+            let is_dir = m.is_dir();
+            let size = if is_dir { 0 } else { m.len() };
+            if !first {
+                if out.push(',').is_err() {
+                    write_err = true;
+                    break;
+                }
+            }
+            first = false;
+            if write!(out, r#"{{"name":"{}","is_dir":{},"size":{}}}"#, name, is_dir, size).is_err() {
+                write_err = true;
+                break;
+            }
+        }
+        Ok(())
+    });
+    if write_err {
+        return Err("listing_too_large");
+    }
+    if res.is_err() && (path_str == "/" || path_str.is_empty()) {
+        if let Ok(root_path) = littlefs2::path::PathBuf::try_from("/") {
+            out.clear();
+            first = true;
+            out.push('[').map_err(|_| "buffer_overflow")?;
+            let res2 = fs.read_dir_and_then(&root_path, |dir| {
+                for entry in dir.by_ref() {
+                    let Ok(entry) = entry else { continue };
+                    let name = entry.file_name().as_str();
+                    if name == "." || name == ".." {
+                        continue;
+                    }
+                    let m = entry.metadata();
+                    let is_dir = m.is_dir();
+                    let size = if is_dir { 0 } else { m.len() };
+                    if !first {
+                        if out.push(',').is_err() {
+                            write_err = true;
+                            break;
+                        }
+                    }
+                    first = false;
+                    if write!(out, r#"{{"name":"{}","is_dir":{},"size":{}}}"#, name, is_dir, size).is_err() {
+                        write_err = true;
+                        break;
+                    }
+                }
+                Ok(())
+            });
+            if write_err {
+                return Err("listing_too_large");
+            }
+            if res2.is_err() {
+                return Err("directory_not_found");
+            }
+        } else {
+            return Err("directory_not_found");
+        }
+    } else if res.is_err() {
+        return Err("directory_not_found");
+    }
+    out.push(']').map_err(|_| "buffer_overflow")?;
+    Ok(())
+}
+
 fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool {
     match name {
         "status" => {
@@ -79,22 +198,27 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             false
         }
         "probe_target" => {
-            let port_str = extract_string_arg(body, "port");
-            let target = match port_str {
-                Some("ch32v203") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v203),
-                Some("ch32v003") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003),
-                Some("bluepill") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::BluePill),
-                _ => crate::programmer::detect_target_global(),
-            };
-            match target {
-                Ok(info) => {
-                    let _ = write!(out, "detected=true name=\"{}\" family={:?} idcode=0x{:08X} flash={}KB",
-                        info.name, info.family, info.idcode, info.flash_size / 1024);
-                    false
-                }
-                Err(e) => {
-                    let _ = write!(out, "detected=false error={:?}", e);
-                    true
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
+                true
+            } else {
+                let port_str = extract_string_arg(body, "port");
+                let target = match port_str {
+                    Some("ch32v203") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v203),
+                    Some("ch32v003") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::Ch32v003),
+                    Some("bluepill") => crate::programmer::detect_target_port_global(crate::programmer::TargetPort::BluePill),
+                    _ => crate::programmer::detect_target_global(),
+                };
+                match target {
+                    Ok(info) => {
+                        let _ = write!(out, "detected=true name=\"{}\" family={:?} idcode=0x{:08X} flash={}KB",
+                            info.name, info.family, info.idcode, info.flash_size / 1024);
+                        false
+                    }
+                    Err(e) => {
+                        let _ = write!(out, "detected=false error={:?}", e);
+                        true
+                    }
                 }
             }
         }
@@ -339,6 +463,10 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             false
         }
         "programmer_read" => {
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
+                true
+            } else {
             let addr = extract_u32_arg(body, "address").unwrap_or(0x08000000);
             let len = (extract_u32_arg(body, "length").unwrap_or(16) as usize).clamp(1, 256);
             let mut buf = [0u8; 256];
@@ -357,10 +485,11 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
                     true
                 }
             }
+            }
         }
         "programmer_flash" => {
-            if !crate::rest::HTTP_FLASH_ENABLED {
-                let _ = out.push_str(crate::rest::HTTP_FLASH_DISABLED_BODY);
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED || !crate::rest::HTTP_FLASH_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
                 true
             } else {
             let addr = extract_u32_arg(body, "address").unwrap_or(0x08000000);
@@ -385,12 +514,17 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             }
         }
         "programmer_reset" => {
-            let _ = write!(out, "programmer target reset completed");
-            false
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
+                true
+            } else {
+                let _ = write!(out, "programmer target reset completed");
+                false
+            }
         }
         "programmer_unbrick" => {
-            if !crate::rest::HTTP_FLASH_ENABLED {
-                let _ = out.push_str(crate::rest::HTTP_FLASH_DISABLED_BODY);
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED || !crate::rest::HTTP_FLASH_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
                 true
             } else {
             let target = extract_string_arg(body, "target").unwrap_or("stm32");
@@ -669,18 +803,28 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             }
         }
         "target_diagnose" | "mcp_target_diagnose" => {
-            let port = extract_string_arg(body, "port");
-            let report = crate::programmer::target::diagnostic::run_target_diagnose(port);
-            let json = report.to_json();
-            let _ = out.push_str(json.as_str());
-            false
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
+                true
+            } else {
+                let port = extract_string_arg(body, "port");
+                let report = crate::programmer::target::diagnostic::run_target_diagnose(port);
+                let json = report.to_json();
+                let _ = out.push_str(json.as_str());
+                false
+            }
         }
         "inspect_firmware" | "mcp_inspect_firmware" => {
-            let addr = extract_u32_arg(body, "address");
-            let target = extract_string_arg(body, "target");
-            let (json, is_err) = crate::programmer::target::diagnostic::run_inspect_firmware(addr, target);
-            let _ = out.push_str(json.as_str());
-            is_err
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
+                true
+            } else {
+                let addr = extract_u32_arg(body, "address");
+                let target = extract_string_arg(body, "target");
+                let (json, is_err) = crate::programmer::target::diagnostic::run_inspect_firmware(addr, target);
+                let _ = out.push_str(json.as_str());
+                is_err
+            }
         }
         "sniff_bus" | "mcp_sniff_bus" => {
             let protocol = extract_string_arg(body, "protocol").unwrap_or("i2c");
@@ -835,29 +979,34 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             }
         }
         "swo_read" => {
-            let clear = extract_bool_arg(body, "clear").unwrap_or(true);
-            let mut buf = [0u8; 512];
-            let n = if clear {
-                crate::programmer::swo::drain_swo_bytes(&mut buf)
+            if !crate::rest::HTTP_PROGRAMMER_ENABLED {
+                let _ = out.push_str(crate::rest::HTTP_PROGRAMMER_DISABLED_BODY);
+                true
             } else {
-                crate::programmer::swo::SWO_ENGINE.peek(&mut buf)
-            };
-            let mut trace_escaped = heapless::String::<1024>::new();
-            for &b in &buf[..n] {
-                if b.is_ascii_graphic() || b == b' ' {
-                    let _ = trace_escaped.push(b as char);
-                } else if b == b'\n' {
-                    let _ = trace_escaped.push_str("\\n");
-                } else if b == b'\r' {
-                    let _ = trace_escaped.push_str("\\r");
-                } else if b == b'\t' {
-                    let _ = trace_escaped.push_str("\\t");
+                let clear = extract_bool_arg(body, "clear").unwrap_or(true);
+                let mut buf = [0u8; 512];
+                let n = if clear {
+                    crate::programmer::swo::drain_swo_bytes(&mut buf)
                 } else {
-                    let _ = write!(trace_escaped, "\\x{:02X}", b);
+                    crate::programmer::swo::SWO_ENGINE.peek(&mut buf)
+                };
+                let mut trace_escaped = heapless::String::<1024>::new();
+                for &b in &buf[..n] {
+                    if b.is_ascii_graphic() || b == b' ' {
+                        let _ = trace_escaped.push(b as char);
+                    } else if b == b'\n' {
+                        let _ = trace_escaped.push_str("\\n");
+                    } else if b == b'\r' {
+                        let _ = trace_escaped.push_str("\\r");
+                    } else if b == b'\t' {
+                        let _ = trace_escaped.push_str("\\t");
+                    } else {
+                        let _ = write!(trace_escaped, "\\x{:02X}", b);
+                    }
                 }
+                let _ = write!(out, r#"{{"status":"ok","bytes":{},"data":"{}"}}"#, n, trace_escaped.as_str());
+                false
             }
-            let _ = write!(out, r#"{{"status":"ok","bytes":{},"data":"{}"}}"#, n, trace_escaped.as_str());
-            false
         }
         "sensor_scan" => {
             let bus = extract_string_arg(body, "bus").unwrap_or("i2c");
@@ -1301,6 +1450,576 @@ fn invoke_tool(name: &str, body: &str, out: &mut heapless::String<1536>) -> bool
             crate::profile::set_target_power(false);
             let _ = out.push_str(r#"{"status":"ok","safe_state":true,"inverter_disabled":true,"target_zeroed":true,"pins_released":true,"power_enabled":false}"#);
             false
+        }
+        "usb_adapters_status" => {
+            let can_active = crate::bridge::can_gsusb::adapter_can_is_active();
+            let can_bitrate = crate::bridge::can_gsusb::adapter_can_get_bitrate();
+            let can_term = crate::bridge::can_gsusb::adapter_can_get_termination();
+            let can_tx = crate::bridge::can_gsusb::adapter_can_get_tx_frames();
+            let can_rx = crate::bridge::can_gsusb::adapter_can_get_rx_frames();
+            let _ = write!(
+                out,
+                r#"{{"mode":"unified_mega_composite","adapters":{{"i2c":{{"driver":"i2c-tiny-usb","active":true}},"spi":{{"driver":"ftdi-mpsse","active":true,"max_speed_hz":30000000}},"i3c":{{"driver":"agentla-binary-bulk","active":true,"max_speed_khz":12500}},"can":{{"driver":"gs_usb","active":{},"bitrate":{},"termination":{},"tx":{},"rx":{}}},"cmsis_dap":{{"version":"v1_v2","active":true}},"uart":{{"driver":"cdc-acm","active":true,"baud":115200}},"ethernet":{{"driver":"cdc-ncm","active":true,"ip":"10.10.10.10"}}}}}}"#,
+                can_active, can_bitrate, can_term, can_tx, can_rx
+            );
+            false
+        }
+        "i3c_status" => {
+            let _ = out.push_str(r#"{"active":true,"speed_khz":12500,"sdr_supported":true,"mode":"controller","devices":[8]}"#);
+            false
+        }
+        "fs_list" => {
+            let root = extract_string_arg(body, "root").unwrap_or("user");
+            let raw_path = extract_string_arg(body, "path").unwrap_or("/");
+            let clean_path = match crate::fs_http::sanitize_fs_path(raw_path) {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"invalid_path"}}"#);
+                    return true;
+                }
+            };
+            let is_system = root == "system";
+            let outcome = if is_system {
+                crate::storage::with_system_fs_result(|fs| list_dir_entries(fs, clean_path.as_str(), out))
+            } else {
+                crate::storage::with_user_fs_result(|fs| list_dir_entries(fs, clean_path.as_str(), out))
+            };
+            match outcome {
+                Ok(Ok(())) => false,
+                Ok(Err(e)) => {
+                    out.clear();
+                    let _ = write!(out, r#"{{"error":"{}"}}"#, e);
+                    true
+                }
+                Err(crate::storage::FsAccessError::Busy) => {
+                    out.clear();
+                    let _ = write!(out, r#"{{"error":"fs_busy"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::NotMounted) => {
+                    out.clear();
+                    let _ = write!(out, r#"{{"error":"fs_not_mounted"}}"#);
+                    true
+                }
+            }
+        }
+        "fs_read" => {
+            let root = extract_string_arg(body, "root").unwrap_or("user");
+            let path = match extract_string_arg(body, "path") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_path"}}"#);
+                    return true;
+                }
+            };
+            let clean_path = match crate::fs_http::sanitize_fs_path(path) {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"invalid_path"}}"#);
+                    return true;
+                }
+            };
+            let pbuf = match littlefs2::path::PathBuf::try_from(clean_path.as_str()) {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"path_too_long"}}"#);
+                    return true;
+                }
+            };
+            let offset = extract_u32_arg(body, "offset").unwrap_or(0);
+            let length = extract_u32_arg(body, "length").unwrap_or(256).min(256) as usize;
+
+            let is_system = root == "system";
+            let read_result = if is_system {
+                crate::storage::with_system_fs_result(|fs| {
+                    fs.read_chunk::<256>(&pbuf, littlefs2::io::OpenSeekFrom::Start(offset))
+                })
+            } else {
+                crate::storage::with_user_fs_result(|fs| {
+                    fs.read_chunk::<256>(&pbuf, littlefs2::io::OpenSeekFrom::Start(offset))
+                })
+            };
+
+            match read_result {
+                Ok(Ok((chunk, file_len))) => {
+                    let take_len = chunk.len().min(length);
+                    let mut hex_buf = heapless::String::<512>::new();
+                    for &b in &chunk[..take_len] {
+                        let _ = write!(hex_buf, "{:02x}", b);
+                    }
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","path":"{}","offset":{},"bytes_read":{},"file_len":{},"hex_data":"{}"}}"#,
+                        clean_path.as_str(), offset, take_len, file_len, hex_buf.as_str()
+                    );
+                    false
+                }
+                Ok(Err(_)) => {
+                    let _ = write!(out, r#"{{"error":"read_failed"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::Busy) => {
+                    let _ = write!(out, r#"{{"error":"fs_busy"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::NotMounted) => {
+                    let _ = write!(out, r#"{{"error":"fs_not_mounted"}}"#);
+                    true
+                }
+            }
+        }
+        "fs_write" => {
+            let root = extract_string_arg(body, "root").unwrap_or("user");
+            if root == "system" {
+                let _ = write!(out, r#"{{"error":"system_fs is read-only"}}"#);
+                return true;
+            }
+            let path = match extract_string_arg(body, "path") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_path"}}"#);
+                    return true;
+                }
+            };
+            let clean_path = match crate::fs_http::sanitize_fs_path(path) {
+                Some(p) if p.as_str() != "/" => p,
+                _ => {
+                    let _ = write!(out, r#"{{"error":"invalid_path"}}"#);
+                    return true;
+                }
+            };
+            let hex_data = match extract_string_arg(body, "hex_data") {
+                Some(h) => h,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_hex_data"}}"#);
+                    return true;
+                }
+            };
+            let mut data_buf = [0u8; 256];
+            let bytes_len = decode_hex(hex_data, &mut data_buf);
+            let append = extract_bool_arg(body, "append").unwrap_or(false);
+
+            let pbuf = match littlefs2::path::PathBuf::try_from(clean_path.as_str()) {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"path_too_long"}}"#);
+                    return true;
+                }
+            };
+
+            let outcome = crate::storage::with_user_fs_result(|fs| {
+                crate::fs_http::ensure_parent_dirs_user(fs, clean_path.as_str());
+                if append {
+                    match fs.write_chunk(&pbuf, &data_buf[..bytes_len], littlefs2::io::OpenSeekFrom::End(0)) {
+                        Ok(()) => Ok(()),
+                        Err(_) => fs.write(&pbuf, &data_buf[..bytes_len]),
+                    }
+                } else {
+                    let _ = fs.remove(&pbuf);
+                    fs.write(&pbuf, &data_buf[..bytes_len])
+                }
+            });
+
+            match outcome {
+                Ok(Ok(())) => {
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","path":"{}","bytes_written":{}}}"#,
+                        clean_path.as_str(), bytes_len
+                    );
+                    false
+                }
+                Ok(Err(_)) => {
+                    let _ = write!(out, r#"{{"error":"write_failed"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::Busy) => {
+                    let _ = write!(out, r#"{{"error":"fs_busy"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::NotMounted) => {
+                    let _ = write!(out, r#"{{"error":"fs_not_mounted"}}"#);
+                    true
+                }
+            }
+        }
+        "fs_stat" => {
+            let root = extract_string_arg(body, "root").unwrap_or("user");
+            let path = match extract_string_arg(body, "path") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_path"}}"#);
+                    return true;
+                }
+            };
+            let clean_path = match crate::fs_http::sanitize_fs_path(path) {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"invalid_path"}}"#);
+                    return true;
+                }
+            };
+            let pbuf = match littlefs2::path::PathBuf::try_from(clean_path.as_str()) {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"path_too_long"}}"#);
+                    return true;
+                }
+            };
+            let is_system = root == "system";
+            let meta_res = if is_system {
+                crate::storage::with_system_fs_result(|fs| fs.metadata(&pbuf))
+            } else {
+                crate::storage::with_user_fs_result(|fs| fs.metadata(&pbuf))
+            };
+            match meta_res {
+                Ok(Ok(m)) => {
+                    let is_dir = m.is_dir();
+                    let size = if is_dir { 0 } else { m.len() };
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","path":"{}","is_dir":{},"size":{}}}"#,
+                        clean_path.as_str(), is_dir, size
+                    );
+                    false
+                }
+                Ok(Err(_)) => {
+                    let _ = write!(out, r#"{{"error":"entry_not_found"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::Busy) => {
+                    let _ = write!(out, r#"{{"error":"fs_busy"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::NotMounted) => {
+                    let _ = write!(out, r#"{{"error":"fs_not_mounted"}}"#);
+                    true
+                }
+            }
+        }
+        "fs_mkdir" => {
+            let root = extract_string_arg(body, "root").unwrap_or("user");
+            if root == "system" {
+                let _ = write!(out, r#"{{"error":"system_fs is read-only"}}"#);
+                return true;
+            }
+            let path = match extract_string_arg(body, "path") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_path"}}"#);
+                    return true;
+                }
+            };
+            let clean_path = match crate::fs_http::sanitize_fs_path(path) {
+                Some(p) if p.as_str() != "/" => p,
+                _ => {
+                    let _ = write!(out, r#"{{"error":"invalid_path"}}"#);
+                    return true;
+                }
+            };
+            let pbuf = match littlefs2::path::PathBuf::try_from(clean_path.as_str()) {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"path_too_long"}}"#);
+                    return true;
+                }
+            };
+            match crate::storage::with_user_fs_result(|fs| fs.create_dir_all(&pbuf)) {
+                Ok(Ok(())) => {
+                    let _ = write!(out, r#"{{"status":"ok","path":"{}"}}"#, clean_path.as_str());
+                    false
+                }
+                Ok(Err(_)) => {
+                    let _ = write!(out, r#"{{"error":"mkdir_failed"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::Busy) => {
+                    let _ = write!(out, r#"{{"error":"fs_busy"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::NotMounted) => {
+                    let _ = write!(out, r#"{{"error":"fs_not_mounted"}}"#);
+                    true
+                }
+            }
+        }
+        "fs_remove" => {
+            let root = extract_string_arg(body, "root").unwrap_or("user");
+            if root == "system" {
+                let _ = write!(out, r#"{{"error":"system_fs is read-only"}}"#);
+                return true;
+            }
+            let path = match extract_string_arg(body, "path") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_path"}}"#);
+                    return true;
+                }
+            };
+            let clean_path = match crate::fs_http::sanitize_fs_path(path) {
+                Some(p) if p.as_str() != "/" => p,
+                _ => {
+                    let _ = write!(out, r#"{{"error":"cannot_delete_root"}}"#);
+                    return true;
+                }
+            };
+            let pbuf = match littlefs2::path::PathBuf::try_from(clean_path.as_str()) {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"path_too_long"}}"#);
+                    return true;
+                }
+            };
+            let outcome = crate::storage::with_user_fs_result(|fs| {
+                let is_dir = fs.metadata(&pbuf).map(|m| m.is_dir()).unwrap_or(false);
+                if is_dir {
+                    fs.remove_dir_all(&pbuf)
+                } else {
+                    fs.remove(&pbuf)
+                }
+            });
+            match outcome {
+                Ok(Ok(())) => {
+                    let _ = write!(out, r#"{{"status":"ok","path":"{}"}}"#, clean_path.as_str());
+                    false
+                }
+                Ok(Err(_)) => {
+                    let _ = write!(out, r#"{{"error":"entry_not_found"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::Busy) => {
+                    let _ = write!(out, r#"{{"error":"fs_busy"}}"#);
+                    true
+                }
+                Err(crate::storage::FsAccessError::NotMounted) => {
+                    let _ = write!(out, r#"{{"error":"fs_not_mounted"}}"#);
+                    true
+                }
+            }
+        }
+        "fs_storage_stats" => {
+            let (sys_used, sys_total) = crate::storage::system_fs_usage();
+            let (usr_used, usr_total) = crate::storage::user_fs_usage();
+            let _ = write!(
+                out,
+                r#"{{"system":{{"total_bytes":{},"used_bytes":{},"read_only":true}},"user":{{"total_bytes":{},"used_bytes":{},"read_only":false}}}}"#,
+                sys_total, sys_used, usr_total, usr_used
+            );
+            false
+        }
+        "system_info" => {
+            let cur_mhz = crate::benchmark::get_sys_clk_hz() / 1_000_000;
+            let _ = write!(
+                out,
+                r#"{{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":{},"cores":2,"flash_bytes":{},"sram_bytes":532480,"littlefs_offset":"0x{:08x}","firmware":"AgentLA v1.0.0-rust","status":"healthy","board_id":"{}","board_name":"{}"}}"#,
+                cur_mhz,
+                crate::storage::FLASH_SIZE_BYTES,
+                crate::storage::SYSTEM_FS_OFFSET,
+                crate::board::ActiveBoard::BOARD_ID,
+                crate::board::ActiveBoard::NAME,
+            );
+            false
+        }
+        "system_reboot" => {
+            let mode = extract_string_arg(body, "mode").unwrap_or("soft");
+            if mode == "recovery" {
+                PENDING_ACTION.store(2, Ordering::SeqCst);
+                let _ = write!(out, r#"{{"status":"rebooting","mode":"recovery"}}"#);
+            } else {
+                PENDING_ACTION.store(1, Ordering::SeqCst);
+                let _ = write!(out, r#"{{"status":"rebooting","mode":"soft"}}"#);
+            }
+            false
+        }
+        "system_bootsel" => {
+            PENDING_ACTION.store(3, Ordering::SeqCst);
+            let _ = write!(out, r#"{{"status":"bootsel_initiated"}}"#);
+            false
+        }
+        "system_clock_set" => {
+            let freq_mhz = extract_u32_arg(body, "freq_mhz").unwrap_or(0);
+            if freq_mhz != 150 && freq_mhz != 300 && freq_mhz != 500 {
+                let _ = write!(out, r#"{{"error":"invalid_freq_mhz","available_mhz":[150,300,500]}}"#);
+                true
+            } else {
+                PENDING_ACTION.store(0x1000 | (freq_mhz & 0xFFFF), Ordering::SeqCst);
+                let _ = write!(out, r#"{{"status":"rebooting","freq_mhz":{}}}"#, freq_mhz);
+                false
+            }
+        }
+        "system_partitions" => {
+            let _ = write!(
+                out,
+                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"RECOVERY_BOOTLOADER","label":"BOOTLOADER","offset":{},"size":{},"type":"XIP_FLASH","role":"Recovery Bootloader (BareBoot USB Katapult) [0x10000000]","active":false}},{{"name":"FIRMWARE","label":"FIRMWARE","offset":{},"size":{},"type":"XIP_FLASH","role":"Main application slot [Running]","active":true}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}}]}}"#,
+                crate::storage::FLASH_SIZE_BYTES,
+                crate::storage::BOOTLOADER_OFFSET,
+                crate::storage::BOOTLOADER_SIZE_BYTES,
+                crate::storage::APP_SLOT_OFFSET,
+                crate::storage::APP_SLOT_SIZE,
+                crate::storage::SYSTEM_FS_OFFSET,
+                crate::storage::SYSTEM_FS_SIZE_BYTES,
+                crate::storage::USER_FS_OFFSET,
+                crate::storage::USER_FS_SIZE_BYTES,
+            );
+            false
+        }
+        "oscilloscope_capture" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(26);
+            let samples = extract_u32_arg(body, "samples").unwrap_or(128).min(1024);
+            let ch_idx = if (26..=29).contains(&pin) { (pin - 26) as usize } else { 0 };
+            match crate::instruments::oscilloscope::capture_frame() {
+                Ok(frame) => {
+                    let m = &frame.metrics[ch_idx];
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","pin":{},"samples":{},"sample_rate":{},"vpp_mv":{},"vrms_mv":{},"freq_hz":{},"duty_pct":{}}}"#,
+                        pin, samples, frame.sample_rate, m.vpp_mv, m.vrms_mv, m.freq_hz, m.duty_percent
+                    );
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"error":"{}"}}"#, e);
+                    true
+                }
+            }
+        }
+        "generator_start" => {
+            let pin = extract_u32_arg(body, "pin").unwrap_or(12);
+            let freq_hz = extract_u32_arg(body, "freq_hz").unwrap_or(1000);
+            let waveform = extract_string_arg(body, "waveform").unwrap_or("square");
+            let cfg = crate::instruments::generator::GeneratorConfig {
+                pin,
+                freq_hz,
+                duty_percent: 50,
+                burst_count: 0,
+            };
+            match crate::instruments::generator::start(cfg) {
+                Ok(()) => {
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","pin":{},"freq_hz":{},"waveform":"{}","duty_pct":50}}"#,
+                        pin, freq_hz, waveform
+                    );
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"error":"{}"}}"#, e);
+                    true
+                }
+            }
+        }
+        "generator_stop" => {
+            crate::instruments::generator::stop();
+            let _ = write!(out, r#"{{"status":"stopped"}}"#);
+            false
+        }
+        "glitch_arm" => {
+            let width_ns = match extract_u32_arg(body, "width_ns") {
+                Some(w) => w,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_width_ns"}}"#);
+                    return true;
+                }
+            };
+            let delay_ns = extract_u32_arg(body, "delay_ns").unwrap_or(0);
+            let cfg = crate::instruments::glitch::GlitchConfig {
+                glitch_pin: 14,
+                trigger_pin: 13,
+                edge: crate::instruments::glitch::TriggerEdge::Rising,
+                delay_ns,
+                width_ns,
+                polarity: crate::instruments::glitch::GlitchPolarity::ActiveLow,
+            };
+            match crate::instruments::glitch::arm(cfg) {
+                Ok(()) => {
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"armed","delay_ns":{},"width_ns":{}}}"#,
+                        delay_ns, width_ns
+                    );
+                    false
+                }
+                Err(e) => {
+                    let _ = write!(out, r#"{{"error":"{}"}}"#, e);
+                    true
+                }
+            }
+        }
+        "glitch_disarm" => {
+            crate::instruments::glitch::disarm();
+            let _ = write!(out, r#"{{"status":"disarmed"}}"#);
+            false
+        }
+        "pwm_claim" => {
+            let pin = match extract_u32_arg(body, "pin") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_pin"}}"#);
+                    return true;
+                }
+            };
+            match crate::servo::pwm_claim(pin) {
+                Ok((_, handle)) => {
+                    let _ = write!(out, r#"{{"status":"claimed","pin":{},"handle":{}}}"#, pin, handle);
+                    false
+                }
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"claim_failed","pin":{}}}"#, pin);
+                    true
+                }
+            }
+        }
+        "pwm_set" => {
+            let pin = match extract_u32_arg(body, "pin") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_pin"}}"#);
+                    return true;
+                }
+            };
+            let duty_pct = match extract_u32_arg(body, "duty_pct") {
+                Some(d) => d,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_duty_pct"}}"#);
+                    return true;
+                }
+            };
+            let freq_hz = extract_u32_arg(body, "freq_hz").unwrap_or(1000).max(1);
+            let period_us = 1_000_000 / freq_hz;
+            let pulse_us = (period_us * duty_pct) / 100;
+            match crate::servo::pwm_set(pin, freq_hz, pulse_us) {
+                Ok(_) => {
+                    let _ = write!(
+                        out,
+                        r#"{{"status":"ok","pin":{},"duty_pct":{},"freq_hz":{}}}"#,
+                        pin, duty_pct, freq_hz
+                    );
+                    false
+                }
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"set_failed","pin":{}}}"#, pin);
+                    true
+                }
+            }
+        }
+        "pwm_release" => {
+            let pin = match extract_u32_arg(body, "pin") {
+                Some(p) => p,
+                None => {
+                    let _ = write!(out, r#"{{"error":"missing_pin"}}"#);
+                    return true;
+                }
+            };
+            match crate::servo::pwm_release(pin) {
+                Ok(()) => {
+                    let _ = write!(out, r#"{{"status":"released","pin":{}}}"#, pin);
+                    false
+                }
+                Err(_) => {
+                    let _ = write!(out, r#"{{"error":"release_failed","pin":{}}}"#, pin);
+                    true
+                }
+            }
         }
         _ => {
             let _ = write!(out, "unknown tool: {}", name);

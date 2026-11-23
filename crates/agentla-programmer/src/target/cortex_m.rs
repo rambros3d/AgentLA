@@ -67,12 +67,12 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     }
 
     /// Configure Access Port and CSW based on DPIDR.
-    /// For ARMv8-M / Cortex-M33 (e.g. STM32H5), routes to AP 1 (AHB-AP) with CSW = 0x23000012.
+    /// For ARMv8-M / Cortex-M33 (e.g. STM32H5), routes to AP 1 (AHB-AP) with CSW = 0x0B000012.
     /// For legacy ARMv7-M, defaults to AP 0 with standard CSW.
     pub fn auto_configure_for_dpidr(&mut self, dpidr: u32) -> Result<(), CortexError> {
         if Self::is_armv8m_dpidr(dpidr) {
             self.select_ap(1)?;
-            self.csw = 0x23000012;
+            self.csw = 0x0B000012;
         } else {
             self.select_ap(0)?;
             self.csw = ADIV5_AP_CSW_DEFAULT;
@@ -103,27 +103,34 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
     }
 
     pub fn mem_read32(&mut self, addr: u32) -> Result<u32, CortexError> {
+        let swd_err = |e: crate::swd::SwdError| match e {
+            crate::swd::SwdError::AckWait => 1,
+            crate::swd::SwdError::AckFault => 2,
+            crate::swd::SwdError::ParityError => 3,
+            crate::swd::SwdError::ProtocolError => 4,
+            crate::swd::SwdError::Timeout => 5,
+            crate::swd::SwdError::NoTarget => 6,
+        };
         self.swd
             .write_ap_port(self.apsel, AP_CSW, self.csw)
-            .map_err(|_| CortexError::SwdError)?;
+            .map_err(|e| CortexError::Diag(1, swd_err(e), addr))?;
         self.swd
             .write_ap_port(self.apsel, AP_TAR, addr)
-            .map_err(|_| CortexError::SwdError)?;
+            .map_err(|e| CortexError::Diag(2, swd_err(e), addr))?;
         let mut val = 0u32;
-        if self.swd.read_ap_port(self.apsel, AP_DRW, &mut val).is_err() {
+        if let Err(e) = self.swd.read_ap_port(self.apsel, AP_DRW, &mut val) {
             if self.apsel == 1 {
                 self.swd
-                    .write_ap_port(self.apsel, AP_CSW, 0xE3000012)
-                    .map_err(|_| CortexError::SwdError)?;
+                    .write_ap_port(self.apsel, AP_CSW, self.csw)
+                    .map_err(|e2| CortexError::Diag(4, swd_err(e2), addr))?;
                 self.swd
                     .write_ap_port(self.apsel, AP_TAR, addr)
-                    .map_err(|_| CortexError::SwdError)?;
+                    .map_err(|e2| CortexError::Diag(5, swd_err(e2), addr))?;
                 self.swd
                     .read_ap_port(self.apsel, AP_DRW, &mut val)
-                    .map_err(|_| CortexError::SwdError)?;
-                self.csw = 0xE3000012;
+                    .map_err(|e2| CortexError::Diag(6, swd_err(e2), addr))?;
             } else {
-                return Err(CortexError::SwdError);
+                return Err(CortexError::Diag(3, swd_err(e), addr));
             }
         }
         Ok(val)
@@ -136,7 +143,7 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         {
             if self.apsel == 1 {
                 self.swd
-                    .write_ap_port(self.apsel, AP_CSW, 0xE3000012)
+                    .write_ap_port(self.apsel, AP_CSW, self.csw)
                     .map_err(|_| CortexError::SwdError)?;
                 self.swd
                     .write_ap_port(self.apsel, AP_TAR, addr)
@@ -144,7 +151,6 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
                 self.swd
                     .write_ap_port(self.apsel, AP_DRW, value)
                     .map_err(|_| CortexError::SwdError)?;
-                self.csw = 0xE3000012;
             } else {
                 return Err(CortexError::SwdError);
             }
@@ -160,7 +166,7 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
             let boundary_rem = (1024 - (curr_addr & 1023)) as usize;
             let chunk_len = boundary_rem.min(buf.len() - offset);
 
-            let csw = if self.apsel == 1 { self.csw | 0xC0000000 } else { self.csw };
+            let csw = self.csw;
             self.swd
                 .write_ap_port(self.apsel, AP_CSW, csw)
                 .map_err(|_| CortexError::SwdError)?;
@@ -334,95 +340,78 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
 
         // Read DPIDR and power up debug while under reset
         let mut dpidr = 0u32;
-        let _ = self.swd.read_dpidr_retry(&mut dpidr);
-        let _ = self.swd.power_up_debug();
-        let is_m33 = Self::is_armv8m_dpidr(dpidr);
-
-        if is_m33 {
-            // Under reset, configure DBGMCU via AP 0 (APB-AP, apsel=0)
-            self.apsel = 0;
-            self.csw = 0x80000012;
-            let _ = self.select_ap(0);
-            let _ = self.mem_write32(0xE00E_4004, 0x06);
-            let _ = self.mem_write32(0xE004_4004, 0x06);
-            let _ = self.mem_write32(0xE00E_4008, 0x1800);
-            let _ = self.mem_write32(0xE004_4008, 0x1800);
-
-            // Switch to AP 1 (AHB-AP, apsel=1) for DEMCR and DHCSR
-            self.apsel = 1;
-            self.csw = 0x23000012;
-            let _ = self.select_ap(1);
-        } else {
-            self.apsel = 0;
-            self.csw = ADIV5_AP_CSW_DEFAULT;
-            let _ = self.select_ap(0);
-        }
-
-        // Write DEMCR (VC_CORERESET = 0x01000001)
-        let _ = self.mem_write32(0xE000_EDFC, 0x0100_0001);
-
-        // Write DHCSR (0xA05F0003: C_DEBUGEN | C_HALT)
-        let _ = self.mem_write32(0xE000_EDF0, 0xA05F_0003);
-
-        // Release physical reset
-        let _ = self.swd.assert_reset(false);
-
-        // Delay ~10-20ms
-        delay_cycles(2_250_000); // 15 ms settling
-
-        // Re-establish SWD sync and debug power after reset release
         if self.swd.read_dpidr_retry(&mut dpidr).is_err() {
             let _ = self.swd.recover_from_ack_error();
         }
         let _ = self.swd.power_up_debug();
+        let is_m33 = Self::is_armv8m_dpidr(dpidr);
 
         if is_m33 {
             self.apsel = 1;
-            self.csw = 0x23000012;
+            self.csw = 0x0B000012;
             let _ = self.select_ap(1);
+            let _ = self.swd.write_ap_port(1, AP_CSW, 0x0B000012);
+        } else {
+            self.apsel = 0;
+            self.csw = ADIV5_AP_CSW_DEFAULT;
+            let _ = self.select_ap(0);
+        }
+        // Arm vector catch on reset while under reset
+        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+
+        // Release physical reset
+        let _ = self.swd.assert_reset(false);
+        delay_cycles(150_000); // 1 ms settling
+
+        // Re-synchronize SWD interface after reset release
+        let mut d = 0u32;
+        let _ = self.swd.read_dpidr_retry(&mut d);
+        let _ = self.swd.power_up_debug();
+        let _ = self.swd.write_dp(crate::swd::DP_ABORT, 0x0000001E);
+
+        if is_m33 {
+            self.apsel = 1;
+            self.csw = 0x0B000012;
+            let _ = self.select_ap(1);
+            let _ = self.swd.write_ap_port(1, AP_CSW, 0x0B000012);
         } else {
             self.apsel = 0;
             self.csw = ADIV5_AP_CSW_DEFAULT;
             let _ = self.select_ap(0);
         }
 
-        // Read DHCSR to verify S_HALT
+        // Re-affirm vector catch and debug halt immediately after reset release
+        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
+        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
+
+        // Wait for core to halt
         let mut halted = false;
         for _ in 0..100 {
-            if let Ok(dhcsr) = self.mem_read32(0xE000_EDF0) {
+            if let Ok(dhcsr) = self.mem_read32(DHCSR) {
                 if (dhcsr & DHCSR_S_HALT) != 0 {
                     halted = true;
                     break;
                 }
             }
-            delay_cycles(150_000); // 1 ms
+            delay_cycles(15_000); // 100 µs
         }
 
         if !halted {
-            let _ = self.mem_write32(0xE000_EDF0, 0xA05F_0003);
-            for _ in 0..50 {
-                if let Ok(dhcsr) = self.mem_read32(0xE000_EDF0) {
-                    if (dhcsr & DHCSR_S_HALT) != 0 {
-                        halted = true;
-                        break;
-                    }
-                }
-                delay_cycles(150_000);
-            }
-            if !halted {
-                return Err(CortexError::ResetTimeout);
-            }
+            let _ = self.halt();
+        }
+
+        let _ = self.swd.write_dp(crate::swd::DP_ABORT, 0x0000001E);
+
+        // Ensure final AP state is AP 1 with Secure CSW for Cortex-M33
+        if is_m33 {
+            self.apsel = 1;
+            self.csw = 0x0B000012;
+            let _ = self.select_ap(1);
+            let _ = self.swd.write_ap_port(1, AP_CSW, 0x0B000012);
         }
 
         let pc = self.read_core_reg(15).unwrap_or(0);
-
-        // Ensure final AP state is AP 1 for Cortex-M33
-        if is_m33 {
-            self.apsel = 1;
-            self.csw = 0x23000012;
-            let _ = self.select_ap(1);
-        }
-
         Ok(pc)
     }
 

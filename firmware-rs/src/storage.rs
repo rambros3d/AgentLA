@@ -13,22 +13,16 @@ pub const FLASH_SIZE_BYTES: usize = 16 * 1024 * 1024;
 #[cfg(not(feature = "board-bakuprobe"))]
 pub const FLASH_SIZE_BYTES: usize = 4 * 1024 * 1024;
 
-/// Katapult stage-0: flash 0x00000000..0x00008000, 32 KB (XIP 0x10000000).
-/// It jumps to the recovery application at XIP 0x10008000. Never written by
-/// this firmware.
+/// Recovery bootloader: flash 0x00000000..0x00048000, 288 KB (XIP 0x10000000).
+/// Built by the agentla-recovery crate. It boots directly, validates and installs OTA
+/// updates, and jumps to the main application at XIP 0x10048000. Never written by
+/// main-firmware OTA.
 pub const BOOTLOADER_OFFSET: u32 = 0x00000000;
-pub const BOOTLOADER_SIZE_BYTES: usize = 32 * 1024;
-
-/// Recovery application: flash 0x00008000..0x00048000, 256 KB
-/// (XIP 0x10008000). Built by the agentla-recovery crate and shipped in the
-/// UF2 alongside stage-0; never written by main-firmware OTA.
-pub const RECOVERY_OFFSET: u32 = 0x00008000;
-pub const RECOVERY_SIZE_BYTES: usize = 256 * 1024;
+pub const BOOTLOADER_SIZE_BYTES: usize = 288 * 1024; // 0x48000 bytes
 
 /// Main application slot: flash 0x00048000..0x00148000 (XIP 0x10048000, 1 MB).
-/// Firmware is linked at 0x10048000. Nothing below APP_SLOT_OFFSET (stage-0 +
-/// recovery) or at/above APP_SLOT_END (filesystems) may ever be erased or
-/// programmed by an OTA operation.
+/// Firmware is linked at 0x10048000. Nothing below APP_SLOT_OFFSET (recovery bootloader)
+/// or at/above APP_SLOT_END (filesystems) may ever be erased or programmed by an OTA operation.
 pub const APP_SLOT_OFFSET: u32 = 0x00048000;
 pub const APP_SLOT_SIZE: usize = 1024 * 1024; // 0x100000 bytes
 pub const APP_SLOT_END: u32 = 0x00148000;

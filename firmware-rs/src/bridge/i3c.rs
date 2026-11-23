@@ -26,10 +26,10 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
 use rp_pac as pac;
 
-/// I3C SDA/SCL share the adapter pair. Hardware-confirmed order: GP10=SDA, GP11=SCL.
-pub const I3C_PINS: [u32; 2] = [10, 11];
-const SDA: u32 = I3C_PINS[0];
-const SCL: u32 = I3C_PINS[1];
+/// I3C SDA/SCL share the adapter pair. Bench hardware-confirmed order: GP11=SDA, GP10=SCL.
+pub const I3C_PINS: [u32; 2] = [11, 10];
+const SDA: u32 = I3C_PINS[0]; // 11
+const SCL: u32 = I3C_PINS[1]; // 10
 const FUNCSEL_PIO2: u8 = 8; // PIO2_0 (see servo.rs funcsel table 6/7/8=PIO0/1/2)
 const FUNCSEL_SIO: u8 = 5; // bit-banged I2C fallback
 
@@ -299,7 +299,7 @@ fn configure_pins(i3c_mode: bool) {
             w.set_iso(false);
             w.set_ie(true);
             w.set_od(false); // PIO pindirs implements open-drain phases
-            w.set_pue(false);
+            w.set_pue(true);
             w.set_pde(false);
             w.set_slewfast(true);
             w.set_drive(pac::pads::vals::Drive::_12M_A);
@@ -311,8 +311,8 @@ fn pinctrl_initial() {
     pac::PIO2.sm(0).pinctrl().write(|w| {
         w.set_set_count(1);
         w.set_set_base(SCL as u8);
-        w.set_out_count(2); // initial SETDIR controls both SCL and SDA
-        w.set_out_base(SDA as u8);
+        w.set_out_count(2); // initial SETDIR controls both SCL and SDA (GP10 and GP11)
+        w.set_out_base(SCL as u8);
         w.set_in_base(SDA as u8);
         // Program uses `.side_set 1 opt`: 1 side bit + 1 optional-delay bit.
         // PINCTRL must reserve 2 sideset bits to match the instruction encoding;
@@ -390,7 +390,7 @@ fn opcode_sdastate(state: u32, p: &Programs) -> u32 {
 
 #[inline(always)]
 fn opcode_setdir(dirscl: u32, dirsda: u32, p: &Programs) -> u32 {
-    ((p.helper[1] as u32) << 5) | (dirsda << 21) | (dirscl << 22) | p.off_exec
+    ((p.helper[1] as u32) << 5) | (dirscl << 21) | (dirsda << 22) | p.off_exec
 }
 
 #[inline(always)]
@@ -544,6 +544,7 @@ impl<'a> Hal<'a> {
             put32_no_check(c1);
             put32_no_check(opcode_scl0(self.p));
             let d = get32();
+            // Target ACK (bit=0) is ST_OK; NACK (bit=1) is ST_NAK_ARBHDR (no targets on bus).
             (if d & 1 != 0 { ST_NAK_ARBHDR } else { ST_OK }, d)
         } else {
             put32_no_check(c2);
@@ -586,6 +587,14 @@ fn do_write(h: &Hal, addr: u8, data: &[u8]) -> i8 {
         if result == ST_OK {
             for &b in data { h.sdr_write(b); }
         }
+    } else {
+        // Fallback: If 0x7E arbhdr is NAKed (e.g. target already has dynamic address and does not listen to 0x7E),
+        // try Direct Start directly to target dynamic address:
+        h.restart();
+        result = h.sdr_write_addr(addr << 1);
+        if result == ST_OK {
+            for &b in data { h.sdr_write(b); }
+        }
     }
     h.stop();
     result
@@ -594,11 +603,11 @@ fn do_write(h: &Hal, addr: u8, data: &[u8]) -> i8 {
 fn do_read(h: &Hal, addr: u8, rx: &mut [u8]) -> (i8, usize) {
     h.start();
     let (st, _) = h.arbhdr();
-    if st != ST_OK {
-        h.stop();
-        return (st, 0);
+    if st == ST_OK {
+        h.restart();
+    } else {
+        h.restart();
     }
-    h.restart();
     let addr_st = h.sdr_write_addr((addr << 1) | 1);
     let mut n = 0usize;
     if addr_st == ST_OK {
@@ -612,7 +621,7 @@ fn do_read(h: &Hal, addr: u8, rx: &mut [u8]) -> (i8, usize) {
         h.overlay(false);
     }
     h.stop();
-    (if addr_st == ST_OK { st } else { addr_st }, n)
+    (if addr_st == ST_OK { ST_OK } else { addr_st }, n)
 }
 
 fn do_ccc_broadcast(h: &Hal, data: &[u8]) -> i8 {
@@ -920,6 +929,100 @@ impl I3cBridge {
         let r = self.call(I3cCommand { kind: CmdKind::Poll, ..Default::default() }).await;
         r.status == ST_IBI
     }
+}
+
+/// Process an incoming AgentLA Binary I3C Bulk Frame from USB Bulk OUT and write response frame to `resp_buf`.
+pub async fn execute_i3c_bulk_frame(frame_bytes: &[u8], resp_buf: &mut [u8]) -> usize {
+    let Some(frame) = agentla_bridges::i3c_bulk::I3cBulkFrame::parse(frame_bytes) else {
+        return 0;
+    };
+
+    let mut cmd = I3cCommand::default();
+    cmd.addr = frame.header.addr;
+
+    match frame.header.opcode {
+        agentla_bridges::i3c_bulk::I3C_OP_SET_BUS_SPEED => {
+            cmd.kind = CmdKind::Init;
+            if frame.payload.len() >= 4 {
+                let mut b = [0u8; 4];
+                b.copy_from_slice(&frame.payload[..4]);
+                cmd.freq_khz = u32::from_le_bytes(b);
+            } else {
+                cmd.freq_khz = 1000;
+            }
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_TARGET_RESET => {
+            cmd.kind = CmdKind::TargetReset;
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_RSTDAA => {
+            cmd.kind = CmdKind::RstDaa;
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_ENTDAA => {
+            cmd.kind = CmdKind::EntDaa;
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_CCC_BROADCAST => {
+            cmd.kind = CmdKind::CccBroadcast;
+            let len = frame.payload.len().min(cmd.data.len());
+            cmd.data[..len].copy_from_slice(&frame.payload[..len]);
+            cmd.data_len = len as u8;
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_PRIVATE_WRITE => {
+            cmd.kind = CmdKind::Transfer;
+            let len = frame.payload.len().min(cmd.data.len());
+            cmd.data[..len].copy_from_slice(&frame.payload[..len]);
+            cmd.data_len = len as u8;
+            cmd.rx_len = 0;
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_PRIVATE_READ => {
+            cmd.kind = CmdKind::Transfer;
+            cmd.data_len = 0;
+            cmd.rx_len = (frame.header.payload_len as u8).min(64);
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_PRIVATE_WRITE_READ => {
+            cmd.kind = CmdKind::Transfer;
+            let len = frame.payload.len().min(cmd.data.len());
+            cmd.data[..len].copy_from_slice(&frame.payload[..len]);
+            cmd.data_len = len as u8;
+            cmd.rx_len = 64;
+        }
+        _ => {
+            return agentla_bridges::i3c_bulk::I3cBulkFrame::make_response(
+                frame.header.seq,
+                frame.header.opcode,
+                agentla_bridges::i3c_bulk::I3C_STATUS_INVALID_PARAM,
+                frame.header.addr,
+                &[],
+                resp_buf,
+            ).unwrap_or(0);
+        }
+    }
+
+    I3C_CMD.signal(cmd);
+    let r = I3C_RESULT.wait().await;
+
+    let status = match r.status {
+        ST_OK => agentla_bridges::i3c_bulk::I3C_STATUS_OK,
+        ST_IBI => agentla_bridges::i3c_bulk::I3C_STATUS_IBI,
+        ST_NAK_ARBHDR => agentla_bridges::i3c_bulk::I3C_STATUS_NAK_ARBHDR,
+        ST_NAK_ADDR => agentla_bridges::i3c_bulk::I3C_STATUS_NAK_ADDR,
+        _ => agentla_bridges::i3c_bulk::I3C_STATUS_INVALID_PARAM,
+    };
+
+    let rx_len = (r.rx_len as usize).min(r.rx.len());
+    let payload = if frame.header.opcode == agentla_bridges::i3c_bulk::I3C_OP_ENTDAA {
+        &r.rx[..8]
+    } else {
+        &r.rx[..rx_len]
+    };
+
+    agentla_bridges::i3c_bulk::I3cBulkFrame::make_response(
+        frame.header.seq,
+        frame.header.opcode,
+        status,
+        r.addr,
+        payload,
+        resp_buf,
+    ).unwrap_or(0)
 }
 
 #[cfg(test)]

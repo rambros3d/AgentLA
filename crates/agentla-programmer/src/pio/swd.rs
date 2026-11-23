@@ -499,6 +499,7 @@ impl SwdTransport {
                 let val = self.read_bits(32);
                 let bit = self.read_bits(1) as u8;
                 let parity = (val.count_ones() & 1) as u8;
+                self.hiz_clocks(self.turnaround as u32);
                 if parity != bit {
                     return SWD_ACK_PARITY_ERR;
                 }
@@ -515,6 +516,7 @@ impl SwdTransport {
 
             let idle = core::cmp::max(self.idle_cycles, 2);
             self.write_bits(idle as u32, 0);
+            let _ = self.wait_idle();
             return SWD_ACK_OK;
         }
 
@@ -522,10 +524,14 @@ impl SwdTransport {
             if is_read {
                 self.hiz_clocks(self.turnaround as u32);
             }
+            let idle = core::cmp::max(self.idle_cycles, 8);
+            self.write_bits(idle as u32, 0);
+            let _ = self.wait_idle();
             return ack;
         }
 
         self.read_bits((self.turnaround as u32) + 33);
+        let _ = self.wait_idle();
         ack
     }
 
@@ -564,7 +570,11 @@ impl SwdTransport {
                 delay_cycles(300);
                 continue;
             } else if ack == SWD_ACK_FAULT {
-                return Err(SwdError::AckFault);
+                let req_abort = Self::build_request(false, false, 0);
+                let mut val_abort = 0x0000001Eu32;
+                let _ = self.transfer_raw(req_abort, &mut val_abort);
+                delay_cycles(300);
+                continue;
             } else {
                 return Err(SwdError::ProtocolError);
             }
@@ -605,12 +615,10 @@ impl SwdTransport {
     }
 
     pub fn power_up_debug(&mut self) -> Result<(), SwdError> {
-        let s0 = self.write_dp(DP_SELECT, 0);
-        self.ap_select = 0;
         let s1 = self.write_dp(DP_ABORT, 0x0000001E);
         let s2 = self.write_dp(DP_CTRLSTAT, 0x50000000);
         crate::stlink::stlink_diag::set_writes(
-            s0.is_ok() as u32 | ((s1.is_ok() as u32) << 1) | ((s2.is_ok() as u32) << 2),
+            ((s1.is_ok() as u32) << 1) | ((s2.is_ok() as u32) << 2),
         );
         let mut last = 0u32;
         let mut last_st = 0u32;
@@ -649,7 +657,16 @@ impl SwdTransport {
     }
 
     pub fn write_ap_port(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError> {
-        self.raw_write_ap_no_recovery(apsel, reg, value)
+        match self.raw_write_ap_no_recovery(apsel, reg, value) {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                if self.recover_from_ack_error().is_ok() {
+                    self.raw_write_ap_no_recovery(apsel, reg, value)
+                } else {
+                    Err(SwdError::ProtocolError)
+                }
+            }
+        }
     }
 
     pub fn raw_write_ap_no_recovery(&mut self, apsel: u8, reg: u8, value: u32) -> Result<(), SwdError> {
@@ -657,16 +674,16 @@ impl SwdTransport {
         self.select_ap(apsel, apbank)?;
         let req = Self::build_request(true, false, (reg >> 2) & 3);
         let mut val = value;
-        for _ in 0..500 {
+        for _ in 0..5000 {
             let ack = self.transfer_raw(req, &mut val);
             if ack == SWD_ACK_OK {
                 return Ok(());
             } else if ack == SWD_ACK_WAIT {
-                delay_cycles(150);
+                delay_cycles(1500);
                 continue;
             } else if ack == SWD_ACK_FAULT {
                 let _ = self.write_dp(DP_ABORT, 0x0000001E);
-                delay_cycles(150);
+                delay_cycles(1500);
                 continue;
             } else {
                 let _ = self.write_dp(DP_ABORT, 0x0000001E);
@@ -683,11 +700,24 @@ impl SwdTransport {
     }
 
     pub fn read_ap_port(&mut self, apsel: u8, reg: u8, value: &mut u32) -> Result<(), SwdError> {
+        match self.raw_read_ap_no_recovery(apsel, reg, value) {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                if self.recover_from_ack_error().is_ok() {
+                    self.raw_read_ap_no_recovery(apsel, reg, value)
+                } else {
+                    Err(SwdError::ProtocolError)
+                }
+            }
+        }
+    }
+
+    pub fn raw_read_ap_no_recovery(&mut self, apsel: u8, reg: u8, value: &mut u32) -> Result<(), SwdError> {
         let apbank = (reg >> 4) & 0x0F;
         self.select_ap(apsel, apbank)?;
         let req = Self::build_request(true, true, (reg >> 2) & 3);
         let mut dummy = 0u32;
-        for _ in 0..200 {
+        for _ in 0..2000 {
             let ack = self.transfer_raw(req, &mut dummy);
             if ack == SWD_ACK_OK {
                 let res = self.read_dp(DP_RDBUFF, value);
@@ -778,22 +808,21 @@ impl SwdTransport {
         }
         self.write_ap_port(apsel, crate::swd::AP_TAR, addr)?;
         let drw_write_req = Self::build_request(true, false, (crate::swd::AP_DRW >> 2) & 3);
-        let rdbuff_read_req = Self::build_request(false, true, (crate::swd::DP_RDBUFF >> 2) & 3);
 
         for &val in words {
             let mut word_val = val;
             let mut word_ok = false;
-            for _ in 0..500 {
+            for _ in 0..5000 {
                 let ack = self.transfer_raw(drw_write_req, &mut word_val);
                 if ack == SWD_ACK_OK {
                     word_ok = true;
                     break;
                 } else if ack == SWD_ACK_WAIT {
-                    delay_cycles(150);
+                    delay_cycles(1500);
                     continue;
                 } else if ack == SWD_ACK_FAULT {
                     let _ = self.write_dp(DP_ABORT, 0x0000001E);
-                    delay_cycles(150);
+                    delay_cycles(1500);
                     continue;
                 } else {
                     let _ = self.write_dp(DP_ABORT, 0x0000001E);
@@ -806,8 +835,6 @@ impl SwdTransport {
             }
         }
 
-        let mut dummy = 0u32;
-        let _ = self.transfer_raw(rdbuff_read_req, &mut dummy);
         Ok(())
     }
 
@@ -922,6 +949,8 @@ impl SwdTransport {
         delay_cycles(300_000); // 2ms in reset
         let res_rst = self.read_dpidr_retry(&mut dpidr);
         if res_rst.is_ok() && dpidr != 0 && dpidr != 0xFFFFFFFF {
+            self.assert_reset(false);
+            delay_cycles(150_000);
             return Ok(dpidr);
         }
         self.assert_reset(false);
@@ -939,6 +968,8 @@ impl SwdTransport {
         delay_cycles(300_000);
         let res_swapped_rst = self.read_dpidr_retry(&mut dpidr);
         if res_swapped_rst.is_ok() && dpidr != 0 && dpidr != 0xFFFFFFFF {
+            self.assert_reset(false);
+            delay_cycles(150_000);
             return Ok(dpidr);
         }
         self.assert_reset(false);
@@ -969,6 +1000,7 @@ impl SwdIo for SwdTransport {
     }
 
     fn transfer(&mut self, req: u8, data: Option<u32>) -> Result<(u8, u32), Self::Error> {
+        self.ensure_initialized();
         let mut val = data.unwrap_or(0);
         let ack = self.transfer_raw(req, &mut val);
         Ok((ack, val))
@@ -995,6 +1027,11 @@ impl SwdIo for SwdTransport {
 
     fn dormant_to_swd(&mut self) -> Result<(), Self::Error> {
         SwdTransport::dormant_to_swd(self);
+        Ok(())
+    }
+
+    fn jtag_to_dormant_to_swd(&mut self) -> Result<(), Self::Error> {
+        SwdTransport::jtag_to_dormant_to_swd(self);
         Ok(())
     }
 
@@ -1064,6 +1101,10 @@ impl SwdIo for SwdTransport {
         }
         if (in_val & (1 << self.reset_pin)) != 0 {
             status |= 0x80;
+        }
+
+        if (pin_select & 0x03) != 0 {
+            self.restore_pio_pins();
         }
 
         Ok(status)

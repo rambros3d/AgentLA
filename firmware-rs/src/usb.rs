@@ -35,11 +35,23 @@ pub const DEVICE_MAC_ADDR: [u8; 6] = [0x02, 0x02, 0x84, 0x6A, 0x96, 0x01];
 pub struct VendorControlHandler {
     gs_usb_str: StringIndex,
     i2c_str: StringIndex,
+    spi_str: StringIndex,
+    i3c_str: StringIndex,
 }
 
 impl VendorControlHandler {
-    pub const fn new(gs_usb_str: StringIndex, i2c_str: StringIndex) -> Self {
-        Self { gs_usb_str, i2c_str }
+    pub const fn new(
+        gs_usb_str: StringIndex,
+        i2c_str: StringIndex,
+        spi_str: StringIndex,
+        i3c_str: StringIndex,
+    ) -> Self {
+        Self {
+            gs_usb_str,
+            i2c_str,
+            spi_str,
+            i3c_str,
+        }
     }
 }
 
@@ -49,6 +61,10 @@ impl Handler for VendorControlHandler {
             Some("AgentLA SocketCAN gs_usb")
         } else if index == self.i2c_str {
             Some("AgentLA i2c-tiny-usb")
+        } else if index == self.spi_str {
+            Some("AgentLA FTDI MPSSE SPI")
+        } else if index == self.i3c_str {
+            Some("AgentLA MIPI I3C Master")
         } else {
             None
         }
@@ -482,6 +498,10 @@ pub struct CompositeUsb {
     pub net_device: embassy_usb::class::cdc_ncm::embassy_net::Device<'static, 1514>,
     pub gs_usb_read_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
     pub gs_usb_write_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+    pub spi_read_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    pub spi_write_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+    pub i3c_read_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    pub i3c_write_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
 }
 
 pub fn create_composite_usb(
@@ -619,7 +639,25 @@ pub fn create_composite_usb(
     let _i2c_alt = i2c_iface.alt_setting(0xFF, 0x00, 0x00, Some(i2c_str));
     drop(i2c_func);
 
-    let vendor_handler = VENDOR_HANDLER.init(VendorControlHandler::new(gs_str, i2c_str));
+    // FTDI MPSSE SPI Master (Vendor Class 0xFF, Subclass 0xFF, Protocol 0xFF)
+    let spi_str = builder.string();
+    let mut spi_func = builder.function(0xFF, 0xFF, 0xFF);
+    let mut spi_iface = spi_func.interface();
+    let mut spi_alt = spi_iface.alt_setting(0xFF, 0xFF, 0xFF, Some(spi_str));
+    let spi_read_ep = spi_alt.endpoint_bulk_out(None, 64);
+    let spi_write_ep = spi_alt.endpoint_bulk_in(None, 64);
+    drop(spi_func);
+
+    // AgentLA MIPI I3C Master (Vendor Class 0xFF, Subclass 0x3C, Protocol 0x01)
+    let i3c_str = builder.string();
+    let mut i3c_func = builder.function(0xFF, 0x3C, 0x01);
+    let mut i3c_iface = i3c_func.interface();
+    let mut i3c_alt = i3c_iface.alt_setting(0xFF, 0x3C, 0x01, Some(i3c_str));
+    let i3c_read_ep = i3c_alt.endpoint_bulk_out(None, 64);
+    let i3c_write_ep = i3c_alt.endpoint_bulk_in(None, 64);
+    drop(i3c_func);
+
+    let vendor_handler = VENDOR_HANDLER.init(VendorControlHandler::new(gs_str, i2c_str, spi_str, i3c_str));
     builder.handler(vendor_handler);
 
     let device = builder.build();
@@ -633,6 +671,10 @@ pub fn create_composite_usb(
         net_device,
         gs_usb_read_ep,
         gs_usb_write_ep,
+        spi_read_ep,
+        spi_write_ep,
+        i3c_read_ep,
+        i3c_write_ep,
     }
 }
 
@@ -791,6 +833,58 @@ pub async fn gs_usb_task(
                     }
                 }
             }
+            Err(_) => {
+                embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
+            }
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn spi_mpsse_task(
+    mut read_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    mut write_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+) {
+    use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
+    read_ep.wait_enabled().await;
+    let mut rx_buf = [0u8; 64];
+    let mut tx_buf = [0u8; 64];
+
+    loop {
+        match read_ep.read(&mut rx_buf).await {
+            Ok(n) if n > 0 => {
+                let out_len = crate::bridge::spi::process_mpsse_commands(&rx_buf[..n], &mut tx_buf);
+                if out_len > 0 {
+                    let _ = write_ep.write(&tx_buf[..out_len]).await;
+                }
+            }
+            Ok(_) => {}
+            Err(_) => {
+                embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
+            }
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn i3c_bulk_task(
+    mut read_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointOut,
+    mut write_ep: <Driver<'static, USB> as embassy_usb::driver::Driver<'static>>::EndpointIn,
+) {
+    use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
+    read_ep.wait_enabled().await;
+    let mut rx_buf = [0u8; 128];
+    let mut tx_buf = [0u8; 128];
+
+    loop {
+        match read_ep.read(&mut rx_buf).await {
+            Ok(n) if n >= agentla_bridges::i3c_bulk::I3C_HEADER_SIZE => {
+                let out_len = crate::bridge::i3c::execute_i3c_bulk_frame(&rx_buf[..n], &mut tx_buf).await;
+                if out_len > 0 {
+                    let _ = write_ep.write(&tx_buf[..out_len]).await;
+                }
+            }
+            Ok(_) => {}
             Err(_) => {
                 embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
             }

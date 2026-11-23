@@ -82,7 +82,7 @@ pub mod build_info {
 /// BareBoot publishes its initial stack pointer in the first word of flash
 /// (XIP 0x10000000). The recovery mailbox is addressed from that SP value;
 /// writing the cookie there and resetting is the hand-off contract.
-fn request_recovery() {
+pub(crate) fn request_recovery() {
     const RECOVERY_COOKIE: u64 = 0x5984_E3FA_6CA1_589B;
     let initial_sp = unsafe { core::ptr::read_volatile(0x1000_0000 as *const u32) };
     let mailbox = initial_sp as *mut u64;
@@ -96,9 +96,23 @@ fn request_recovery() {
 /// flash-shaped route answers `501` with a pointer to the USB transport.
 pub const HTTP_FLASH_ENABLED: bool = false;
 
-/// `501` body returned by every flash-shaped route while `HTTP_FLASH_ENABLED` is `false`.
-pub const HTTP_FLASH_DISABLED_BODY: &str =
-    r#"{"status":"disabled","error":"http_flash_disabled","use":"usb","modes":["cmsis","stlink"]}"#;
+/// Build-time gate for all HTTP programmer routes.
+/// Set to `false` to temporarily disable HTTP programmer endpoints and direct callers to direct USB.
+pub const HTTP_PROGRAMMER_ENABLED: bool = false;
+
+/// Warning payload returned by HTTP programmer routes while disabled.
+pub const HTTP_PROGRAMMER_DISABLED_BODY: &str =
+    r#"{"status":"disabled","warning":"programmer_disabled","message":"Programmer endpoints (API and MCP) are disabled. Connect directly via AgentLA USB programmer interfaces (CMSIS-DAP, ST-Link, or WCH-Link) using probe-rs, pyocd, or openocd.","use":"usb","modes":["cmsis","stlink","wch"]}"#;
+
+/// Build-time gate for all HTTP bus adapter routes.
+/// Set to `false` to temporarily disable HTTP bus adapter routes and direct callers to direct USB.
+pub const HTTP_ADAPTERS_ENABLED: bool = false;
+
+/// Warning payload returned by HTTP bus adapter routes while disabled.
+pub const HTTP_ADAPTERS_DISABLED_BODY: &str =
+    r#"{"status":"disabled","warning":"http_adapters_disabled","message":"HTTP bus adapter routes are temporarily disabled. Connect directly via AgentLA USB endpoints (i2c-tiny-usb, FTDI MPSSE, AgentLA I3C Bulk, gs_usb CAN, CDC-ACM UART).","use":"usb","adapters":["i2c-tiny-usb","ftdi-mpsse","agentla-binary-bulk","gs_usb","cdc-acm"]}"#;
+
+pub const HTTP_FLASH_DISABLED_BODY: &str = HTTP_PROGRAMMER_DISABLED_BODY;
 
 /// Answer a flash-shaped request with the disabled payload. Callers that need to
 /// consume the body first (`read_body_str`) may do so, then call this.
@@ -113,8 +127,42 @@ where
     send_json(
         request,
         response_writer,
-        StatusCode::NOT_IMPLEMENTED,
+        StatusCode::OK,
         HTTP_FLASH_DISABLED_BODY,
+    )
+    .await
+}
+
+async fn http_programmer_disabled<R, W>(
+    request: Request<'_, R>,
+    response_writer: W,
+) -> Result<picoserve::ResponseSent, W::Error>
+where
+    R: Read,
+    W: ResponseWriter<Error = R::Error>,
+{
+    send_json(
+        request,
+        response_writer,
+        StatusCode::OK,
+        HTTP_PROGRAMMER_DISABLED_BODY,
+    )
+    .await
+}
+
+async fn http_adapters_disabled<R, W>(
+    request: Request<'_, R>,
+    response_writer: W,
+) -> Result<picoserve::ResponseSent, W::Error>
+where
+    R: Read,
+    W: ResponseWriter<Error = R::Error>,
+{
+    send_json(
+        request,
+        response_writer,
+        StatusCode::OK,
+        HTTP_ADAPTERS_DISABLED_BODY,
     )
     .await
 }
@@ -873,6 +921,9 @@ impl LogicAnalyzerTriggersConfigure {
 impl ProgrammerTarget {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let port_str = key_str(query, &body, "port");
@@ -1051,6 +1102,9 @@ impl MethodHandlerService<(), ()> for ProgrammerStLinkVersion {
 impl ProgrammerReset {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         let mut buf = [0u8; 16];
         let _ = crate::programmer::read_flash_global(0x08000000, &mut buf);
@@ -1265,6 +1319,9 @@ impl picoserve::routing::MethodHandlerService<(), ()> for ProgrammerFlash {
 impl ProgrammerRead {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let port_str = key_str(query, &body, "port");
@@ -1308,6 +1365,9 @@ impl ProgrammerRead {
 impl ProgrammerWrite {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let port_str = key_str(query, &body, "port");
@@ -1343,6 +1403,9 @@ impl ProgrammerWrite {
 impl ProgrammerRttStatus {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         let mut buf = heapless::String::<256>::new();
         crate::programmer::rtt::rtt_status_json(&mut buf);
@@ -1353,6 +1416,9 @@ impl ProgrammerRttStatus {
 impl ProgrammerRttStream {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         let mut chunk = [0u8; 256];
         match crate::programmer::rtt::rtt_drain_global(&mut chunk) {
@@ -1383,6 +1449,9 @@ impl ProgrammerRttStream {
 impl ProgrammerRttWrite {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let cmd = key_str(query, &body, "cmd")
@@ -1422,6 +1491,9 @@ impl ProgrammerRttWrite {
 impl ProgrammerSwoStatus {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_PROGRAMMER_ENABLED {
+            return http_programmer_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         let telem = crate::programmer::swo::SWO_ENGINE.telemetry();
         let mut buf = heapless::String::<256>::new();
@@ -1441,6 +1513,9 @@ impl ProgrammerSwoStatus {
 impl BridgeState {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let body = crate::bridge::state_json();
         send_json(request, response_writer, StatusCode::OK, body.as_str()).await
     }
@@ -1450,6 +1525,9 @@ impl BridgeState {
 impl BridgeI2cOn {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::bridge::i2c_on() {
             Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
@@ -1460,6 +1538,9 @@ impl BridgeI2cOn {
 impl BridgeI2cOff {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         crate::bridge::i2c_off();
         let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
@@ -1469,6 +1550,9 @@ impl BridgeI2cOff {
 impl BridgeCanOn {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::bridge::can_on() {
             Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
@@ -1479,6 +1563,9 @@ impl BridgeCanOn {
 impl BridgeCanOff {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         crate::bridge::can_off();
         let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
@@ -1488,6 +1575,9 @@ impl BridgeCanOff {
 impl BridgeCan {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let active = crate::bridge::can_gsusb::adapter_can_is_active();
         let bitrate = crate::bridge::can_gsusb::adapter_can_get_bitrate();
         let termination = crate::bridge::can_gsusb::adapter_can_get_termination();
@@ -1505,6 +1595,9 @@ impl BridgeCan {
 impl BridgeCanTermination {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let body = read_body_str(&mut request).await;
         let enabled = body.contains("true") || body.contains("1");
         crate::bridge::can_gsusb::adapter_can_set_termination(enabled);
@@ -1516,6 +1609,9 @@ impl BridgeCanTermination {
 impl BridgeLedOn {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::bridge::led_on() {
             Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
@@ -1526,6 +1622,9 @@ impl BridgeLedOn {
 impl BridgeLedOff {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         crate::bridge::led_off();
         let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
@@ -1535,6 +1634,9 @@ impl BridgeLedOff {
 impl BridgeI3cOn {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::bridge::i3c_on() {
             Ok(()) => { let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#); send_json(request,response_writer,StatusCode::OK,b.as_str()).await }
@@ -1545,6 +1647,9 @@ impl BridgeI3cOn {
 impl BridgeI3cOff {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         crate::bridge::i3c_off();
         let mut b=heapless::String::<64>::new(); let _=b.push_str(r#"{"status":"ok"}"#);
@@ -1555,6 +1660,9 @@ impl BridgeI3cOff {
 impl BridgeI2cScan {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let pins = &crate::bridge::i2c::I2C_PINS;
@@ -1589,6 +1697,9 @@ impl BridgeI2cScan {
 impl BridgeI2cRead {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let addr = key_int(query, &body, "addr").unwrap_or(0x3C) as u8;
@@ -1625,6 +1736,9 @@ impl BridgeI2cRead {
 impl BridgeI2cWrite {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let addr = key_int(query, &body, "addr").unwrap_or(0x3C) as u8;
@@ -1650,6 +1764,9 @@ impl BridgeI2cWrite {
 impl BridgeI2cTransfer {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let addr = key_int(query, &body, "addr").unwrap_or(0x40) as u8;
@@ -1718,6 +1835,9 @@ impl BridgeI2cTransfer {
 impl BridgeI3cTransfer {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let addr = key_int(query, &body, "addr").unwrap_or(0x08) as u8;
@@ -1781,6 +1901,9 @@ impl BridgeI3cTransfer {
 impl BridgeI3cInit {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let freq_khz = key_int(query, &body, "freq_khz").or_else(|| key_int(query, &body, "freq")).unwrap_or(1000) as u32;
@@ -1799,6 +1922,9 @@ impl BridgeI3cInit {
 impl BridgeI3cCcc {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let mut bytes = [0u8; 64];
@@ -1836,6 +1962,9 @@ impl BridgeI3cCcc {
 impl BridgeI3cEntDaa {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let proposed = key_int(query, &body, "addr").unwrap_or(0x40) as u8;
@@ -1858,6 +1987,9 @@ impl BridgeI3cEntDaa {
 impl BridgeI3cRstdaa {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         if crate::bridge::i3c_on().is_err() {
             return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
@@ -1870,6 +2002,9 @@ impl BridgeI3cRstdaa {
 impl BridgeI3cTargetReset {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         if crate::bridge::i3c_on().is_err() {
             return send_json(request, response_writer, StatusCode::CONFLICT, r#"{"error":"pins_busy"}"#).await;
@@ -1882,6 +2017,9 @@ impl BridgeI3cTargetReset {
 impl BridgeLedTransmit {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         let colors = [
             (255, 0, 0),
@@ -1912,6 +2050,9 @@ fn hex_nibble(b: u8) -> Option<u8> {
 impl BridgeSpiOn {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::bridge::spi_on() {
             Ok(()) => { let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#); send_json(request, response_writer, StatusCode::OK, b.as_str()).await }
@@ -1923,6 +2064,9 @@ impl BridgeSpiOn {
 impl BridgeSpiOff {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         crate::bridge::spi_off();
         let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#);
@@ -1933,6 +2077,9 @@ impl BridgeSpiOff {
 impl BridgeSpiTransfer {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let mode = (key_int(query, &body, "mode").unwrap_or(0) as u8).min(3);
@@ -1976,6 +2123,9 @@ impl BridgeSpiTransfer {
 impl BridgeUartOn {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         match crate::bridge::uart_on() {
             Ok(()) => { let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#); send_json(request, response_writer, StatusCode::OK, b.as_str()).await }
@@ -1987,6 +2137,9 @@ impl BridgeUartOn {
 impl BridgeUartOff {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let _ = read_body_str(&mut request).await;
         crate::bridge::uart_off();
         let mut b = heapless::String::<64>::new(); let _ = b.push_str(r#"{"status":"ok"}"#);
@@ -1997,6 +2150,9 @@ impl BridgeUartOff {
 impl BridgeUartWrite {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let baud = (key_int(query, &body, "baud").unwrap_or(115_200) as u32).clamp(1200, 921_600);
@@ -2016,6 +2172,9 @@ impl BridgeUartWrite {
 impl BridgeUartRead {
     async fn run<R, W>(mut request: Request<'_, R>, response_writer: W) -> Result<picoserve::ResponseSent, W::Error>
     where R: Read, W: ResponseWriter<Error=R::Error> {
+        if !HTTP_ADAPTERS_ENABLED {
+            return http_adapters_disabled(request, response_writer).await;
+        }
         let query = request.parts.query();
         let body = read_body_str(&mut request).await;
         let baud = (key_int(query, &body, "baud").unwrap_or(115_200) as u32).clamp(1200, 921_600);
@@ -2052,7 +2211,9 @@ impl MethodHandlerService<(), ()> for McpRpc {
             // notifications return 204
             return StatusCode::NO_CONTENT.write_to(finalizer, response_writer).await;
         }
-        send_json(request, response_writer, StatusCode::OK, text.as_str()).await
+        let res = send_json(request, response_writer, StatusCode::OK, text.as_str()).await;
+        crate::mcp::execute_pending_action().await;
+        res
     }
 }
 pub struct McpHealth;
@@ -2061,7 +2222,7 @@ impl MethodHandlerService<(), ()> for McpHealth {
         &self, _state: &(), (): (), _method: &str, mut request: Request<'_, R>, response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
         let _ = read_body_str(&mut request).await;
-        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":56,"resources":8,"prompts":5}"#).await
+        send_json(request, response_writer, StatusCode::OK, r#"{"status":"healthy","tools":78,"resources":10,"prompts":7}"#).await
     }
 }
 
@@ -3447,12 +3608,10 @@ impl picoserve::routing::MethodHandlerService<()> for SystemPartitionsHandler {
         let _ = core::fmt::Write::write_fmt(
             &mut buf,
             format_args!(
-                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"BOOTLOADER","label":"BOOTLOADER","offset":{},"size":{},"type":"ROM","role":"Katapult stage-0 (jumps to 0x10008000)","active":false}},{{"name":"RECOVERY","label":"RECOVERY","offset":{},"size":{},"type":"XIP_FLASH","role":"Recovery app (BareBoot USB Katapult)","active":false}},{{"name":"FIRMWARE","label":"FIRMWARE","offset":{},"size":{},"type":"XIP_FLASH","role":"Main application slot [Running]","active":true}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}}]}}"#,
+                r#"{{"flash_total_bytes":{},"partitions":[{{"name":"RECOVERY_BOOTLOADER","label":"BOOTLOADER","offset":{},"size":{},"type":"XIP_FLASH","role":"Recovery Bootloader (BareBoot USB Katapult) [0x10000000]","active":false}},{{"name":"FIRMWARE","label":"FIRMWARE","offset":{},"size":{},"type":"XIP_FLASH","role":"Main application slot [Running]","active":true}},{{"name":"SYSTEM_FS","label":"SYSTEM_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"WebUI & System Bundle","active":false}},{{"name":"USER_FS","label":"USER_FS","offset":{},"size":{},"type":"LITTLEFS2","role":"User Apps, Profiles & Data","active":false}}]}}"#,
                 crate::storage::FLASH_SIZE_BYTES,
                 crate::storage::BOOTLOADER_OFFSET,
                 crate::storage::BOOTLOADER_SIZE_BYTES,
-                crate::storage::RECOVERY_OFFSET,
-                crate::storage::RECOVERY_SIZE_BYTES,
                 crate::storage::APP_SLOT_OFFSET,
                 crate::storage::APP_SLOT_SIZE,
                 crate::storage::SYSTEM_FS_OFFSET,

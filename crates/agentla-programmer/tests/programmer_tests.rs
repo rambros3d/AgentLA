@@ -50,7 +50,9 @@ impl SwdIo for MockSwd {
                 if reg == DP_SELECT {
                     self.current_ap_select = val;
                 }
-                self.dp_regs.insert(reg, val);
+                if reg != DP_ABORT {
+                    self.dp_regs.insert(reg, val);
+                }
                 Ok((SWD_ACK_OK, 0))
             }
         } else {
@@ -184,7 +186,7 @@ fn test_cortex_m_dual_ap_selection_and_memory_access() {
     // 1. Configure for ARMv8-M / Cortex-M33 (STM32H5 DPIDR 0x6BA02477)
     assert!(cortex.auto_configure_for_dpidr(0x6BA02477).is_ok());
     assert_eq!(cortex.apsel, 1);
-    assert_eq!(cortex.csw, 0x23000012);
+    assert_eq!(cortex.csw, 0x0B000012);
 
     // 2. Perform memory write targeting AP 1
     assert!(cortex.mem_write32(0x08000000, 0x12345678).is_ok());
@@ -197,7 +199,7 @@ fn test_cortex_m_dual_ap_selection_and_memory_access() {
 
     assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_tar_key).copied(), Some(0x08000000));
     assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_drw_key).copied(), Some(0x12345678));
-    assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_csw_key).copied(), Some(0x23000012));
+    assert_eq!(cortex.swd.transport.ap_regs.get(&ap1_csw_key).copied(), Some(0x0B000012));
     assert_eq!(cortex.swd.transport.ap_regs.get(&ap0_tar_key), None);
 
     // 3. Perform memory read from AP 1
@@ -229,7 +231,7 @@ fn test_cortex_m33_connect_under_reset() {
     let res = cortex.connect_under_reset();
     assert!(res.is_ok());
     assert_eq!(cortex.apsel, 1);
-    assert_eq!(cortex.csw, 0x23000012);
+    assert_eq!(cortex.csw, 0x0B000012);
 }
 
 

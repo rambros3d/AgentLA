@@ -34,7 +34,7 @@ pub const TOOL_STATUS: Tool = Tool::new(
 
 pub const TOOL_PROBE_TARGET: Tool = Tool::new(
     "probe_target",
-    "Detect target family on port 1",
+    "Detect target family on port 1 (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{}}"#,
 );
 
@@ -106,19 +106,19 @@ pub const TOOL_LOGIC_ANALYZER_DATA: Tool = Tool::new(
 
 pub const TOOL_PROGRAMMER_READ: Tool = Tool::new(
     "programmer_read",
-    "Read target flash memory",
+    "Read target flash memory (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{"address":{"type":"integer","description":"Target memory address (e.g. 0x08000000)"},"length":{"type":"integer","description":"Number of bytes to read (1-256, default 16)"}}}"#,
 );
 
 pub const TOOL_PROGRAMMER_FLASH: Tool = Tool::new(
     "programmer_flash",
-    "Write hex-encoded byte chunk to target flash memory with verification",
+    "Write hex-encoded byte chunk to target flash memory with verification (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{"address":{"type":"integer","description":"Flash base address (e.g. 0x08000000)"},"hex_data":{"type":"string","description":"Hex-encoded binary bytes to write"}},"required":["address","hex_data"]}"#,
 );
 
 pub const TOOL_PROGRAMMER_RESET: Tool = Tool::new(
     "programmer_reset",
-    "Target reset",
+    "Target reset (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{}}"#,
 );
 
@@ -226,13 +226,13 @@ pub const TOOL_NEOPIXEL_TRANSMIT: Tool = Tool::new(
 
 pub const TOOL_TARGET_DIAGNOSE: Tool = Tool::new(
     "target_diagnose",
-    "Diagnostic inspecting rail voltage, continuity, CoreSight DPIDR/CPUID, and fault registers",
+    "Diagnostic inspecting rail voltage, continuity, CoreSight DPIDR/CPUID, and fault registers (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{"port":{"type":"string","description":"Target port (bluepill, ch32v203, ch32v003)"}}}"#,
 );
 
 pub const TOOL_INSPECT_FIRMWARE: Tool = Tool::new(
     "inspect_firmware",
-    "Inspect vector table, validate Stack Pointer against SRAM bounds, and verify Thumb mode",
+    "Inspect vector table, validate Stack Pointer against SRAM bounds, and verify Thumb mode (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{"address":{"type":"integer","description":"Flash base address (default 0x08000000)"},"target":{"type":"string","description":"Target chip family name to lookup LittleFS FLM algorithm"}}}"#,
 );
 
@@ -244,7 +244,7 @@ pub const TOOL_SNIFF_BUS: Tool = Tool::new(
 
 pub const TOOL_PROGRAMMER_UNBRICK: Tool = Tool::new(
     "programmer_unbrick",
-    "Unbrick / mass-erase protected target across STM32 RDP, Nordic APPROTECT, NXP, Microchip",
+    "Unbrick / mass-erase protected target across STM32 RDP, Nordic APPROTECT, NXP, Microchip (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{"target":{"type":"string","description":"Target family or commercial part number"}}}"#,
 );
 
@@ -298,7 +298,7 @@ pub const TOOL_PROFILE_APPLY: Tool = Tool::new(
 
 pub const TOOL_SWO_READ: Tool = Tool::new(
     "swo_read",
-    "Drain captured SWO/ITM trace buffer bytes",
+    "Drain captured SWO/ITM trace buffer bytes (disabled: execute directly via host USB CMSIS-DAP, ST-Link, or WCH-Link via probe-rs, pyocd, openocd)",
     r#"{"type":"object","properties":{"clear":{"type":"boolean","description":"Clear buffer after read (default true)"}}}"#,
 );
 
@@ -374,6 +374,138 @@ pub const TOOL_BAREFOC_EMERGENCY: Tool = Tool::new(
     r#"{"type":"object","properties":{}}"#,
 );
 
+pub const TOOL_USB_ADAPTERS_STATUS: Tool = Tool::new(
+    "usb_adapters_status",
+    "Query status and telemetry of simultaneous USB hardware adapters (I2C tiny-usb, SPI MPSSE, I3C Bulk, CAN gs_usb, CMSIS-DAP, CDC-ACM, CDC-NCM)",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_I3C_STATUS: Tool = Tool::new(
+    "i3c_status",
+    "Query MIPI I3C bus adapter state, clock speed, and discovered devices",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_FS_LIST: Tool = Tool::new(
+    "fs_list",
+    "List files and directories in LittleFS root ('user' or 'system')",
+    r#"{"type":"object","properties":{"root":{"type":"string","enum":["user","system"],"description":"Filesystem root ('user' or 'system', default 'user')"},"path":{"type":"string","description":"Directory path (default '/')"}},"required":[]}"#,
+);
+
+pub const TOOL_FS_READ: Tool = Tool::new(
+    "fs_read",
+    "Read chunk of data from LittleFS file (hex-encoded)",
+    r#"{"type":"object","properties":{"root":{"type":"string","enum":["user","system"],"description":"Filesystem root ('user' or 'system', default 'user')"},"path":{"type":"string","description":"File path to read"},"offset":{"type":"integer","description":"Byte offset to start reading from (default 0)"},"length":{"type":"integer","description":"Number of bytes to read (clamped to max 256)"}},"required":["path"]}"#,
+);
+
+pub const TOOL_FS_WRITE: Tool = Tool::new(
+    "fs_write",
+    "Write hex-encoded byte chunk to LittleFS file",
+    r#"{"type":"object","properties":{"root":{"type":"string","enum":["user","system"],"description":"Filesystem root ('user' only, system is read-only)"},"path":{"type":"string","description":"File path to write"},"hex_data":{"type":"string","description":"Hex-encoded bytes to write (up to 256 decoded bytes)"},"append":{"type":"boolean","description":"Append to existing file (default false)"}},"required":["path","hex_data"]}"#,
+);
+
+pub const TOOL_FS_STAT: Tool = Tool::new(
+    "fs_stat",
+    "Query metadata for a file or directory in LittleFS",
+    r#"{"type":"object","properties":{"root":{"type":"string","enum":["user","system"],"description":"Filesystem root ('user' or 'system', default 'user')"},"path":{"type":"string","description":"File or directory path"}},"required":["path"]}"#,
+);
+
+pub const TOOL_FS_MKDIR: Tool = Tool::new(
+    "fs_mkdir",
+    "Create a directory in LittleFS",
+    r#"{"type":"object","properties":{"root":{"type":"string","enum":["user","system"],"description":"Filesystem root ('user' only, system is read-only)"},"path":{"type":"string","description":"Directory path to create"}},"required":["path"]}"#,
+);
+
+pub const TOOL_FS_REMOVE: Tool = Tool::new(
+    "fs_remove",
+    "Remove a file or directory in LittleFS",
+    r#"{"type":"object","properties":{"root":{"type":"string","enum":["user","system"],"description":"Filesystem root ('user' only, system is read-only)"},"path":{"type":"string","description":"File or directory path to remove"}},"required":["path"]}"#,
+);
+
+pub const TOOL_FS_STORAGE_STATS: Tool = Tool::new(
+    "fs_storage_stats",
+    "Query LittleFS storage statistics for system and user partitions",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_SYSTEM_INFO: Tool = Tool::new(
+    "system_info",
+    "Query hardware vitals, clock frequencies, flash and SRAM layout",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_SYSTEM_REBOOT: Tool = Tool::new(
+    "system_reboot",
+    "Trigger an MCU reboot into normal, recovery, or bootsel mode",
+    r#"{"type":"object","properties":{"mode":{"type":"string","enum":["soft","recovery","normal"],"description":"Reboot mode (default 'soft')"}},"required":[]}"#,
+);
+
+pub const TOOL_SYSTEM_BOOTSEL: Tool = Tool::new(
+    "system_bootsel",
+    "Reboot MCU directly into RP2350 USB UF2 BOOTSEL drive mode",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_SYSTEM_CLOCK_SET: Tool = Tool::new(
+    "system_clock_set",
+    "Set system clock frequency in MHz and perform warm reboot",
+    r#"{"type":"object","properties":{"freq_mhz":{"type":"integer","enum":[150,300,500],"description":"Target system clock in MHz (150, 300, or 500)"}},"required":["freq_mhz"]}"#,
+);
+
+pub const TOOL_SYSTEM_PARTITIONS: Tool = Tool::new(
+    "system_partitions",
+    "Inspect flash memory partitions, offsets, sizes, and active roles",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_OSCILLOSCOPE_CAPTURE: Tool = Tool::new(
+    "oscilloscope_capture",
+    "Capture mixed-signal analog frame and compute Vpp, Vrms, frequency, and duty cycle",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"ADC pin index (26-29, default 26)"},"samples":{"type":"integer","description":"Sample count (clamped to max 1024, default 128)"}},"required":[]}"#,
+);
+
+pub const TOOL_GENERATOR_START: Tool = Tool::new(
+    "generator_start",
+    "Start signal generator waveform on specified pin",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29, default 12)"},"waveform":{"type":"string","enum":["square","pwm","clock"],"description":"Waveform type (default 'square')"},"freq_hz":{"type":"integer","description":"Frequency in Hz (1 to 75000000, default 1000)"}},"required":["pin"]}"#,
+);
+
+pub const TOOL_GENERATOR_STOP: Tool = Tool::new(
+    "generator_stop",
+    "Stop signal generator waveform output",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (optional)"}},"required":[]}"#,
+);
+
+pub const TOOL_GLITCH_ARM: Tool = Tool::new(
+    "glitch_arm",
+    "Arm nanosecond cycle-accurate voltage or clock glitch injector",
+    r#"{"type":"object","properties":{"width_ns":{"type":"integer","description":"Glitch pulse width in nanoseconds"},"delay_ns":{"type":"integer","description":"Trigger-to-glitch delay in nanoseconds (default 0)"}},"required":["width_ns"]}"#,
+);
+
+pub const TOOL_GLITCH_DISARM: Tool = Tool::new(
+    "glitch_disarm",
+    "Disarm glitch injector and restore pins to high impedance",
+    r#"{"type":"object","properties":{}}"#,
+);
+
+pub const TOOL_PWM_CLAIM: Tool = Tool::new(
+    "pwm_claim",
+    "Claim a GPIO pin for hardware PWM output via pin arbiter",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"freq_hz":{"type":"integer","description":"Initial PWM frequency in Hz (1-100000, default 1000)"}},"required":["pin"]}"#,
+);
+
+pub const TOOL_PWM_SET: Tool = Tool::new(
+    "pwm_set",
+    "Configure PWM duty cycle and optional frequency for a claimed pin",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"},"duty_pct":{"type":"integer","description":"Duty cycle percentage (0-100)"}},"required":["pin","duty_pct"]}"#,
+);
+
+pub const TOOL_PWM_RELEASE: Tool = Tool::new(
+    "pwm_release",
+    "Release a claimed PWM pin back to pin arbiter",
+    r#"{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin index (0-29)"}},"required":["pin"]}"#,
+);
+
 /// Three composite AI Agent hardware tools.
 pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_TARGET_DIAGNOSE,
@@ -381,8 +513,8 @@ pub static COMPOSITE_TOOLS: [Tool; 3] = [
     TOOL_SNIFF_BUS,
 ];
 
-/// Full catalog of AgentLA tools (45 standard + 3 composite + 8 barefoc = 56 total).
-pub static ALL_TOOLS: [Tool; 56] = [
+/// Full catalog of AgentLA tools (45 standard + 3 composite + 8 barefoc + 2 usb adapters + 20 control-plane = 78 total).
+pub static ALL_TOOLS: [Tool; 78] = [
     TOOL_STATUS,
     TOOL_PROBE_TARGET,
     TOOL_READ_PINS,
@@ -439,6 +571,28 @@ pub static ALL_TOOLS: [Tool; 56] = [
     TOOL_BAREFOC_MODE,
     TOOL_BAREFOC_CALIBRATE,
     TOOL_BAREFOC_EMERGENCY,
+    TOOL_USB_ADAPTERS_STATUS,
+    TOOL_I3C_STATUS,
+    TOOL_FS_LIST,
+    TOOL_FS_READ,
+    TOOL_FS_WRITE,
+    TOOL_FS_STAT,
+    TOOL_FS_MKDIR,
+    TOOL_FS_REMOVE,
+    TOOL_FS_STORAGE_STATS,
+    TOOL_SYSTEM_INFO,
+    TOOL_SYSTEM_REBOOT,
+    TOOL_SYSTEM_BOOTSEL,
+    TOOL_SYSTEM_CLOCK_SET,
+    TOOL_SYSTEM_PARTITIONS,
+    TOOL_OSCILLOSCOPE_CAPTURE,
+    TOOL_GENERATOR_START,
+    TOOL_GENERATOR_STOP,
+    TOOL_GLITCH_ARM,
+    TOOL_GLITCH_DISARM,
+    TOOL_PWM_CLAIM,
+    TOOL_PWM_SET,
+    TOOL_PWM_RELEASE,
 ];
 
 /// Trait for dispatching tool calls to the hardware engine.

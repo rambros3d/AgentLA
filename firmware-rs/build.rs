@@ -8,9 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn main() {
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
-    // Three-image layout: Katapult stage-0 owns flash 0x00000000..0x00008000,
-    // the recovery app owns 0x00008000..0x00048000, and this main application
-    // is linked at XIP 0x10048000 (flash 0x00048000..0x00148000, 1 MB).
+    // Two-image layout: the recovery bootloader owns flash 0x00000000..0x00048000 (288 KB),
+    // and this main application is linked at XIP 0x10048000 (flash 0x00048000..0x00148000, 1 MB).
     // SYSTEM_FS starts at 0x00148000; none of the other images or filesystems
     // may ever be touched by this binary.
     let memory_x = r#"MEMORY {

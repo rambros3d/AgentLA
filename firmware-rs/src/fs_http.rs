@@ -688,7 +688,7 @@ pub fn sanitize_fs_path(raw: &str) -> Option<heapless::String<128>> {
     Some(clean)
 }
 
-fn ensure_parent_dirs_user(
+pub(crate) fn ensure_parent_dirs_user(
     fs: &littlefs2::fs::Filesystem<'static, crate::storage::UserFlashStorage>,
     full: &str,
 ) {

@@ -163,13 +163,12 @@ pub fn halt_target_port_global(port: TargetPort) -> Result<(), TargetError> {
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
                 let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
                     let _ = cortex.select_ap(1);
-                    cortex.csw = 0x23000012;
-                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                    cortex.csw = 0x0B000012;
                 }
                 let res = cortex.halt().map_err(|_| TargetError::Timeout);
                 *pins = swd_session.release();
@@ -200,13 +199,15 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
                 let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
                     let _ = cortex.select_ap(1);
-                    cortex.csw = 0x23000012;
+                    cortex.csw = 0x0B000012;
                 }
+                let _ = cortex.mem_write32(0xE000_EDFC, 0); // Clear DEMCR VC_CORERESET
+                let _ = cortex.mem_write32(0xE000_EDF0, 0xA05F_0000); // Clear C_DEBUGEN and release halt
                 let res = cortex.resume().map_err(|_| TargetError::Timeout);
                 *pins = swd_session.release();
                 res
@@ -249,7 +250,7 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
             let mut cortex = CortexM::new(&mut swd_session.transport);
             if is_h5 {
                 let _ = cortex.select_ap(1);
-                cortex.csw = 0x23000012;
+                cortex.csw = 0x0B000012;
             }
             let res = if is_h5 {
                 let mut offset = 0usize;
@@ -266,6 +267,9 @@ pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, add
                         Err(e) => {
                             ok = false;
                             first_err = match e {
+                                target::cortex_m::CortexError::Diag(step, err, _) => {
+                                    ((step as u32) << 8) | (err as u32)
+                                }
                                 target::cortex_m::CortexError::SwdError => 1,
                                 target::cortex_m::CortexError::Timeout => 2,
                                 target::cortex_m::CortexError::HaltFailed => 3,
@@ -384,8 +388,7 @@ pub fn write_mem_port_internal(pins: &mut ProgrammerPins, port: TargetPort, addr
             let mut cortex = CortexM::new(&mut swd_session.transport);
             if is_h5 {
                 let _ = cortex.select_ap(1);
-                cortex.csw = 0x23000012;
-                let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                cortex.csw = 0x0B000012;
             }
             let res = if is_h5 {
                 let mut offset = 0usize;
@@ -430,24 +433,24 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
                 let (dpidr, is_h5) = match swd_session.attach() {
                     Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
                     Ok(id) => (id, true),
                     Err(_) => {
                         let mut cortex = CortexM::new(&mut swd_session.transport);
-                        let _ = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
-                        let mut id = 0u32;
-                        let _ = cortex.swd.read_dpidr_retry(&mut id);
-                        (id, CortexM::is_armv8m_dpidr(id))
+                        let id = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                        let is_h5 = CortexM::is_armv8m_dpidr(id);
+                        (id, is_h5)
                     }
                 };
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if is_h5 {
-                    cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                    let _ = cortex.swd.write_dp(crate::programmer::swd::DP_ABORT, 0x0000001E);
                     let _ = cortex.select_ap(1);
-                    cortex.csw = 0x23000012;
-                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                    cortex.csw = 0x0B000012;
+                    let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
+                    let _ = cortex.halt();
                 } else {
                     let _ = cortex.halt();
                 }
@@ -461,6 +464,8 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
                         FlashAlgorithmRunner::stm32h5_erase_sector(&mut cortex, curr)
                             .map_err(|e| match e {
                                 algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
+                                algo::AlgoError::Timeout => TargetError::FlashErrorCode(0x30EE),
+                                algo::AlgoError::SwdError => TargetError::FlashErrorCode(0x30ED),
                                 _ => TargetError::FlashError,
                             })?;
                         curr += sector_size;
@@ -584,24 +589,24 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
                 let (dpidr, is_h5) = match swd_session.attach() {
                     Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
                     Ok(id) => (id, true),
                     Err(_) => {
                         let mut cortex = CortexM::new(&mut swd_session.transport);
-                        let _ = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
-                        let mut id = 0u32;
-                        let _ = cortex.swd.read_dpidr_retry(&mut id);
-                        (id, CortexM::is_armv8m_dpidr(id))
+                        let id = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                        let is_h5 = CortexM::is_armv8m_dpidr(id);
+                        (id, is_h5)
                     }
                 };
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if is_h5 {
-                    cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                    let _ = cortex.swd.write_dp(crate::programmer::swd::DP_ABORT, 0x0000001E);
                     let _ = cortex.select_ap(1);
-                    cortex.csw = 0x23000012;
-                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                    cortex.csw = 0x0B000012;
+                    let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
+                    let _ = cortex.halt();
                 } else {
                     let _ = cortex.halt();
                 }
@@ -614,23 +619,21 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                     while curr_sector < end_addr {
                         FlashAlgorithmRunner::stm32h5_erase_sector(&mut cortex, curr_sector)
                             .map_err(|e| match e {
-                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x3000 | (code & 0xFF)),
+                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
+                                algo::AlgoError::Timeout => TargetError::FlashErrorCode(0x30EE),
+                                algo::AlgoError::SwdError => TargetError::FlashErrorCode(0x30ED),
                                 _ => TargetError::FlashErrorCode(0x30FF),
                             })?;
                         curr_sector += sector_size;
                     }
 
-                    let page_size = 256usize;
-                    let mut offset = 0usize;
-                    while offset < data.len() {
-                        let chunk_len = (data.len() - offset).min(page_size);
-                        FlashAlgorithmRunner::stm32h5_program_page(&mut cortex, addr + offset as u32, &data[offset..offset + chunk_len])
-                            .map_err(|e| match e {
-                                algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(0x4000 | (code & 0xFF)),
-                                _ => TargetError::FlashErrorCode(0x40FF),
-                            })?;
-                        offset += chunk_len;
-                    }
+                    FlashAlgorithmRunner::stm32h5_program_page(&mut cortex, addr, data)
+                        .map_err(|e| match e {
+                            algo::AlgoError::ExecutionFailed(code) => TargetError::FlashErrorCode(code),
+                            algo::AlgoError::Timeout => TargetError::FlashErrorCode(0x40EE),
+                            algo::AlgoError::SwdError => TargetError::FlashErrorCode(0x40ED),
+                            _ => TargetError::FlashErrorCode(0x40FF),
+                        })?;
                     let _ = FlashAlgorithmRunner::stm32h5_lock(&mut cortex);
                 } else {
                     // 1. Erase sector(s) covering destination
@@ -664,17 +667,42 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                     let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
                 }
 
+                if is_h5 {
+                    let _ = cortex.halt();
+                    let _ = cortex.swd.write_dp(crate::programmer::swd::DP_ABORT, 0x0000001E);
+                    let _ = cortex.select_ap(1);
+                    cortex.csw = 0x0B000012;
+                    let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
+                }
+
                 // Verify
-                let mut readback = [0u8; 64];
                 let mut v_offset = 0usize;
+                let mut verify_buf = [0u8; 256];
                 while v_offset < data.len() {
-                    let chunk_len = (data.len() - v_offset).min(readback.len());
-                    cortex.mem_read_block(addr + v_offset as u32, &mut readback[..chunk_len])
-                        .map_err(|_| TargetError::FlashErrorCode(0x6001))?;
-                    if readback[..chunk_len] != data[v_offset..v_offset + chunk_len] {
-                        let _ = cortex.resume();
-                        *pins = swd_session.release();
-                        return Err(TargetError::FlashErrorCode(0xDEADBEE1));
+                    let chunk_len = (data.len() - v_offset).min(verify_buf.len());
+                    if is_h5 {
+                        for i in (0..chunk_len).step_by(4) {
+                            let w = cortex
+                                .mem_read32(addr + (v_offset + i) as u32)
+                                .map_err(|_| TargetError::FlashErrorCode(0x6001))?;
+                            let bytes = w.to_le_bytes();
+                            let copy_len = (chunk_len - i).min(4);
+                            verify_buf[i..i + copy_len].copy_from_slice(&bytes[..copy_len]);
+                        }
+                    } else {
+                        cortex.mem_read_block(addr + v_offset as u32, &mut verify_buf[..chunk_len])
+                            .map_err(|_| TargetError::FlashErrorCode(0x6001))?;
+                    }
+                    for i in 0..chunk_len {
+                        if verify_buf[i] != data[v_offset + i] {
+                            let _ = cortex.resume();
+                            *pins = swd_session.release();
+                            return Err(TargetError::FlashErrorCode(
+                                ((verify_buf[i] as u32) << 24)
+                                    | ((data[v_offset + i] as u32) << 16)
+                                    | ((v_offset + i) as u32 & 0xFFFF),
+                            ));
+                        }
                     }
                     v_offset += chunk_len;
                 }

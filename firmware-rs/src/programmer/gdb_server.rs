@@ -46,9 +46,8 @@ pub async fn gdb_server_task(stack: Stack<'static>) {
 
         let mut cortex = CortexM::new(&mut swd);
         if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
-            cortex.csw = 0x23000012;
+            cortex.csw = 0x0B000012;
             let _ = cortex.select_ap(1);
-            let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
         }
         let mut target = CortexTarget(&mut cortex);
 

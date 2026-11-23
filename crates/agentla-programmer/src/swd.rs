@@ -20,7 +20,7 @@ pub const AP_TAR: u8 = 0x04;
 pub const AP_DRW: u8 = 0x0C;
 pub const AP_IDR: u8 = 0xFC;
 
-pub const ADIV5_AP_CSW_DEFAULT: u32 = 0x23000012; // Secure Privileged (HNONSEC = 0)
+pub const ADIV5_AP_CSW_DEFAULT: u32 = 0x0B000012; // Secure Privileged (HNONSEC = 0)
 pub const ADIV5_AP_CSW_NONSEC: u32 = 0xE3000012;  // Non-Secure Privileged (HNONSEC = 1)
 pub const ADIV5_AP_CSW_16BIT: u32 = 0x23000011;
 
@@ -155,12 +155,10 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
     }
 
     fn power_up_debug(&mut self) -> Result<(), SwdError> {
-        let s0 = self.write_dp(DP_SELECT, 0);
-        self.ap_select = 0;
         let s1 = self.write_dp(DP_ABORT, 0x0000001E);
         let s2 = self.write_dp(DP_CTRLSTAT, 0x50000000);
         crate::stlink::stlink_diag::set_writes(
-            s0.is_ok() as u32 | ((s1.is_ok() as u32) << 1) | ((s2.is_ok() as u32) << 2),
+            ((s1.is_ok() as u32) << 1) | ((s2.is_ok() as u32) << 2),
         );
         let mut last = 0u32;
         // The STM32H5 debug domain can take far longer than 2 ms to acknowledge
@@ -171,6 +169,8 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
             let r = self.read_dp(DP_CTRLSTAT, &mut val);
             last = val;
             if r.is_ok() && (val & 0xA0000000) == 0xA0000000 {
+                let _ = self.write_dp(DP_SELECT, 0);
+                self.ap_select = 0;
                 crate::stlink::stlink_diag::set_ctrlstat(val);
                 return Ok(());
             }
@@ -393,7 +393,6 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
         }
         self.write_ap_port(apsel, AP_TAR, addr)?;
         let drw_write_req = build_request(true, false, (AP_DRW >> 2) & 3);
-        let rdbuff_read_req = build_request(false, true, (DP_RDBUFF >> 2) & 3);
 
         for &val in words {
             let mut word_ok = false;
@@ -417,7 +416,6 @@ impl<T: SwdIo> Adiv5Access for Adiv5Engine<T> {
                 return Err(SwdError::Timeout);
             }
         }
-        let _ = self.transport.transfer(rdbuff_read_req, None);
         Ok(())
     }
 }

@@ -94,9 +94,33 @@ fn test_tools_list() {
     assert!(res.contains(r#""name":"barefoc_mode""#));
     assert!(res.contains(r#""name":"barefoc_calibrate""#));
     assert!(res.contains(r#""name":"barefoc_emergency""#));
+    assert!(res.contains(r#""name":"usb_adapters_status""#));
+    assert!(res.contains(r#""name":"i3c_status""#));
+
+    // Verify control plane tools
+    assert!(res.contains(r#""name":"fs_list""#));
+    assert!(res.contains(r#""name":"fs_read""#));
+    assert!(res.contains(r#""name":"fs_write""#));
+    assert!(res.contains(r#""name":"fs_stat""#));
+    assert!(res.contains(r#""name":"fs_mkdir""#));
+    assert!(res.contains(r#""name":"fs_remove""#));
+    assert!(res.contains(r#""name":"fs_storage_stats""#));
+    assert!(res.contains(r#""name":"system_info""#));
+    assert!(res.contains(r#""name":"system_reboot""#));
+    assert!(res.contains(r#""name":"system_bootsel""#));
+    assert!(res.contains(r#""name":"system_clock_set""#));
+    assert!(res.contains(r#""name":"system_partitions""#));
+    assert!(res.contains(r#""name":"oscilloscope_capture""#));
+    assert!(res.contains(r#""name":"generator_start""#));
+    assert!(res.contains(r#""name":"generator_stop""#));
+    assert!(res.contains(r#""name":"glitch_arm""#));
+    assert!(res.contains(r#""name":"glitch_disarm""#));
+    assert!(res.contains(r#""name":"pwm_claim""#));
+    assert!(res.contains(r#""name":"pwm_set""#));
+    assert!(res.contains(r#""name":"pwm_release""#));
 
     // Verify the authoritative tool count equals the compiled catalog length
-    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 56);
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 78);
 }
 
 #[test]
@@ -114,21 +138,47 @@ fn test_barefoc_tools_advertised_and_catalog_counts() {
         "barefoc_mode",
         "barefoc_calibrate",
         "barefoc_emergency",
+        "usb_adapters_status",
+        "i3c_status",
+        "fs_list",
+        "fs_read",
+        "fs_write",
+        "fs_stat",
+        "fs_mkdir",
+        "fs_remove",
+        "fs_storage_stats",
+        "system_info",
+        "system_reboot",
+        "system_bootsel",
+        "system_clock_set",
+        "system_partitions",
+        "oscilloscope_capture",
+        "generator_start",
+        "generator_stop",
+        "glitch_arm",
+        "glitch_disarm",
+        "pwm_claim",
+        "pwm_set",
+        "pwm_release",
     ] {
         let needle = format!(r#""name":"{}""#, name);
         assert!(tools_res.contains(&needle), "tools/list missing {}", name);
     }
-    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 56);
+    assert_eq!(agentla_mcp::ALL_TOOLS.len(), 78);
 
     let res_req = br#"{"jsonrpc":"2.0","id":101,"method":"resources/list"}"#;
     let res_res = server.handle_request(res_req);
     assert!(res_res.contains(r#""uri":"agentla://skills/barefoc""#));
-    assert_eq!(agentla_mcp::DEFAULT_RESOURCES.len(), 8);
+    assert!(res_res.contains(r#""uri":"agentla://fs/stats""#));
+    assert!(res_res.contains(r#""uri":"agentla://partitions""#));
+    assert_eq!(agentla_mcp::DEFAULT_RESOURCES.len(), 10);
 
     let prompt_req = br#"{"jsonrpc":"2.0","id":102,"method":"prompts/list"}"#;
     let prompt_res = server.handle_request(prompt_req);
     assert!(prompt_res.contains(r#""name":"barefoc_debug""#));
-    assert_eq!(agentla_mcp::DEFAULT_PROMPTS.len(), 5);
+    assert!(prompt_res.contains(r#""name":"ota_update_workflow""#));
+    assert!(prompt_res.contains(r#""name":"analog_test_workflow""#));
+    assert_eq!(agentla_mcp::DEFAULT_PROMPTS.len(), 7);
 }
 
 #[test]
@@ -214,6 +264,8 @@ fn test_resources_list() {
     assert!(res.contains(r#""uri":"agentla://skills/programmer""#));
     assert!(res.contains(r#""uri":"agentla://skills/analyzer""#));
     assert!(res.contains(r#""uri":"agentla://skills/barefoc""#));
+    assert!(res.contains(r#""uri":"agentla://fs/stats""#));
+    assert!(res.contains(r#""uri":"agentla://partitions""#));
 }
 
 #[test]
@@ -229,6 +281,20 @@ fn test_resources_read() {
     let res_pin = server.handle_request(req_pin);
     assert!(res_pin.contains(r#""contents":[{"uri":"agentla://pinout""#));
     assert!(res_pin.contains(r#"GPIO0-GPIO9"#));
+
+    let req_fs_stats = br#"{"jsonrpc":"2.0","id":16,"method":"resources/read","params":{"uri":"agentla://fs/stats"}}"#;
+    let res_fs_stats = server.handle_request(req_fs_stats);
+    assert!(res_fs_stats.contains(r#""uri":"agentla://fs/stats""#));
+    assert!(res_fs_stats.contains("system"));
+    assert!(res_fs_stats.contains("user"));
+
+    let req_parts = br#"{"jsonrpc":"2.0","id":17,"method":"resources/read","params":{"uri":"agentla://partitions"}}"#;
+    let res_parts = server.handle_request(req_parts);
+    assert!(res_parts.contains(r#""uri":"agentla://partitions""#));
+    assert!(res_parts.contains("RECOVERY_BOOTLOADER"));
+    assert!(res_parts.contains("FIRMWARE"));
+    assert!(res_parts.contains("SYSTEM_FS"));
+    assert!(res_parts.contains("USER_FS"));
 
     let req_skill = br#"{"jsonrpc":"2.0","id":9,"method":"resources/read","params":{"uri":"agentla://skills/mcu-autonomous-testing"}}"#;
     let res_skill = server.handle_request(req_skill);
@@ -282,6 +348,8 @@ fn test_prompts_list() {
     assert!(res.contains(r#""name":"program_target""#));
     assert!(res.contains(r#""name":"analyze_bus""#));
     assert!(res.contains(r#""name":"barefoc_debug""#));
+    assert!(res.contains(r#""name":"ota_update_workflow""#));
+    assert!(res.contains(r#""name":"analog_test_workflow""#));
 }
 
 #[test]
@@ -312,7 +380,7 @@ fn test_prompts_get() {
     let res_prog = server.handle_request(req_prog);
     assert!(res_prog.contains(r#""id":24"#));
     assert!(res_prog.contains(r#"Target programming for RP2040"#));
-    assert!(res_prog.contains(r#"sector-aligned programmer_flash"#));
+    assert!(res_prog.contains(r#"probe-rs"#));
 
     // 5. analyze_bus
     let req_ana = br#"{"jsonrpc":"2.0","id":25,"method":"prompts/get","params":{"name":"analyze_bus","arguments":{"protocol":"can"}}}"#;
@@ -333,6 +401,21 @@ fn test_prompts_get() {
     let req_bf_def = br#"{"jsonrpc":"2.0","id":27,"method":"prompts/get","params":{"name":"barefoc_debug"}}"#;
     let res_bf_def = server.handle_request(req_bf_def);
     assert!(res_bf_def.contains("target node 1"));
+
+    // 8. ota_update_workflow
+    let req_ota = br#"{"jsonrpc":"2.0","id":28,"method":"prompts/get","params":{"name":"ota_update_workflow","arguments":{"image_path":"/ota/firmware.bin"}}}"#;
+    let res_ota = server.handle_request(req_ota);
+    assert!(res_ota.contains(r#""id":28"#));
+    assert!(res_ota.contains("/ota/firmware.bin"));
+    assert!(res_ota.contains("fs_storage_stats"));
+    assert!(res_ota.contains("system_reboot"));
+
+    // 9. analog_test_workflow
+    let req_analog = br#"{"jsonrpc":"2.0","id":29,"method":"prompts/get","params":{"name":"analog_test_workflow","arguments":{"pin":"27"}}}"#;
+    let res_analog = server.handle_request(req_analog);
+    assert!(res_analog.contains(r#""id":29"#));
+    assert!(res_analog.contains("pin 27"));
+    assert!(res_analog.contains("oscilloscope_capture"));
 }
 
 #[test]
@@ -684,5 +767,129 @@ fn test_barefoc_tools_dispatch() {
         let res = server.handle_request(req.as_bytes());
         assert!(res.contains(r#""isError":false"#), "{} failed: {}", name, res);
         assert!(res.contains(r#"\"status\":\"ok\""#), "{} missing ok: {}", name, res);
+    }
+}
+
+#[test]
+fn test_control_plane_tools_dispatch() {
+    let handler = |name: &str, body: &str, out: &mut heapless::String<1536>| -> bool {
+        match name {
+            "fs_list" => {
+                let _ = out.push_str(r#"[{"name":"ota","is_dir":true,"size":0}]"#);
+                false
+            }
+            "fs_read" => {
+                let _ = out.push_str(r#"{"status":"ok","path":"/ota/update.bin","bytes_read":4,"hex_data":"41474C41"}"#);
+                false
+            }
+            "fs_write" => {
+                let _ = out.push_str(r#"{"status":"ok","path":"/ota/update.bin","bytes_written":4}"#);
+                false
+            }
+            "fs_stat" => {
+                let _ = out.push_str(r#"{"status":"ok","path":"/ota/update.bin","is_dir":false,"size":1048576}"#);
+                false
+            }
+            "fs_mkdir" => {
+                let _ = out.push_str(r#"{"status":"ok","path":"/ota"}"#);
+                false
+            }
+            "fs_remove" => {
+                let _ = out.push_str(r#"{"status":"ok","path":"/ota/update.bin"}"#);
+                false
+            }
+            "fs_storage_stats" => {
+                let _ = out.push_str(r#"{"system":{"total_bytes":1048576,"used_bytes":0,"read_only":true},"user":{"total_bytes":1802240,"used_bytes":0,"read_only":false}}"#);
+                false
+            }
+            "system_info" => {
+                let _ = out.push_str(r#"{"architecture":"ARM Cortex-M33","chip":"RP2350A","clock_mhz":150,"status":"healthy"}"#);
+                false
+            }
+            "system_reboot" => {
+                let _ = out.push_str(r#"{"status":"rebooting","mode":"soft"}"#);
+                false
+            }
+            "system_bootsel" => {
+                let _ = out.push_str(r#"{"status":"bootsel_initiated"}"#);
+                false
+            }
+            "system_clock_set" => {
+                let freq = extract_u32_arg(body, "freq_mhz").unwrap_or(150);
+                let _ = write!(out, r#"{{"status":"rebooting","freq_mhz":{}}}"#, freq);
+                false
+            }
+            "system_partitions" => {
+                let _ = out.push_str(r#"{"flash_total_bytes":4194304,"partitions":[]}"#);
+                false
+            }
+            "oscilloscope_capture" => {
+                let _ = out.push_str(r#"{"status":"ok","pin":26,"samples":128,"vpp_mv":3300,"vrms_mv":1650,"freq_hz":1000,"duty_pct":50}"#);
+                false
+            }
+            "generator_start" => {
+                let _ = out.push_str(r#"{"status":"ok","pin":12,"freq_hz":1000,"waveform":"square","duty_pct":50}"#);
+                false
+            }
+            "generator_stop" => {
+                let _ = out.push_str(r#"{"status":"stopped"}"#);
+                false
+            }
+            "glitch_arm" => {
+                let _ = out.push_str(r#"{"status":"armed","delay_ns":0,"width_ns":20}"#);
+                false
+            }
+            "glitch_disarm" => {
+                let _ = out.push_str(r#"{"status":"disarmed"}"#);
+                false
+            }
+            "pwm_claim" => {
+                let _ = out.push_str(r#"{"status":"claimed","pin":25,"handle":1}"#);
+                false
+            }
+            "pwm_set" => {
+                let _ = out.push_str(r#"{"status":"ok","pin":25,"duty_pct":50,"freq_hz":1000}"#);
+                false
+            }
+            "pwm_release" => {
+                let _ = out.push_str(r#"{"status":"released","pin":25}"#);
+                false
+            }
+            _ => true,
+        }
+    };
+    let server = McpServer::with_handler(handler);
+
+    let tools = [
+        ("fs_list", r#"{"name":"fs_list","arguments":{"root":"user","path":"/"}}"#),
+        ("fs_read", r#"{"name":"fs_read","arguments":{"root":"user","path":"/ota/update.bin","offset":0,"length":4}}"#),
+        ("fs_write", r#"{"name":"fs_write","arguments":{"root":"user","path":"/ota/update.bin","hex_data":"41474C41","append":false}}"#),
+        ("fs_stat", r#"{"name":"fs_stat","arguments":{"root":"user","path":"/ota/update.bin"}}"#),
+        ("fs_mkdir", r#"{"name":"fs_mkdir","arguments":{"root":"user","path":"/ota"}}"#),
+        ("fs_remove", r#"{"name":"fs_remove","arguments":{"root":"user","path":"/ota/update.bin"}}"#),
+        ("fs_storage_stats", r#"{"name":"fs_storage_stats","arguments":{}}"#),
+        ("system_info", r#"{"name":"system_info","arguments":{}}"#),
+        ("system_reboot", r#"{"name":"system_reboot","arguments":{"mode":"soft"}}"#),
+        ("system_bootsel", r#"{"name":"system_bootsel","arguments":{}}"#),
+        ("system_clock_set", r#"{"name":"system_clock_set","arguments":{"freq_mhz":300}}"#),
+        ("system_partitions", r#"{"name":"system_partitions","arguments":{}}"#),
+        ("oscilloscope_capture", r#"{"name":"oscilloscope_capture","arguments":{"pin":26,"samples":128}}"#),
+        ("generator_start", r#"{"name":"generator_start","arguments":{"pin":12,"waveform":"square","freq_hz":1000}}"#),
+        ("generator_stop", r#"{"name":"generator_stop","arguments":{"pin":12}}"#),
+        ("glitch_arm", r#"{"name":"glitch_arm","arguments":{"width_ns":20,"delay_ns":0}}"#),
+        ("glitch_disarm", r#"{"name":"glitch_disarm","arguments":{}}"#),
+        ("pwm_claim", r#"{"name":"pwm_claim","arguments":{"pin":25,"freq_hz":1000}}"#),
+        ("pwm_set", r#"{"name":"pwm_set","arguments":{"pin":25,"duty_pct":50}}"#),
+        ("pwm_release", r#"{"name":"pwm_release","arguments":{"pin":25}}"#),
+    ];
+
+    for (i, (name, params)) in tools.iter().enumerate() {
+        let req = format!(
+            r#"{{"jsonrpc":"2.0","id":{},"method":"tools/call","params":{}}}"#,
+            i + 100,
+            params
+        );
+        let res = server.handle_request(req.as_bytes());
+        assert!(res.contains(r#""isError":false"#), "{} failed: {}", name, res);
     }
 }

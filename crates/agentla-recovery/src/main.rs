@@ -1,6 +1,6 @@
 //! Synchronous recovery bootloader.
 //!
-//! Runs from flash 0x00008000 (XIP 0x10008000), mounted by Katapult stage-0.
+//! Runs directly from flash 0x00000000 (XIP 0x10000000) as the primary bootloader.
 //! On boot it looks for `/ota/update.bin` in USER_FS (0x00248000), validates
 //! the `AGLA_FW` container, writes the payload into the single main app slot
 //! (flash 0x00048000..0x00148000, XIP 0x10048000), deletes the candidate,
@@ -39,6 +39,19 @@ const FLASH_SIZE_BYTES: usize = 4 * 1024 * 1024;
 const SECTOR_SIZE: usize = 4096;
 const PAGE_SIZE: usize = 256;
 const CHUNK_SIZE: usize = 512;
+
+/// RP2350 Block Loop Image Definition.
+/// Placed in the vector table's interrupt section so the RP2350 Bootrom
+/// block-loop scanner finds it within the first 256 bytes of flash.
+#[used]
+#[link_section = ".vector_table.interrupts"]
+static IMAGE_DEFINITION: [u32; 5] = [
+    0xffff_ded3,
+    0x1021_0142,
+    0x0000_01ff,
+    0x0000_0000,
+    0xab12_3579,
+];
 
 type FlashHandle = Flash<'static, FLASH, Blocking, FLASH_SIZE_BYTES>;
 
@@ -205,7 +218,7 @@ impl Storage for UserFlashStorage {
 
 // ---------------------------------------------------------------------------
 // App-slot primitives. Bounds enforced so OTA can never reach Katapult
-// (< 0x00008000), this recovery app, or SYSTEM_FS (>= 0x00148000).
+// (< 0x00048000), or SYSTEM_FS (>= 0x00148000).
 // ---------------------------------------------------------------------------
 
 fn flash_slot_erase(from: u32, to: u32) -> Result<(), ()> {
@@ -509,7 +522,7 @@ fn jump_to_app(watchdog: Peri<'static, embassy_rp::peripherals::WATCHDOG>) -> ! 
 #[entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
-    defmt::info!("AgentLA recovery start (XIP 0x10008000)");
+    defmt::info!("AgentLA recovery bootloader start (XIP 0x10000000)");
 
     {
         let mut guard = FLASH_MUTEX.try_lock().unwrap();
@@ -524,6 +537,6 @@ fn main() -> ! {
         OtaOutcome::MountFail => defmt::warn!("OTA skipped: USER_FS unavailable"),
     }
 
-    // Katapult stage-0 already jumped here; we hand off to the single app slot.
+    // Primary bootloader entry: hand off to the single app slot.
     jump_to_app(p.WATCHDOG)
 }

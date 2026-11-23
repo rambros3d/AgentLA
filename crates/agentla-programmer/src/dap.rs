@@ -174,8 +174,8 @@ impl<T: SwdIo> CmsisDapHandler<T> {
             }
             0xFF => {
                 resp[1] = 2;
-                resp[2] = 0x00;
-                resp[3] = 0x02; // 512 = 0x0200
+                resp[2] = 0x40; // 64 = 0x0040 (USB Full-Speed packet size)
+                resp[3] = 0x00;
                 4
             }
             _ => {
@@ -192,6 +192,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         if port == 0 || port == DAP_PORT_SWD {
             let _ = self.transport.ensure_initialized();
             let _ = self.transport.jtag_to_swd();
+            let _ = self.transport.jtag_to_dormant_to_swd();
             self.connected = true;
             resp[1] = DAP_PORT_SWD;
         } else {
@@ -600,6 +601,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
             }
         }
 
+        let _ = self.transport.wait_idle();
         resp[1] = response_count;
         resp_idx
     }
@@ -761,6 +763,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
             }
         }
 
+        let _ = self.transport.wait_idle();
         resp[1] = (completed & 0xFF) as u8;
         resp[2] = ((completed >> 8) & 0xFF) as u8;
         if !is_read {
@@ -814,12 +817,19 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         }
 
         let mut bits_left = bit_count;
-        for i in 0..byte_count {
-            let chunk_bits = if bits_left >= 8 { 8 } else { bits_left };
-            let _ = self
-                .transport
-                .write_bits(chunk_bits as u32, req[2 + i] as u32);
+        let mut byte_idx = 0;
+        while bits_left > 0 {
+            let chunk_bits = bits_left.min(32);
+            let chunk_bytes = (chunk_bits + 7) / 8;
+            let mut word = 0u32;
+            for b in 0..chunk_bytes {
+                if 2 + byte_idx + b < req.len() {
+                    word |= (req[2 + byte_idx + b] as u32) << (b * 8);
+                }
+            }
+            let _ = self.transport.write_bits(chunk_bits as u32, word);
             bits_left -= chunk_bits;
+            byte_idx += chunk_bytes;
         }
         let _ = self.transport.wait_idle();
 

@@ -193,10 +193,10 @@ def test_mcp_manifest_and_tools_count():
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assert manifest["name"] == "AgentLA RP2350"
-    assert manifest["capabilities"]["tools"]["count"] == 56, "mcp.json tool count must be exactly 56"
+    assert manifest["capabilities"]["tools"]["count"] == 78, "mcp.json tool count must be exactly 78"
 
     tools_rs = (REPO_ROOT / "crates" / "agentla-mcp" / "src" / "tools.rs").read_text(encoding="utf-8")
-    assert "pub static ALL_TOOLS: [Tool; 56]" in tools_rs
+    assert "pub static ALL_TOOLS: [Tool; 78]" in tools_rs
 
     # 4 Sensor tools
     for tool_name in [

@@ -300,90 +300,224 @@ impl FlashAlgorithmRunner {
         Ok(())
     }
 
-    pub fn stm32h5_unlock<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
-        let cr = cortex.mem_read32(0x40022028).map_err(|_| AlgoError::SwdError)?;
-        if (cr & 0x01) != 0 {
-            cortex.mem_write32(0x40022004, 0x45670123).map_err(|_| AlgoError::SwdError)?;
-            cortex.mem_write32(0x40022004, 0xCDEF89AB).map_err(|_| AlgoError::SwdError)?;
-        }
-        let _ = cortex.mem_write32(0x40022030, 0x001F0000);
-        Self::stm32h5_wait_bsy(cortex)?;
-        Ok(())
-    }
+pub const STM32H5_ALGO: &[u8] = &[
+    0x01, 0x28, 0x5b, 0xd0, 0x02, 0x28, 0x40, 0xf0, 0x8f, 0x80, 0x49, 0x48,
+    0x00, 0xb5, 0xd0, 0xf8, 0x28, 0xc0, 0x1c, 0xf0, 0x01, 0x0f, 0x3d, 0xd1,
+    0x4f, 0xf4, 0x7f, 0x00, 0xdf, 0xf8, 0x10, 0xc1, 0xcc, 0xf8, 0x30, 0x00,
+    0xdc, 0xf8, 0x20, 0x00, 0x10, 0xf0, 0x0b, 0x0f, 0xfa, 0xd1, 0xdc, 0xf8,
+    0x28, 0x00, 0x1b, 0x09, 0x40, 0xf0, 0x02, 0x00, 0xcc, 0xf8, 0x28, 0x00,
+    0x1f, 0xd0, 0x3c, 0x48, 0x94, 0x46, 0x02, 0xeb, 0x03, 0x1e, 0x8a, 0x1a,
+    0xdc, 0xf8, 0x00, 0x10, 0x02, 0xeb, 0x0c, 0x03, 0x42, 0xf8, 0x0c, 0x10,
+    0xdc, 0xf8, 0x04, 0x10, 0x59, 0x60, 0xdc, 0xf8, 0x08, 0x10, 0x99, 0x60,
+    0xdc, 0xf8, 0x0c, 0x10, 0xd9, 0x60, 0x03, 0x6a, 0x13, 0xf0, 0x0b, 0x0f,
+    0xfb, 0xd1, 0x03, 0x6a, 0x13, 0xf4, 0x7e, 0x0f, 0x17, 0xd1, 0x0c, 0xf1,
+    0x10, 0x0c, 0xe6, 0x45, 0xe4, 0xd1, 0x4f, 0xf4, 0x7f, 0x01, 0x2b, 0x4b,
+    0x00, 0x20, 0x9a, 0x6a, 0x22, 0xf0, 0x02, 0x02, 0x9a, 0x62, 0x19, 0x63,
+    0x00, 0xbe, 0x00, 0xbd, 0xdf, 0xf8, 0x9c, 0xc0, 0xc0, 0xf8, 0x04, 0xc0,
+    0x0c, 0xf1, 0x88, 0x3c, 0xc0, 0xf8, 0x04, 0xc0, 0xb8, 0xe7, 0x4f, 0xf4,
+    0x7f, 0x02, 0x83, 0x6a, 0x23, 0xf0, 0x02, 0x03, 0x83, 0x62, 0x02, 0x63,
+    0x4f, 0xf0, 0xff, 0x30, 0x00, 0xbe, 0x00, 0xbd, 0x1c, 0x4b, 0x9a, 0x6a,
+    0xd2, 0x07, 0x2c, 0xd4, 0x4f, 0xf4, 0x7f, 0x03, 0x19, 0x4a, 0x13, 0x63,
+    0x13, 0x6a, 0x13, 0xf0, 0x0b, 0x0f, 0xfb, 0xd1, 0x18, 0x4b, 0x99, 0x42,
+    0x1b, 0xd8, 0x24, 0x23, 0x01, 0xf1, 0x78, 0x41, 0x49, 0x0b, 0x13, 0x4a,
+    0x43, 0xea, 0x81, 0x13, 0x93, 0x62, 0x13, 0x6a, 0x13, 0xf0, 0x0b, 0x0f,
+    0xfb, 0xd1, 0x4f, 0xf4, 0x7f, 0x01, 0x90, 0x6a, 0x10, 0x4b, 0x03, 0x40,
+    0x93, 0x62, 0x11, 0x63, 0x13, 0x6a, 0x13, 0xf4, 0x7e, 0x0f, 0x14, 0xbf,
+    0x4f, 0xf0, 0xff, 0x30, 0x00, 0x20, 0x00, 0xbe, 0x70, 0x47, 0x49, 0x0b,
+    0xa1, 0xf5, 0x80, 0x41, 0x09, 0x4b, 0x08, 0x39, 0xe1, 0xe7, 0x05, 0x48,
+    0x08, 0x4a, 0x58, 0x60, 0x5a, 0x60, 0xcd, 0xe7, 0x4f, 0xf0, 0xff, 0x30,
+    0xef, 0xe7, 0x00, 0xbf, 0x00, 0x20, 0x02, 0x50, 0x23, 0x01, 0x67, 0x45,
+    0xff, 0xff, 0x00, 0x08, 0x3b, 0xe0, 0xff, 0x7f, 0x24, 0x00, 0x00, 0x80,
+    0xab, 0x89, 0xef, 0xcd,
+];
 
-    pub fn stm32h5_wait_bsy<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
-        for _ in 0..100_000 {
-            if let Ok(sr) = cortex.mem_read32(0x40022020) {
-                if (sr & 0x0B) == 0 {
-                    if (sr & 0x00BE0000) != 0 {
-                        let _ = cortex.mem_write32(0x40022030, 0x001F0000);
-                        return Err(AlgoError::ExecutionFailed(sr));
+    pub fn stm32h5_run_algo<S: Adiv5Access>(
+        cortex: &mut CortexM<S>,
+        cmd: u32,
+        arg1: u32,
+        arg2: u32,
+        arg3: u32,
+    ) -> Result<(), AlgoError> {
+        let _ = cortex.halt();
+        let _ = cortex.swd.write_dp(crate::swd::DP_ABORT, 0x0000001E);
+        let _ = cortex.select_ap(1);
+        cortex.csw = 0x0B000012;
+        let _ = cortex.swd.write_ap_port(1, crate::swd::AP_CSW, 0x0B000012);
+
+        // Download algo to SRAM base 0x20000000
+        cortex
+            .mem_write_block(0x20000000, Self::STM32H5_ALGO)
+            .map_err(|_| AlgoError::ExecutionFailed(0x8001))?;
+
+        // Enable vector catch for hard fault and trace
+        let _ = cortex.mem_write32(0xE000EDFC, 0x01000401);
+
+        // Setup CPU registers
+        cortex.write_core_reg(0, cmd).map_err(|_| AlgoError::ExecutionFailed(0x6003))?;
+        cortex.write_core_reg(1, arg1).map_err(|_| AlgoError::ExecutionFailed(0x6004))?;
+        cortex.write_core_reg(2, arg2).map_err(|_| AlgoError::ExecutionFailed(0x6005))?;
+        cortex.write_core_reg(3, arg3).map_err(|_| AlgoError::ExecutionFailed(0x6006))?;
+
+        // SP: 0x20002000 (8 KB into RAM)
+        cortex.write_core_reg(13, 0x20002000).map_err(|_| AlgoError::ExecutionFailed(0x6007))?;
+
+        // LR: 0x20001FFD (with bkpt opcode at 0x20001FFC)
+        let _ = cortex.mem_write32(0x20001FFC, 0xBE00BE00);
+        cortex.write_core_reg(14, 0x20001FFD).map_err(|_| AlgoError::ExecutionFailed(0x6008))?;
+
+        // xPSR: Thumb state (bit 24 = 1)
+        cortex.write_core_reg(16, 0x01000000).map_err(|_| AlgoError::ExecutionFailed(0x6009))?;
+
+        // PC: entry point 0x20000000 (even address)
+        cortex.write_core_reg(15, 0x20000000).map_err(|_| AlgoError::ExecutionFailed(0x600A))?;
+
+        // Resume core execution
+        cortex.resume().map_err(|_| AlgoError::ExecutionFailed(0x600B))?;
+
+        // Wait for halt (bkpt #0 triggered)
+        let max_iters = if cmd == 1 { 20_000 } else { 5_000 };
+        for _ in 0..max_iters {
+            if let Ok(dhcsr) = cortex.mem_read32(DHCSR) {
+                if (dhcsr & DHCSR_S_HALT) != 0 {
+                    let r0 = cortex.read_core_reg(0).map_err(|_| AlgoError::ExecutionFailed(0x600C))?;
+                    if r0 != 0 {
+                        let nssr = cortex.mem_read32(0x40022020).unwrap_or(0);
+                        return Err(AlgoError::ExecutionFailed(0x50000000 | (nssr & 0x00FFFFFF)));
                     }
                     return Ok(());
                 }
             }
-            delay_cycles(150);
+            delay_cycles(1500); // 10 µs
         }
-        Err(AlgoError::Timeout)
+
+        let _ = cortex.halt();
+        let pc = cortex.read_core_reg(15).unwrap_or(0);
+        Err(AlgoError::ExecutionFailed(0x5E000000 | (pc & 0xFFFF)))
     }
 
     pub fn stm32h5_erase_sector<S: Adiv5Access>(
         cortex: &mut CortexM<S>,
         sector_addr: u32,
     ) -> Result<(), AlgoError> {
+        let _ = cortex.halt();
         Self::stm32h5_unlock(cortex)?;
 
-        let bank2 = sector_addr >= 0x0801_0000;
-        let base = if bank2 { 0x0801_0000 } else { 0x0800_0000 };
-        let snb = (sector_addr.saturating_sub(base)) / 8192;
-        let mut cr = (1 << 2) | (1 << 5) | ((snb & 0x7F) << 6);
-        if bank2 {
-            cr |= 1 << 31; // BKSEL: Bank 2 selection
+        // Clear error flags: NSCCR (0x40022030) = 0x003F0000
+        let _ = cortex.mem_write32(0x40022030, 0x003F0000);
+
+        // Wait for BSY == 0 in NSSR (0x40022020)
+        for _ in 0..10_000 {
+            if (cortex.mem_read32(0x40022020).unwrap_or(0) & 0x01) == 0 {
+                break;
+            }
         }
-        cortex.mem_write32(0x40022028, cr).map_err(|_| AlgoError::SwdError)?;
 
-        Self::stm32h5_wait_bsy(cortex)?;
+        // Calculate sector number: (sector_addr - 0x08000000) / 8192
+        let snb = sector_addr.saturating_sub(0x08000000) / 8192;
+        // FLASH_CR: SER (bit 2) | STRT (bit 5) | (snb << 6)
+        let cr_val = (1 << 2) | (1 << 5) | ((snb & 0x7F) << 6);
+        let _ = cortex.mem_write32(0x40022028, cr_val);
 
-        cortex.mem_write32(0x40022028, 0).map_err(|_| AlgoError::SwdError)?;
+        // Wait for erase completion (BSY == 0)
+        let mut busy = true;
+        for _ in 0..50_000 {
+            let sr = cortex.mem_read32(0x40022020).unwrap_or(0);
+            if (sr & 0x01) == 0 {
+                busy = false;
+                if (sr & 0x00FE0000) != 0 {
+                    let _ = cortex.mem_write32(0x40022028, 0);
+                    return Err(AlgoError::ExecutionFailed(0x50000000 | (sr & 0x00FFFFFF)));
+                }
+                break;
+            }
+            delay_cycles(1500);
+        }
+        let _ = cortex.mem_write32(0x40022028, 0);
+
+        if busy {
+            return Err(AlgoError::Timeout);
+        }
         Ok(())
     }
 
     pub fn stm32h5_program_page<S: Adiv5Access>(
         cortex: &mut CortexM<S>,
-        addr: u32,
+        flash_addr: u32,
         data: &[u8],
     ) -> Result<(), AlgoError> {
+        let _ = cortex.halt();
         Self::stm32h5_unlock(cortex)?;
 
-        cortex.mem_write32(0x40022028, 1 << 1).map_err(|_| AlgoError::SwdError)?;
+        // Clear error flags: NSCCR (0x40022030)
+        let _ = cortex.mem_write32(0x40022030, 0x00FE0000 | 0x00010000);
+
+        // Set PG bit in NSCR (0x40022028)
+        let _ = cortex.mem_write32(0x40022028, 0x02);
+
+        // Ensure AHB-AP auto-increment single is configured
+        cortex.csw = 0x0B000012;
 
         let mut offset = 0usize;
         while offset < data.len() {
-            let chunk_addr = addr + offset as u32;
-            let mut quad = [0xFFu8; 16];
-            let copy_len = (data.len() - offset).min(16);
-            quad[..copy_len].copy_from_slice(&data[offset..offset + copy_len]);
+            let chunk_size = (data.len() - offset).min(16);
+            let mut qw = [0xFFu8; 16];
+            qw[..chunk_size].copy_from_slice(&data[offset..offset + chunk_size]);
+            let curr_addr = flash_addr + offset as u32;
 
-            let w0 = u32::from_le_bytes(quad[0..4].try_into().unwrap());
-            let w1 = u32::from_le_bytes(quad[4..8].try_into().unwrap());
-            let w2 = u32::from_le_bytes(quad[8..12].try_into().unwrap());
-            let w3 = u32::from_le_bytes(quad[12..16].try_into().unwrap());
+            // Write 16-byte (128-bit) quad-word block
+            cortex
+                .mem_write_block(curr_addr, &qw)
+                .map_err(|_| AlgoError::SwdError)?;
 
-            cortex.mem_write32(chunk_addr + 0, w0).map_err(|_| AlgoError::SwdError)?;
-            cortex.mem_write32(chunk_addr + 4, w1).map_err(|_| AlgoError::SwdError)?;
-            cortex.mem_write32(chunk_addr + 8, w2).map_err(|_| AlgoError::SwdError)?;
-            cortex.mem_write32(chunk_addr + 12, w3).map_err(|_| AlgoError::SwdError)?;
+            // Wait for BSY == 0 in NSSR (0x40022020)
+            let mut busy = true;
+            for _ in 0..10_000 {
+                let sr = cortex.mem_read32(0x40022020).unwrap_or(0);
+                if (sr & 0x01) == 0 {
+                    busy = false;
+                    if (sr & 0x00FE0000) != 0 {
+                        let _ = cortex.mem_write32(0x40022028, 0);
+                        return Err(AlgoError::ExecutionFailed(0x50000000 | (sr & 0x00FFFFFF)));
+                    }
+                    break;
+                }
+                delay_cycles(150);
+            }
+            if busy {
+                let _ = cortex.mem_write32(0x40022028, 0);
+                return Err(AlgoError::Timeout);
+            }
 
-            Self::stm32h5_wait_bsy(cortex)?;
             offset += 16;
         }
 
-        cortex.mem_write32(0x40022028, 0).map_err(|_| AlgoError::SwdError)?;
+        // Clear PG
+        let _ = cortex.mem_write32(0x40022028, 0);
         Ok(())
     }
 
+    pub fn stm32h5_unlock<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
+        let cr = cortex.mem_read32(0x40022028).unwrap_or(1);
+        if (cr & 1) != 0 {
+            let _ = cortex.mem_write32(0x40022004, 0x45670123);
+            let _ = cortex.mem_write32(0x40022004, 0xCDEF89AB);
+        }
+        Ok(())
+    }
+
+    pub fn stm32h5_wait_bsy<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
+        for _ in 0..20_000 {
+            let sr = cortex.mem_read32(0x40022020).unwrap_or(1);
+            if (sr & 0x01) == 0 {
+                return Ok(());
+            }
+            delay_cycles(150);
+        }
+        Err(AlgoError::Timeout)
+    }
+
     pub fn stm32h5_lock<S: Adiv5Access>(cortex: &mut CortexM<S>) -> Result<(), AlgoError> {
-        cortex.mem_write32(0x40022028, 1 << 0).map_err(|_| AlgoError::SwdError)?;
+        let _ = cortex.mem_write32(0x40022028, 1);
         Ok(())
     }
 

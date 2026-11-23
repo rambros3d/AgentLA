@@ -126,24 +126,40 @@ fn delay_cycles(cycles: u32) {
     cortex_m::asm::delay(cycles.max(2));
 }
 
-/// Perform a full-duplex SPI transfer across SCK/MOSI/MISO/CS.
-pub fn hw_spi_transfer(
+pub fn hw_spi_set_cs(cs: u32, asserted: bool) {
+    unsafe {
+        if asserted {
+            pac::SIO.gpio_out(0).value_clr().write_value(1 << cs);
+        } else {
+            pac::SIO.gpio_out(0).value_set().write_value(1 << cs);
+        }
+    }
+}
+
+pub fn hw_spi_read_pins() -> u8 {
+    unsafe {
+        let val = pac::SIO.gpio_in(0).read();
+        let sk = ((val >> PIN_SCK) & 1) as u8;
+        let mosi = ((val >> PIN_MOSI) & 1) as u8;
+        let miso = ((val >> PIN_MISO) & 1) as u8;
+        let cs = ((val >> PIN_CS) & 1) as u8;
+        (cs << 3) | (miso << 2) | (mosi << 1) | sk
+    }
+}
+
+/// Perform raw SPI clocking without asserting or deasserting CS.
+pub fn hw_spi_transfer_raw(
     sck: u32,
     mosi: u32,
     miso: u32,
-    cs: u32,
     mode: u8,
     speed_hz: u32,
     tx_data: &[u8],
     rx_data: &mut [u8],
 ) -> usize {
-    init_spi_gpios(sck, mosi, miso, cs, mode);
-
     let cpol = (mode & 2) != 0;
     let cpha = (mode & 1) != 0;
 
-    // RP2350 CPU runs at 150 MHz. Calculate half-period delay in cycles.
-    // e.g. 1 MHz => 75 cycles per half clock.
     let speed = speed_hz.clamp(1_000, 10_000_000);
     let half_period_cycles = (crate::benchmark::get_sys_clk_hz() / (speed * 2)).max(2);
 
@@ -153,10 +169,6 @@ pub fn hw_spi_transfer(
     }
 
     unsafe {
-        // Assert CS (drive low)
-        pac::SIO.gpio_out(0).value_clr().write_value(1 << cs);
-        delay_cycles(half_period_cycles);
-
         for i in 0..len {
             let tx_byte = if i < tx_data.len() { tx_data[i] } else { 0xFF };
             let mut rx_byte = 0u8;
@@ -229,14 +241,96 @@ pub fn hw_spi_transfer(
                 rx_data[i] = rx_byte;
             }
         }
-
-        // Deassert CS (drive high)
-        delay_cycles(half_period_cycles);
-        pac::SIO.gpio_out(0).value_set().write_value(1 << cs);
-        delay_cycles(half_period_cycles);
     }
 
     len
+}
+
+/// Perform a full-duplex SPI transfer across SCK/MOSI/MISO/CS.
+pub fn hw_spi_transfer(
+    sck: u32,
+    mosi: u32,
+    miso: u32,
+    cs: u32,
+    mode: u8,
+    speed_hz: u32,
+    tx_data: &[u8],
+    rx_data: &mut [u8],
+) -> usize {
+    init_spi_gpios(sck, mosi, miso, cs, mode);
+
+    let speed = speed_hz.clamp(1_000, 10_000_000);
+    let half_period_cycles = (crate::benchmark::get_sys_clk_hz() / (speed * 2)).max(2);
+
+    hw_spi_set_cs(cs, true);
+    delay_cycles(half_period_cycles);
+
+    let len = hw_spi_transfer_raw(sck, mosi, miso, mode, speed_hz, tx_data, rx_data);
+
+    delay_cycles(half_period_cycles);
+    hw_spi_set_cs(cs, false);
+    delay_cycles(half_period_cycles);
+
+    len
+}
+
+pub static MPSSE_BRIDGE: embassy_sync::blocking_mutex::Mutex<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    core::cell::RefCell<agentla_bridges::spi_mpsse::MpsseEngine>,
+> = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(
+    agentla_bridges::spi_mpsse::MpsseEngine::new(),
+));
+
+/// Process incoming FTDI MPSSE command bytes from USB Bulk OUT and write responses to output.
+pub fn process_mpsse_commands(input: &[u8], output: &mut [u8]) -> usize {
+    init_spi_gpios(PIN_SCK, PIN_MOSI, PIN_MISO, PIN_CS, 0);
+    let mut out_idx = 0;
+
+    MPSSE_BRIDGE.lock(|cell| {
+        let mut engine = cell.borrow_mut();
+        let mut speed_hz = engine.clock_hz();
+        engine.process_stream(input, |action| match action {
+            agentla_bridges::spi_mpsse::MpsseAction::SpiTransfer { tx_data, rx_len, mode, lsb_first: _ } => {
+                if rx_len > 0 && out_idx + rx_len <= output.len() {
+                    let rx_slice = &mut output[out_idx..out_idx + rx_len];
+                    hw_spi_transfer_raw(PIN_SCK, PIN_MOSI, PIN_MISO, mode.mode_number(), speed_hz, tx_data, rx_slice);
+                    out_idx += rx_len;
+                } else if !tx_data.is_empty() {
+                    let mut dummy = [0u8; 1];
+                    hw_spi_transfer_raw(PIN_SCK, PIN_MOSI, PIN_MISO, mode.mode_number(), speed_hz, tx_data, &mut dummy[..0]);
+                }
+            }
+            agentla_bridges::spi_mpsse::MpsseAction::GpioSetLow { value, direction: _ } => {
+                let cs_asserted = (value & agentla_bridges::spi_mpsse::PIN_MASK_CS) == 0;
+                hw_spi_set_cs(PIN_CS, cs_asserted);
+            }
+            agentla_bridges::spi_mpsse::MpsseAction::GpioReadLow => {
+                if out_idx < output.len() {
+                    output[out_idx] = hw_spi_read_pins();
+                    out_idx += 1;
+                }
+            }
+            agentla_bridges::spi_mpsse::MpsseAction::GpioSetHigh { .. } => {}
+            agentla_bridges::spi_mpsse::MpsseAction::GpioReadHigh => {
+                if out_idx < output.len() {
+                    output[out_idx] = 0x00;
+                    out_idx += 1;
+                }
+            }
+            agentla_bridges::spi_mpsse::MpsseAction::SpeedConfigured(hz) => {
+                speed_hz = hz;
+            }
+            agentla_bridges::spi_mpsse::MpsseAction::BadCommand(cmd) => {
+                if out_idx + 2 <= output.len() {
+                    output[out_idx] = agentla_bridges::spi_mpsse::MPSSE_CMD_BAD;
+                    output[out_idx + 1] = cmd;
+                    out_idx += 2;
+                }
+            }
+        });
+    });
+
+    out_idx
 }
 
 /// Convenience transfer using default SPI0 pins

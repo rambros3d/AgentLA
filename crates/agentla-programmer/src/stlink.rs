@@ -340,7 +340,7 @@ impl<T: SwdIo> StLinkHandler<T> {
         // for DBGMCU/PPB reads on STM32H5. ADIV5_AP_CSW_DEFAULT (0xA2000000)
         // lacks the privileged/HPROT bits and the AHB-AP rejects the transfer.
         let csw = if apsel == 1 {
-            0x23000012
+            0x0B000012
         } else if (0xE000_0000..=0xE00F_FFFF).contains(&addr) {
             0x80000012
         } else {

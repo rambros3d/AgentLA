@@ -2,7 +2,7 @@
 """
 Unit test suite for AgentLA MCP Servo Controls (`mcp-servo-controls`).
 Validates:
-- Manifest accuracy in webui/mcp.json (tool count 56).
+- Manifest accuracy in webui/mcp.json (tool count 58).
 - Tool definitions and input schemas for servo_attach, servo_write_angle, servo_write_us, servo_detach.
 - Angle boundaries: standard positional (0 to 180 degrees) vs continuous rotation throttle (-100 to 100).
 - Microsecond pulse clamping and parameter validation.
@@ -20,8 +20,8 @@ def test_mcp_manifest_tool_count():
         data = json.load(f)
 
     assert data["name"] == "AgentLA RP2350"
-    assert data["capabilities"]["tools"]["count"] == 56
-    assert data["capabilities"]["resources"]["count"] == 8
+    assert data["capabilities"]["tools"]["count"] == 78
+    assert data["capabilities"]["resources"]["count"] == 10
 
 
 def test_servo_attach_schema():

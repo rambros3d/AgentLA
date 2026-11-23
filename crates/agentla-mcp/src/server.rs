@@ -37,7 +37,7 @@ impl Resource {
     }
 }
 
-pub static DEFAULT_RESOURCES: [Resource; 8] = [
+pub static DEFAULT_RESOURCES: [Resource; 10] = [
     Resource::new(
         "agentla://info",
         "AgentLA System Info",
@@ -48,6 +48,18 @@ pub static DEFAULT_RESOURCES: [Resource; 8] = [
         "agentla://pinout",
         "AgentLA Pin Allocation",
         Some("GPIO pin assignments and subsystem allocations"),
+        "application/json",
+    ),
+    Resource::new(
+        "agentla://fs/stats",
+        "LittleFS Storage Stats",
+        Some("Storage space usage and partition health for USER_FS and SYSTEM_FS"),
+        "application/json",
+    ),
+    Resource::new(
+        "agentla://partitions",
+        "Flash Partition Map",
+        Some("RP2350 flash memory layout and partition offsets"),
         "application/json",
     ),
     Resource::new(
@@ -198,7 +210,23 @@ pub static BAREFOC_DEBUG_ARGS: [PromptArgument; 1] = [
     ),
 ];
 
-pub static DEFAULT_PROMPTS: [Prompt; 5] = [
+pub static OTA_UPDATE_ARGS: [PromptArgument; 1] = [
+    PromptArgument::new(
+        "image_path",
+        Some("Path to staged firmware binary in USER_FS (default /ota/update.bin)"),
+        false,
+    ),
+];
+
+pub static ANALOG_TEST_ARGS: [PromptArgument; 1] = [
+    PromptArgument::new(
+        "pin",
+        Some("Analog ADC pin (26-29) or PWM pin (0-29)"),
+        false,
+    ),
+];
+
+pub static DEFAULT_PROMPTS: [Prompt; 7] = [
     Prompt::new(
         "dev_workflow",
         Some("Autonomous closed-loop firmware development, wiring guidance, flashing, and physical signal verification"),
@@ -223,6 +251,16 @@ pub static DEFAULT_PROMPTS: [Prompt; 5] = [
         "barefoc_debug",
         Some("Guided, safety-first debugging workflow for an external FOC target using the BareFOC tools"),
         &BAREFOC_DEBUG_ARGS,
+    ),
+    Prompt::new(
+        "ota_update_workflow",
+        Some("Staging firmware binary into USER_FS and executing recovery hand-off"),
+        &OTA_UPDATE_ARGS,
+    ),
+    Prompt::new(
+        "analog_test_workflow",
+        Some("Oscilloscope capture, signal generation, and PWM loopback verification"),
+        &ANALOG_TEST_ARGS,
     ),
 ];
 
@@ -274,7 +312,7 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
     }
 
     /// Handle a request and return a bounded heapless string response.
-    /// 32 KB accommodates the full tools/list catalog (56 tools) with headroom.
+    /// 32 KB accommodates the full tools/list catalog (58 tools) with headroom.
     pub fn handle_request(&self, body: &[u8]) -> heapless::String<32768> {
         let mut out = heapless::String::new();
         self.handle_request_into(body, &mut out);
@@ -367,6 +405,20 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                                 id_frag
                             );
                         }
+                        "agentla://fs/stats" => {
+                            let _ = write!(
+                                out,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://fs/stats","mimeType":"application/json","text":"{{\"system\":{{\"total_bytes\":1048576,\"used_bytes\":0,\"read_only\":true}},\"user\":{{\"total_bytes\":1802240,\"used_bytes\":0,\"read_only\":false}}}}"}}]}}}}"#,
+                                id_frag
+                            );
+                        }
+                        "agentla://partitions" => {
+                            let _ = write!(
+                                out,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://partitions","mimeType":"application/json","text":"{{\"flash_total_bytes\":4194304,\"partitions\":[{{\"name\":\"RECOVERY_BOOTLOADER\",\"offset\":0,\"size\":294912,\"role\":\"Recovery Bootloader\"}},{{\"name\":\"FIRMWARE\",\"offset\":294912,\"size\":1048576,\"role\":\"Main application slot\"}},{{\"name\":\"SYSTEM_FS\",\"offset\":1343488,\"size\":1048576,\"role\":\"WebUI & System Bundle\"}},{{\"name\":\"USER_FS\",\"offset\":2392064,\"size\":1802240,\"role\":\"User Apps, Profiles & Data\"}}]}}"}}]}}}}"#,
+                                id_frag
+                            );
+                        }
                         "agentla://skills/mcu-autonomous-testing" => {
                             let _ = write!(
                                 out,
@@ -377,21 +429,21 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                         "agentla://skills/dev" | "agentla://skills/agentla-dev" => {
                             let _ = write!(
                                 out,
-                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/dev","mimeType":"text/markdown","text":"# Autonomous Firmware Developer & Verification Specialist (`agentla-dev`)\n\nEndpoint: http://10.10.10.10/skills/agentla-dev/SKILL.md\n\nClosed-Loop Developer Flow:\n1. Requirements & Pinout Consultation (catalog_lookup, pinout mapping)\n2. Pre-Flight Safety & Silicon Detection (status, probe_target, target_diagnose)\n3. Target Firmware Synthesis & Build (host environment compilation)\n4. Target Flash Programming (programmer_flash with sector alignment)\n5. Pin Arbiter Allocation (pins_claim for logic analyzer channels)\n6. Physical Signal Verification (sniff_bus / logic capture, frequency & duty cycle check)\n7. Self-Healing & Diagnostic Loop (automated retry or HardFault triage on failure)\n8. Final Production Lock & Report (pins_release, verified deployment)"}}]}}}}"##,
+                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/dev","mimeType":"text/markdown","text":"# Autonomous Firmware Developer & Verification Specialist (`agentla-dev`)\n\nEndpoint: http://10.10.10.10/skills/agentla-dev/SKILL.md\n\nClosed-Loop Developer Flow:\n1. Requirements & Pinout Consultation (catalog_lookup, pinout mapping)\n2. Pre-Flight Safety & Silicon Detection (status electrical check; detect silicon via host USB probe-rs, pyocd, or openocd)\n3. Target Firmware Synthesis & Build (host environment compilation)\n4. Target Flash Programming (direct host USB flash via probe-rs, pyocd, or openocd over CMSIS-DAP, ST-Link, or WCH-Link)\n5. Pin Arbiter Allocation (pins_claim for logic analyzer channels)\n6. Physical Signal Verification (sniff_bus / logic capture, frequency & duty cycle check)\n7. Self-Healing & Diagnostic Loop (automated retry or direct USB HardFault triage via probe-rs / pyocd on failure)\n8. Final Production Lock & Report (pins_release, verified deployment)"}}]}}}}"##,
                                 id_frag
                             );
                         }
                         "agentla://skills/debug" | "agentla://skills/agentla-debug" => {
                             let _ = write!(
                                 out,
-                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/debug","mimeType":"text/markdown","text":"# Hardware Triage & Debug Specialist (`agentla-debug`)\n\nEndpoint: http://10.10.10.10/skills/agentla-debug/SKILL.md\n\nDiagnostic & Triage Flow:\n1. Electrical Rail & Ground Integrity (1.65V <= Vtarget <= 3.6V check)\n2. Target Health Diagnostic (target_diagnose for rail, current, and SWD state)\n3. CoreSight Debug Port & CPUID Discovery (DPIDR read, CPUID architecture decode)\n4. Access Port (AP) Enumeration (AP scan, ROM table traversal)\n5. Cortex-M HardFault Post-Mortem Triage (CFSR, HFSR, MMFAR, BFAR decode)\n6. Non-Destructive Live Memory Inspection (safe register read, stack frame walk)"}}]}}}}"##,
+                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/debug","mimeType":"text/markdown","text":"# Hardware Triage & Debug Specialist (`agentla-debug`)\n\nEndpoint: http://10.10.10.10/skills/agentla-debug/SKILL.md\n\nDiagnostic & Triage Flow:\n1. Electrical Rail & Ground Integrity (1.65V <= Vtarget <= 3.6V check via status)\n2. Target Health Diagnostic (direct host USB debug probes CMSIS-DAP / ST-Link / WCH-Link via probe-rs, pyocd, or openocd)\n3. CoreSight Debug Port & CPUID Discovery (DPIDR read, CPUID architecture decode via host USB debug probe)\n4. Access Port (AP) Enumeration (AP scan, ROM table traversal via host USB debug probe)\n5. Cortex-M HardFault Post-Mortem Triage (CFSR, HFSR, MMFAR, BFAR decode via host USB debug probe)\n6. Non-Destructive Live Memory Inspection (safe register read, stack frame walk via host USB debug probe)"}}]}}}}"##,
                                 id_frag
                             );
                         }
                         "agentla://skills/programmer" | "agentla://skills/agentla-programmer" => {
                             let _ = write!(
                                 out,
-                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/programmer","mimeType":"text/markdown","text":"# Target Flash & Unbrick Specialist (`agentla-programmer`)\n\nEndpoint: http://10.10.10.10/skills/agentla-programmer/SKILL.md\n\nProgramming & Rescue Flow:\n1. Target Catalog & Memory Bounds Binding (catalog_lookup for flash base and sector layout)\n2. Electrical Safety & Target Detection (probe_target / target_diagnose)\n3. Target Mass Erase & Protection Check (inspect read/write protection status)\n4. Chunked Sector Flash Programming (programmer_flash with CRC verification)\n5. Integrity & Readback Verification (programmer_read or CRC-32 match)\n6. Target Rescue & Unbrick Sequences (programmer_unbrick with CTRL-AP mass erase / reset glitch)"}}]}}}}"##,
+                                r##"{{"jsonrpc":"2.0","id":{},"result":{{"contents":[{{"uri":"agentla://skills/programmer","mimeType":"text/markdown","text":"# Target Flash & Unbrick Specialist (`agentla-programmer`)\n\nEndpoint: http://10.10.10.10/skills/agentla-programmer/SKILL.md\n\nProgramming & Rescue Flow:\n1. Target Catalog & Memory Bounds Binding (catalog_lookup for flash base and sector layout)\n2. Electrical Safety & Target Detection (status rail check; target detection via host USB probe-rs info or pyocd)\n3. Target Mass Erase & Protection Check (inspect read/write protection status via direct USB probe-rs or pyocd)\n4. Direct Host USB Flash Programming (probe-rs / pyocd / openocd over CMSIS-DAP, ST-Link, or WCH-Link)\n5. Integrity & Readback Verification (probe-rs verify or pyocd verify over host USB)\n6. Target Rescue & Unbrick Sequences (direct USB unlock / mass erase via probe-rs / pyocd / openocd over CMSIS-DAP, ST-Link, or WCH-Link)"}}]}}}}"##,
                                 id_frag
                             );
                         }
@@ -442,7 +494,7 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                             let target = extract_string_arg(text, "target").unwrap_or("target MCU");
                             let _ = write!(
                                 out,
-                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Autonomous closed-loop firmware development workflow","messages":[{{"role":"user","content":{{"type":"text","text":"Autonomous firmware development for {}. Follow 8-phase closed-loop playbook: (1) catalog_lookup, (2) user wiring guidance, (3) target_diagnose rail safety, (4) compile, (5) programmer_flash, (6) pins_claim, (7) physical signal verification via logic analyzer, (8) pins_release. Reference: http://10.10.10.10/skills/agentla-dev/SKILL.md"}}]}}}}"#,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Autonomous closed-loop firmware development workflow","messages":[{{"role":"user","content":{{"type":"text","text":"Autonomous firmware development for {}. Follow 8-phase closed-loop playbook: (1) catalog_lookup, (2) user wiring guidance, (3) status rail safety check, (4) compile, (5) direct host USB flash via probe-rs/pyocd/openocd, (6) pins_claim, (7) physical signal verification via logic analyzer, (8) pins_release. Reference: http://10.10.10.10/skills/agentla-dev/SKILL.md"}}]}}}}"#,
                                 id_frag, target
                             );
                         }
@@ -450,7 +502,7 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                             let target = extract_string_arg(text, "target").unwrap_or("connected target");
                             let _ = write!(
                                 out,
-                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Hardware electrical triage and HardFault post-mortem triage","messages":[{{"role":"user","content":{{"type":"text","text":"Hardware triage for {}. Follow debug playbook: (1) status electrical rail check (1.65V-3.6V), (2) target_diagnose CoreSight discovery, (3) CFSR/HFSR/MMFAR/BFAR fault register decode, (4) stacked frame analysis. Reference: http://10.10.10.10/skills/agentla-debug/SKILL.md"}}]}}}}"#,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Hardware electrical triage and HardFault post-mortem triage","messages":[{{"role":"user","content":{{"type":"text","text":"Hardware triage for {}. Follow debug playbook: (1) status electrical rail check (1.65V-3.6V), (2) direct host USB CoreSight discovery via probe-rs/pyocd over CMSIS-DAP/ST-Link, (3) CFSR/HFSR/MMFAR/BFAR fault register decode, (4) stacked frame analysis. Reference: http://10.10.10.10/skills/agentla-debug/SKILL.md"}}]}}}}"#,
                                 id_frag, target
                             );
                         }
@@ -458,7 +510,7 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                             let target = extract_string_arg(text, "target").unwrap_or("target MCU");
                             let _ = write!(
                                 out,
-                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Target flash programming and unbrick sequence","messages":[{{"role":"user","content":{{"type":"text","text":"Target programming for {}. Follow programming playbook: (1) catalog_lookup for flash boundaries, (2) probe_target connection test, (3) protection check / programmer_unbrick if locked, (4) sector-aligned programmer_flash, (5) CRC readback verification. Reference: http://10.10.10.10/skills/agentla-programmer/SKILL.md"}}]}}}}"#,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Target flash programming and unbrick sequence","messages":[{{"role":"user","content":{{"type":"text","text":"Target programming for {}. Follow programming playbook: (1) catalog_lookup for flash boundaries, (2) host USB probe connection test via probe-rs info, (3) protection check / direct USB unbrick if locked, (4) direct host USB flash via probe-rs/pyocd/openocd, (5) USB verify via probe-rs verify. Reference: http://10.10.10.10/skills/agentla-programmer/SKILL.md"}}]}}}}"#,
                                 id_frag, target
                             );
                         }
@@ -476,6 +528,22 @@ impl<'a, H: ToolHandler> McpServer<'a, H> {
                                 out,
                                 r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Safety-first external FOC target debugging workflow","messages":[{{"role":"user","content":{{"type":"text","text":"Debug external FOC target node {}. SAFETY FIRST: (1) barefoc_status - verify rail voltage, current, overcurrent, and safe state; keep barefoc_emergency ready. DISCOVERY: (2) barefoc_target - select node/address, then i2c_scan/can_sniff for transport. TELEMETRY: (3) re-check barefoc_status. REGISTER ACCESS: (4) barefoc_read/barefoc_write bounded MultiBus or SPI gate-driver registers. COMMAND/MODE: (5) barefoc_command Commander ASCII and barefoc_mode start in idle then enable when safe. TUNING/CALIBRATION: (6) barefoc_calibrate motor or encoder, do not move the shaft. ERROR DECODE: (7) decode target MOTOR_ERROR_* / SimpleFOC errors. SAFE TEARDOWN: (8) barefoc_emergency then verify with barefoc_status. FOC runs on the external target, not on AgentLA. Reference: agentla://skills/barefoc"}}]}}}}"#,
                                 id_frag, node
+                            );
+                        }
+                        "ota_update_workflow" => {
+                            let image_path = extract_string_arg(text, "image_path").unwrap_or("/ota/update.bin");
+                            let _ = write!(
+                                out,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Staging firmware binary into USER_FS and executing recovery hand-off","messages":[{{"role":"user","content":{{"type":"text","text":"OTA update workflow using staged image {}. Follow OTA procedure: (1) verify partition space via fs_storage_stats, (2) stage firmware binary chunks via fs_write with hex_data, (3) verify staged binary integrity via fs_stat, (4) trigger recovery hand-off via system_reboot mode recovery."}}]}}}}"#,
+                                id_frag, image_path
+                            );
+                        }
+                        "analog_test_workflow" => {
+                            let pin = extract_string_arg(text, "pin").unwrap_or("26");
+                            let _ = write!(
+                                out,
+                                r#"{{"jsonrpc":"2.0","id":{},"result":{{"description":"Oscilloscope capture, signal generation, and PWM loopback verification","messages":[{{"role":"user","content":{{"type":"text","text":"Analog and mixed-signal test workflow on pin {}. (1) claim pin or configure signal via generator_start or pwm_claim, (2) capture waveform via oscilloscope_capture, (3) verify Vpp, Vrms, frequency, and duty cycle metrics, (4) release pin or disarm."}}]}}}}"#,
+                                id_frag, pin
                             );
                         }
                         _ => {

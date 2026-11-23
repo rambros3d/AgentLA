@@ -49,8 +49,7 @@ pub fn rtt_scan_global() -> Result<RttControlBlock, RttError> {
     let mut cortex = CortexM::new(&mut swd);
     if CortexM::is_armv8m_dpidr(dpidr) {
         let _ = cortex.select_ap(1);
-        cortex.csw = 0x23000012;
-        let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+        cortex.csw = 0x0B000012;
     }
     let cb = scan_rtt(&mut cortex, DEFAULT_SRAM_START, DEFAULT_SRAM_SIZE)?;
 
@@ -92,8 +91,7 @@ pub fn rtt_drain_global(out: &mut [u8]) -> Result<usize, RttError> {
     let mut cortex = CortexM::new(&mut swd);
     if CortexM::is_armv8m_dpidr(dpidr) {
         let _ = cortex.select_ap(1);
-        cortex.csw = 0x23000012;
-        let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+        cortex.csw = 0x0B000012;
     }
     let n = drain_rtt_up(&mut cortex, &mut cb, out)?;
 
@@ -146,8 +144,7 @@ pub fn rtt_write_down_global(data: &[u8]) -> Result<usize, RttError> {
     let mut cortex = CortexM::new(&mut swd);
     if CortexM::is_armv8m_dpidr(dpidr) {
         let _ = cortex.select_ap(1);
-        cortex.csw = 0x23000012;
-        let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+        cortex.csw = 0x0B000012;
     }
 
     // Down Buffer 0 is at cb.cb_addr + 48

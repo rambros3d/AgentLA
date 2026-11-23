@@ -36,6 +36,11 @@ pub trait SwdIo {
         Ok(())
     }
 
+    /// JTAG-to-Dormant-to-SWD sequence (ARM ADIv6 B5.3.2).
+    fn jtag_to_dormant_to_swd(&mut self) -> Result<(), Self::Error> {
+        self.dormant_to_swd()
+    }
+
     /// Set clock frequency in kHz.
     fn set_clock(&mut self, _freq_khz: u32) -> Result<(), Self::Error> {
         Ok(())
@@ -93,6 +98,10 @@ impl<T: SwdIo + ?Sized> SwdIo for &mut T {
     }
     fn dormant_to_swd(&mut self) -> Result<(), Self::Error> {
         (**self).dormant_to_swd()
+    }
+
+    fn jtag_to_dormant_to_swd(&mut self) -> Result<(), Self::Error> {
+        (**self).jtag_to_dormant_to_swd()
     }
     fn ensure_initialized(&mut self) -> Result<(), Self::Error> {
         (**self).ensure_initialized()

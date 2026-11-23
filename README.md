@@ -148,21 +148,20 @@ probe-rs list
 
 ### 6. Flash layout and recovery
 
-AgentLA uses a fixed three-image layout (no A/B pair, boot table, or rollback):
+AgentLA uses a fixed two-image layout (no A/B pair, boot table, or rollback):
 
 | Region | Flash range | XIP | Size |
 | :--- | :--- | :--- | :--- |
-| Katapult stage-0 | `0x00000000..0x00008000` | `0x10000000` | 32 KB |
-| Recovery app (`agentla-recovery`) | `0x00008000..0x00048000` | `0x10008000` | 256 KB |
+| Recovery bootloader (`agentla-recovery`) | `0x00000000..0x00048000` | `0x10000000` | 288 KB |
 | Main application firmware | `0x00048000..0x00148000` | `0x10048000` | 1 MB |
 | SYSTEM_FS (WebUI) | `0x00148000..0x00248000` | `0x10148000` | 1 MB |
 | USER_FS (apps, profiles, data) | `0x00248000..0x00400000` | `0x10248000` | 1760 KB |
 
-`agentla-pico2.uf2` contains the stage-0, recovery, and firmware segments.
+`agentla-pico2.uf2` contains the recovery bootloader and firmware segments.
 `webui.tar` is installed separately through `/device` or
 `POST /api/v1/system/webui/update`; `webui.uf2` is a standalone SYSTEM_FS image.
 OTA writes are confined to the app slot `[0x48000, 0x148000)`; they never
-touch the stage-0/recovery images or either filesystem.
+touch the recovery bootloader or either filesystem.
 
 The preferred OTA flow stages the release `.bin` into USER_FS and reboots:
 
@@ -172,13 +171,8 @@ curl -X POST --data-binary @build/agentla-pico2-ota.bin \
 curl -X POST 'http://10.10.10.10/api/v1/system/reboot'
 ```
 
-The recovery app verifies the staged image and installs it into the app slot.
-The older in-place `POST /api/v1/system/firmware/ota` endpoint remains as a
-legacy/alternate path and writes the same app slot before handing off to USB
-Katapult recovery. After a verified legacy OTA the firmware writes the BareBoot
-recovery cookie to the mailbox derived from the bootloader's initial stack
-pointer and resets, so a failed or incomplete image can always be replaced
-over USB. Holding BOOTSEL and copying a UF2 to the `RPI-RP2` drive remains the
+The recovery bootloader verifies the staged image and installs it into the app slot.
+Holding BOOTSEL and copying a UF2 to the `RPI-RP2` drive remains the
 ultimate fallback.
 
 ---
@@ -188,8 +182,6 @@ ultimate fallback.
 Prerequisites:
 * Stable Rust toolchain with `thumbv8m.main-none-eabihf` target.
 * Python 3 for `tools/package_uf2.py`, `tools/package_ota.py`, and `tools/pack_webui.py`.
-* The BareBoot RP2350 recovery binary at `build/bareboot-rp2350.bin` (built in the
-  `bareBoot` repository, `targets/bareboot-rp2350`).
 
 ```bash
 # Clone the repository
@@ -202,15 +194,14 @@ rustup target add thumbv8m.main-none-eabihf
 # Build release firmware (1 MB main app slot; no slot features exist)
 cargo build --release -p firmware-rs --target thumbv8m.main-none-eabihf --no-default-features --features board-pico2
 
-# Build the recovery application (256 KB at flash 0x8000)
+# Build the recovery bootloader (288 KB at flash 0x00000000)
 (cd crates/agentla-recovery && cargo build --release --target thumbv8m.main-none-eabihf)
 arm-none-eabi-objcopy -O binary \
   target/thumbv8m.main-none-eabihf/release/agentla-recovery \
   build/agentla-recovery.bin
 
-# Package the three-segment UF2 with stage-0 and the recovery binary
+# Package the UF2 with recovery bootloader and main firmware
 python3 tools/package_uf2.py \
-  --bootloader build/bareboot-rp2350.bin \
   --recovery build/agentla-recovery.bin \
   --firmware target/thumbv8m.main-none-eabihf/release/firmware-rs \
   -o build/agentla-pico2.uf2

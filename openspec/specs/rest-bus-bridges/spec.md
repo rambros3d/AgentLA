@@ -6,26 +6,26 @@ Exposes standard RESTful bus bridge endpoints for I2C, SPI, UART, and CAN hardwa
 ## Requirements
 
 ### Requirement: I2C Bus Bridge Endpoints
-The HTTP server SHALL provide `POST /api/v1/bus/i2c/scan` to detect responding 7-bit devices, and `POST /api/v1/bus/i2c/transfer` to execute atomic write and read transactions on the hardware I2C master.
+The HTTP server SHALL provide `POST /api/v1/bus/i2c/scan` and `POST /api/v1/bus/i2c/transfer` which, while HTTP bus adapter routes are disabled, return HTTP 200 with a structured warning directing the client to the native `i2c-tiny-usb` USB adapter endpoint.
 
-#### Scenario: Scanning I2C bus
-- **WHEN** client sends `POST /api/v1/bus/i2c/scan`
-- **THEN** server scans addresses 0x08 to 0x77 and returns HTTP 200 with `{ "status": "ok", "devices": [60, 104] }`.
+#### Scenario: Scanning I2C bus returns USB redirection warning
+- **WHEN** client sends `POST /api/v1/bus/i2c/scan` or `POST /api/v1/bridge/i2c/scan`
+- **THEN** server returns HTTP 200 with `{ "status": "disabled", "warning": "http_adapters_disabled", "message": "HTTP bus adapter routes are temporarily disabled. Connect directly via AgentLA USB endpoints (i2c-tiny-usb, FTDI MPSSE, AgentLA I3C Bulk, gs_usb CAN, CDC-ACM UART).", "use": "usb", "adapters": ["i2c-tiny-usb", "ftdi-mpsse", "agentla-binary-bulk", "gs_usb", "cdc-acm"] }`.
 
-#### Scenario: Performing I2C register read
-- **WHEN** client sends `POST /api/v1/bus/i2c/transfer` with `{ "addr": 104, "write": [117], "read_len": 1 }`
-- **THEN** server transmits register pointer 117 (0x75 WHO_AM_I), reads 1 byte, and returns HTTP 200 with `{ "status": "ok", "read": [104] }`.
+#### Scenario: Performing I2C transfer returns USB redirection warning
+- **WHEN** client sends `POST /api/v1/bus/i2c/transfer` or `POST /api/v1/bridge/i2c/transfer`
+- **THEN** server returns HTTP 200 with `{ "status": "disabled", "warning": "http_adapters_disabled", "message": "HTTP bus adapter routes are temporarily disabled. Connect directly via AgentLA USB endpoints (i2c-tiny-usb, FTDI MPSSE, AgentLA I3C Bulk, gs_usb CAN, CDC-ACM UART).", "use": "usb", "adapters": ["i2c-tiny-usb", "ftdi-mpsse", "agentla-binary-bulk", "gs_usb", "cdc-acm"] }`.
 
 ### Requirement: SPI Bus Bridge Transfer Endpoint
-The HTTP server SHALL provide `POST /api/v1/bus/spi/transfer` accepting SPI mode, clock frequency in Hz, and hex/array payload for full-duplex SPI communication.
+The HTTP server SHALL provide `POST /api/v1/bus/spi/transfer` which, while HTTP bus adapter routes are disabled, returns HTTP 200 with a structured warning directing the client to the native `ftdi-mpsse` USB adapter endpoint.
 
-#### Scenario: Reading SPI Flash JEDEC ID
-- **WHEN** client sends `POST /api/v1/bus/spi/transfer` with `{ "mode": 0, "speed_hz": 10000000, "tx_hex": "9F000000", "read_len": 3 }`
-- **THEN** server asserts CS, clocks 4 bytes, captures MISO, and returns HTTP 200 with `{ "status": "ok", "rx_hex": "EF4018" }`.
+#### Scenario: Performing SPI transfer returns USB redirection warning
+- **WHEN** client sends `POST /api/v1/bus/spi/transfer` or `POST /api/v1/bridge/spi/transfer`
+- **THEN** server returns HTTP 200 with `{ "status": "disabled", "warning": "http_adapters_disabled", "message": "HTTP bus adapter routes are temporarily disabled. Connect directly via AgentLA USB endpoints (i2c-tiny-usb, FTDI MPSSE, AgentLA I3C Bulk, gs_usb CAN, CDC-ACM UART).", "use": "usb", "adapters": ["i2c-tiny-usb", "ftdi-mpsse", "agentla-binary-bulk", "gs_usb", "cdc-acm"] }`.
 
 ### Requirement: UART and CAN Bus Communication
-The HTTP server SHALL provide endpoints under `/api/v1/bus/uart` and `/api/v1/bus/can` for serial string transmission, frame monitoring, and CAN frame injection.
+The HTTP server SHALL provide endpoints under `/api/v1/bus/uart`, `/api/v1/bridge/uart`, `/api/v1/bus/can`, and `/api/v1/bridge/can` which, while HTTP bus adapter routes are disabled, return HTTP 200 with a structured warning directing the client to the native CDC-ACM serial and `gs_usb` CAN USB endpoints.
 
-#### Scenario: Transmitting UART string
-- **WHEN** client sends `POST /api/v1/bus/uart/write` with `{ "baud": 115200, "data": "AT+VERSION\r\n" }`
-- **THEN** server transmits data on adapter UART TX and returns HTTP 200 with `{ "status": "ok", "bytes_sent": 12 }`.
+#### Scenario: Sending UART or CAN payload returns USB redirection warning
+- **WHEN** client sends `POST /api/v1/bus/uart/write` or `POST /api/v1/bridge/can/on`
+- **THEN** server returns HTTP 200 with `{ "status": "disabled", "warning": "http_adapters_disabled", "message": "HTTP bus adapter routes are temporarily disabled. Connect directly via AgentLA USB endpoints (i2c-tiny-usb, FTDI MPSSE, AgentLA I3C Bulk, gs_usb CAN, CDC-ACM UART).", "use": "usb", "adapters": ["i2c-tiny-usb", "ftdi-mpsse", "agentla-binary-bulk", "gs_usb", "cdc-acm"] }`.

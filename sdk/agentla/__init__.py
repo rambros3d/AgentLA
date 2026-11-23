@@ -10,6 +10,8 @@ from .device import Device, DeviceInfo, Status
 from .capture import RawCapture, CapturedEvent, unpack_rle_packets, export_vcd
 from .protocols import I2CEvent, SPIEvent, UARTEvent, PWMResult, ADCResult
 from .adapter import I2CDevice, UARTDevice
+from .i3c import AgentLaI3c
+from .spi import AgentLaSpi
 from .sigrok import export_sigrok, SigrokDecoder, SigrokDecoderError
 from .exceptions import DeviceNotFoundError, DeviceError, TimeoutError
 

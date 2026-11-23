@@ -8,8 +8,10 @@
 
 use agentla_boot_proto::FirmwareHeader;
 
-/// XIP base of this recovery app (flash 0x00008000).
-pub const RECOVERY_BASE_XIP: u32 = 0x1000_8000;
+/// XIP base of this recovery bootloader (flash 0x00000000).
+pub const RECOVERY_BASE_XIP: u32 = 0x1000_0000;
+/// Size of the recovery bootloader slot: 288 KB (flash 0x00000000..0x00048000).
+pub const RECOVERY_SLOT_SIZE: u32 = 0x0004_8000;
 /// XIP base of the single main application slot (flash 0x00048000).
 pub const APP_BASE_XIP: u32 = 0x1004_8000;
 /// Flash offset of the main application slot.

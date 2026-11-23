@@ -30,8 +30,8 @@ pub fn detect_target_port(pins: &mut ProgrammerPins, port: TargetPort) -> Result
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
                     let _ = cortex.select_ap(1);
-                    cortex.csw = 0x23000012;
-                    let _ = agentla_targets::stm32h5_configure_dbgmcu(&mut cortex);
+                    cortex.csw = 0x0B000012;
+                    let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
                 }
 
                 let mut dbgmcu_id = 0u32;

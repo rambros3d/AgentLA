@@ -53,7 +53,7 @@ def test_tools_declared_in_catalog(tools_rs):
         assert re.search(r"pub const " + const_name + r"\b", tools_rs), f"{const_name} const missing"
         # Each tool must appear in the ALL_TOOLS array
         assert re.search(r"^\s+" + const_name + r",\s*$", tools_rs, re.M), f"{const_name} not in ALL_TOOLS"
-    assert "pub static ALL_TOOLS: [Tool; 56]" in tools_rs
+    assert "pub static ALL_TOOLS: [Tool; 78]" in tools_rs
 
 
 def test_firmware_dispatch_arms(firmware_mcp_rs):
@@ -78,8 +78,8 @@ def test_resource_and_prompt_registered(server_rs):
     assert "BareFOC Agentic Debug Playbook" in server_rs
     assert '"barefoc_debug"' in server_rs
     assert "BAREFOC_DEBUG_ARGS" in server_rs
-    assert "pub static DEFAULT_RESOURCES: [Resource; 8]" in server_rs
-    assert "pub static DEFAULT_PROMPTS: [Prompt; 5]" in server_rs
+    assert "pub static DEFAULT_RESOURCES: [Resource; 10]" in server_rs
+    assert "pub static DEFAULT_PROMPTS: [Prompt; 7]" in server_rs
 
 
 def _stub_tools_call(name, arguments):
