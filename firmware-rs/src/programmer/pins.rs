@@ -157,7 +157,7 @@ impl ProgrammerPins {
             w.set_pde(false);
         });
         pac::IO_BANK0.gpio(PIN_BOOT0).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
         pac::SIO.gpio_oe(0).value_set().write_value(1 << PIN_BOOT0);
         if high {
@@ -204,7 +204,7 @@ pub fn drive_reset_pin(pin: usize, assert_low: bool) {
             w.set_pde(false);
         });
         pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
         pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
         pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);
@@ -219,7 +219,7 @@ pub fn drive_reset_pin(pin: usize, assert_low: bool) {
         });
         pac::SIO.gpio_oe(0).value_clr().write_value(1 << pin);
         pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
     }
 }
@@ -233,7 +233,7 @@ pub fn pulse_reset_pin(pin: usize) {
         w.set_pde(false);
     });
     pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
-        w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+        w.set_funcsel(5);
     });
     pac::SIO.gpio_out(0).value_clr().write_value(1 << pin);
     pac::SIO.gpio_oe(0).value_set().write_value(1 << pin);

@@ -94,11 +94,11 @@ pub(crate) fn request_recovery() {
 /// `rescue/*`). Set to `true` only when the native flash engines and the Cortex-M
 /// debug session teardown are both considered trustworthy. While `false`, every
 /// flash-shaped route answers `501` with a pointer to the USB transport.
-pub const HTTP_FLASH_ENABLED: bool = false;
+pub const HTTP_FLASH_ENABLED: bool = true;
 
 /// Build-time gate for all HTTP programmer routes.
 /// Set to `false` to temporarily disable HTTP programmer endpoints and direct callers to direct USB.
-pub const HTTP_PROGRAMMER_ENABLED: bool = false;
+pub const HTTP_PROGRAMMER_ENABLED: bool = true;
 
 /// Warning payload returned by HTTP programmer routes while disabled.
 pub const HTTP_PROGRAMMER_DISABLED_BODY: &str =

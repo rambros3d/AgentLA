@@ -48,7 +48,7 @@ impl Stm32Bootloader {
     pub fn init_pins(&self) {
         // TX pin as SIO output, idle high
         pac::IO_BANK0.gpio(self.tx_pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
         pac::PADS_BANK0.gpio(self.tx_pin).modify(|w| {
             w.set_iso(false);
@@ -62,7 +62,7 @@ impl Stm32Bootloader {
 
         // RX pin as SIO input with pullup
         pac::IO_BANK0.gpio(self.rx_pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
         pac::PADS_BANK0.gpio(self.rx_pin).modify(|w| {
             w.set_iso(false);

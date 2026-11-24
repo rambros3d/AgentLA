@@ -192,7 +192,12 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         if port == 0 || port == DAP_PORT_SWD {
             let _ = self.transport.ensure_initialized();
             let _ = self.transport.jtag_to_swd();
-            let _ = self.transport.jtag_to_dormant_to_swd();
+            let req_dpidr = build_request(false, true, 0);
+            let ack_ok = matches!(self.transport.transfer(req_dpidr, None), Ok((SWD_ACK_OK, _)));
+            if !ack_ok {
+                let _ = self.transport.dormant_to_swd();
+                let _ = self.transport.transfer(req_dpidr, None);
+            }
             self.connected = true;
             resp[1] = DAP_PORT_SWD;
         } else {
@@ -244,7 +249,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
 
         for _ in 0..request_count {
             if req_idx >= req.len() {
-                resp[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                resp[2] = DAP_TRANSFER_ERROR;
                 break;
             }
 
@@ -286,7 +291,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                         } else if ack == SWD_ACK_FAULT {
                             DAP_TRANSFER_FAULT
                         } else {
-                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                            DAP_TRANSFER_NO_ACK
                         };
                         break;
                     }
@@ -298,7 +303,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 }
 
                 if req_idx + 4 > req.len() {
-                    resp[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                    resp[2] = DAP_TRANSFER_ERROR;
                     break;
                 }
                 let val = u32::from_le_bytes([
@@ -338,7 +343,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                     } else if ack == SWD_ACK_FAULT {
                         DAP_TRANSFER_FAULT
                     } else {
-                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        DAP_TRANSFER_NO_ACK
                     };
                     break;
                 }
@@ -392,7 +397,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                         } else if ack == SWD_ACK_FAULT {
                             DAP_TRANSFER_FAULT
                         } else {
-                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                            DAP_TRANSFER_NO_ACK
                         };
                         break;
                     }
@@ -404,7 +409,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
 
                 if match_value {
                     if req_idx + 4 > req.len() {
-                        resp[2] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                        resp[2] = DAP_TRANSFER_ERROR;
                         break;
                     }
                     let expected_val = u32::from_le_bytes([
@@ -438,7 +443,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                             } else if ack == SWD_ACK_FAULT {
                                 DAP_TRANSFER_FAULT
                             } else {
-                                DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                                DAP_TRANSFER_NO_ACK
                             };
                             break;
                         }
@@ -485,7 +490,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                         } else if ack == SWD_ACK_FAULT {
                             DAP_TRANSFER_FAULT
                         } else {
-                            DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                            DAP_TRANSFER_NO_ACK
                         };
                         break;
                     }
@@ -519,7 +524,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                             } else if ack == SWD_ACK_FAULT {
                                 DAP_TRANSFER_FAULT
                             } else {
-                                DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                                DAP_TRANSFER_NO_ACK
                             };
                             break;
                         }
@@ -549,7 +554,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                             } else if ack == SWD_ACK_FAULT {
                                 DAP_TRANSFER_FAULT
                             } else {
-                                DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                                DAP_TRANSFER_NO_ACK
                             };
                             break;
                         }
@@ -596,7 +601,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                 } else if ack == SWD_ACK_FAULT {
                     DAP_TRANSFER_FAULT
                 } else {
-                    DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                    DAP_TRANSFER_NO_ACK
                 };
             }
         }
@@ -661,7 +666,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                     } else if ack == SWD_ACK_FAULT {
                         DAP_TRANSFER_FAULT
                     } else {
-                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        DAP_TRANSFER_NO_ACK
                     };
                     resp[1] = 0;
                     resp[2] = 0;
@@ -704,7 +709,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                     } else if ack == SWD_ACK_FAULT {
                         DAP_TRANSFER_FAULT
                     } else {
-                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        DAP_TRANSFER_NO_ACK
                     };
                     break;
                 }
@@ -717,7 +722,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
         } else {
             for _ in 0..count {
                 if req_idx + 4 > req.len() {
-                    resp[3] = DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK;
+                    resp[3] = DAP_TRANSFER_ERROR;
                     break;
                 }
                 let value = u32::from_le_bytes([
@@ -750,7 +755,7 @@ impl<T: SwdIo> CmsisDapHandler<T> {
                     } else if ack == SWD_ACK_FAULT {
                         DAP_TRANSFER_FAULT
                     } else {
-                        DAP_TRANSFER_ERROR | DAP_TRANSFER_NO_ACK
+                        DAP_TRANSFER_NO_ACK
                     };
                     break;
                 }

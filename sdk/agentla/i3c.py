@@ -139,14 +139,15 @@ class AgentLaI3c:
         self._seq = (self._seq + 1) & 0xFF
         return self._seq
 
-    def _transceive(self, opcode: int, addr: int = 0, payload: bytes = b"", timeout_ms: int = 1000) -> Tuple[int, int, bytes]:
+    def _transceive(self, opcode: int, addr: int = 0, payload: bytes = b"", timeout_ms: int = 1000, req_payload_len: Optional[int] = None) -> Tuple[int, int, bytes]:
         """Send a binary I3C frame and await response."""
         if self.ep_out is None or self.ep_in is None:
             raise ConnectionError("AgentLaI3c is not connected.")
 
         seq = self._next_seq()
         flags = 0x02 | 0x08 # EMIT_STOP | PUSH_PULL
-        header = struct.pack("<BBBBHBB", I3C_BULK_MAGIC, opcode, flags, seq, len(payload), addr, 0)
+        plen = len(payload) if req_payload_len is None else req_payload_len
+        header = struct.pack("<BBBBHBB", I3C_BULK_MAGIC, opcode, flags, seq, plen, addr, 0)
         packet = header + payload
 
         self.ep_out.write(packet, timeout=timeout_ms)
@@ -212,11 +213,17 @@ class AgentLaI3c:
 
     def private_read(self, target_addr: int, length: int) -> bytes:
         """Perform a push-pull private SDR data read from target dynamic address."""
-        header_payload = b"\x00" * length
-        st, _, data = self._transceive(I3C_OP_PRIVATE_READ, addr=target_addr, payload=header_payload)
+        st, _, data = self._transceive(I3C_OP_PRIVATE_READ, addr=target_addr, payload=b"", req_payload_len=length)
         if st != I3C_STATUS_OK:
             raise I3cException(st, f"Private read from address {target_addr:#x} failed")
         return data
+
+    def private_write_read(self, target_addr: int, data: bytes, read_len: int = 64) -> bytes:
+        """Perform a write followed by repeated read in a single atomic transaction."""
+        st, _, rx = self._transceive(I3C_OP_PRIVATE_WRITE_READ, addr=target_addr, payload=data)
+        if st != I3C_STATUS_OK:
+            raise I3cException(st, f"Private write-read to address {target_addr:#x} failed")
+        return rx[:read_len]
 
     def ccc_broadcast(self, ccc_code: int, data: bytes = b""):
         """Broadcast a Common Command Code (CCC)."""

@@ -163,7 +163,7 @@ pub fn halt_target_port_global(port: TargetPort) -> Result<(), TargetError> {
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
                 let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
@@ -199,7 +199,7 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
                 let dpidr = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if dpidr == 0x6BA02477 || dpidr == 0x0BE12477 {
@@ -235,22 +235,22 @@ pub fn resume_target_port_global(port: TargetPort) -> Result<(), TargetError> {
 pub fn read_flash_port_internal(pins: &mut ProgrammerPins, port: TargetPort, addr: u32, buf: &mut [u8]) -> Result<(), TargetError> {
     match port {
         TargetPort::BluePill => {
-            let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
-            let (dpidr, is_h5) = match swd_session.attach() {
-                Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
-                Ok(id) => (id, true),
-                Err(_) => {
-                    let mut cortex = CortexM::new(&mut swd_session.transport);
-                    let _ = cortex.connect_under_reset();
-                    let mut id = 0u32;
-                    let _ = cortex.swd.read_dpidr_retry(&mut id);
-                    (id, CortexM::is_armv8m_dpidr(id))
-                }
+            let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
+            let is_h5 = match swd_session.attach() {
+                Ok(id) if !CortexM::is_armv8m_dpidr(id) => false,
+                _ => true,
             };
             let mut cortex = CortexM::new(&mut swd_session.transport);
             if is_h5 {
+                let _ = cortex.connect_under_reset();
+                let mut id = 0u32;
+                let _ = cortex.swd.read_dpidr_retry(&mut id);
+                let _ = cortex.swd.write_dp(crate::programmer::swd::DP_ABORT, 0x0000001E);
                 let _ = cortex.select_ap(1);
                 cortex.csw = 0x0B000012;
+                let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
+            } else {
+                let _ = cortex.halt();
             }
             let res = if is_h5 {
                 let mut offset = 0usize;
@@ -373,7 +373,7 @@ pub fn read_flash_port_global(port: TargetPort, addr: u32, buf: &mut [u8]) -> Re
 pub fn write_mem_port_internal(pins: &mut ProgrammerPins, port: TargetPort, addr: u32, data: &[u8]) -> Result<(), TargetError> {
     match port {
         TargetPort::BluePill => {
-            let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 1000);
+            let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
             let (_dpidr, is_h5) = match swd_session.attach() {
                 Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
                 Ok(id) => (id, true),
@@ -433,24 +433,20 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
-                let (dpidr, is_h5) = match swd_session.attach() {
-                    Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
-                    Ok(id) => (id, true),
-                    Err(_) => {
-                        let mut cortex = CortexM::new(&mut swd_session.transport);
-                        let id = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
-                        let is_h5 = CortexM::is_armv8m_dpidr(id);
-                        (id, is_h5)
-                    }
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
+                let is_h5 = match swd_session.attach() {
+                    Ok(id) if !CortexM::is_armv8m_dpidr(id) => false,
+                    _ => true,
                 };
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if is_h5 {
+                    let _ = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                    let mut id = 0u32;
+                    let _ = cortex.swd.read_dpidr_retry(&mut id);
                     let _ = cortex.swd.write_dp(crate::programmer::swd::DP_ABORT, 0x0000001E);
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x0B000012;
                     let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
-                    let _ = cortex.halt();
                 } else {
                     let _ = cortex.halt();
                 }
@@ -489,7 +485,11 @@ pub fn erase_flash_port_global(port: TargetPort, addr: u32, len: u32) -> Result<
                     let _ = cortex.swd.write_ap(crate::programmer::swd::AP_TAR, 0x40022010);
                     let _ = cortex.swd.write_ap(crate::programmer::swd::AP_DRW, 0x80); // LOCK bit
                 }
-                let _ = cortex.resume();
+                if is_h5 {
+                    let _ = cortex.sys_reset();
+                } else {
+                    let _ = cortex.resume();
+                }
                 *pins = swd_session.release();
                 Ok(())
             }
@@ -589,24 +589,20 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
         let mut pins = cell.borrow_mut();
         match port {
             TargetPort::BluePill => {
-                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 500);
-                let (dpidr, is_h5) = match swd_session.attach() {
-                    Ok(id) if !CortexM::is_armv8m_dpidr(id) => (id, false),
-                    Ok(id) => (id, true),
-                    Err(_) => {
-                        let mut cortex = CortexM::new(&mut swd_session.transport);
-                        let id = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
-                        let is_h5 = CortexM::is_armv8m_dpidr(id);
-                        (id, is_h5)
-                    }
+                let mut swd_session = pins.into_swd_port(TargetPort::BluePill, 100);
+                let is_h5 = match swd_session.attach() {
+                    Ok(id) if !CortexM::is_armv8m_dpidr(id) => false,
+                    _ => true,
                 };
                 let mut cortex = CortexM::new(&mut swd_session.transport);
                 if is_h5 {
+                    let _ = cortex.connect_under_reset().map_err(|_| TargetError::FlashErrorCode(0x1001))?;
+                    let mut id = 0u32;
+                    let _ = cortex.swd.read_dpidr_retry(&mut id);
                     let _ = cortex.swd.write_dp(crate::programmer::swd::DP_ABORT, 0x0000001E);
                     let _ = cortex.select_ap(1);
                     cortex.csw = 0x0B000012;
                     let _ = cortex.swd.write_ap_port(1, crate::programmer::swd::AP_CSW, 0x0B000012);
-                    let _ = cortex.halt();
                 } else {
                     let _ = cortex.halt();
                 }
@@ -706,7 +702,11 @@ pub fn flash_target_port_global(port: TargetPort, addr: u32, data: &[u8]) -> Res
                     }
                     v_offset += chunk_len;
                 }
-                let _ = cortex.resume();
+                if is_h5 {
+                    let _ = cortex.sys_reset();
+                } else {
+                    let _ = cortex.resume();
+                }
                 *pins = swd_session.release();
                 Ok(())
             }
@@ -982,7 +982,7 @@ pub fn halt_target_global() -> Result<(), TargetError> {
 pub fn connect_under_reset_port_global(port: TargetPort) -> Result<u32, TargetError> {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
-        let mut swd_session = pins.into_swd_port(port, 1000);
+        let mut swd_session = pins.into_swd_port(port, 100);
         let res = match swd_session.connect_under_reset() {
             Ok(pc) => Ok(pc),
             Err(target::cortex_m::CortexError::ResetTimeout) => Err(TargetError::Timeout),
@@ -1001,7 +1001,7 @@ pub fn connect_under_reset_global() -> Result<u32, TargetError> {
 pub fn reset_and_catch_port_global(port: TargetPort) -> Result<u32, TargetError> {
     PROGRAMMER_PINS.lock(|cell| {
         let mut pins = cell.borrow_mut();
-        let mut swd_session = pins.into_swd_port(port, 1000);
+        let mut swd_session = pins.into_swd_port(port, 100);
         let _ = swd_session.attach().map_err(|_| TargetError::ProtocolError)?;
         let res = match swd_session.reset_and_catch() {
             Ok(pc) => Ok(pc),

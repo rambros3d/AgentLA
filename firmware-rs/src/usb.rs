@@ -679,7 +679,7 @@ pub fn create_composite_usb(
 }
 
 static DAP_HANDLER: embassy_sync::blocking_mutex::Mutex<
-    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
     core::cell::RefCell<crate::programmer::dap::CmsisDapHandler>,
 > = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(
     crate::programmer::dap::CmsisDapHandler::new(),
@@ -873,15 +873,39 @@ pub async fn i3c_bulk_task(
 ) {
     use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
     read_ep.wait_enabled().await;
-    let mut rx_buf = [0u8; 128];
-    let mut tx_buf = [0u8; 128];
+    let mut rx_buf = [0u8; 256];
+    let mut tx_buf = [0u8; 256];
 
     loop {
         match read_ep.read(&mut rx_buf).await {
-            Ok(n) if n >= agentla_bridges::i3c_bulk::I3C_HEADER_SIZE => {
+            Ok(mut n) if n >= agentla_bridges::i3c_bulk::I3C_HEADER_SIZE => {
+                if let Some(header) = agentla_bridges::i3c_bulk::I3cBulkHeader::parse(&rx_buf[..n]) {
+                    let expected_payload = if header.opcode == agentla_bridges::i3c_bulk::I3C_OP_PRIVATE_READ {
+                        0
+                    } else {
+                        header.payload_len as usize
+                    };
+                    let total_len = agentla_bridges::i3c_bulk::I3C_HEADER_SIZE + expected_payload;
+                    while n < total_len && n < rx_buf.len() {
+                        match read_ep.read(&mut rx_buf[n..]).await {
+                            Ok(more) if more > 0 => n += more,
+                            _ => break,
+                        }
+                    }
+                }
                 let out_len = crate::bridge::i3c::execute_i3c_bulk_frame(&rx_buf[..n], &mut tx_buf).await;
                 if out_len > 0 {
-                    let _ = write_ep.write(&tx_buf[..out_len]).await;
+                    let mut offset = 0;
+                    while offset < out_len {
+                        let chunk = (out_len - offset).min(64);
+                        if write_ep.write(&tx_buf[offset..offset + chunk]).await.is_err() {
+                            break;
+                        }
+                        offset += chunk;
+                    }
+                    if out_len > 0 && out_len % 64 == 0 {
+                        let _ = write_ep.write(&[]).await;
+                    }
                 }
             }
             Ok(_) => {}

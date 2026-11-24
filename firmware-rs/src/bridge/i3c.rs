@@ -60,7 +60,7 @@ pub enum CmdKind {
 pub struct I3cCommand {
     pub kind: CmdKind,
     pub addr: u8,
-    pub data: [u8; 64],
+    pub data: [u8; 128],
     pub data_len: u8,
     pub rx_len: u8,
     pub freq_khz: u32,
@@ -68,7 +68,7 @@ pub struct I3cCommand {
 
 impl Default for I3cCommand {
     fn default() -> Self {
-        Self { kind: CmdKind::Init, addr: 0, data: [0; 64], data_len: 0, rx_len: 0, freq_khz: 1000 }
+        Self { kind: CmdKind::Init, addr: 0, data: [0; 128], data_len: 0, rx_len: 0, freq_khz: 1000 }
     }
 }
 
@@ -77,7 +77,7 @@ pub struct I3cResult {
     pub status: i8,
     pub addr: u8,
     pub written: u8,
-    pub rx: [u8; 64],
+    pub rx: [u8; 128],
     pub rx_len: u8,
     pub diag_d0: u32,   // raw arbitration-header phase-1 read
     pub diag_d1: u32,   // raw arbitration-header phase-2 read
@@ -85,7 +85,7 @@ pub struct I3cResult {
 
 impl Default for I3cResult {
     fn default() -> Self {
-        Self { status: ST_OK, addr: 0, written: 0, rx: [0; 64], rx_len: 0, diag_d0: 0, diag_d1: 0 }
+        Self { status: ST_OK, addr: 0, written: 0, rx: [0; 128], rx_len: 0, diag_d0: 0, diag_d1: 0 }
     }
 }
 
@@ -413,7 +413,7 @@ fn opcode_t_bit(controller_abort: bool, p: &Programs) -> u32 {
 #[inline(always)] fn sdr_wbit(v: u32) -> u32 { (v << 1) | 1 | (1 << 3) }
 #[inline(always)] fn od_wbit(v: u32) -> u32 { ((v ^ 1) << 0) | ((v ^ 1) << 3) | (1 << 2) }
 #[inline(always)] const fn od_rbit() -> u32 { 1 << 2 }
-#[inline(always)] const fn od_rackbit() -> u32 { (1 << 3) | (1 << 2) }
+#[inline(always)] const fn od_rackbit() -> u32 { 1 << 2 }
 #[inline(always)] fn sdr_rbit(end: u32) -> u32 { end << 3 }
 
 // ---------------------------------------------------------------------------
@@ -602,12 +602,8 @@ fn do_write(h: &Hal, addr: u8, data: &[u8]) -> i8 {
 
 fn do_read(h: &Hal, addr: u8, rx: &mut [u8]) -> (i8, usize) {
     h.start();
-    let (st, _) = h.arbhdr();
-    if st == ST_OK {
-        h.restart();
-    } else {
-        h.restart();
-    }
+    let _ = h.arbhdr();
+    h.restart();
     let addr_st = h.sdr_write_addr((addr << 1) | 1);
     let mut n = 0usize;
     if addr_st == ST_OK {
@@ -616,7 +612,6 @@ fn do_read(h: &Hal, addr: u8, rx: &mut [u8]) -> (i8, usize) {
             let v = h.sdr_read(i + 1 == rx.len());
             rx[i] = (v >> 1) as u8;
             n += 1;
-            if v & 1 == 0 { break; } // target signaled end of transfer
         }
         h.overlay(false);
     }
@@ -682,7 +677,7 @@ fn execute(cmd: I3cCommand, p: &Programs) -> I3cResult {
         }
         CmdKind::Transfer => {
             let len = cmd.data_len as usize;
-            if len > 0 {
+            if len > 0 || cmd.rx_len == 0 {
                 r.status = do_write(&h, cmd.addr, &cmd.data[..len]);
                 r.written = len as u8;
                 // Katapult targets stage a response after STOP, like the I2C path.
@@ -976,14 +971,14 @@ pub async fn execute_i3c_bulk_frame(frame_bytes: &[u8], resp_buf: &mut [u8]) -> 
         agentla_bridges::i3c_bulk::I3C_OP_PRIVATE_READ => {
             cmd.kind = CmdKind::Transfer;
             cmd.data_len = 0;
-            cmd.rx_len = (frame.header.payload_len as u8).min(64);
+            cmd.rx_len = (frame.header.payload_len as u8).min(128);
         }
         agentla_bridges::i3c_bulk::I3C_OP_PRIVATE_WRITE_READ => {
             cmd.kind = CmdKind::Transfer;
             let len = frame.payload.len().min(cmd.data.len());
             cmd.data[..len].copy_from_slice(&frame.payload[..len]);
             cmd.data_len = len as u8;
-            cmd.rx_len = 64;
+            cmd.rx_len = 128;
         }
         _ => {
             return agentla_bridges::i3c_bulk::I3cBulkFrame::make_response(

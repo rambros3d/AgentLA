@@ -321,7 +321,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     crate::programmer::pins::tristate_pins();
 
     // Spawn analyzer capture task (PIO0/DMA0) to fill bank.
-    spawner.spawn(crate::analyzer::capture_task(pio0, dma0).unwrap());
+    // spawner.spawn(crate::analyzer::capture_task(pio0, dma0).unwrap());
     // Spawn the I3C SDR master task (PIO2, GP10=SDA / GP11=SCL).
     spawner.spawn(crate::bridge::i3c::i3c_task(pio2).unwrap());
     let _ = crate::decoder::swd_decode(&crate::decoder::SWD_TEST_SAMPLE, 1_000_000, 0, 1, 0);

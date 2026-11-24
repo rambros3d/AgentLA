@@ -19,4 +19,5 @@
 - **Launcher Center Alignment**: The application launcher and container must preserve horizontal centering across all zoom levels and display widths using `margin-inline: auto`.
 
 ## Hardware Setup & Debugging
+- **Native USB Interfaces Preferred Over API and MCP**: When using AgentLA adapters and programmer functionalities (I2C, I3C, UART, SPI, and CMSIS-DAP SWD programmer), agents MUST prefer the direct native USB interfaces (`/dev/hidraw*`, USB Bulk endpoints via `AgentLaI3c`, CDC-ACM serial, etc.) over network HTTP REST APIs or MCP programmer endpoints.
 - **Debugprobe Available**: The Raspberry Pi Debugprobe (`2e8a:000c`) is wired and available for SWD debugging, register inspection, and fallback hands-free flashing (`probe-rs`) if network OTA or application firmware requires recovery.

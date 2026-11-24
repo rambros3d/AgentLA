@@ -303,6 +303,15 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN)
     }
 
+    pub fn sys_reset(&mut self) -> Result<(), CortexError> {
+        let _ = self.mem_write32(DEMCR, 0);
+        let _ = self.mem_write32(AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
+        let _ = self.swd.assert_reset(true);
+        delay_cycles(150_000); // 1 ms
+        let _ = self.swd.assert_reset(false);
+        Ok(())
+    }
+
     pub fn is_halted(&mut self) -> Result<bool, CortexError> {
         let dhcsr = self.mem_read32(DHCSR);
         Ok((dhcsr? & DHCSR_S_HALT) != 0)
@@ -347,41 +356,33 @@ impl<'a, S: Adiv5Access> CortexM<'a, S> {
         let is_m33 = Self::is_armv8m_dpidr(dpidr);
 
         if is_m33 {
-            self.apsel = 1;
-            self.csw = 0x0B000012;
-            let _ = self.select_ap(1);
-            let _ = self.swd.write_ap_port(1, AP_CSW, 0x0B000012);
-        } else {
-            self.apsel = 0;
-            self.csw = ADIV5_AP_CSW_DEFAULT;
+            // Keep debug clocks running during stop/standby modes via DBGMCU_CR on AP 0 while under reset
             let _ = self.select_ap(0);
+            let _ = self.swd.write_ap_port(0, AP_CSW, 0x00000002);
+            let _ = self.swd.write_ap_port(0, AP_TAR, 0xE00E4004);
+            let _ = self.swd.write_ap_port(0, AP_DRW, 0x00000006);
         }
-        // Arm vector catch on reset while under reset
-        let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
-        let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
 
         // Release physical reset
         let _ = self.swd.assert_reset(false);
-        delay_cycles(150_000); // 1 ms settling
+        delay_cycles(150_000); // 1 ms reset settling
 
-        // Re-synchronize SWD interface after reset release
-        let mut d = 0u32;
-        let _ = self.swd.read_dpidr_retry(&mut d);
+        // Re-synchronize SWD interface
         let _ = self.swd.power_up_debug();
         let _ = self.swd.write_dp(crate::swd::DP_ABORT, 0x0000001E);
 
         if is_m33 {
             self.apsel = 1;
-            self.csw = 0x0B000012;
+            self.csw = 0x23000012;
             let _ = self.select_ap(1);
-            let _ = self.swd.write_ap_port(1, AP_CSW, 0x0B000012);
+            let _ = self.swd.write_ap_port(1, AP_CSW, self.csw);
         } else {
             self.apsel = 0;
             self.csw = ADIV5_AP_CSW_DEFAULT;
             let _ = self.select_ap(0);
         }
 
-        // Re-affirm vector catch and debug halt immediately after reset release
+        // Re-affirm vector catch and debug halt
         let _ = self.mem_write32(DEMCR, DEMCR_TRCENA | DEMCR_VC_CORERESET);
         let _ = self.mem_write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
 

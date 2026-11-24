@@ -26,7 +26,7 @@ class CmsisDapSwd:
         self.f.write(payload[:65])
         return self.f.read(64)
 
-    def transfer(self, transfers, retries=5):
+    def transfer(self, transfers, retries=10):
         payload = bytearray([0x05, 0x00, len(transfers)])
         for r_b, d in transfers:
             payload.append(r_b)
@@ -36,8 +36,9 @@ class CmsisDapSwd:
             resp = self.send_cmd(bytes(payload))
             if resp[0] == 0x05 and resp[2] == 1:
                 return resp
-            # Clear sticky errors on DP ABORT
+            # Clear sticky errors on DP ABORT and re-assert AP 1
             self.send_cmd(bytes([0x05, 0x00, 0x01, 0x00, 0x1E, 0x00, 0x00, 0x00]))
+            self.send_cmd(bytes([0x05, 0x00, 0x01, 0x08, 0x00, 0x00, 0x00, 0x01]))
             time.sleep(0.002)
         raise RuntimeError(f"DAP_Transfer failed: count={resp[1]} ack=0x{resp[2]:02X}")
 
@@ -70,17 +71,23 @@ class CmsisDapSwd:
         print(f"[*] Target DPIDR: 0x{dpidr:08X}")
         assert dpidr in (0x6BA02477, 0xDBE02477), f"Unexpected DPIDR: 0x{dpidr:08X}"
 
-        # Clear aborts and request debug power
-        self.transfer([(0x00, 0x1E), (0x04, 0x50000000)])
+        # Clear aborts and request debug power (ABORT first, then SELECT=0, CTRL/STAT)
+        self.transfer([(0x00, 0x0000001E), (0x08, 0x00000000), (0x04, 0x50000000)])
+        time.sleep(0.01)
         resp = self.transfer([(0x06, None)])
         ctrl = int.from_bytes(resp[3:7], "little")
         print(f"[*] DP CTRL/STAT: 0x{ctrl:08X}")
         assert (ctrl & 0xA0000000) == 0xA0000000, "Debug power-up not acknowledged"
 
+        # Freeze watchdogs and keep debug clocks active via AP 0 DBGMCU
+        self.transfer([(0x08, 0x00000000), (0x01, 0x00000002)])
+        self.transfer([(0x05, 0xE00E4004), (0x0D, 0x00000006)]) # DBGMCU_CR: DBG_STOP | DBG_STANDBY
+        self.transfer([(0x05, 0xE00E4008), (0x0D, 0x00000801)]) # DBGMCU_APB1LFZR: DBG_IWDG_STOP | DBG_WWDG_STOP
+
         # Select AP 1 (AHB-AP), Bank 0
         self.transfer([(0x08, 0x01000000)])
-        # Set CSW = 0x22000012 (32-bit privileged non-secure access, auto-inc)
-        self.transfer([(0x01, 0x22000012)])
+        # Set CSW = 0x23000012 (32-bit privileged secure access for PPB)
+        self.transfer([(0x01, 0x23000012)])
 
         # Halt CPU via DHCSR
         self.transfer([(0x05, 0xE000EDF0), (0x0D, 0xA05F0003)])
@@ -96,6 +103,8 @@ class CmsisDapSwd:
         self.transfer([(0x05, addr), (0x0D, val)])
 
     def unlock_flash(self):
+        # Ensure FLASH interface and SRAM1 clocks are enabled in RCC_AHB1ENR
+        self.write_mem32(0x44020C88, self.read_mem32(0x44020C88) | 0x80000100)
         cr = self.read_mem32(0x40022028)
         if (cr & 1) != 0:
             print("[*] Unlocking Non-Secure Flash...")
@@ -115,6 +124,7 @@ class CmsisDapSwd:
         # SER=1, START=1, SNB=sector_num
         cr_val = (1 << 2) | (1 << 5) | ((sector_num & 0x7F) << 6)
         self.write_mem32(0x40022028, cr_val)
+        time.sleep(0.015) # Wait for hardware sector erase to complete
 
         t0 = time.time()
         while True:
@@ -150,17 +160,22 @@ class CmsisDapSwd:
             w2 = int.from_bytes(padded_data[offset+8:offset+12], "little")
             w3 = int.from_bytes(padded_data[offset+12:offset+16], "little")
 
-            # Write 4 words (128 bits)
-            self.write_mem32(chunk_addr + 0, w0)
-            self.write_mem32(chunk_addr + 4, w1)
-            self.write_mem32(chunk_addr + 8, w2)
-            self.write_mem32(chunk_addr + 12, w3)
+            # Write 4 words (128 bits) via auto-increment in a single transfer
+            self.transfer([
+                (0x05, chunk_addr),
+                (0x0D, w0),
+                (0x0D, w1),
+                (0x0D, w2),
+                (0x0D, w3),
+            ])
 
             # Wait BSY == 0
-            for _ in range(1000):
+            time.sleep(0.0001)
+            for _ in range(100):
                 sr = self.read_mem32(0x40022020)
                 if (sr & 0x0B) == 0:
                     break
+                time.sleep(0.0001)
             if (sr & 0x00BE0000) != 0:
                 self.write_mem32(0x40022030, 0x001F0000)
                 raise RuntimeError(f"Flash write error at 0x{chunk_addr:08X}: SR=0x{sr:08X}")

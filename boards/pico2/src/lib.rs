@@ -48,7 +48,7 @@ impl BoardProfile for Pico2Board {
             term: Some(22),
         }),
         rs485: None,
-        default_i2c: I2cPins { sda: 11, scl: 10 },
+        default_i2c: I2cPins { sda: 10, scl: 11 },
         default_spi: SpiPins {
             sck: 18,
             mosi: 19,

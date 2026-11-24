@@ -74,7 +74,7 @@ with open("/dev/hidraw5", "r+b", buffering=0) as f:
         assert dpidr == 0x6BA02477
 
         # 6. Clear Aborts & Power Up Debug
-        resp = dap_transfer([(0x00, 0x0000001E), (0x04, 0x50000000)])
+        resp = dap_transfer([(0x00, 0x0000001E), (0x04, 0xF0000000)])
         print(f"[*] Step 6 resp: count={resp[1]} ack=0x{resp[2]:02X}")
         assert resp[2] == 1, "Clear aborts and power up failed"
         resp = dap_transfer([(0x06, None)])
@@ -82,24 +82,20 @@ with open("/dev/hidraw5", "r+b", buffering=0) as f:
         print(f"[*] DP CTRL/STAT: 0x{ctrlstat:08X} (Powered: {bool(ctrlstat & 0xA0000000)})")
 
         # 7. Read AP 0 IDR (APB-AP)
-        dap_transfer([(0x08, 0x000000F0)])
-        resp = dap_transfer([(0x0F, None)])
+        resp = dap_transfer([(0x08, 0x000000F0), (0x0F, None)])
         ap0_idr = int.from_bytes(resp[3:7], "little")
         print(f"[*] AP 0 IDR: 0x{ap0_idr:08X} (Expected: 0x54770002)")
         assert ap0_idr == 0x54770002
 
         # 8. Read AP 1 IDR (AHB-AP)
-        dap_transfer([(0x08, 0x010000F0)])
-        resp = dap_transfer([(0x0F, None)])
+        resp = dap_transfer([(0x08, 0x010000F0), (0x0F, None)])
         ap1_idr = int.from_bytes(resp[3:7], "little")
         print(f"[*] AP 1 IDR: 0x{ap1_idr:08X} (Expected: 0x84770001)")
         assert ap1_idr == 0x84770001
 
         # 9. Read DBGMCU_IDCODE at 0xE00E4000 via AP 0 (APB-AP)
-        dap_transfer([(0x08, 0x00000000)])
-        dap_transfer([(0x01, 0x80000012)])
-        dap_transfer([(0x05, 0xE00E4000)])
-        resp = dap_transfer([(0x0F, None)])
+        dap_transfer([(0x08, 0x00000000), (0x01, 0x80000012)])
+        resp = dap_transfer([(0x05, 0xE00E4000), (0x0F, None)])
         dbgmcu_id = int.from_bytes(resp[3:7], "little")
         devid = dbgmcu_id & 0xFFF
         dev_str = "STM32H503" if devid == 0x474 else "Unknown"
@@ -107,10 +103,8 @@ with open("/dev/hidraw5", "r+b", buffering=0) as f:
         assert devid == 0x474
 
         # 10. Read Flash Memory 0x08000000 via AP 1 (AHB-AP)
-        dap_transfer([(0x08, 0x01000000)])
-        dap_transfer([(0x01, 0xE3000012)])
-        dap_transfer([(0x05, 0x08000000)])
-        resp = dap_transfer([(0x0F, None)])
+        dap_transfer([(0x08, 0x01000000), (0x01, 0xE3000012)])
+        resp = dap_transfer([(0x05, 0x08000000), (0x0F, None)])
         w0 = int.from_bytes(resp[3:7], "little")
         print(f"[*] Flash @ 0x08000000: 0x{w0:08X}")
     finally:

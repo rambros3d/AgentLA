@@ -139,7 +139,12 @@ impl<'a> I3cBulkFrame<'a> {
     /// Parse complete frame from `bytes`.
     pub fn parse(bytes: &'a [u8]) -> Option<Self> {
         let header = I3cBulkHeader::parse(bytes)?;
-        let total_len = I3C_HEADER_SIZE + (header.payload_len as usize);
+        let expected_payload = if header.opcode == I3C_OP_PRIVATE_READ {
+            0
+        } else {
+            header.payload_len as usize
+        };
+        let total_len = I3C_HEADER_SIZE + expected_payload;
         if bytes.len() < total_len {
             return None;
         }

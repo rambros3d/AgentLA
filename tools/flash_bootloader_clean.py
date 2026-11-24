@@ -65,12 +65,24 @@ class Stm32H5Flasher:
         self.send_cmd(bytes([0x04, 0x00, 0x88, 0x13, 0x00, 0x00])) # wait_retry=5000
 
         self.send_cmd(bytes([0x10, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00])) # Assert nRST
-        time.sleep(0.005)
+        time.sleep(0.01)
+        self.send_cmd(bytes([0x10, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00])) # Release nRST
+        time.sleep(0.01)
+
+        # Dormant-to-SWD wake sequence
+        seq = [0xFF, 0xFF]
+        seq += list(0x19BC0EA2.to_bytes(4, "little"))
+        seq += list(0xE3DDAFE9.to_bytes(4, "little"))
+        seq += list(0x86852D95.to_bytes(4, "little"))
+        seq += list(0x6209F392.to_bytes(4, "little"))
+        seq += [0xA0, 0x01]
+        seq += [0xFF] * 8
+        seq += [0x00]
+        self.send_cmd(bytes([0x12, 228]) + bytes(seq))
+
         self.send_cmd(bytes([0x02, 0x01])) # Connect SWD
         self.transfer([(0x02, None)]) # Read DPIDR
-        self.transfer([(0x00, 0x1E), (0x04, 0x50000000)]) # Power up debug
-        self.send_cmd(bytes([0x10, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00])) # Release nRST
-        self.transfer([(0x00, 0x1E), (0x04, 0x50000000)]) # Re-affirm debug power
+        self.transfer([(0x00, 0x1E), (0x04, 0xF0000000)]) # Power up debug
         self.transfer([(0x08, 0x01000000), (0x01, 0x23000012)]) # AP 1 (AHB-AP), Secure CSW (auto-inc single)
 
         # Catch core immediately

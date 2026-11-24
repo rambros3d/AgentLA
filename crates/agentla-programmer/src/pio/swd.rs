@@ -107,6 +107,12 @@ impl SwdTransport {
             oe_clr |= 1 << self.dio_in_pin;
         }
         pac::SIO.gpio_oe(0).value_clr().write_value(oe_clr);
+        let sm = pac::PIO0.sm(0);
+        pio_set_pindirs(sm, self.clk_pin, 1, true);
+        pio_set_pindirs(sm, self.dio_pin, 1, false);
+        if self.dio_in_pin != self.dio_pin {
+            pio_set_pindirs(sm, self.dio_in_pin, 1, false);
+        }
         pac::PIO0.ctrl().modify(|w| {
             w.set_sm_enable(w.sm_enable() | (1 << 0));
         });
@@ -115,7 +121,9 @@ impl SwdTransport {
     pub fn ensure_initialized(&mut self) {
         let sm_enabled = (pac::PIO0.ctrl().read().sm_enable() & (1 << 0)) != 0;
         let func_clk = pac::IO_BANK0.gpio(self.clk_pin).ctrl().read().funcsel();
-        if !self.initialized || !sm_enabled || func_clk != pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into() {
+        let func_dio = pac::IO_BANK0.gpio(self.dio_pin).ctrl().read().funcsel();
+        let pio_func = pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into();
+        if !self.initialized || !sm_enabled || func_clk != pio_func || func_dio != pio_func {
             self.init_pins_split(self.clk_pin, self.dio_pin, self.dio_in_pin, self.reset_pin, self.clock_khz);
         } else {
             self.restore_pio_pins();
@@ -204,6 +212,7 @@ impl SwdTransport {
                 w.set_pue(true);
                 w.set_pde(false);
             });
+            pac::SIO.gpio_oe(0).value_clr().write_value(1 << reset_pin);
             pac::IO_BANK0.gpio(reset_pin).ctrl().write(|w| {
                 w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::NULL.into());
             });
@@ -336,6 +345,7 @@ impl SwdTransport {
         if bit_count == 0 {
             return;
         }
+        self.restore_pio_pins();
         if !self.put_fifo(self.fmt_command(bit_count, true, ProbeCmd::Write)) {
             return;
         }
@@ -350,6 +360,7 @@ impl SwdTransport {
         if bit_count == 0 {
             return;
         }
+        self.restore_pio_pins();
         if !self.put_fifo(self.fmt_command(bit_count, false, ProbeCmd::Turnaround)) {
             return;
         }
@@ -360,6 +371,7 @@ impl SwdTransport {
         if bit_count == 0 {
             return 0;
         }
+        self.restore_pio_pins();
         if !self.put_fifo(self.fmt_command(bit_count, false, ProbeCmd::Read)) {
             return 0xEEEEEEEE;
         }
@@ -483,6 +495,7 @@ impl SwdTransport {
     }
 
     pub fn transfer_raw(&self, request: u8, data: &mut u32) -> u8 {
+        self.restore_pio_pins();
         self.drain_rx_fifo();
         self.write_bits(8, request as u32);
         let is_read = (request & (1 << 2)) != 0;
@@ -505,9 +518,6 @@ impl SwdTransport {
                 }
                 *data = val;
             } else {
-                // Turnaround clock cycle was clocked by ack_cycles above with SWDIO as input.
-                // Target has completed releasing SWDIO with SWCLK low.
-                // Write 32-bit WDATA followed by 1-bit parity.
                 let val = *data;
                 self.write_bits(32, val);
                 let parity = (val.count_ones() & 1) as u32;
@@ -531,6 +541,8 @@ impl SwdTransport {
         }
 
         self.read_bits((self.turnaround as u32) + 33);
+        let idle = core::cmp::max(self.idle_cycles, 8);
+        self.write_bits(idle as u32, 0);
         let _ = self.wait_idle();
         ack
     }
@@ -615,6 +627,8 @@ impl SwdTransport {
     }
 
     pub fn power_up_debug(&mut self) -> Result<(), SwdError> {
+        let _ = self.write_dp(DP_SELECT, 0);
+        self.ap_select = 0;
         let s1 = self.write_dp(DP_ABORT, 0x0000001E);
         let s2 = self.write_dp(DP_CTRLSTAT, 0x50000000);
         crate::stlink::stlink_diag::set_writes(
@@ -849,13 +863,19 @@ impl SwdTransport {
             w.set_pde(false);
         });
         pac::IO_BANK0.gpio(self.reset_pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
-        pac::SIO.gpio_oe(0).value_set().write_value(1 << self.reset_pin);
         if assert {
+            pac::PADS_BANK0.gpio(self.reset_pin).modify(|w| {
+                w.set_od(false);
+            });
             pac::SIO.gpio_out(0).value_clr().write_value(1 << self.reset_pin);
+            pac::SIO.gpio_oe(0).value_set().write_value(1 << self.reset_pin);
         } else {
-            pac::SIO.gpio_out(0).value_set().write_value(1 << self.reset_pin);
+            pac::PADS_BANK0.gpio(self.reset_pin).modify(|w| {
+                w.set_od(true);
+            });
+            pac::SIO.gpio_oe(0).value_clr().write_value(1 << self.reset_pin);
         }
     }
 
@@ -1061,7 +1081,7 @@ impl SwdIo for SwdTransport {
     ) -> Result<u8, Self::Error> {
         if (pin_select & 0x01) != 0 {
             pac::IO_BANK0.gpio(self.clk_pin).ctrl().write(|w| {
-                w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+                w.set_funcsel(5);
             });
             pac::SIO.gpio_oe(0).value_set().write_value(1 << self.clk_pin);
             if (pin_output & 0x01) != 0 {
@@ -1073,7 +1093,7 @@ impl SwdIo for SwdTransport {
 
         if (pin_select & 0x02) != 0 {
             pac::IO_BANK0.gpio(self.dio_pin).ctrl().write(|w| {
-                w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+                w.set_funcsel(5);
             });
             pac::SIO.gpio_oe(0).value_set().write_value(1 << self.dio_pin);
             if (pin_output & 0x02) != 0 {

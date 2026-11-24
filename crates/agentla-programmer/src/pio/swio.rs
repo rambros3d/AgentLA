@@ -91,7 +91,7 @@ impl SwioTransport {
         });
 
         pac::IO_BANK0.gpio(swio_pin).ctrl().write(|w| {
-            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0.into());
+            w.set_funcsel(5);
         });
         pac::SIO.gpio_out(0).value_clr().write_value(1 << swio_pin);
         pac::SIO.gpio_oe(0).value_set().write_value(1 << swio_pin);
