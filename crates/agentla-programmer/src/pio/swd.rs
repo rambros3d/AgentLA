@@ -74,6 +74,9 @@ impl SwdTransport {
     }
 
     pub fn restore_pio_pins(&self) {
+        if (pac::PIO0.ctrl().read().sm_enable() & (1 << 0)) != 0 {
+            self.wait_idle();
+        }
         pac::PADS_BANK0.gpio(self.clk_pin).modify(|w| {
             w.set_iso(false);
             w.set_ie(true);
@@ -125,8 +128,6 @@ impl SwdTransport {
         let pio_func = pac::io::vals::Gpio0ctrlFuncsel::PIO0_0.into();
         if !self.initialized || !sm_enabled || func_clk != pio_func || func_dio != pio_func {
             self.init_pins_split(self.clk_pin, self.dio_pin, self.dio_in_pin, self.reset_pin, self.clock_khz);
-        } else {
-            self.restore_pio_pins();
         }
     }
 
@@ -345,7 +346,6 @@ impl SwdTransport {
         if bit_count == 0 {
             return;
         }
-        self.restore_pio_pins();
         if !self.put_fifo(self.fmt_command(bit_count, true, ProbeCmd::Write)) {
             return;
         }
@@ -360,7 +360,6 @@ impl SwdTransport {
         if bit_count == 0 {
             return;
         }
-        self.restore_pio_pins();
         if !self.put_fifo(self.fmt_command(bit_count, false, ProbeCmd::Turnaround)) {
             return;
         }
@@ -371,7 +370,6 @@ impl SwdTransport {
         if bit_count == 0 {
             return 0;
         }
-        self.restore_pio_pins();
         if !self.put_fifo(self.fmt_command(bit_count, false, ProbeCmd::Read)) {
             return 0xEEEEEEEE;
         }
@@ -495,7 +493,6 @@ impl SwdTransport {
     }
 
     pub fn transfer_raw(&self, request: u8, data: &mut u32) -> u8 {
-        self.restore_pio_pins();
         self.drain_rx_fifo();
         self.write_bits(8, request as u32);
         let is_read = (request & (1 << 2)) != 0;
@@ -524,7 +521,7 @@ impl SwdTransport {
                 self.write_bits(1, parity);
             }
 
-            let idle = core::cmp::max(self.idle_cycles, 2);
+            let idle = core::cmp::max(self.idle_cycles, 8);
             self.write_bits(idle as u32, 0);
             let _ = self.wait_idle();
             return SWD_ACK_OK;
