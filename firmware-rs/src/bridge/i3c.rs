@@ -54,12 +54,15 @@ pub enum CmdKind {
     TargetReset,
     I2cPinMode, // data[0] != 0 -> SIO/I2C, else PIO2/I3C
     Poll,
+    SetPins,    // data[0] = SCL, data[1] = SDA (0, 0 = swap)
+    I2cScan,
 }
 
 #[derive(Clone, Copy)]
 pub struct I3cCommand {
     pub kind: CmdKind,
     pub addr: u8,
+    pub flags: u8,
     pub data: [u8; 128],
     pub data_len: u8,
     pub rx_len: u8,
@@ -68,7 +71,7 @@ pub struct I3cCommand {
 
 impl Default for I3cCommand {
     fn default() -> Self {
-        Self { kind: CmdKind::Init, addr: 0, data: [0; 128], data_len: 0, rx_len: 0, freq_khz: 1000 }
+        Self { kind: CmdKind::Init, addr: 0, flags: 0, data: [0; 128], data_len: 0, rx_len: 0, freq_khz: 1000 }
     }
 }
 
@@ -190,7 +193,7 @@ fn build_programs() -> Programs {
         "    out pindirs, 1 side 1 [1]",
         "    out pindirs, 1 [2]",
         "    nop side 0",
-        "    set pindirs, 1 [4]",
+        "    set pindirs, 0 [4]",
         "    jmp inst_parser side 0 [1]",
         ".wrap",
     );
@@ -290,8 +293,8 @@ fn set_clkdiv(freq_khz: u32) -> bool {
     true
 }
 
-fn configure_pins(i3c_mode: bool) {
-    for &pin in &I3C_PINS {
+fn configure_pins(i3c_mode: bool, scl: u32, sda: u32) {
+    for &pin in &[scl, sda] {
         pac::IO_BANK0.gpio(pin as usize).ctrl().write(|w| {
             w.set_funcsel(if i3c_mode { FUNCSEL_PIO2 } else { FUNCSEL_SIO });
         });
@@ -307,34 +310,35 @@ fn configure_pins(i3c_mode: bool) {
     }
 }
 
-fn pinctrl_initial() {
+fn pinctrl_initial(scl: u32, sda: u32) {
+    let base = scl.min(sda);
     pac::PIO2.sm(0).pinctrl().write(|w| {
         w.set_set_count(1);
-        w.set_set_base(SCL as u8);
+        w.set_set_base(scl as u8);
         w.set_out_count(2); // initial SETDIR controls both SCL and SDA (GP10 and GP11)
-        w.set_out_base(SCL as u8);
-        w.set_in_base(SDA as u8);
+        w.set_out_base(base as u8);
+        w.set_in_base(sda as u8);
         // Program uses `.side_set 1 opt`: 1 side bit + 1 optional-delay bit.
         // PINCTRL must reserve 2 sideset bits to match the instruction encoding;
         // count=1 desynchronises all delayed instructions (the reference uses 2).
         w.set_sideset_count(2);
-        w.set_sideset_base(SCL as u8);
+        w.set_sideset_base(scl as u8);
     });
 }
 
-fn pinctrl_normal() {
+fn pinctrl_normal(scl: u32, sda: u32) {
     pac::PIO2.sm(0).pinctrl().write(|w| {
         w.set_set_count(1);
-        w.set_set_base(SDA as u8);
+        w.set_set_base(sda as u8);
         w.set_out_count(1);
-        w.set_out_base(SDA as u8);
-        w.set_in_base(SDA as u8);
+        w.set_out_base(sda as u8);
+        w.set_in_base(sda as u8);
         w.set_sideset_count(2); // `.side_set 1 opt` needs 2 bits (side + opt-delay)
-        w.set_sideset_base(SCL as u8);
+        w.set_sideset_base(scl as u8);
     });
 }
 
-fn init_pio(p: &Programs) {
+fn init_pio(p: &Programs, scl: u32, sda: u32) {
     pac::PIO2.ctrl().modify(|w| w.set_sm_enable(0));
 
     for i in 0..p.sdr_len {
@@ -345,20 +349,22 @@ fn init_pio(p: &Programs) {
         w.set_wrap_top((p.sdr_len - 1) as u8);
         w.set_wrap_bottom(0);
         w.set_side_en(true);
-        w.set_jmp_pin(SDA as u8);
+        w.set_jmp_pin(sda as u8);
     });
     set_autopush(0);
-    pinctrl_initial();
-    configure_pins(true);
-    pac::PIO2.input_sync_bypass().write_value((1u32 << SDA) | (1u32 << SCL));
+    pinctrl_initial(scl, sda);
+    configure_pins(true, scl, sda);
+    pac::PIO2.input_sync_bypass().write_value((1u32 << sda) | (1u32 << scl));
     set_clkdiv(1000);
 
     pac::PIO2.ctrl().modify(|w| w.set_sm_enable(1));
 
     // Release SDA, drive SCL (open-drain idle), then narrow OUT to SDA only.
-    put32(opcode_setdir(1, 0, p));
+    let (dirs0, dirs1) = if scl < sda { (1, 0) } else { (0, 1) };
+    put32(opcode_setdir(dirs0, dirs1, p));
     wait_tx_empty();
-    pinctrl_normal();
+    wait_idle();
+    pinctrl_normal(scl, sda);
 }
 
 // ---------------------------------------------------------------------------
@@ -668,34 +674,76 @@ fn do_rstdaa(h: &Hal) -> i8 {
     st
 }
 
+fn restore_pio_after_i2c(p: &Programs, scl: u32, sda: u32) {
+    configure_pins(true, scl, sda);
+    pinctrl_initial(scl, sda);
+    pac::PIO2.ctrl().modify(|w| w.set_sm_enable(1));
+    let (dirs0, dirs1) = if scl < sda { (1, 0) } else { (0, 1) };
+    put32(opcode_setdir(dirs0, dirs1, p));
+    wait_tx_empty();
+    wait_idle();
+    pinctrl_normal(scl, sda);
+}
+
+fn ensure_pio_pins_ready(p: &Programs, scl: u32, sda: u32) {
+    let scl_ok = pac::IO_BANK0.gpio(scl as usize).ctrl().read().funcsel() == FUNCSEL_PIO2;
+    let sda_ok = pac::IO_BANK0.gpio(sda as usize).ctrl().read().funcsel() == FUNCSEL_PIO2;
+    let sm_ok = (pac::PIO2.ctrl().read().sm_enable() & 1) != 0;
+    if !scl_ok || !sda_ok || !sm_ok {
+        restore_pio_after_i2c(p, scl, sda);
+    }
+}
+
 fn execute(cmd: I3cCommand, p: &Programs) -> I3cResult {
     let h = Hal { p };
     let mut r = I3cResult::default();
+    let (scl, sda) = crate::bridge::bus_pins();
     match cmd.kind {
         CmdKind::Init => {
+            ensure_pio_pins_ready(p, scl as u32, sda as u32);
             r.status = if set_clkdiv(cmd.freq_khz) { ST_OK } else { ST_PARAM };
         }
         CmdKind::Transfer => {
-            let len = cmd.data_len as usize;
-            if len > 0 || cmd.rx_len == 0 {
-                r.status = do_write(&h, cmd.addr, &cmd.data[..len]);
-                r.written = len as u8;
-                // Katapult targets stage a response after STOP, like the I2C path.
-                if cmd.rx_len > 0 && r.status == ST_OK {
-                    cortex_m::asm::delay(150_000);
+            if cmd.flags & agentla_bridges::i3c_bulk::I3C_FLAG_OPEN_DRAIN != 0 {
+                let len = cmd.data_len as usize;
+                let rx_len = cmd.rx_len as usize;
+                pac::PIO2.ctrl().modify(|w| w.set_sm_enable(0));
+                let (ok, written, read) = crate::bridge::i2c::hw_i2c_transfer(
+                    sda as u32,
+                    scl as u32,
+                    cmd.addr,
+                    &cmd.data[..len],
+                    &mut r.rx[..rx_len],
+                );
+                restore_pio_after_i2c(p, scl as u32, sda as u32);
+                r.status = if ok { ST_OK } else { ST_NAK_ADDR };
+                r.written = written as u8;
+                r.rx_len = read as u8;
+            } else {
+                ensure_pio_pins_ready(p, scl as u32, sda as u32);
+                let len = cmd.data_len as usize;
+                if len > 0 || cmd.rx_len == 0 {
+                    r.status = do_write(&h, cmd.addr, &cmd.data[..len]);
+                    r.written = len as u8;
+                    // Katapult targets stage a response after STOP, like the I2C path.
+                    if cmd.rx_len > 0 && r.status == ST_OK {
+                        cortex_m::asm::delay(150_000);
+                    }
                 }
-            }
-            if cmd.rx_len > 0 && r.status == ST_OK {
-                let (st, n) = do_read(&h, cmd.addr, &mut r.rx[..cmd.rx_len as usize]);
-                r.status = st;
-                r.rx_len = n as u8;
+                if cmd.rx_len > 0 && r.status == ST_OK {
+                    let (st, n) = do_read(&h, cmd.addr, &mut r.rx[..cmd.rx_len as usize]);
+                    r.status = st;
+                    r.rx_len = n as u8;
+                }
             }
         }
         CmdKind::CccBroadcast => {
+            ensure_pio_pins_ready(p, scl as u32, sda as u32);
             let len = cmd.data_len as usize;
             r.status = do_ccc_broadcast(&h, &cmd.data[..len]);
         }
         CmdKind::EntDaa => {
+            ensure_pio_pins_ready(p, scl as u32, sda as u32);
             let mut pid = [0u8; 8];
             let (st, assigned) = do_entdaa(&h, cmd.addr, &mut pid);
             r.status = st;
@@ -704,22 +752,55 @@ fn execute(cmd: I3cCommand, p: &Programs) -> I3cResult {
             // normal transfers are unaffected.
             r.rx[..8].copy_from_slice(&pid);
         }
-        CmdKind::RstDaa => r.status = do_rstdaa(&h),
-        CmdKind::TargetReset => h.target_reset(),
+        CmdKind::RstDaa => {
+            ensure_pio_pins_ready(p, scl as u32, sda as u32);
+            r.status = do_rstdaa(&h);
+        }
+        CmdKind::TargetReset => {
+            ensure_pio_pins_ready(p, scl as u32, sda as u32);
+            h.target_reset();
+        }
         CmdKind::I2cPinMode => {
             let i2c = cmd.data[0] != 0;
             pac::PIO2.ctrl().modify(|w| w.set_sm_enable(0));
-            configure_pins(!i2c);
+            configure_pins(!i2c, scl as u32, sda as u32);
             if !i2c {
+                pinctrl_initial(scl as u32, sda as u32);
                 pac::PIO2.ctrl().modify(|w| w.set_sm_enable(1));
-                put32(opcode_setdir(1, 0, p));
+                let (dirs0, dirs1) = if scl < sda { (1, 0) } else { (0, 1) };
+                put32(opcode_setdir(dirs0, dirs1, p));
                 wait_tx_empty();
-                pinctrl_normal();
+                wait_idle();
+                pinctrl_normal(scl as u32, sda as u32);
             }
         }
         CmdKind::Poll => {
+            ensure_pio_pins_ready(p, scl as u32, sda as u32);
             // IBI type-1 check: SDA held low by a target while idle.
-            r.status = if (pac::SIO.gpio_in(0).read() & (1 << SDA)) == 0 { ST_IBI } else { ST_OK };
+            r.status = if (pac::SIO.gpio_in(0).read() & (1 << sda)) == 0 { ST_IBI } else { ST_OK };
+        }
+        CmdKind::SetPins => {
+            let (new_scl, new_sda) = if cmd.data[0] == 0 && cmd.data[1] == 0 {
+                crate::bridge::swap_bus_pins()
+            } else {
+                crate::bridge::set_bus_pins(cmd.data[0], cmd.data[1]);
+                (cmd.data[0], cmd.data[1])
+            };
+            init_pio(p, new_scl as u32, new_sda as u32);
+            r.status = ST_OK;
+            r.rx[0] = new_scl;
+            r.rx[1] = new_sda;
+            r.rx_len = 2;
+        }
+        CmdKind::I2cScan => {
+            let (scl, sda) = crate::bridge::bus_pins();
+            pac::PIO2.ctrl().modify(|w| w.set_sm_enable(0));
+            let found = crate::bridge::i2c::hw_i2c_scan(sda as u32, scl as u32);
+            restore_pio_after_i2c(p, scl as u32, sda as u32);
+            let n = found.len().min(r.rx.len());
+            r.rx[..n].copy_from_slice(&found[..n]);
+            r.rx_len = n as u8;
+            r.status = ST_OK;
         }
     }
     r.diag_d0 = ARB_D0.load(core::sync::atomic::Ordering::Relaxed);
@@ -731,7 +812,8 @@ fn execute(cmd: I3cCommand, p: &Programs) -> I3cResult {
 #[embassy_executor::task]
 pub async fn i3c_task(_pio2: Peri<'static, PIO2>) {
     let programs = build_programs();
-    init_pio(&programs);
+    let (scl, sda) = crate::bridge::bus_pins();
+    init_pio(&programs, scl as u32, sda as u32);
     loop {
         let cmd = I3C_CMD.wait().await;
         let result = execute(cmd, &programs);
@@ -934,6 +1016,7 @@ pub async fn execute_i3c_bulk_frame(frame_bytes: &[u8], resp_buf: &mut [u8]) -> 
 
     let mut cmd = I3cCommand::default();
     cmd.addr = frame.header.addr;
+    cmd.flags = frame.header.flags;
 
     match frame.header.opcode {
         agentla_bridges::i3c_bulk::I3C_OP_SET_BUS_SPEED => {
@@ -978,7 +1061,24 @@ pub async fn execute_i3c_bulk_frame(frame_bytes: &[u8], resp_buf: &mut [u8]) -> 
             let len = frame.payload.len().min(cmd.data.len());
             cmd.data[..len].copy_from_slice(&frame.payload[..len]);
             cmd.data_len = len as u8;
-            cmd.rx_len = 128;
+            cmd.rx_len = if frame.header.status == 0 {
+                128
+            } else {
+                frame.header.status.min(128)
+            };
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_SET_PINS => {
+            cmd.kind = CmdKind::SetPins;
+            if frame.payload.len() >= 2 {
+                cmd.data[0] = frame.payload[0];
+                cmd.data[1] = frame.payload[1];
+            } else {
+                cmd.data[0] = 0;
+                cmd.data[1] = 0;
+            }
+        }
+        agentla_bridges::i3c_bulk::I3C_OP_I2C_SCAN => {
+            cmd.kind = CmdKind::I2cScan;
         }
         _ => {
             return agentla_bridges::i3c_bulk::I3cBulkFrame::make_response(
@@ -990,6 +1090,17 @@ pub async fn execute_i3c_bulk_frame(frame_bytes: &[u8], resp_buf: &mut [u8]) -> 
                 resp_buf,
             ).unwrap_or(0);
         }
+    }
+
+    if crate::bridge::i3c_on().is_err() {
+        return agentla_bridges::i3c_bulk::I3cBulkFrame::make_response(
+            frame.header.seq,
+            frame.header.opcode,
+            agentla_bridges::i3c_bulk::I3C_STATUS_INVALID_PARAM,
+            frame.header.addr,
+            &[],
+            resp_buf,
+        ).unwrap_or(0);
     }
 
     I3C_CMD.signal(cmd);
@@ -1004,11 +1115,7 @@ pub async fn execute_i3c_bulk_frame(frame_bytes: &[u8], resp_buf: &mut [u8]) -> 
     };
 
     let rx_len = (r.rx_len as usize).min(r.rx.len());
-    let payload = if frame.header.opcode == agentla_bridges::i3c_bulk::I3C_OP_ENTDAA {
-        &r.rx[..8]
-    } else {
-        &r.rx[..rx_len]
-    };
+    let payload = &r.rx[..rx_len];
 
     agentla_bridges::i3c_bulk::I3cBulkFrame::make_response(
         frame.header.seq,

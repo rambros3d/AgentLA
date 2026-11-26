@@ -18,7 +18,9 @@ pub const I3C_OP_CCC_BROADCAST: u8 = 0x05; // Broadcast CCC; addr = CCC code, pa
 pub const I3C_OP_CCC_DIRECT: u8    = 0x06; // Direct CCC; addr = target dynamic addr, payload = [CCC, data...]
 pub const I3C_OP_PRIVATE_WRITE: u8 = 0x07; // Push-pull write to target addr
 pub const I3C_OP_PRIVATE_READ: u8  = 0x08; // Push-pull read from target addr (payload_len = bytes to read)
-pub const I3C_OP_PRIVATE_WRITE_READ: u8 = 0x09; // Write payload, repeated start, read rx_len bytes
+pub const I3C_OP_PRIVATE_WRITE_READ: u8 = 0x09; // Write payload, repeated start, read rx_len bytes (request header `status` = 1..=128, 0 = 128 fallback)
+pub const I3C_OP_SET_PINS: u8        = 0x0A; // Set unified I2C/I3C SCL and SDA pins: payload [scl: u8, sda: u8]
+pub const I3C_OP_I2C_SCAN: u8        = 0x0B; // Scan I2C bus: returns list of ACKed 7-bit addresses
 pub const I3C_OP_IBI_CONFIG: u8    = 0x10; // Configure IBI ACK behavior
 
 // Event Opcodes (Asynchronous from device to host)
@@ -48,6 +50,7 @@ pub struct I3cBulkHeader {
     pub seq: u8,
     pub payload_len: u16,
     pub addr: u8,
+    /// Response status code, or requested `rx_len` (`1..=128`; `0` -> `128` fallback) on `I3C_OP_PRIVATE_WRITE_READ` requests.
     pub status: u8,
 }
 
@@ -139,7 +142,7 @@ impl<'a> I3cBulkFrame<'a> {
     /// Parse complete frame from `bytes`.
     pub fn parse(bytes: &'a [u8]) -> Option<Self> {
         let header = I3cBulkHeader::parse(bytes)?;
-        let expected_payload = if header.opcode == I3C_OP_PRIVATE_READ {
+        let expected_payload = if header.opcode == I3C_OP_PRIVATE_READ && bytes.len() == I3C_HEADER_SIZE {
             0
         } else {
             header.payload_len as usize
@@ -188,5 +191,29 @@ impl<'a> I3cBulkFrame<'a> {
         header.serialize(&mut dest[..I3C_HEADER_SIZE]);
         dest[I3C_HEADER_SIZE..total_len].copy_from_slice(payload);
         Some(total_len)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn private_write_read_header_rx_len_round_trip() {
+        let mut header = I3cBulkHeader::new(I3C_OP_PRIVATE_WRITE_READ, 7, 0x40, 2);
+        header.status = 4;
+        let payload = [0x10u8, 0x00];
+        let frame = I3cBulkFrame::new(header, &payload);
+
+        let mut buf = [0u8; 16];
+        let written = frame.serialize(&mut buf).expect("serialize frame");
+        assert_eq!(written, I3C_HEADER_SIZE + payload.len());
+        assert_eq!(buf[7], 4);
+
+        let parsed = I3cBulkFrame::parse(&buf[..written]).expect("parse frame");
+        assert_eq!(parsed.header.opcode, I3C_OP_PRIVATE_WRITE_READ);
+        assert_eq!(parsed.header.addr, 0x40);
+        assert_eq!(parsed.header.status, 4);
+        assert_eq!(parsed.payload, &payload);
     }
 }

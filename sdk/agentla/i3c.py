@@ -29,7 +29,14 @@ I3C_OP_CCC_DIRECT    = 0x06
 I3C_OP_PRIVATE_WRITE = 0x07
 I3C_OP_PRIVATE_READ  = 0x08
 I3C_OP_PRIVATE_WRITE_READ = 0x09
+I3C_OP_SET_PINS      = 0x0A
+I3C_OP_I2C_SCAN      = 0x0B
 I3C_OP_IBI_CONFIG    = 0x10
+
+# Flags
+I3C_FLAG_REPEATED_START = 1 << 0
+I3C_FLAG_EMIT_STOP      = 1 << 1
+I3C_FLAG_OPEN_DRAIN     = 1 << 2
 
 # Event Opcodes
 I3C_EVT_IBI_NOTIFICATION = 0x80
@@ -70,6 +77,8 @@ class AgentLaI3c:
         self.dev = None
         self.ep_out = None
         self.ep_in = None
+        self.scl_pin = 10
+        self.sda_pin = 11
         self._seq = 0
 
     def connect(self) -> bool:
@@ -139,15 +148,16 @@ class AgentLaI3c:
         self._seq = (self._seq + 1) & 0xFF
         return self._seq
 
-    def _transceive(self, opcode: int, addr: int = 0, payload: bytes = b"", timeout_ms: int = 1000, req_payload_len: Optional[int] = None) -> Tuple[int, int, bytes]:
+    def _transceive(self, opcode: int, addr: int = 0, payload: bytes = b"", flags: Optional[int] = None, timeout_ms: int = 1000, req_payload_len: Optional[int] = None, status: int = 0) -> Tuple[int, int, bytes]:
         """Send a binary I3C frame and await response."""
         if self.ep_out is None or self.ep_in is None:
             raise ConnectionError("AgentLaI3c is not connected.")
 
         seq = self._next_seq()
-        flags = 0x02 | 0x08 # EMIT_STOP | PUSH_PULL
+        if flags is None:
+            flags = 0x02 | 0x08 # EMIT_STOP | PUSH_PULL
         plen = len(payload) if req_payload_len is None else req_payload_len
-        header = struct.pack("<BBBBHBB", I3C_BULK_MAGIC, opcode, flags, seq, plen, addr, 0)
+        header = struct.pack("<BBBBHBB", I3C_BULK_MAGIC, opcode, flags, seq, plen, addr, status & 0xFF)
         packet = header + payload
 
         self.ep_out.write(packet, timeout=timeout_ms)
@@ -169,6 +179,61 @@ class AgentLaI3c:
         st, _, _ = self._transceive(I3C_OP_SET_BUS_SPEED, payload=payload)
         if st != I3C_STATUS_OK:
             raise I3cException(st, f"Failed to set clock speed to {freq_khz} kHz")
+
+    def set_pins(self, scl: int, sda: int):
+        """Set unified I2C/I3C SCL and SDA pin assignments on AgentLA."""
+        payload = bytes([scl & 0xFF, sda & 0xFF])
+        st, _, _ = self._transceive(I3C_OP_SET_PINS, payload=payload)
+        if st != I3C_STATUS_OK:
+            raise I3cException(st, f"Failed to set pins to SCL={scl}, SDA={sda}")
+        self.scl_pin = scl
+        self.sda_pin = sda
+
+    def is_inverted(self) -> bool:
+        """Return True if SCL and SDA are inverted (SCL=11, SDA=10)."""
+        return self.scl_pin == 11 and self.sda_pin == 10
+
+    def set_inverted(self, inverted: bool):
+        """Set unified pin inversion across both I2C and I3C."""
+        if inverted:
+            self.set_pins(11, 10)
+        else:
+            self.set_pins(10, 11)
+        return self.scl_pin, self.sda_pin
+
+    def swap_pins(self):
+        """Invert active SCL and SDA pin assignments."""
+        new_scl = self.sda_pin
+        new_sda = self.scl_pin
+        self.set_pins(new_scl, new_sda)
+        return self.scl_pin, self.sda_pin
+
+    def auto_detect_target(self, target_addrs: Optional[list] = None) -> Tuple[bool, int, int]:
+        """Autonomously probe for target on bus. If not found, invert pins and probe again.
+        Returns (found: bool, scl_pin: int, sda_pin: int).
+        """
+        targets = target_addrs if target_addrs is not None else [0x40]
+        for orientation in [False, True]:
+            self.set_inverted(orientation)
+            time.sleep(0.02)
+            try:
+                found = self.i2c_scan()
+                for t in targets:
+                    if t in found:
+                        return True, self.scl_pin, self.sda_pin
+            except Exception:
+                pass
+            # Try ENTDAA
+            try:
+                for t in targets:
+                    dev = self.entdaa(t)
+                    if dev is not None:
+                        return True, self.scl_pin, self.sda_pin
+            except Exception:
+                pass
+        # Reset to non-inverted if nothing detected
+        self.set_inverted(False)
+        return False, self.scl_pin, self.sda_pin
 
     def target_reset(self):
         """Emit I3C target reset sequence (9 SCL pulses with SDA low)."""
@@ -220,7 +285,10 @@ class AgentLaI3c:
 
     def private_write_read(self, target_addr: int, data: bytes, read_len: int = 64) -> bytes:
         """Perform a write followed by repeated read in a single atomic transaction."""
-        st, _, rx = self._transceive(I3C_OP_PRIVATE_WRITE_READ, addr=target_addr, payload=data)
+        rx_len = max(1, min(read_len, 128))
+        st, _, rx = self._transceive(
+            I3C_OP_PRIVATE_WRITE_READ, addr=target_addr, payload=data, status=rx_len
+        )
         if st != I3C_STATUS_OK:
             raise I3cException(st, f"Private write-read to address {target_addr:#x} failed")
         return rx[:read_len]
@@ -230,3 +298,39 @@ class AgentLaI3c:
         st, _, _ = self._transceive(I3C_OP_CCC_BROADCAST, addr=ccc_code, payload=data)
         if st != I3C_STATUS_OK:
             raise I3cException(st, f"Broadcast CCC {ccc_code:#x} failed")
+
+    def i2c_scan(self) -> list:
+        """Scan I2C bus across addresses 0x08..0x77 and return list of responding addresses."""
+        st, _, payload = self._transceive(I3C_OP_I2C_SCAN)
+        if st != I3C_STATUS_OK:
+            raise I3cException(st, "I2C scan failed")
+        return list(payload)
+
+    def i2c_write(self, target_addr: int, data: bytes):
+        """Perform an open-drain standard I2C write to target address."""
+        st, _, _ = self._transceive(I3C_OP_PRIVATE_WRITE, addr=target_addr, flags=I3C_FLAG_OPEN_DRAIN, payload=data)
+        if st != I3C_STATUS_OK:
+            raise I3cException(st, f"I2C write to address {target_addr:#x} failed")
+
+    def i2c_read(self, target_addr: int, length: int) -> bytes:
+        """Perform an open-drain standard I2C read from target address."""
+        st, _, data = self._transceive(
+            I3C_OP_PRIVATE_READ, addr=target_addr, flags=I3C_FLAG_OPEN_DRAIN, payload=b"", req_payload_len=length
+        )
+        if st != I3C_STATUS_OK:
+            raise I3cException(st, f"I2C read from address {target_addr:#x} failed")
+        return data
+
+    def i2c_transfer(self, target_addr: int, tx_data: bytes, read_len: int = 64) -> bytes:
+        """Perform an open-drain I2C write followed by read."""
+        rx_len = max(1, min(read_len, 128))
+        st, _, rx = self._transceive(
+            I3C_OP_PRIVATE_WRITE_READ,
+            addr=target_addr,
+            flags=I3C_FLAG_OPEN_DRAIN,
+            payload=tx_data,
+            status=rx_len,
+        )
+        if st != I3C_STATUS_OK:
+            raise I3cException(st, f"I2C transfer to address {target_addr:#x} failed")
+        return rx[:read_len]
